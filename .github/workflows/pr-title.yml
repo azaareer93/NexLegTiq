@@ -1,0 +1,36 @@
+name: PR conventions
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  title:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Title must be "[MVP-123] type(scope): subject"
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          echo "$TITLE" | grep -Eq '^\[MVP-[0-9]+\] (feat|fix|refactor|perf|test|docs|chore|build|ci|revert)(\([a-z0-9-]+\))?!?: .+' \
+            || { echo "::error::PR title must look like '[MVP-123] feat(cases): add file numbering'"; exit 1; }
+  human-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Sensitive paths require the needs-human-review label
+        env:
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          changed=$(git diff --name-only "$BASE" "$HEAD")
+          if echo "$changed" | grep -Eq '(modules/auth/|tenant|prisma/|modules/billing/|modules/ai/.*pii|shared-types/src/permissions\.ts|^\.github/|^\.claude/hooks/)'; then
+            echo "$LABELS" | grep -q 'needs-human-review' \
+              || { echo "::error::This PR touches sensitive paths (D-072). Add the 'needs-human-review' label."; exit 1; }
+          fi

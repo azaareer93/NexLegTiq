@@ -1,0 +1,38 @@
+# deps & builds
+node_modules/
+dist/
+tmp/
+out-tsc/
+coverage/
+.nx/cache/
+.nx/workspace-data/
+*.tsbuildinfo
+
+# env & secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# tooling state
+.claude/settings.local.json
+.claude-flow/
+.swarm/
+.hive-mind/
+memory/
+*.db-journal
+*.db-wal
+*.db-shm
+
+# editors / OS
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+
+# test artifacts
+cypress/videos/
+cypress/screenshots/
+playwright-report/

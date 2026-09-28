@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  workspace:
+    name: Lint · Typecheck · Test · Build
+    runs-on: ubuntu-latest
+    if: ${{ hashFiles('pnpm-lock.yaml') != '' }}
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: nexlegtiq
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: nexlegtiq_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U nexlegtiq" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://nexlegtiq:test@localhost:5432/nexlegtiq_test
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ci-only-access-secret-at-least-32-characters
+      JWT_REFRESH_SECRET: ci-only-refresh-secret-at-least-32-chars
+      JWT_PORTAL_SECRET: ci-only-portal-secret-at-least-32-chars
+      ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
+      AI_PRIMARY_PROVIDER: fake
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: nrwl/nx-set-shas@v4
+      - run: pnpm nx affected -t lint typecheck --parallel=3
+      - run: pnpm nx run backend-api:prisma-deploy
+        if: ${{ hashFiles('apps/backend-api/prisma/schema.prisma') != '' }}
+      - run: pnpm nx affected -t test --parallel=3 --coverage
+      - run: pnpm nx affected -t e2e-ci --parallel=1
+      - run: pnpm nx affected -t build --parallel=3
+      - run: pnpm audit --prod --audit-level high
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  claude-config:
+    name: Claude Code config sanity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Validate JSON configs
+        run: |
+          node -e "JSON.parse(require('fs').readFileSync('.claude/settings.json','utf8'))"
+          node -e "JSON.parse(require('fs').readFileSync('.mcp.json','utf8'))"
+      - name: Hook smoke tests
+        run: node scripts/test-hooks.mjs
+      - name: Knowledge base seed dry-run
+        run: node scripts/ruflo-seed.mjs --dry-run > /dev/null

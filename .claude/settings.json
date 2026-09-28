@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(pnpm:*)",
+      "Bash(pnpm nx:*)",
+      "Bash(npx nx:*)",
+      "Bash(npx prisma:*)",
+      "Bash(npx ruflo@latest memory:*)",
+      "Bash(npx ruflo@latest hooks:*)",
+      "Bash(docker compose:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git switch:*)",
+      "Bash(git checkout -b:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git fetch:*)",
+      "Bash(git push -u origin:*)",
+      "Bash(gh pr:*)",
+      "Bash(gh run:*)",
+      "Bash(node .claude/hooks/:*)",
+      "mcp__atlassian__getJiraIssue",
+      "mcp__atlassian__searchJiraIssuesUsingJql",
+      "mcp__atlassian__getTransitionsForJiraIssue",
+      "mcp__atlassian__getJiraIssueRemoteIssueLinks",
+      "mcp__notion__notion-fetch",
+      "mcp__notion__notion-search",
+      "mcp__claude-flow__memory_search",
+      "mcp__claude-flow__memory_retrieve",
+      "mcp__claude-flow__memory_list"
+    ],
+    "ask": [
+      "mcp__atlassian__createJiraIssue",
+      "mcp__atlassian__editJiraIssue",
+      "mcp__notion__notion-update-page",
+      "mcp__notion__notion-create-pages",
+      "Bash(gh pr merge:*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*.local)",
+      "Read(./.env.production)",
+      "Read(./.env.staging)",
+      "Read(./**/secrets/**)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)"
+    ]
+  },
+  "env": {
+    "NEXLEGTIQ_JIRA_PROJECT": "MVP",
+    "NEXLEGTIQ_JIRA_SITE": "nexlegtiq.atlassian.net"
+  },
+  "enableAllProjectMcpServers": false,
+  "enabledMcpjsonServers": ["atlassian", "notion", "claude-flow"],
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.mjs\"" }]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-bash.mjs\"" }]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-files.mjs\"" }]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/format-file.mjs\"" }]
+      }
+    ]
+  }
+}
