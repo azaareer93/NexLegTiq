@@ -1,0 +1,12 @@
+{
+  "name": "office-app",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/office-app/src",
+  "projectType": "application",
+  "tags": [
+    "type:app",
+    "scope:frontend"
+  ],
+  "// targets": "to see all targets run: nx show project office-app --web",
+  "targets": {}
+}

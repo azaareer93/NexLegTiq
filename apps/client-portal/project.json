@@ -1,0 +1,12 @@
+{
+  "name": "client-portal",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/client-portal/src",
+  "projectType": "application",
+  "tags": [
+    "type:app",
+    "scope:frontend"
+  ],
+  "// targets": "to see all targets run: nx show project client-portal --web",
+  "targets": {}
+}

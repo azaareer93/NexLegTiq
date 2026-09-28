@@ -56,3 +56,6 @@ cypress/screenshots/
 playwright-report/
 
 test-output
+
+vite.config.*.timestamp*
+vitest.config.*.timestamp*

@@ -1,0 +1,4 @@
+/* Global styles. Theme tokens arrive with shared-ui (MVP-43). Use logical properties only. */
+body {
+  margin: 0;
+}

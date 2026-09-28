@@ -8,6 +8,15 @@
     },
     {
       "path": "./apps/backend-api"
+    },
+    {
+      "path": "./apps/office-app"
+    },
+    {
+      "path": "./apps/admin-panel"
+    },
+    {
+      "path": "./apps/client-portal"
     }
   ]
 }
