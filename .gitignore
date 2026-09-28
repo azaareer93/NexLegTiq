@@ -25,6 +25,24 @@ memory/
 *.db-wal
 *.db-shm
 
+# `ruflo init` output — generic, regenerable, local state. Only curated NexLegTiq
+# agents/commands/skills are versioned. New curated skill ⇒ add a `!` line below.
+.claude/*.db
+.claude/helpers/
+.claude/proven-config.json
+.claude/.proven-config-version
+.claude/agents/*/
+.claude/commands/*/
+.claude/commands/claude-flow-*.md
+.claude/skills/*/
+!.claude/skills/ai-feature/
+!.claude/skills/jira-workflow/
+!.claude/skills/nest-module/
+!.claude/skills/prisma-change/
+!.claude/skills/react-feature/
+!.claude/skills/rtl-i18n/
+!.claude/skills/tenant-isolation/
+
 # editors / OS
 .idea/
 .vscode/*
