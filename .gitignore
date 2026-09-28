@@ -54,3 +54,5 @@ Thumbs.db
 cypress/videos/
 cypress/screenshots/
 playwright-report/
+
+test-output
