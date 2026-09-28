@@ -31,6 +31,15 @@ npx ruflo@latest memory search -q "tenant isolation" --build-hnsw
 # 4) Optional: let Ruflo learn codebase patterns once code exists
 npx ruflo@latest hooks pretrain --depth deep
 ```
+### Windows notes
+- Run the seed script with **Claude Code closed**. On Windows Ruflo writes via sql.js (its native SQLite bridge is disabled
+  upstream, ruflo #3024) and refuses to write while another process — usually Claude Code's `claude-flow` MCP server —
+  holds `.swarm/memory.db` open. The script detects this (`memory.db-wal` / `memory.db-shm` present) and prints the fix.
+- If those two files remain with nothing running, they are stale: move them aside (`Move-Item .swarm\memory.db-wal .swarm\memory.db-wal.bak`,
+  same for `-shm`) and re-run.
+- Don't set `CLAUDE_FLOW_ENABLE_NATIVE_BRIDGE_ON_WINDOWS=1`; upstream disabled it because it can crash Node.
+- With `npm i -g ruflo` you can call it as `ruflo …`; the seed script finds the global install automatically.
+
 Ruflo writes local state under `.claude-flow/` and `.swarm/` (git-ignored) — memory is per machine. Commit knowledge to
 `docs/context/` and re-seed; don't rely on Ruflo as the only copy of anything important.
 
