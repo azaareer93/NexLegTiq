@@ -98,6 +98,30 @@ function resolveRufloBin() {
   return installed;
 }
 
+// Ruflo on Windows writes with sql.js (native SQLite bridge disabled upstream, ruflo #3024) and refuses to write
+// while WAL sidecar files exist — they mean another process (usually Claude Code's claude-flow MCP server) has the
+// DB open natively, or a crashed process left them behind. Detect that up front instead of failing every entry.
+const memoryRoot = process.env.CLAUDE_FLOW_MEMORY_PATH ? resolve(process.env.CLAUDE_FLOW_MEMORY_PATH) : join(root, '.swarm');
+const sidecars = ['memory.db-wal', 'memory.db-shm'].map((f) => join(memoryRoot, f)).filter((f) => existsSync(f));
+if (!dryRun && sidecars.length) {
+  console.error(
+    [
+      'Ruflo memory DB is open by another process (found WAL sidecar files):',
+      ...sidecars.map((f) => `  ${f}`),
+      '',
+      'Fix:',
+      '  1. Close Claude Code (and any other terminal running `ruflo mcp start` / the ruflo daemon).',
+      '  2. Re-run this script.',
+      '  3. If the files are still there with nothing running, they are stale leftovers — move them aside, e.g.',
+      isWin
+        ? `     Move-Item ${join(memoryRoot, 'memory.db-wal')} ${join(memoryRoot, 'memory.db-wal.bak')}; Move-Item ${join(memoryRoot, 'memory.db-shm')} ${join(memoryRoot, 'memory.db-shm.bak')}`
+        : `     mv ${join(memoryRoot, 'memory.db-wal')}{,.bak} && mv ${join(memoryRoot, 'memory.db-shm')}{,.bak}`,
+      '     (if the move fails with "in use", a process still holds the DB — find and close it first).',
+    ].join('\n'),
+  );
+  process.exit(2);
+}
+
 const rufloBin = dryRun ? null : resolveRufloBin();
 if (rufloBin) console.log(`Using ${rufloBin}\n`);
 
@@ -123,7 +147,15 @@ function store(namespace, key, value) {
 
 let ok = 0;
 let failed = 0;
-const track = (res) => (res ? ok++ : failed++);
+const track = (res) => {
+  if (res) ok++;
+  else failed++;
+  // Fail fast: if nothing has succeeded after 3 attempts the problem is environmental, not per-entry.
+  if (!res && ok === 0 && failed >= 3) {
+    console.error('\nStopping: the first 3 entries all failed — fix the error above and re-run (safe to repeat).');
+    process.exit(1);
+  }
+};
 
 for (const file of targets) {
   const name = basename(file, '.md');
