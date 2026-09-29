@@ -53,18 +53,8 @@
     "NEXLEGTIQ_JIRA_SITE": "nexlegtiq.atlassian.net"
   },
   "extraKnownMarketplaces": {
-    "ponytail": {
-      "source": {
-        "source": "github",
-        "repo": "DietrichGebert/ponytail"
-      }
-    },
-    "addy-agent-skills": {
-      "source": {
-        "source": "github",
-        "repo": "addyosmani/agent-skills"
-      }
-    }
+    "ponytail": { "source": { "source": "github", "repo": "DietrichGebert/ponytail" } },
+    "addy-agent-skills": { "source": { "source": "github", "repo": "addyosmani/agent-skills" } }
   },
   "enabledPlugins": {
     "claude-code-setup@claude-plugins-official": true,
@@ -72,71 +62,27 @@
     "agent-skills@addy-agent-skills": true
   },
   "enableAllProjectMcpServers": false,
-  "enabledMcpjsonServers": [
-    "atlassian",
-    "notion",
-    "claude-flow"
-  ],
+  "enabledMcpjsonServers": ["atlassian", "notion", "claude-flow"],
   "hooks": {
     "SessionStart": [
       {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.mjs\""
-          }
-        ]
+        "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.mjs\"" }]
       }
     ],
     "PreToolUse": [
       {
         "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-bash.mjs\""
-          }
-        ]
+        "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-bash.mjs\"" }]
       },
       {
         "matcher": "Write|Edit|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-files.mjs\""
-          }
-        ]
-      },
-      {
-        "matcher": "Bash|Grep",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "graphify hook-guard search",
-            "timeout": 10
-          }
-        ]
-      },
-      {
-        "matcher": "Read|Glob",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "graphify hook-guard read",
-            "timeout": 10
-          }
-        ]
+        "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-files.mjs\"" }]
       }
     ],
     "PostToolUse": [
       {
         "matcher": "Write|Edit|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/format-file.mjs\""
-          }
-        ]
+        "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/format-file.mjs\"" }]
       }
     ]
   }
