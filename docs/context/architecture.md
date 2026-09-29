@@ -4,6 +4,9 @@
 > Resolutions: `decisions.md` (D-010…D-021).
 
 ## Monorepo (Nx + pnpm, Node 22)
+Tooling (MVP-28): Nx 23 with TS project references, pnpm 10 workspaces, **TypeScript 6.0** (TS 7 is not yet supported by
+Nx/typescript-eslint). Shared packages are non-buildable TS source packages (`exports` → `src/index.ts`), bundled by each app.
+Boundary constraints live in `packages/shared-config/eslint/module-boundaries.mjs` (tags `type:*`, `scope:*`, `layer:*`).
 ```
 apps/
   office-app/        React 19 + Vite SPA for law-office staff        :4200
@@ -75,7 +78,7 @@ Events: `document.processed`, `document.summary.ready`, `session.scheduled`, `se
 `task.assigned`, `task.updated`, `notification`, `ai.job.completed|failed`.
 
 ## Frontend (office-app, client-portal, admin-panel)
-React 19, Vite, React Router, AntD 5 (`ConfigProvider` with theme tokens, `direction`, `locale`), `@ant-design/icons`,
+React 19, Vite 8, **React Router 8** (data router: `createBrowserRouter` + `RouterProvider`, D-010), AntD 5 (`ConfigProvider` with theme tokens, `direction`, `locale`), `@ant-design/icons`,
 `@ant-design/pro-components` (tables/forms where helpful), TanStack Query 5, Zustand (auth/session/ui stores),
 axios via `shared-api-client`, i18next + react-i18next, dayjs (with `ar` locale), `@dnd-kit`, Vitest + Testing Library,
 Storybook (+ RTL toggle) for shared-ui. See `frontend.md`.
