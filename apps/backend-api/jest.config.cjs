@@ -12,7 +12,7 @@ swcJestConfig.swcrc = false;
 module.exports = {
   displayName: 'backend-api',
   preset: '../../jest.preset.js',
-  setupFiles: ['<rootDir>/jest.setup.cjs'],
+  setupFiles: ['<rootDir>/jest.setup.ts'],
   testEnvironment: 'node',
   transform: {
     '^.+\\.[tj]s$': ['@swc/jest', swcJestConfig]

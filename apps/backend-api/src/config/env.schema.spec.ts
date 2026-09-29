@@ -1,10 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseEnv as parseDotenv } from 'node:util';
+import { inspect, parseEnv as parseDotenv } from 'node:util';
 
 import { AppConfig } from './app-config';
 import { REQUIRED_TEST_ENV, testEnv } from './env.fixture';
-import { parseEnv } from './env.schema';
+import { ENV_KEYS, parseEnv } from './env.schema';
 
 describe('parseEnv', () => {
   it('should apply fail-closed defaults when only the required variables are set', () => {
@@ -21,21 +21,19 @@ describe('parseEnv', () => {
       METRICS_PORT: 9464,
       TRUST_PROXY_HOPS: 0,
     });
-    expect(env.CORS_ORIGINS).toEqual([
-      'http://localhost:4200',
-      'http://localhost:4201',
-      'http://localhost:4202',
-    ]);
+    expect(env.CORS_ORIGINS).toEqual(['http://localhost:4200', 'http://localhost:4201', 'http://localhost:4202']);
   });
 
   it('should coerce numbers, booleans and comma-separated origins', () => {
-    const env = parseEnv(testEnv({
-      NODE_ENV: 'development',
-      PORT: '8080',
-      LOG_PRETTY: 'true',
-      METRICS_ENABLED: 'false',
-      CORS_ORIGINS: 'https://app.example.test, https://portal.example.test',
-    }));
+    const env = parseEnv(
+      testEnv({
+        NODE_ENV: 'development',
+        PORT: '8080',
+        LOG_PRETTY: 'true',
+        METRICS_ENABLED: 'false',
+        CORS_ORIGINS: 'https://app.example.test, https://portal.example.test',
+      }),
+    );
 
     expect(env.PORT).toBe(8080);
     expect(env.LOG_PRETTY).toBe(true);
@@ -44,7 +42,11 @@ describe('parseEnv', () => {
   });
 
   it('should normalise CORS origins to scheme://host[:port]', () => {
-    const env = parseEnv(testEnv({ CORS_ORIGINS: 'https://app.example.test/, http://localhost:4200/path' }));
+    const env = parseEnv(
+      testEnv({
+        CORS_ORIGINS: 'https://app.example.test/, http://localhost:4200/path',
+      }),
+    );
 
     expect(env.CORS_ORIGINS).toEqual(['https://app.example.test', 'http://localhost:4200']);
   });
@@ -76,13 +78,23 @@ describe('parseEnv', () => {
     ['CORS_ORIGINS', 'not-a-url'],
     ['METRICS_ENABLED', 'maybe'],
     ['TRUST_PROXY_HOPS', '-1'],
+    ['TRUST_PROXY_HOPS', '6'],
+    ['HOST', '  '],
     ['DATABASE_URL', 'mysql://user:pass@localhost/db'],
     ['REDIS_URL', 'http://localhost:6379'],
     ['BULLMQ_PREFIX', 'Has Spaces'],
     ['S3_ENDPOINT', 'ftp://localhost:9000'],
     ['S3_BUCKET', 'Upper_Case'],
+    ['S3_BUCKET', 'ab'],
+    ['S3_BUCKET', '-abc'],
+    ['S3_REGION', ' '],
+    ['S3_SECRET_ACCESS_KEY', ''],
     ['S3_FORCE_PATH_STYLE', 'sometimes'],
     ['SMTP_PORT', '0'],
+    ['SMTP_PORT', '65536'],
+    ['SMTP_HOST', ''],
+    ['SMTP_REQUIRE_TLS', 'perhaps'],
+    ['SMTP_USER', ''],
     ['MAIL_FROM', 'not-an-email'],
     ['CLAMAV_PORT', 'clam'],
   ])('should throw naming %s when it is %s', (key, value) => {
@@ -116,31 +128,79 @@ describe('parseEnv', () => {
       S3_FORCE_PATH_STYLE: false,
       SMTP_PORT: 587,
       SMTP_SECURE: false,
+      SMTP_REQUIRE_TLS: true,
       CLAMAV_PORT: 3310,
     });
+    expect(parseEnv(testEnv({ NODE_ENV: 'development' })).SMTP_REQUIRE_TLS).toBe(false);
+  });
+
+  it.each([
+    ['DATABASE_URL', 'postgresql://app:strong-pw@db:5432/nexlegtiq'],
+    ['DATABASE_URL', 'postgresql://app:strong-pw@db:5432/nexlegtiq?sslmode=prefer'],
+    ['REDIS_URL', 'redis://cache:6379'],
+    ['S3_ENDPOINT', 'http://storage:9000'],
+    ['SMTP_REQUIRE_TLS', 'false'],
+    ['DATABASE_URL', 'postgresql://nexlegtiq:nexlegtiq@db:5432/nexlegtiq?sslmode=require'],
+    ['S3_SECRET_ACCESS_KEY', 'nexlegtiq-dev-only'],
+    ['S3_ACCESS_KEY_ID', 'ci-only-access-key'],
+  ])('should reject %s=%s in production (plaintext transport or dev credential)', (key, value) => {
+    expect(() => parseEnv(testEnv({ NODE_ENV: 'production', [key]: value }))).toThrow(new RegExp(key));
+    expect(() => parseEnv(testEnv({ NODE_ENV: 'development', [key]: value }))).not.toThrow();
+  });
+
+  it('should allow SMTP_REQUIRE_TLS=false in production when SMTP_SECURE uses implicit TLS', () => {
+    expect(() =>
+      parseEnv(
+        testEnv({
+          NODE_ENV: 'production',
+          SMTP_SECURE: 'true',
+          SMTP_REQUIRE_TLS: 'false',
+        }),
+      ),
+    ).not.toThrow();
   });
 
   it('should require SMTP_USER and SMTP_PASSWORD together', () => {
     expect(() => parseEnv(testEnv({ SMTP_USER: 'mailer' }))).toThrow(/SMTP_PASSWORD/);
+    expect(() => parseEnv(testEnv({ SMTP_PASSWORD: 'pw' }))).toThrow(/SMTP_PASSWORD/);
     expect(() => parseEnv(testEnv({ SMTP_USER: 'mailer', SMTP_PASSWORD: 'pw' }))).not.toThrow();
   });
 });
 
 describe('AppConfig', () => {
   it('should expose grouped, typed settings', () => {
-    const config = new AppConfig(parseEnv(testEnv({ NODE_ENV: 'production', HOST: '0.0.0.0', METRICS_PORT: '9100' })));
+    const config = new AppConfig(
+      parseEnv(
+        testEnv({
+          NODE_ENV: 'production',
+          HOST: '0.0.0.0',
+          METRICS_PORT: '9100',
+        }),
+      ),
+    );
 
     expect(config.isProduction).toBe(true);
     expect(config.nodeEnv).toBe('production');
-    expect(config.http).toEqual({ host: '0.0.0.0', port: 3000, trustProxyHops: 0 });
+    expect(config.http).toEqual({
+      host: '0.0.0.0',
+      port: 3000,
+      trustProxyHops: 0,
+    });
     expect(config.log).toEqual({ level: 'info', pretty: false });
     expect(config.swaggerEnabled).toBe(false);
     expect(config.corsOrigins).toHaveLength(3);
-    expect(config.metrics).toEqual({ enabled: true, host: 'localhost', port: 9100 });
+    expect(config.metrics).toEqual({
+      enabled: true,
+      host: 'localhost',
+      port: 9100,
+    });
     expect(config.database).toEqual({ url: REQUIRED_TEST_ENV['DATABASE_URL'] });
-    expect(config.redis).toEqual({ url: REQUIRED_TEST_ENV['REDIS_URL'], bullmqPrefix: 'nlq' });
+    expect(config.redis).toEqual({
+      url: REQUIRED_TEST_ENV['REDIS_URL'],
+      bullmqPrefix: 'nlq',
+    });
     expect(config.storage).toEqual({
-      endpoint: 'http://localhost:9000',
+      endpoint: 'https://localhost:9000',
       region: 'us-east-1',
       bucket: 'nexlegtiq-documents-local',
       accessKeyId: 'test-access-key',
@@ -154,13 +214,44 @@ describe('AppConfig', () => {
     const anonymous = new AppConfig(parseEnv(testEnv({ SMTP_PORT: '1025' })));
     const authenticated = new AppConfig(parseEnv(testEnv({ SMTP_USER: 'mailer', SMTP_PASSWORD: 'pw' })));
 
-    expect(anonymous.mail).toEqual({ host: 'localhost', port: 1025, secure: false, from: 'no-reply@nexlegtiq.test' });
+    expect(anonymous.mail).toEqual({
+      host: 'localhost',
+      port: 1025,
+      secure: false,
+      requireTLS: true,
+      from: 'no-reply@nexlegtiq.test',
+    });
     expect(authenticated.mail.auth).toEqual({ user: 'mailer', pass: 'pw' });
   });
 
+  it('should map non-default storage and mail flags', () => {
+    const config = new AppConfig(
+      parseEnv(
+        testEnv({
+          S3_FORCE_PATH_STYLE: 'true',
+          SMTP_SECURE: 'true',
+          SMTP_PORT: '465',
+        }),
+      ),
+    );
+
+    expect(config.storage.forcePathStyle).toBe(true);
+    expect(config.mail).toMatchObject({ secure: true, port: 465 });
+  });
+
+  it('should never serialise its secrets', () => {
+    const config = new AppConfig(parseEnv(testEnv()));
+
+    expect(JSON.stringify(config)).not.toContain('test-secret-key');
+    expect(inspect(config)).not.toContain('test-secret-key');
+  });
+
   it('should accept the committed .env.example as a complete development config', () => {
-    const example = parseDotenv(readFileSync(join(__dirname, '../../../../.env.example'), 'utf8'));
+    const source = readFileSync(join(__dirname, '../../../../.env.example'), 'utf8');
+    const example = parseDotenv(source);
+    const documented = [...source.matchAll(/^#? *([A-Z][A-Z0-9_]*)=/gm)].map((match) => match[1]);
 
     expect(parseEnv(example).NODE_ENV).toBe('development');
+    expect(documented.sort()).toEqual([...ENV_KEYS].sort());
   });
 });

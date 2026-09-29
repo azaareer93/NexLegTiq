@@ -13,67 +13,101 @@ const required = z.string().trim().min(1);
 // Connection URLs carry credentials: Zod's URL issues never echo the input, so a bad value is never logged.
 const databaseUrl = z.url({ protocol: /^postgres(ql)?$/ });
 const redisUrl = z.url({ protocol: /^rediss?$/ });
+// Documented dev/CI credentials (compose.dev.yml, .env.example, ci.yml): a production boot with one of them is a mistake.
+const PLACEHOLDER_SECRET = /^(nexlegtiq|nexlegtiq-dev-only|ci-only-.*|change-me.*)$/;
+const TLS_SSLMODES = new Set(['require', 'verify-ca', 'verify-full']);
 
 /**
  * Environment contract of backend-api (HTTP + worker). Boot fails on invalid env. Unknown keys are ignored.
  * Every variable here must also be documented in `.env.example`. Backing services have no defaults (fail closed):
  * locally they come from `.env` (copy of `.env.example`, matching `docker/compose.dev.yml`), in CI from the workflow.
  */
-export const EnvSchema = z
-  .object({
-    // Fail closed: an unset NODE_ENV behaves like production (Swagger off, no pretty logs). .env.example sets development.
-    NODE_ENV: z.enum(['development', 'test', 'production']).default('production'),
-    HOST: z.string().trim().min(1).default('localhost'),
-    PORT: port.default(3000),
-    LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
-    LOG_PRETTY: z.stringbool().default(false),
-    CORS_ORIGINS: csv
-      .pipe(z.array(origin))
-      .default(['http://localhost:4200', 'http://localhost:4201', 'http://localhost:4202']),
-    SWAGGER_ENABLED: z.stringbool().optional(),
-    METRICS_ENABLED: z.stringbool().default(true),
-    METRICS_HOST: z.string().trim().min(1).default('localhost'),
-    METRICS_PORT: port.default(9464),
-    // Number of reverse proxies (Caddy/Traefik, D-020) in front of the API whose X-Forwarded-For is trusted. 0 = none.
-    TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
+const EnvObject = z.object({
+  // Fail closed: an unset NODE_ENV behaves like production (Swagger off, no pretty logs). .env.example sets development.
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('production'),
+  HOST: z.string().trim().min(1).default('localhost'),
+  PORT: port.default(3000),
+  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+  LOG_PRETTY: z.stringbool().default(false),
+  CORS_ORIGINS: csv
+    .pipe(z.array(origin))
+    .default(['http://localhost:4200', 'http://localhost:4201', 'http://localhost:4202']),
+  SWAGGER_ENABLED: z.stringbool().optional(),
+  METRICS_ENABLED: z.stringbool().default(true),
+  METRICS_HOST: z.string().trim().min(1).default('localhost'),
+  METRICS_PORT: port.default(9464),
+  // Number of reverse proxies (Caddy/Traefik, D-020) in front of the API whose X-Forwarded-For is trusted. 0 = none.
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
 
-    DATABASE_URL: databaseUrl,
-    REDIS_URL: redisUrl,
-    // Prefix of every BullMQ key (D-011), so environments can share a Redis without clashing.
-    BULLMQ_PREFIX: z.string().regex(/^[a-z0-9-]{1,32}$/).default('nlq'),
+  DATABASE_URL: databaseUrl,
+  REDIS_URL: redisUrl,
+  // Prefix of every BullMQ key (D-011), so environments can share a Redis without clashing.
+  BULLMQ_PREFIX: z
+    .string()
+    .regex(/^[a-z0-9-]{1,32}$/)
+    .default('nlq'),
 
-    // S3-compatible object storage (MinIO locally, R2/S3/Spaces elsewhere — D-020).
-    S3_ENDPOINT: z.url({ protocol: /^https?$/ }),
-    S3_REGION: required,
-    S3_BUCKET: z.string().regex(/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/, 'Invalid bucket name'),
-    S3_ACCESS_KEY_ID: required,
-    S3_SECRET_ACCESS_KEY: required,
-    // MinIO needs path-style URLs; AWS/R2 work with virtual-hosted style.
-    S3_FORCE_PATH_STYLE: z.stringbool().default(false),
+  // S3-compatible object storage (RustFS locally, R2/S3/Spaces elsewhere — D-020, D-078).
+  S3_ENDPOINT: z.url({ protocol: /^https?$/ }),
+  S3_REGION: required,
+  S3_BUCKET: z.string().regex(/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/, 'Invalid bucket name'),
+  S3_ACCESS_KEY_ID: required,
+  S3_SECRET_ACCESS_KEY: required,
+  // Local S3 servers need path-style URLs; AWS/R2 work with virtual-hosted style.
+  S3_FORCE_PATH_STYLE: z.stringbool().default(false),
 
-    SMTP_HOST: required,
-    SMTP_PORT: port.default(587),
-    // true = implicit TLS (port 465); false = STARTTLS when the server offers it (Mailpit offers none).
-    SMTP_SECURE: z.stringbool().default(false),
-    SMTP_USER: z.string().optional(),
-    SMTP_PASSWORD: z.string().optional(),
-    MAIL_FROM: z.email(),
+  SMTP_HOST: required,
+  SMTP_PORT: port.default(587),
+  // true = implicit TLS (port 465); false = STARTTLS on 587.
+  SMTP_SECURE: z.stringbool().default(false),
+  // Refuse to send when STARTTLS is not offered (stops TLS stripping). Defaults to on in production; Mailpit needs off.
+  SMTP_REQUIRE_TLS: z.stringbool().optional(),
+  SMTP_USER: required.optional(),
+  SMTP_PASSWORD: required.optional(),
+  MAIL_FROM: z.email(),
 
-    CLAMAV_HOST: required,
-    CLAMAV_PORT: port.default(3310),
-  })
-  .refine((env) => !(env.NODE_ENV === 'production' && env.LOG_PRETTY), {
-    message: 'LOG_PRETTY must be false in production (pino-pretty is a dev dependency)',
-    path: ['LOG_PRETTY'],
-  })
+  CLAMAV_HOST: required,
+  CLAMAV_PORT: port.default(3310),
+});
+
+/** Every variable the backend reads; `.env.example` must document each of them (asserted in env.schema.spec.ts). */
+export const ENV_KEYS = Object.keys(EnvObject.shape);
+
+export const EnvSchema = EnvObject.refine((env) => !(env.NODE_ENV === 'production' && env.LOG_PRETTY), {
+  message: 'LOG_PRETTY must be false in production (pino-pretty is a dev dependency)',
+  path: ['LOG_PRETTY'],
+})
   .refine((env) => (env.SMTP_USER === undefined) === (env.SMTP_PASSWORD === undefined), {
     message: 'SMTP_USER and SMTP_PASSWORD must be set together',
     path: ['SMTP_PASSWORD'],
+  })
+  .superRefine((env, ctx) => {
+    if (env.NODE_ENV !== 'production') return;
+    // In transit TLS 1.2+ everywhere (ops-security.md, D-078). Messages never echo values: URLs carry credentials.
+    const fail = (path: string, message: string): void => void ctx.addIssue({ code: 'custom', path: [path], message });
+    if (!TLS_SSLMODES.has(new URL(env.DATABASE_URL).searchParams.get('sslmode') ?? '')) {
+      fail('DATABASE_URL', 'must set sslmode=require, verify-ca or verify-full in production');
+    }
+    if (!env.REDIS_URL.startsWith('rediss:')) fail('REDIS_URL', 'must use rediss:// (TLS) in production');
+    if (!env.S3_ENDPOINT.startsWith('https:')) fail('S3_ENDPOINT', 'must use https:// in production');
+    if (env.SMTP_REQUIRE_TLS === false && !env.SMTP_SECURE) {
+      fail('SMTP_REQUIRE_TLS', 'must not be false in production unless SMTP_SECURE is true');
+    }
+    const secrets = {
+      DATABASE_URL: decodeURIComponent(new URL(env.DATABASE_URL).password),
+      S3_ACCESS_KEY_ID: env.S3_ACCESS_KEY_ID,
+      S3_SECRET_ACCESS_KEY: env.S3_SECRET_ACCESS_KEY,
+      SMTP_PASSWORD: env.SMTP_PASSWORD ?? '',
+    };
+    for (const [key, value] of Object.entries(secrets)) {
+      if (PLACEHOLDER_SECRET.test(value)) fail(key, 'uses a documented dev/CI placeholder credential');
+    }
   })
   .transform((env) => ({
     ...env,
     // Swagger defaults to on outside production (api-conventions.md).
     SWAGGER_ENABLED: env.SWAGGER_ENABLED ?? env.NODE_ENV !== 'production',
+    SMTP_REQUIRE_TLS: env.SMTP_REQUIRE_TLS ?? env.NODE_ENV === 'production',
   }));
 
 export type Env = z.output<typeof EnvSchema>;
@@ -81,9 +115,7 @@ export type Env = z.output<typeof EnvSchema>;
 export function parseEnv(source: Record<string, string | undefined>): Env {
   const result = EnvSchema.safeParse(source);
   if (!result.success) {
-    const problems = result.error.issues.map(
-      (issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`,
-    );
+    const problems = result.error.issues.map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`);
     throw new Error(`Invalid environment:\n  ${problems.join('\n  ')}`);
   }
   return result.data;

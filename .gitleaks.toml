@@ -7,10 +7,11 @@ useDefault = true
 
 [allowlist]
 description = "Documented dev/CI placeholders (compose.dev.yml, .env.example, ci.yml, test fixtures)"
-regexTarget = "match"
+# Matched against the extracted secret (gitleaks' default target) and anchored, so a real key that merely
+# contains one of these words is still reported. The backend also refuses these values in production (env.schema.ts).
 regexes = [
-  '''ci-only-[a-z0-9-]*''',
-  '''nexlegtiq-dev-only''',
-  '''change-me[a-z0-9-]*''',
-  '''test-(access|secret)-key''',
+  '''^ci-only-[a-z0-9-]+$''',
+  '''^nexlegtiq-dev-only$''',
+  '''^change-me[a-z0-9-]*$''',
+  '''^test-(access|secret)-key$''',
 ]
