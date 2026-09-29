@@ -49,6 +49,9 @@ memory/
 
 # Graphify knowledge graph — per machine, rebuilt by its git hooks (docs/tooling.md)
 graphify-out/
+.claude/CLAUDE.md
+*.graphify-bak
+CLAUDE.local.md
 
 # editors / OS
 .idea/

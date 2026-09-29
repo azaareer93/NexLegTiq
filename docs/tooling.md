@@ -8,7 +8,7 @@ Decision: **D-077** (`docs/context/decisions.md`). Project rules always win over
 | [Ponytail](https://github.com/DietrichGebert/ponytail) | "Lazy senior dev" mode: YAGNI, stdlib first, smallest working change. Adds `/ponytail*` commands and SessionStart/SubagentStart/UserPromptSubmit hooks. | **Enabled for everyone** | marketplace `ponytail` |
 | [Agent Skills](https://github.com/addyosmani/agent-skills) | 25 lifecycle skills (spec, TDD, review, security, perf, ship). No hooks. | **Enabled for everyone** | marketplace `addy-agent-skills` |
 | [task-observer](https://github.com/rebelytics/one-skill-to-rule-them-all) | Meta-skill: logs corrections and repeated work, proposes skill improvements for review. | **Project skill** (vendored, CC BY 4.0) | `.claude/skills/task-observer/`, activation `.claude/rules/task-observer.md` |
-| [Graphify](https://github.com/Graphify-Labs/graphify) | Local tree-sitter knowledge graph of the code; `graphify query` answers "how is X wired" with far fewer tokens than grep. | **Per machine**, one-time wiring | `graphify-out/` (git-ignored) |
+| [Graphify](https://github.com/Graphify-Labs/graphify) | Local tree-sitter knowledge graph of the code; `graphify query` answers "how is X wired" with far fewer tokens than grep. | **Per machine**, one-time wiring | `graphify-out/`, hooks in `.claude/settings.local.json` (all git-ignored) |
 | [Headroom](https://github.com/headroomlabs-ai/headroom) | Local proxy that compresses tool output/logs before they reach the model. | **Optional, per machine** | your shell only |
 | [claude-mem](https://github.com/thedotmack/claude-mem) | Automatic session memory (5 hooks + Bun worker, AI-compressed observations). | **Optional, per machine**. Not recommended now. | `~/.claude-mem` |
 | [OmniRoute](https://github.com/diegosouzapw/OmniRoute) | Gateway routing Claude Code to 300+ providers / free tiers. | **Not used for this repo** | — |
@@ -59,17 +59,39 @@ graphify --help                       # must resolve, or the hooks Graphify adds
 Claude Code on Windows runs its Bash tool and hooks through Git Bash, so `graphify` must be on the Windows user PATH, not
 just in the current PowerShell session.
 
-Then, from `C:\Projects\NexLegTiq`:
+Then **in the repo folder** (a freshly opened terminal starts in your home folder — `cd` first, otherwise Graphify writes
+`CLAUDE.md` and `.claude\settings.json` into your *home* folder, and the latter is your user-wide Claude settings):
 ```powershell
+cd C:\Projects\NexLegTiq
 uv tool install graphifyy           # note the double y
 graphify extract . --code-only      # local AST only: no LLM calls, nothing leaves the machine
-graphify claude install --project   # adds a "## graphify" section to CLAUDE.md + PreToolUse hooks in .claude/settings.json
-graphify hook install               # post-commit/post-checkout hooks keep the graph fresh
+graphify claude install --project   # writes CLAUDE.md section, 2 PreToolUse hooks, .claude/CLAUDE.md, .claude/skills/graphify/
+graphify hook install               # post-commit/post-checkout git hooks keep the graph fresh
 ```
+Expected output ends with `graphify section written to …\NexLegTiq\CLAUDE.md` and
+`.claude/settings.json -> PreToolUse hooks registered`. Then **move the wiring to machine-local files** — the hooks run
+`graphify hook-guard`, which doesn't exist in cloud sessions or on machines without Graphify, so they must not be committed:
+```powershell
+git checkout -- CLAUDE.md .claude/settings.json      # our committed files stay as they are
+Remove-Item .claude\settings.json.graphify-bak
+```
+Create `.claude\settings.local.json` (git-ignored; if it already exists, add the two entries to its `hooks.PreToolUse`):
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "Bash|Grep", "hooks": [{ "type": "command", "command": "graphify hook-guard search", "timeout": 10 }] },
+      { "matcher": "Read|Glob", "hooks": [{ "type": "command", "command": "graphify hook-guard read", "timeout": 10 }] }
+    ]
+  }
+}
+```
+Our guard hooks in `.claude/settings.json` still run; local hooks are added alongside them, not instead. Graphify's
+generated `.claude/CLAUDE.md` pointer and `.claude/skills/graphify/` stay on your machine (git-ignored). The committed
+CLAUDE.md already tells Claude to use `graphify query` when `graphify-out/graph.json` exists.
+`graphify claude uninstall` also cleans `settings.local.json`.
+
 - Keep `--code-only`. `docs/context` is already in Ruflo and CLAUDE.md, and a semantic pass over docs would spend model credits.
-- `graphify claude install --project` edits two committed files. Commit that diff on a branch and check that
-  `.claude/settings.json` still lists our `guard-bash` / `guard-files` hooks **first** under `PreToolUse`. Graphify
-  appends, so they should. Then `node scripts/test-hooks.mjs`.
 - `graphify-out/` is git-ignored because each machine rebuilds it. Use `graphify query "..."`, `graphify path A B`,
   `graphify affected X`.
 - In PowerShell type `graphify .`, not `/graphify .`.
