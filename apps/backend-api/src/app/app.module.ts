@@ -4,10 +4,12 @@ import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { CoreModule } from '../common/core/core.module';
 import { GlobalExceptionFilter } from '../common/errors/global-exception.filter';
 import { EnvelopeInterceptor } from '../common/http/envelope.interceptor';
+import { HealthModule } from '../health/health.module';
+import { MetricsModule } from '../metrics/metrics.module';
 
 /** Root module of the HTTP API. */
 @Module({
-  imports: [CoreModule],
+  imports: [CoreModule, HealthModule, MetricsModule],
   providers: [
     { provide: APP_INTERCEPTOR, useClass: EnvelopeInterceptor },
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },

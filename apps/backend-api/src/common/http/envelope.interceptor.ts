@@ -33,7 +33,8 @@ export class EnvelopeInterceptor implements NestInterceptor {
 
   private wrap(value: unknown): unknown {
     if (value instanceof StreamableFile) return value;
-    const meta: ApiMeta = { timestamp: new Date().toISOString(), requestId: this.cls.getId() };
+    const requestId = this.cls.isActive() ? this.cls.getId() : 'unknown';
+    const meta: ApiMeta = { timestamp: new Date().toISOString(), requestId };
     if (value instanceof PaginatedResult) {
       return { success: true, data: value.items, meta: { ...meta, pagination: value.pagination } };
     }

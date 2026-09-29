@@ -26,7 +26,7 @@ function contextFor(handler: keyof Handlers, type: 'http' | 'rpc' = 'http'): Exe
 }
 
 describe('EnvelopeInterceptor', () => {
-  const cls = { getId: () => 'req-1' } as unknown as ClsService;
+  const cls = { isActive: () => true, getId: () => 'req-1' } as unknown as ClsService;
   const interceptor = new EnvelopeInterceptor(cls, new Reflector());
   const run = (context: ExecutionContext, value: unknown): Promise<unknown> =>
     lastValueFrom(interceptor.intercept(context, { handle: () => of(value) } as CallHandler));
