@@ -1,13 +1,7 @@
-import { Global, Module } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 
 import { HealthController } from './health.controller';
-import { ReadinessRegistry } from './readiness.registry';
 
-/** Global so infrastructure modules can inject ReadinessRegistry and register their check. */
-@Global()
-@Module({
-  controllers: [HealthController],
-  providers: [ReadinessRegistry],
-  exports: [ReadinessRegistry],
-})
+/** HTTP-only probes. ReadinessRegistry itself lives in CoreModule so the worker's infra modules can register too. */
+@Module({ controllers: [HealthController] })
 export class HealthModule {}

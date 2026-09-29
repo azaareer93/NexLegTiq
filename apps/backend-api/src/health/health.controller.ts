@@ -2,7 +2,7 @@ import { Controller, Get } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 
-import { ServiceUnavailableException } from '../common/errors/app.exception';
+import { DependencyUnavailableException } from '../common/errors/app.exception';
 import { ApiZodResponse } from '../common/openapi/api-zod.decorators';
 import { ReadinessRegistry } from './readiness.registry';
 import type { ReadinessReport } from './readiness.registry';
@@ -35,7 +35,7 @@ export class HealthController {
       const details = Object.entries(report.checks)
         .filter(([, check]) => check.status === 'down')
         .map(([name]) => ({ field: name, message: 'unavailable' }));
-      throw new ServiceUnavailableException(details);
+      throw new DependencyUnavailableException(details);
     }
     return report;
   }

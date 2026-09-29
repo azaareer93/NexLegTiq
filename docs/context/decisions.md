@@ -237,3 +237,20 @@ source packages**: `exports` point at `src/index.ts`, consumers declare them as 
 (webpack+SWC, Vite) and test runner compiles them. Third-party deps a package uses at runtime (e.g. `zod`) are also declared
 by the consuming app so they resolve from its bundle. Why: no library build step or publish pipeline to maintain for a solo
 founder; one source of truth. Revisit if a package must be published (e.g. an SDK for the Phase 4 API) or build times hurt.
+
+**D-075 — HTTP status per error code** · Accepted (MVP-32, 2026-09-29)
+api-conventions.md listed codes without statuses. → The status of every code is defined once in
+`apps/backend-api/src/common/errors/error-catalog.ts` (codes themselves in `shared-types`). AUTH-001..005/008/009 → 401;
+AUTH-006/010/100..103 → 403; AUTH-007 → 423; VAL-* → 400 except VAL-005 → 415, VAL-006 → 413; RES-001 → 404;
+RES-002/003 → 409; RES-004 → 410; BIZ-* → 422 except BIZ-004/009 → 409; AI-001 → 503, AI-002 → 429, AI-003 → 413,
+AI-004 → 502, AI-005 → 403; STO-001..003, EXT-* → 502; STO-004 → 422; RATE-001 → 429; SYS-001, DB-001 → 500; SYS-002 → 503.
+Framework errors (unknown route, bad JSON, body too large, other Nest HttpExceptions) map to 401 AUTH-003, 403 AUTH-100,
+404 RES-001, 409 RES-003, 413 VAL-006, 415 VAL-005, 429 RATE-001, 503 SYS-002, any other 4xx → VAL-001 (status kept), any
+other 5xx → SYS-001 — always with the code's generic message, never echoing client input. A `ZodError` thrown by server code
+is 500 SYS-001 (only the request pipe produces VAL-001). Why: one table for clients and tests; no leaks.
+
+**D-076 — Request ids** · Accepted (MVP-32, 2026-09-29)
+→ An incoming `x-request-id` is reused only if it matches `^[A-Za-z0-9._:-]{8,128}$`; otherwise a UUID is generated. The id
+is echoed in the `x-request-id` response header and `meta.requestId`, and bound to every log line of the request. Callers can
+choose it, so it is a correlation id only — never evidence of identity in audit or security decisions. Why: lets the SPAs and
+support correlate a user report with server logs without allowing header or log injection.

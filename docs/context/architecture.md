@@ -33,6 +33,9 @@ packages/
 are banned in `scope:frontend`; `react`/`antd` are banned in `scope:backend`. Shared packages are source-only (D-074).
 
 ## Backend (apps/backend-api)
+Build: webpack + SWC targeting **ES2022** (`.swcrc`; Node 22 runtime). npm packages stay external (resolved from the app's
+`node_modules`); only `@nexlegtiq/*` source packages are bundled (D-074). Tests use `.spec.swcrc` with the same target.
+
 NestJS 11 (SWC), Prisma 7 + PostgreSQL 17 (+ pgvector, pg_trgm, unaccent), Redis 7 (ioredis), BullMQ 5
 (`@nestjs/bullmq`), Zod 3/4 + `ZodValidationPipe` (contracts from `shared-contracts`), Pino (`nestjs-pino`),
 Swagger (`@nestjs/swagger`, zod→openapi), `nestjs-cls` (request context: requestId, userId, officeId),

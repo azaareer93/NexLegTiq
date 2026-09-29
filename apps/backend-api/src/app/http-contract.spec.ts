@@ -46,6 +46,13 @@ class ContractTestController {
     throw error;
   }
 
+  @Get('server-zod')
+  serverZod(): never {
+    // e.g. an AI provider returned JSON that does not match our schema
+    z.object({ summary: z.string() }).parse({ summary: 42 });
+    throw new Error('unreachable');
+  }
+
   @Get('crash')
   crash(): never {
     throw new Error('connection string postgres://user:secret@db/internal leaked');
@@ -83,6 +90,24 @@ describe('HTTP contract (envelope + errors)', () => {
         meta: { timestamp: expect.any(String), requestId: 'contract-test-0001' },
       });
       expect(new Date(res.body.meta.timestamp).toISOString()).toBe(res.body.meta.timestamp);
+    });
+
+    it.each(['<script>x</script>', 'has spaces in it', 'x'.repeat(200), 'short'])(
+      'should replace an unsafe x-request-id (%s) with a generated one',
+      async (hostile) => {
+        const res = await http().get('/api/v1/__contract__/item').set('x-request-id', hostile);
+
+        expect(res.headers['x-request-id']).not.toBe(hostile);
+        expect(res.headers['x-request-id']).toMatch(/^[0-9a-f-]{36}$/);
+        expect(res.body.meta.requestId).toBe(res.headers['x-request-id']);
+      },
+    );
+
+    it('should sanitise a hostile x-request-id on the error path too', async () => {
+      const res = await http().get('/api/v1/does-not-exist').set('x-request-id', '<img src=x>');
+
+      expect(res.status).toBe(404);
+      expect(res.body.meta.requestId).toMatch(/^[0-9a-f-]{36}$/);
     });
 
     it('should generate a request id when none is sent', async () => {
@@ -151,14 +176,22 @@ describe('HTTP contract (envelope + errors)', () => {
 
       expect(res.status).toBe(500);
       expect(res.body.error).toEqual({ code: 'SYS-001', message: 'Internal server error' });
-      expect(JSON.stringify(res.body)).not.toContain('secret');
+      expect(JSON.stringify(res.body)).not.toContain('postgres://');
     });
 
-    it('should return 404 RES-001 for an unknown route', async () => {
-      const res = await http().get('/api/v1/does-not-exist');
+    it('should return 500 SYS-001 (not VAL-001) when server-side Zod parsing fails', async () => {
+      const res = await http().get('/api/v1/__contract__/server-zod');
+
+      expect(res.status).toBe(500);
+      expect(res.body.error).toEqual({ code: 'SYS-001', message: 'Internal server error' });
+    });
+
+    it('should return 404 RES-001 for an unknown route without echoing the URL', async () => {
+      const res = await http().get('/api/v1/does-not-exist?token=abc123');
 
       expect(res.status).toBe(404);
-      expect(res.body).toMatchObject({ success: false, error: { code: 'RES-001' } });
+      expect(res.body).toMatchObject({ success: false, error: { code: 'RES-001', message: 'Resource not found' } });
+      expect(JSON.stringify(res.body)).not.toContain('abc123');
       expect(res.body.meta.requestId).toBe(res.headers['x-request-id']);
     });
 
@@ -178,7 +211,7 @@ describe('HTTP contract (envelope + errors)', () => {
         .send({ title: 'x'.repeat(1024 * 1024 + 1), amount: '1' });
 
       expect(res.status).toBe(413);
-      expect(res.body).toMatchObject({ success: false, error: { code: 'VAL-001' } });
+      expect(res.body).toMatchObject({ success: false, error: { code: 'VAL-006', message: 'Payload too large' } });
     });
   });
 });

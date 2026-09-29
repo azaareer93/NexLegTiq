@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
+import type { OfficeId, UserId } from '@nexlegtiq/shared-types';
 import type { ClsStore } from 'nestjs-cls';
 
 export const REQUEST_ID_HEADER = 'x-request-id';
@@ -13,8 +14,8 @@ export type AuthRealm = 'OFFICE' | 'PORTAL' | 'PLATFORM';
  * guards (MVP-38/40) and read by services, the tenant extension (MVP-37) and loggers.
  */
 export interface RequestContext extends ClsStore {
-  userId?: string;
-  officeId?: string;
+  userId?: UserId;
+  officeId?: OfficeId;
   role?: string;
   permissions?: readonly string[];
   realm?: AuthRealm;

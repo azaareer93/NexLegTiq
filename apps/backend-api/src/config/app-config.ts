@@ -12,8 +12,8 @@ export class AppConfig {
     return this.env.NODE_ENV === 'production';
   }
 
-  get http(): { readonly host: string; readonly port: number } {
-    return { host: this.env.HOST, port: this.env.PORT };
+  get http(): { readonly host: string; readonly port: number; readonly trustProxyHops: number } {
+    return { host: this.env.HOST, port: this.env.PORT, trustProxyHops: this.env.TRUST_PROXY_HOPS };
   }
 
   get log(): { readonly level: Env['LOG_LEVEL']; readonly pretty: boolean } {

@@ -40,11 +40,14 @@ describe('HTTP platform (health, security, docs, metrics)', () => {
   });
 
   describe('health', () => {
-    it('should answer liveness at /health outside the /api/v1 prefix', async () => {
+    it('should answer liveness at /health', async () => {
       const res = await http().get('/health');
 
       expect(res.status).toBe(200);
       expect(res.body).toMatchObject({ success: true, data: { status: 'ok' } });
+    });
+
+    it('should not serve health under the /api/v1 prefix', async () => {
       expect((await http().get('/api/v1/health')).status).toBe(404);
     });
 
@@ -81,6 +84,28 @@ describe('HTTP platform (health, security, docs, metrics)', () => {
 
     it('should not allow an unknown origin', async () => {
       const res = await http().get('/health').set('origin', 'https://evil.example');
+
+      expect(res.headers['access-control-allow-origin']).toBeUndefined();
+    });
+
+    it('should answer a CORS preflight from an allowed origin', async () => {
+      const res = await http()
+        .options('/api/v1/__platform__/items/1')
+        .set('origin', 'http://localhost:4202')
+        .set('access-control-request-method', 'POST')
+        .set('access-control-request-headers', 'content-type,authorization,x-request-id');
+
+      expect(res.status).toBe(204);
+      expect(res.headers['access-control-allow-origin']).toBe('http://localhost:4202');
+      expect(res.headers['access-control-allow-methods']).toContain('POST');
+      expect(res.headers['access-control-allow-headers']).toContain('authorization');
+    });
+
+    it('should not grant a CORS preflight from an unknown origin', async () => {
+      const res = await http()
+        .options('/api/v1/__platform__/items/1')
+        .set('origin', 'https://evil.example')
+        .set('access-control-request-method', 'POST');
 
       expect(res.headers['access-control-allow-origin']).toBeUndefined();
     });
@@ -124,6 +149,17 @@ describe('HTTP platform (health, security, docs, metrics)', () => {
       expect(output).toContain('route="/api/v1/__platform__/items/:id"');
       expect(output).not.toContain('items/123');
     });
+
+    it('should count unmatched requests and preflights under a fixed label', async () => {
+      await http().get('/api/v1/nope/987654');
+      await http().options('/api/v1/nope').set('origin', 'http://localhost:4200').set('access-control-request-method', 'GET');
+
+      const output = await app.get(MetricsService).render();
+
+      expect(output).toContain('method="OPTIONS",route="unmatched",status_code="204"');
+      expect(output).toContain('method="GET",route="unmatched",status_code="404"');
+      expect(output).not.toContain('987654');
+    });
   });
 });
 
@@ -155,23 +191,27 @@ describe('readiness failure', () => {
 });
 
 describe('swagger disabled (production default)', () => {
-  let app: NestExpressApplication;
+  let app: NestExpressApplication | undefined;
   const previous = process.env['SWAGGER_ENABLED'];
 
   beforeAll(async () => {
     process.env['SWAGGER_ENABLED'] = 'false';
-    app = await createApp();
+    try {
+      app = await createApp();
+    } finally {
+      process.env['SWAGGER_ENABLED'] = previous; // config is read at compile time; restore immediately
+    }
   });
 
   afterAll(async () => {
-    await app.close();
-    if (previous === undefined) delete process.env['SWAGGER_ENABLED'];
-    else process.env['SWAGGER_ENABLED'] = previous;
+    await app?.close();
   });
 
-  it('should not serve the docs', async () => {
-    const res = await request(app.getHttpServer()).get('/api/docs-json');
+  it('should not serve the docs while the API itself is up', async () => {
+    if (!app) throw new Error('app failed to start');
+    const server = app.getHttpServer();
 
-    expect(res.status).toBe(404);
+    expect((await request(server).get('/health')).status).toBe(200);
+    expect((await request(server).get('/api/docs-json')).status).toBe(404);
   });
 });

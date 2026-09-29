@@ -23,7 +23,10 @@ export function configureApp(app: NestExpressApplication): void {
   const config = app.get(AppConfig);
   app.useLogger(app.get(Logger));
 
+  app.set('trust proxy', config.http.trustProxyHops);
   app.use(clsMiddleware());
+  // First after CLS so every request is measured, including CORS preflights and body-parser rejections.
+  app.use(app.get(MetricsService).middleware);
   app.use(helmet());
   app.enableCors({
     origin: [...config.corsOrigins],
@@ -32,9 +35,8 @@ export function configureApp(app: NestExpressApplication): void {
     exposedHeaders: [REQUEST_ID_HEADER],
   });
   app.use(compression());
+  // JSON-only API: no urlencoded parser (avoids qs nested-object parsing).
   app.useBodyParser('json', { limit: BODY_LIMIT });
-  app.useBodyParser('urlencoded', { limit: BODY_LIMIT, extended: true });
-  app.use(app.get(MetricsService).middleware);
 
   app.setGlobalPrefix(API_PREFIX, { exclude: UNPREFIXED_ROUTES });
   if (config.swaggerEnabled) setupSwagger(app);

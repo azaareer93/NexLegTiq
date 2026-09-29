@@ -35,14 +35,15 @@ export class ResourceNotFoundException extends AppException {
   }
 }
 
-export class ConflictException extends AppException {
+/** Named to avoid clashing with Nest's ConflictException (which would map by status to a generic code). */
+export class ResourceConflictException extends AppException {
   constructor(code: 'RES-002' | 'RES-003', message: string = DEFAULT_MESSAGE[code]) {
     super(code, message);
   }
 }
 
 export class PermissionDeniedException extends AppException {
-  constructor(message = 'Permission denied') {
+  constructor(message: string = DEFAULT_MESSAGE['AUTH-100']) {
     super('AUTH-100', message);
   }
 }
@@ -55,7 +56,8 @@ export class BusinessRuleException extends AppException {
   }
 }
 
-export class ServiceUnavailableException extends AppException {
+/** 503 SYS-002: a dependency (db, redis, storage…) is not ready. */
+export class DependencyUnavailableException extends AppException {
   constructor(details?: readonly ApiErrorDetail[]) {
     super('SYS-002', DEFAULT_MESSAGE['SYS-002'], details);
   }

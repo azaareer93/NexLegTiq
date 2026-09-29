@@ -1,9 +1,10 @@
-import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { ServerResponse } from 'node:http';
 
 import { Injectable } from '@nestjs/common';
 import { collectDefaultMetrics, Histogram, Registry } from 'prom-client';
 
-type RoutedRequest = IncomingMessage & { baseUrl?: string; route?: { path?: unknown } };
+import { routeTemplateOf } from '../common/http/route-template';
+import type { RoutedRequest } from '../common/http/route-template';
 
 /** Prometheus metrics for the HTTP API: Node process defaults + request duration by route template. */
 @Injectable()
@@ -22,11 +23,14 @@ export class MetricsService {
     collectDefaultMetrics({ register: this.registry });
   }
 
-  /** Express middleware. Labels use the matched route template (never raw URLs, to bound cardinality). */
+  /**
+   * Express middleware. Records once when the connection closes (completed or aborted). Labels use the matched route
+   * template, never raw URLs, to bound cardinality.
+   */
   readonly middleware = (req: RoutedRequest, res: ServerResponse, next: () => void): void => {
     const stop = this.httpDuration.startTimer();
-    res.once('finish', () => {
-      const template = typeof req.route?.path === 'string' ? `${req.baseUrl ?? ''}${req.route.path}` : 'unmatched';
+    res.once('close', () => {
+      const template = routeTemplateOf(req) ?? 'unmatched';
       stop({ method: req.method ?? 'UNKNOWN', route: template, status_code: String(res.statusCode) });
     });
     next();

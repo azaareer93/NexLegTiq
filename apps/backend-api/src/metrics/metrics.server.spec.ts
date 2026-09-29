@@ -34,6 +34,34 @@ describe('MetricsServer', () => {
     }
   });
 
+  it('should start on bootstrap when enabled and stop on shutdown', async () => {
+    const server = createServer({ METRICS_HOST: '127.0.0.1', METRICS_PORT: '1' });
+    const start = jest.spyOn(server, 'start').mockResolvedValue({ address: '127.0.0.1', family: 'IPv4', port: 1 });
+    const stop = jest.spyOn(server, 'stop');
+
+    await server.onApplicationBootstrap();
+    await server.onApplicationShutdown();
+
+    expect(start).toHaveBeenCalledWith('127.0.0.1', 1);
+    expect(stop).toHaveBeenCalled();
+  });
+
+  it('should reject when the port is already in use', async () => {
+    const first = createServer();
+    const second = createServer();
+    const { port } = await first.start('127.0.0.1', 0);
+
+    try {
+      await expect(second.start('127.0.0.1', port)).rejects.toMatchObject({ code: 'EADDRINUSE' });
+    } finally {
+      await first.stop();
+    }
+  });
+
+  it('should resolve stop() when it was never started', async () => {
+    await expect(createServer().stop()).resolves.toBeUndefined();
+  });
+
   it('should not listen when metrics are disabled', async () => {
     const server = createServer({ METRICS_ENABLED: 'false' });
     const start = jest.spyOn(server, 'start');

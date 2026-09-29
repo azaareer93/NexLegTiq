@@ -13,6 +13,8 @@ export default [
   {
     files: ['**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx'],
     rules: {
+      // Log through the injected PinoLogger (backend) / nothing in production UI code.
+      'no-console': 'error',
       '@nx/enforce-module-boundaries': [
         'error',
         {

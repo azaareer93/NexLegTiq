@@ -54,9 +54,16 @@ export const ERROR_STATUS: Readonly<Record<ErrorCode, HttpStatus>> = {
   'DB-001': HttpStatus.INTERNAL_SERVER_ERROR,
 };
 
-/** Generic developer messages; responses for 5xx always use these so internals never leak. */
+/**
+ * Generic developer messages. Framework errors and all 5xx responses use these, so client input and internals are
+ * never echoed back.
+ */
 export const DEFAULT_MESSAGE = {
+  'AUTH-003': 'Invalid or missing access token',
+  'AUTH-100': 'Permission denied',
   'VAL-001': 'Invalid input',
+  'VAL-005': 'Unsupported media type',
+  'VAL-006': 'Payload too large',
   'RES-001': 'Resource not found',
   'RES-002': 'Resource already exists',
   'RES-003': 'Resource was modified concurrently',
@@ -65,3 +72,6 @@ export const DEFAULT_MESSAGE = {
   'SYS-002': 'Service unavailable',
   'DB-001': 'Database error',
 } as const satisfies Partial<Record<ErrorCode, string>>;
+
+/** Codes that have a generic message (usable for framework errors). */
+export type GenericErrorCode = keyof typeof DEFAULT_MESSAGE;

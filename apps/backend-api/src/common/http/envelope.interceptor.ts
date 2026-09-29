@@ -6,6 +6,7 @@ import { ClsService } from 'nestjs-cls';
 import { map } from 'rxjs';
 import type { Observable } from 'rxjs';
 
+import type { RequestContext } from '../context/request-context';
 import { PaginatedResult } from './paginated-result';
 
 const RAW_RESPONSE = Symbol('RAW_RESPONSE');
@@ -17,7 +18,7 @@ export const RawResponse = (): MethodDecorator & ClassDecorator => SetMetadata(R
 @Injectable()
 export class EnvelopeInterceptor implements NestInterceptor {
   constructor(
-    private readonly cls: ClsService,
+    private readonly cls: ClsService<RequestContext>,
     private readonly reflector: Reflector,
   ) {}
 

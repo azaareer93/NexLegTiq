@@ -3,10 +3,10 @@ import { HttpStatus } from '@nestjs/common';
 import {
   AppException,
   BusinessRuleException,
-  ConflictException,
+  ResourceConflictException,
   PermissionDeniedException,
   ResourceNotFoundException,
-  ServiceUnavailableException,
+  DependencyUnavailableException,
   ValidationException,
 } from './app.exception';
 import { isPrismaError, mapPrismaError } from './prisma-error';
@@ -15,11 +15,11 @@ describe('AppException family', () => {
   it.each([
     [new ValidationException([{ field: 'title', message: 'Required' }]), 'VAL-001', HttpStatus.BAD_REQUEST],
     [new ResourceNotFoundException(), 'RES-001', HttpStatus.NOT_FOUND],
-    [new ConflictException('RES-002'), 'RES-002', HttpStatus.CONFLICT],
+    [new ResourceConflictException('RES-002'), 'RES-002', HttpStatus.CONFLICT],
     [new PermissionDeniedException(), 'AUTH-100', HttpStatus.FORBIDDEN],
     [new BusinessRuleException('BIZ-004', 'Session conflict'), 'BIZ-004', HttpStatus.CONFLICT],
     [new BusinessRuleException('BIZ-003', 'Open tasks'), 'BIZ-003', HttpStatus.UNPROCESSABLE_ENTITY],
-    [new ServiceUnavailableException(), 'SYS-002', HttpStatus.SERVICE_UNAVAILABLE],
+    [new DependencyUnavailableException(), 'SYS-002', HttpStatus.SERVICE_UNAVAILABLE],
   ])('should carry code and catalog status for %s', (exception, code, status) => {
     expect(exception).toBeInstanceOf(AppException);
     expect(exception.code).toBe(code);
