@@ -11,7 +11,7 @@ jobs:
   title:
     runs-on: ubuntu-latest
     steps:
-      - name: Title must be "[MVP-123] type(scope): subject"
+      - name: 'Title must be "[MVP-123] type(scope): subject"'
         env:
           TITLE: ${{ github.event.pull_request.title }}
         run: |
