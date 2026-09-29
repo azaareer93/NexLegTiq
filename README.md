@@ -36,6 +36,7 @@ Module boundaries are defined once in `packages/shared-config/eslint/module-boun
 | `docs/context/` | Engineering digest of the Notion specs + **decision log** (`decisions.md`) |
 | `docs/jira/backlog.md` | Epic/story map and delivery slices for Jira project MVP |
 | `docs/ruflo.md` | Ruflo memory setup and namespaces |
+| `docs/tooling.md` | Claude Code add-ons (plugins, task-observer, Graphify, optional proxies) — D-077 |
 | `.claude/` | Subagents, skills, slash commands, path-scoped rules, hooks, settings |
 | `.mcp.json` | MCP servers: Atlassian (Jira), Notion, Ruflo (`claude-flow`) |
 | `.github/` | CI, PR conventions, PR template |
@@ -54,6 +55,7 @@ Module boundaries are defined once in `packages/shared-config/eslint/module-boun
 ## One-time setup on your machine
 1. Clone, open in Claude Code, approve the project MCP servers (Atlassian, Notion, claude-flow) and sign in to Atlassian/Notion when prompted.
 2. Ruflo: follow `docs/ruflo.md` (`npx ruflo@latest init upgrade --add-missing`, then `node scripts/ruflo-seed.mjs`).
+   Add-ons: trust the folder so the plugins install, then wire Graphify per `docs/tooling.md`.
 3. GitHub: install the **GitHub for Jira** app on this repo (links branches/PRs to MVP tickets) and protect `main`/`develop`
    (required checks: CI, PR conventions; squash merge only).
 4. Create `develop` from `main` (the setup commit lands on `main`).

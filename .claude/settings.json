@@ -52,6 +52,15 @@
     "NEXLEGTIQ_JIRA_PROJECT": "MVP",
     "NEXLEGTIQ_JIRA_SITE": "nexlegtiq.atlassian.net"
   },
+  "extraKnownMarketplaces": {
+    "ponytail": { "source": { "source": "github", "repo": "DietrichGebert/ponytail" } },
+    "addy-agent-skills": { "source": { "source": "github", "repo": "addyosmani/agent-skills" } }
+  },
+  "enabledPlugins": {
+    "claude-code-setup@claude-plugins-official": true,
+    "ponytail@ponytail": true,
+    "agent-skills@addy-agent-skills": true
+  },
   "enableAllProjectMcpServers": false,
   "enabledMcpjsonServers": ["atlassian", "notion", "claude-flow"],
   "hooks": {
