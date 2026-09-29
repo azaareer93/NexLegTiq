@@ -31,4 +31,51 @@ export class AppConfig {
   get metrics(): { readonly enabled: boolean; readonly host: string; readonly port: number } {
     return { enabled: this.env.METRICS_ENABLED, host: this.env.METRICS_HOST, port: this.env.METRICS_PORT };
   }
+
+  get database(): { readonly url: string } {
+    return { url: this.env.DATABASE_URL };
+  }
+
+  get redis(): { readonly url: string; readonly bullmqPrefix: string } {
+    return { url: this.env.REDIS_URL, bullmqPrefix: this.env.BULLMQ_PREFIX };
+  }
+
+  get storage(): {
+    readonly endpoint: string;
+    readonly region: string;
+    readonly bucket: string;
+    readonly accessKeyId: string;
+    readonly secretAccessKey: string;
+    readonly forcePathStyle: boolean;
+  } {
+    return {
+      endpoint: this.env.S3_ENDPOINT,
+      region: this.env.S3_REGION,
+      bucket: this.env.S3_BUCKET,
+      accessKeyId: this.env.S3_ACCESS_KEY_ID,
+      secretAccessKey: this.env.S3_SECRET_ACCESS_KEY,
+      forcePathStyle: this.env.S3_FORCE_PATH_STYLE,
+    };
+  }
+
+  get mail(): {
+    readonly host: string;
+    readonly port: number;
+    readonly secure: boolean;
+    readonly auth?: { readonly user: string; readonly pass: string };
+    readonly from: string;
+  } {
+    const { SMTP_USER: user, SMTP_PASSWORD: pass } = this.env;
+    return {
+      host: this.env.SMTP_HOST,
+      port: this.env.SMTP_PORT,
+      secure: this.env.SMTP_SECURE,
+      ...(user !== undefined && pass !== undefined ? { auth: { user, pass } } : {}),
+      from: this.env.MAIL_FROM,
+    };
+  }
+
+  get clamav(): { readonly host: string; readonly port: number } {
+    return { host: this.env.CLAMAV_HOST, port: this.env.CLAMAV_PORT };
+  }
 }
