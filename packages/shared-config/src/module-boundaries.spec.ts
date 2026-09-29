@@ -33,6 +33,17 @@ describe('module boundaries', () => {
   });
 
   it.each([
+    ['office-app importing @nestjs/common', 'apps/office-app/src/fixture.ts', '@nestjs/common'],
+    ['backend-api importing react', 'apps/backend-api/src/fixture.ts', 'react'],
+  ])('should fail lint for %s (banned external import)', async (_case, filePath, target) => {
+    const errors = await boundaryErrors(filePath, `import * as banned from '${target}';
+export { banned };
+`);
+    expect(errors).toEqual([expect.stringMatching(/not allowed to import/)]);
+  });
+
+  it.each([
+    ['backend-api-e2e importing shared-contracts', 'apps/backend-api-e2e/src/fixture.ts', '@nexlegtiq/shared-contracts'],
     ['shared-utils importing shared-types', 'packages/shared-utils/src/fixture.ts', '@nexlegtiq/shared-types'],
     ['shared-contracts importing shared-utils', 'packages/shared-contracts/src/fixture.ts', '@nexlegtiq/shared-utils'],
     ['shared-ui importing shared-i18n', 'packages/shared-ui/src/fixture.ts', '@nexlegtiq/shared-i18n'],

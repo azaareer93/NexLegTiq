@@ -8,6 +8,5 @@
     "scope:shared",
     "layer:utils"
   ],
-  "// targets": "to see all targets run: nx show project shared-utils --web",
   "targets": {}
 }

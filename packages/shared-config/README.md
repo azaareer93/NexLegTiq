@@ -1,7 +1,6 @@
-# shared-config
+# @nexlegtiq/shared-config
 
-This library was generated with [Nx](https://nx.dev).
+Workspace tooling presets. `eslint/module-boundaries.mjs` is the single source of Nx boundary constraints.
 
-## Running unit tests
-
-Run `nx test shared-config` to execute the unit tests via [Vitest](https://vitest.dev/).
+Source package (no build step): consumers import `src/index.ts` through the package `exports`.
+Boundaries: `packages/shared-config/eslint/module-boundaries.mjs`. Test: `pnpm nx test shared-config`.

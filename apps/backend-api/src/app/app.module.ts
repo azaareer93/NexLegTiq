@@ -1,10 +1,5 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
 
-@Module({
-  imports: [],
-  controllers: [AppController],
-  providers: [AppService],
-})
+/** Root module of the HTTP API. Core infrastructure (config, CLS, envelope, health) arrives with MVP-32. */
+@Module({})
 export class AppModule {}

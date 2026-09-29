@@ -9,16 +9,32 @@
     "e2e": {
       "executor": "@nx/jest:jest",
       "outputs": [
-        "{workspaceRoot}/coverage/{e2eProjectRoot}"
+        "{projectRoot}/test-output/jest/coverage"
       ],
       "dependsOn": [
         "backend-api:build",
         "backend-api:serve"
       ],
       "options": {
-        "jestConfig": "apps/backend-api-e2e/jest.config.cjs",
-        "passWithNoTests": true
+        "jestConfig": "apps/backend-api-e2e/jest.config.cjs"
+      }
+    },
+    "e2e-ci": {
+      "executor": "@nx/jest:jest",
+      "outputs": [
+        "{projectRoot}/test-output/jest/coverage"
+      ],
+      "dependsOn": [
+        "backend-api:build",
+        "backend-api:serve"
+      ],
+      "options": {
+        "jestConfig": "apps/backend-api-e2e/jest.config.cjs"
       }
     }
-  }
+  },
+  "tags": [
+    "type:e2e",
+    "scope:backend"
+  ]
 }

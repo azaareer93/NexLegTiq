@@ -17,9 +17,6 @@ importers:
       '@nestjs/platform-express':
         specifier: ^11.0.0
         version: 11.2.6(@nestjs/common@11.2.6(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.2.6)
-      axios:
-        specifier: ^1.6.0
-        version: 1.18.1(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)
       react:
         specifier: ^19.2.7
         version: 19.3.0
@@ -129,6 +126,9 @@ importers:
       '@vitest/ui':
         specifier: ~4.1.0
         version: 4.1.11(vitest@4.1.11)
+      axios:
+        specifier: ^1.6.0
+        version: 1.18.1(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)
       eslint:
         specifier: ^9.8.0
         version: 9.39.5(jiti@2.4.2)
@@ -168,12 +168,6 @@ importers:
       swc-loader:
         specifier: ^0.2.7
         version: 0.2.7(@swc/core@1.16.2(@swc/helpers@0.5.23))(webpack@5.111.1)
-      ts-jest:
-        specifier: ^29.4.7
-        version: 29.4.14(@babel/core@7.29.7)(@jest/transform@30.5.2)(@jest/types@30.5.1)(babel-jest@30.5.2(@babel/core@7.29.7))(jest-util@30.3.0)(jest@30.3.0(@types/node@22.20.4)(babel-plugin-macros@3.1.0)(ts-node@10.9.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(@types/node@22.20.4)(typescript@6.0.3)))(typescript@6.0.3)
-      ts-node:
-        specifier: 10.9.1
-        version: 10.9.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(@types/node@22.20.4)(typescript@6.0.3)
       tslib:
         specifier: ^2.8.1
         version: 2.8.1
@@ -199,7 +193,14 @@ importers:
         specifier: ^5.2.1
         version: 5.2.6(webpack-cli@7.2.3)(webpack@5.111.1)
 
-  apps/admin-panel: {}
+  apps/admin-panel:
+    dependencies:
+      '@nexlegtiq/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
+      '@nexlegtiq/shared-ui':
+        specifier: workspace:*
+        version: link:../../packages/shared-ui
 
   apps/backend-api:
     dependencies:
@@ -212,6 +213,12 @@ importers:
       '@nestjs/platform-express':
         specifier: ^11.0.0
         version: 11.2.6(@nestjs/common@11.2.6(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.2.6)
+      '@nexlegtiq/shared-contracts':
+        specifier: workspace:*
+        version: link:../../packages/shared-contracts
+      '@nexlegtiq/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
       reflect-metadata:
         specifier: ^0.2.0
         version: 0.2.2
@@ -221,6 +228,9 @@ importers:
       tslib:
         specifier: ^2.3.0
         version: 2.8.1
+      zod:
+        specifier: ^4.6.5
+        version: 4.6.5
     devDependencies:
       '@nestjs/testing':
         specifier: ^11.0.0
@@ -228,9 +238,23 @@ importers:
 
   apps/backend-api-e2e: {}
 
-  apps/client-portal: {}
+  apps/client-portal:
+    dependencies:
+      '@nexlegtiq/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
+      '@nexlegtiq/shared-ui':
+        specifier: workspace:*
+        version: link:../../packages/shared-ui
 
-  apps/office-app: {}
+  apps/office-app:
+    dependencies:
+      '@nexlegtiq/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
+      '@nexlegtiq/shared-ui':
+        specifier: workspace:*
+        version: link:../../packages/shared-ui
 
   packages/shared-api-client: {}
 
@@ -8547,6 +8571,7 @@ snapshots:
   '@cspotcode/source-map-support@0.8.1':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.9
+    optional: true
 
   '@csstools/color-helpers@6.1.2': {}
 
@@ -9058,6 +9083,7 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
+    optional: true
 
   '@jsonjoy.com/base64@1.1.2(tslib@2.8.1)':
     dependencies:
@@ -10261,13 +10287,17 @@ snapshots:
 
   '@tokenizer/token@0.3.0': {}
 
-  '@tsconfig/node10@1.0.13': {}
+  '@tsconfig/node10@1.0.13':
+    optional: true
 
-  '@tsconfig/node12@1.0.11': {}
+  '@tsconfig/node12@1.0.11':
+    optional: true
 
-  '@tsconfig/node14@1.0.3': {}
+  '@tsconfig/node14@1.0.3':
+    optional: true
 
-  '@tsconfig/node16@1.0.4': {}
+  '@tsconfig/node16@1.0.4':
+    optional: true
 
   '@tybys/wasm-util@0.10.4':
     dependencies:
@@ -10860,6 +10890,7 @@ snapshots:
   acorn-walk@8.3.5:
     dependencies:
       acorn: 8.18.0
+    optional: true
 
   acorn@8.18.0: {}
 
@@ -10936,7 +10967,8 @@ snapshots:
 
   append-field@1.0.0: {}
 
-  arg@4.1.3: {}
+  arg@4.1.3:
+    optional: true
 
   argparse@1.0.10:
     dependencies:
@@ -11325,6 +11357,7 @@ snapshots:
   bs-logger@0.2.6:
     dependencies:
       fast-json-stable-stringify: 2.1.0
+    optional: true
 
   bser@2.1.1:
     dependencies:
@@ -11589,7 +11622,8 @@ snapshots:
     optionalDependencies:
       typescript: 6.0.3
 
-  create-require@1.1.1: {}
+  create-require@1.1.1:
+    optional: true
 
   cross-spawn@7.0.6:
     dependencies:
@@ -11805,7 +11839,8 @@ snapshots:
     dependencies:
       address: 2.0.3
 
-  diff@4.0.4: {}
+  diff@4.0.4:
+    optional: true
 
   dns-packet@5.6.1:
     dependencies:
@@ -12670,6 +12705,7 @@ snapshots:
       wordwrap: 1.0.0
     optionalDependencies:
       uglify-js: 3.19.3
+    optional: true
 
   harmony-reflect@1.6.2: {}
 
@@ -13963,7 +13999,8 @@ snapshots:
   make-dir@5.1.0:
     optional: true
 
-  make-error@1.3.6: {}
+  make-error@1.3.6:
+    optional: true
 
   makeerror@1.0.12:
     dependencies:
@@ -15757,6 +15794,7 @@ snapshots:
       '@jest/types': 30.5.1
       babel-jest: 30.5.2(@babel/core@7.29.7)
       jest-util: 30.3.0
+    optional: true
 
   ts-loader@9.6.2(loader-utils@2.0.4)(typescript@6.0.3)(webpack@5.111.1):
     dependencies:
@@ -15787,6 +15825,7 @@ snapshots:
       yn: 3.1.1
     optionalDependencies:
       '@swc/core': 1.16.2(@swc/helpers@0.5.23)
+    optional: true
 
   tsconfig-paths-webpack-plugin@4.2.0:
     dependencies:
@@ -15973,7 +16012,8 @@ snapshots:
 
   uuid@8.3.2: {}
 
-  v8-compile-cache-lib@3.0.1: {}
+  v8-compile-cache-lib@3.0.1:
+    optional: true
 
   v8-to-istanbul@9.3.0:
     dependencies:
@@ -16255,7 +16295,8 @@ snapshots:
 
   word-wrap@1.2.5: {}
 
-  wordwrap@1.0.0: {}
+  wordwrap@1.0.0:
+    optional: true
 
   wrap-ansi@7.0.0:
     dependencies:
@@ -16306,7 +16347,8 @@ snapshots:
     dependencies:
       pend: 1.2.0
 
-  yn@3.1.1: {}
+  yn@3.1.1:
+    optional: true
 
   yocto-queue@0.1.0: {}
 

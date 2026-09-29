@@ -74,9 +74,14 @@
         }
       }
     },
-    "test": {
+    "serve-worker": {
+      "continuous": true,
+      "dependsOn": [
+        "build"
+      ],
+      "executor": "nx:run-commands",
       "options": {
-        "passWithNoTests": true
+        "command": "node apps/backend-api/dist/worker.js"
       }
     }
   }

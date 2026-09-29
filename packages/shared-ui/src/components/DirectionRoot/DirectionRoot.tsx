@@ -7,7 +7,10 @@ export interface DirectionRootProps {
   readonly children: ReactNode;
 }
 
-/** Wraps content with the `dir`/`lang` of the active locale. Superseded by the LanguageProvider (MVP-44). */
+/**
+ * Wraps content with the `dir`/`lang` of the active locale. Does not reach portals (AntD modals/popovers render
+ * outside this element) — the LanguageProvider (MVP-44) sets `<html dir lang>` and supersedes it.
+ */
 export function DirectionRoot({ locale, children }: DirectionRootProps): React.JSX.Element {
   return (
     <div dir={textDirectionOf(locale)} lang={locale}>

@@ -8,6 +8,5 @@
     "scope:shared",
     "layer:i18n"
   ],
-  "// targets": "to see all targets run: nx show project shared-i18n --web",
   "targets": {}
 }

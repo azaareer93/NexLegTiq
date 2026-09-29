@@ -1,7 +1,6 @@
-# shared-i18n
+# @nexlegtiq/shared-i18n
 
-This library was generated with [Nx](https://nx.dev).
+Translation resources (`ar`, `en`) and glossary keys. May depend on `shared-types`.
 
-## Running unit tests
-
-Run `nx test shared-i18n` to execute the unit tests via [Vitest](https://vitest.dev/).
+Source package (no build step): consumers import `src/index.ts` through the package `exports`.
+Boundaries: `packages/shared-config/eslint/module-boundaries.mjs`. Test: `pnpm nx test shared-i18n`.

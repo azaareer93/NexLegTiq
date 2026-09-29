@@ -1,5 +1,9 @@
 {
   "name": "@nexlegtiq/office-app",
   "version": "0.0.1",
-  "private": true
+  "private": true,
+  "dependencies": {
+    "@nexlegtiq/shared-types": "workspace:*",
+    "@nexlegtiq/shared-ui": "workspace:*"
+  }
 }

@@ -8,7 +8,10 @@
     "@nestjs/platform-express": "^11.0.0",
     "reflect-metadata": "^0.2.0",
     "rxjs": "^7.8.0",
-    "tslib": "^2.3.0"
+    "tslib": "^2.3.0",
+    "@nexlegtiq/shared-contracts": "workspace:*",
+    "@nexlegtiq/shared-types": "workspace:*",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@nestjs/testing": "^11.0.0"

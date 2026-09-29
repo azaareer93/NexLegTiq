@@ -28,7 +28,9 @@ packages/
 **Boundaries (Nx tags, enforced by `@nx/enforce-module-boundaries`):**
 `type:app` → may import `type:lib` only; apps never import apps.
 `scope:shared` libs: `shared-types` ← `shared-utils` ← `shared-contracts` ← `shared-api-client`;
-`shared-ui` may use types/utils/i18n; backend may use types/utils/contracts (never ui/api-client).
+`shared-ui` may use types/utils/i18n; `shared-i18n` may use types; backend may use types/utils/contracts (never ui/api-client/i18n);
+`type:e2e` projects may use libs only. Server-only npm packages (`@nestjs/*`, `@prisma/*`, `bullmq`, `ioredis`, `pg`, `@aws-sdk/*`)
+are banned in `scope:frontend`; `react`/`antd` are banned in `scope:backend`. Shared packages are source-only (D-074).
 
 ## Backend (apps/backend-api)
 NestJS 11 (SWC), Prisma 7 + PostgreSQL 17 (+ pgvector, pg_trgm, unaccent), Redis 7 (ioredis), BullMQ 5

@@ -1,7 +1,6 @@
-# shared-api-client
+# @nexlegtiq/shared-api-client
 
-This library was generated with [Nx](https://nx.dev).
+Typed HTTP client for the SPAs. May depend on `shared-types`, `shared-utils` and `shared-contracts`.
 
-## Running unit tests
-
-Run `nx test shared-api-client` to execute the unit tests via [Vitest](https://vitest.dev/).
+Source package (no build step): consumers import `src/index.ts` through the package `exports`.
+Boundaries: `packages/shared-config/eslint/module-boundaries.mjs`. Test: `pnpm nx test shared-api-client`.

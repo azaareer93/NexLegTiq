@@ -8,6 +8,5 @@
     "scope:shared",
     "layer:contracts"
   ],
-  "// targets": "to see all targets run: nx show project shared-contracts --web",
   "targets": {}
 }

@@ -1,7 +1,6 @@
-# shared-types
+# @nexlegtiq/shared-types
 
-This library was generated with [Nx](https://nx.dev).
+Branded ids, enums (UPPER_SNAKE), envelope and locale types. No runtime dependencies.
 
-## Running unit tests
-
-Run `nx test shared-types` to execute the unit tests via [Vitest](https://vitest.dev/).
+Source package (no build step): consumers import `src/index.ts` through the package `exports`.
+Boundaries: `packages/shared-config/eslint/module-boundaries.mjs`. Test: `pnpm nx test shared-types`.

@@ -1,7 +1,6 @@
-# shared-contracts
+# @nexlegtiq/shared-contracts
 
-This library was generated with [Nx](https://nx.dev).
+Zod schemas per resource (`<resource>.contract.ts`). May depend on `shared-types` and `shared-utils`.
 
-## Running unit tests
-
-Run `nx test shared-contracts` to execute the unit tests via [Vitest](https://vitest.dev/).
+Source package (no build step): consumers import `src/index.ts` through the package `exports`.
+Boundaries: `packages/shared-config/eslint/module-boundaries.mjs`. Test: `pnpm nx test shared-contracts`.

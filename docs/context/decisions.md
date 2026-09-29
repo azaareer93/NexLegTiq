@@ -230,3 +230,10 @@ review before merge (PR label `needs-human-review`, enforced by `/ship`).
 
 **D-073 — User Guide** · Open
 Notion "User Guide / Help Center" is blank. Tracked as a Release Readiness story; in-app help links point to it.
+
+**D-074 — Shared packages are source-only** · Accepted (MVP-28, 2026-09-29)
+Architecture lists `packages/shared-*` without saying whether they are built. → Shared packages are **non-buildable TS
+source packages**: `exports` point at `src/index.ts`, consumers declare them as `workspace:*` deps, and each app's bundler
+(webpack+SWC, Vite) and test runner compiles them. Third-party deps a package uses at runtime (e.g. `zod`) are also declared
+by the consuming app so they resolve from its bundle. Why: no library build step or publish pipeline to maintain for a solo
+founder; one source of truth. Revisit if a package must be published (e.g. an SDK for the Phase 4 API) or build times hurt.

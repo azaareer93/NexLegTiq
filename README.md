@@ -14,6 +14,7 @@ pnpm nx serve backend-api        # http://localhost:3000/api/v1
 pnpm nx serve office-app         # http://localhost:4200
 pnpm nx serve admin-panel        # http://localhost:4201
 pnpm nx serve client-portal      # http://localhost:4202
+pnpm nx serve-worker backend-api # BullMQ worker process (no HTTP)
 pnpm nx run-many -t lint typecheck test build   # everything CI checks
 pnpm nx e2e backend-api-e2e      # boots the API and runs the Jest/Supertest suite
 pnpm nx graph                    # project graph and module boundaries

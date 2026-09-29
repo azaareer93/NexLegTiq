@@ -13,6 +13,10 @@ export default defineConfig(() => ({
     coverage: {
       reportsDirectory: './test-output/vitest/coverage',
       provider: 'v8' as const,
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/**/*.{spec,test}.{ts,tsx}', 'src/**/index.ts'],
+      // D-071 quality gate (enforced when run with --coverage, as CI does)
+      thresholds: { lines: 80, branches: 80, functions: 80, statements: 80 },
     }
   },
 }));

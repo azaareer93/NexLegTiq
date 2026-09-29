@@ -1,7 +1,6 @@
-# shared-utils
+# @nexlegtiq/shared-utils
 
-This library was generated with [Nx](https://nx.dev).
+Pure, deterministic helpers (dates, money via decimal.js, Arabic normalization, text direction). May depend on `shared-types`.
 
-## Running unit tests
-
-Run `nx test shared-utils` to execute the unit tests via [Vitest](https://vitest.dev/).
+Source package (no build step): consumers import `src/index.ts` through the package `exports`.
+Boundaries: `packages/shared-config/eslint/module-boundaries.mjs`. Test: `pnpm nx test shared-utils`.

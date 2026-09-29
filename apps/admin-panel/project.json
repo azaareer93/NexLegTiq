@@ -7,6 +7,5 @@
     "type:app",
     "scope:frontend"
   ],
-  "// targets": "to see all targets run: nx show project admin-panel --web",
   "targets": {}
 }

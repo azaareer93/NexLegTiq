@@ -8,6 +8,15 @@
     "scope:shared",
     "layer:config"
   ],
-  "// targets": "to see all targets run: nx show project shared-config --web",
-  "targets": {}
+  "targets": {
+    "test": {
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/eslint.config.mjs",
+        "{workspaceRoot}/apps/*/project.json",
+        "{workspaceRoot}/packages/*/project.json"
+      ]
+    }
+  }
 }

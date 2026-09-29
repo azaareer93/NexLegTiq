@@ -8,6 +8,5 @@
     "scope:shared",
     "layer:ui"
   ],
-  "// targets": "to see all targets run: nx show project shared-ui --web",
   "targets": {}
 }

@@ -17,5 +17,8 @@ module.exports = {
     '^.+\\.[tj]s$': ['@swc/jest', swcJestConfig]
   },
   moduleFileExtensions: ['ts', 'js', 'html'],
-  coverageDirectory: 'test-output/jest/coverage'
+  coverageDirectory: 'test-output/jest/coverage',
+  collectCoverageFrom: ['src/**/*.ts', '!src/**/*.spec.ts', '!src/main.ts', '!src/worker.ts'],
+  // D-071 quality gate (enforced when run with --coverage, as CI does)
+  coverageThreshold: { global: { lines: 80, branches: 80, functions: 80, statements: 80 } }
 };

@@ -5,12 +5,14 @@ import react from '@vitejs/plugin-react';
 export default defineConfig(() => ({
   root: import.meta.dirname,
   cacheDir: '../../node_modules/.vite/apps/office-app',
-  server:{
+  server: {
     port: 4200,
+    strictPort: true,
     host: 'localhost',
   },
-  preview:{
+  preview: {
     port: 4200,
+    strictPort: true,
     host: 'localhost',
   },
   plugins: [react()],
@@ -18,9 +20,6 @@ export default defineConfig(() => ({
     outDir: './dist',
     emptyOutDir: true,
     reportCompressedSize: true,
-    commonjsOptions: {
-      transformMixedEsModules: true,
-    },
   },
   test: {
     name: 'office-app',
@@ -32,6 +31,10 @@ export default defineConfig(() => ({
     coverage: {
       reportsDirectory: './test-output/vitest/coverage',
       provider: 'v8' as const,
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/**/*.{spec,test}.{ts,tsx}', 'src/**/index.ts', 'src/main.tsx', 'src/app/router.ts'],
+      // D-071 quality gate (enforced when run with --coverage, as CI does)
+      thresholds: { lines: 70, branches: 70, functions: 70, statements: 70 },
     }
   },
 }));
