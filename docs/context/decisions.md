@@ -267,3 +267,16 @@ which lowers quality on security-critical code and sends code to providers witho
 own AI calls D-057 (zero-retention providers, PII redaction) governs any gateway choice. Project rules always outrank plugin
 skills (see CLAUDE.md "Precedence"). Why: take the quality/context wins without a second source of truth or an unreviewed
 traffic path. Details and commands: `docs/tooling.md`.
+
+**D-078 — Local dev stack and production config guards** · Accepted (MVP-30, 2026-09-29)
+MVP-30 needed an S3 emulator and the ticket left the config rules implicit. → `docker/compose.dev.yml` runs
+Postgres 17 + pgvector, Redis 7, **RustFS** (S3-compatible, Apache-2.0: MinIO stopped publishing community images, and
+`minio/minio` is gone from Docker Hub), Mailpit and ClamAV. No `:latest` images; every port binds to `127.0.0.1`.
+Extensions (`vector`, `pg_trgm`, `unaccent`, `citext`) are installed in `template1` so the Prisma shadow database and
+`nexlegtiq_test` inherit them; migrations still `CREATE EXTENSION IF NOT EXISTS` for managed databases. The app connects
+as the superuser locally (the `nexlegtiq_app` role split of D-001 lands with MVP-33 migrations). Backing-service env vars
+have no defaults (boot fails closed); `BULLMQ_PREFIX` defaults to `nlq`. In **production** the env schema also requires
+TLS in transit — `DATABASE_URL` with `sslmode=require|verify-ca|verify-full`, `rediss://`, `https://` S3, SMTP
+`requireTLS` unless implicit TLS — and rejects the documented dev/CI placeholder credentials (also the only values the
+gitleaks allowlist accepts). CI has no S3/mail/ClamAV containers until a job needs them. Why: one-command local setup
+without an unmaintained image, and a misconfigured production boot fails instead of running over plaintext.

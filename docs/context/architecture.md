@@ -96,7 +96,7 @@ PostgreSQL 17 + extensions `pgvector`, `pg_trgm`, `unaccent`, `citext`. Prisma s
 ## Infrastructure (D-020 lean-first)
 | Env | Where | Notes |
 |---|---|---|
-| local | docker compose (`docker/compose.dev.yml`): `pgvector/pgvector:pg17`, `redis:7-alpine`, `minio`, `mailpit`, `clamav` | `pnpm dev:up` |
+| local | docker compose (`docker/compose.dev.yml`): `pgvector/pgvector:pg17`, `redis:7-alpine`, `rustfs` (S3), `mailpit`, `clamav` | `pnpm dev:up` |
 | CI | GitHub Actions service containers | ephemeral |
 | staging | 1 VPS (Docker Compose: api, worker, caddy) + managed PG/Redis (small) + object storage | auto-deploy from `develop` |
 | prod | 1–2 VPS (api ×2, worker ×1 behind Caddy) + managed PG (daily backups + PITR) + managed Redis + R2/S3 | deploy from `main` tag, manual approval |

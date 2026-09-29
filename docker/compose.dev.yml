@@ -16,7 +16,8 @@ services:
       # Runs once, on an empty data volume: extensions + the nexlegtiq_test database.
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U nexlegtiq -d nexlegtiq']
+      # Over TCP: the entrypoint runs init scripts on a socket-only server, so this stays unhealthy until they finish.
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U nexlegtiq -d nexlegtiq']
       interval: 5s
       timeout: 5s
       retries: 20
@@ -34,39 +35,48 @@ services:
       timeout: 5s
       retries: 20
 
-  minio:
-    image: minio/minio:latest
-    command: ['server', '/data', '--console-address', ':9001']
+  # S3-compatible object storage. MinIO no longer publishes community images (D-078); RustFS is an Apache-2.0
+  # S3-compatible server with the same ports and path-style addressing.
+  s3:
+    image: rustfs/rustfs:1.0.0
+    command: ['/data']
     environment:
-      MINIO_ROOT_USER: nexlegtiq
-      MINIO_ROOT_PASSWORD: nexlegtiq-dev-only
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ENABLE: 'true'
+      RUSTFS_CONSOLE_ADDRESS: 0.0.0.0:9001
+      RUSTFS_ACCESS_KEY: nexlegtiq
+      RUSTFS_SECRET_KEY: nexlegtiq-dev-only
     ports:
       - '127.0.0.1:9000:9000' # S3 API
       - '127.0.0.1:9001:9001' # web console
     volumes:
-      - minio-data:/data
+      - s3-data:/data
     healthcheck:
-      test: ['CMD', 'mc', 'ready', 'local']
+      test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:9000/health']
       interval: 5s
       timeout: 5s
       retries: 20
 
   # One-shot: creates the documents bucket (idempotent), then exits.
-  minio-init:
-    image: minio/mc:latest
+  s3-init:
+    image: amazon/aws-cli:2.37.5
     depends_on:
-      minio:
+      s3:
         condition: service_healthy
+    environment:
+      AWS_ACCESS_KEY_ID: nexlegtiq
+      AWS_SECRET_ACCESS_KEY: nexlegtiq-dev-only
+      AWS_DEFAULT_REGION: us-east-1
     entrypoint:
       - /bin/sh
       - -c
       - >-
-        mc alias set local http://minio:9000 nexlegtiq nexlegtiq-dev-only &&
-        mc mb --ignore-existing local/nexlegtiq-documents-local
+        aws --endpoint-url http://s3:9000 s3api head-bucket --bucket nexlegtiq-documents-local ||
+        aws --endpoint-url http://s3:9000 s3api create-bucket --bucket nexlegtiq-documents-local
     restart: 'no'
 
   mailpit:
-    image: axllent/mailpit:latest
+    image: axllent/mailpit:v1.31.3
     ports:
       - '127.0.0.1:1025:1025' # SMTP (no auth, no TLS)
       - '127.0.0.1:8025:8025' # web UI
@@ -97,6 +107,6 @@ services:
 volumes:
   pg-data:
   redis-data:
-  minio-data:
+  s3-data:
   mailpit-data:
   clamav-db:
