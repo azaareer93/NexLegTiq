@@ -17,6 +17,27 @@
     },
     {
       "path": "./apps/client-portal"
+    },
+    {
+      "path": "./packages/shared-types"
+    },
+    {
+      "path": "./packages/shared-utils"
+    },
+    {
+      "path": "./packages/shared-contracts"
+    },
+    {
+      "path": "./packages/shared-api-client"
+    },
+    {
+      "path": "./packages/shared-i18n"
+    },
+    {
+      "path": "./packages/shared-config"
+    },
+    {
+      "path": "./packages/shared-ui"
     }
   ]
 }

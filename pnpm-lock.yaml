@@ -36,6 +36,12 @@ importers:
         specifier: ^7.8.0
         version: 7.8.2
     devDependencies:
+      '@babel/core':
+        specifier: ^7.14.5
+        version: 7.29.7
+      '@babel/preset-react':
+        specifier: ^7.14.5
+        version: 7.29.7(@babel/core@7.29.7)
       '@eslint/js':
         specifier: ^9.8.0
         version: 9.39.5
@@ -225,6 +231,44 @@ importers:
   apps/client-portal: {}
 
   apps/office-app: {}
+
+  packages/shared-api-client: {}
+
+  packages/shared-config: {}
+
+  packages/shared-contracts:
+    dependencies:
+      '@nexlegtiq/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+      zod:
+        specifier: ^4.6.5
+        version: 4.6.5
+
+  packages/shared-i18n: {}
+
+  packages/shared-types: {}
+
+  packages/shared-ui:
+    dependencies:
+      '@nexlegtiq/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+      '@nexlegtiq/shared-utils':
+        specifier: workspace:*
+        version: link:../shared-utils
+      react:
+        specifier: ^19.2.7
+        version: 19.3.0
+      react-dom:
+        specifier: ^19.2.7
+        version: 19.3.0(react@19.3.0)
+
+  packages/shared-utils:
+    dependencies:
+      '@nexlegtiq/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
 
 packages:
 
@@ -7601,6 +7645,9 @@ packages:
   yoctocolors@2.2.0:
     resolution: {integrity: sha512-xYqdZFUK/VYazNl/oCDYN+3WloWQwMfZxBoiNt6qNyk+xfOdi598muWE42rNZFp1kNOiqW936q5RhUdnpqElSg==}
     engines: {node: '>=18'}
+
+  zod@4.6.5:
+    resolution: {integrity: sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==}
 
 snapshots:
 
@@ -16266,3 +16313,5 @@ snapshots:
   yocto-queue@1.2.2: {}
 
   yoctocolors@2.2.0: {}
+
+  zod@4.6.5: {}

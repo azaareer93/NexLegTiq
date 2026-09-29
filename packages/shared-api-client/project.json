@@ -1,0 +1,13 @@
+{
+  "name": "shared-api-client",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "packages/shared-api-client/src",
+  "projectType": "library",
+  "tags": [
+    "type:lib",
+    "scope:shared",
+    "layer:api-client"
+  ],
+  "// targets": "to see all targets run: nx show project shared-api-client --web",
+  "targets": {}
+}
