@@ -54,6 +54,13 @@ describe('PaginatedResult', () => {
     });
   });
 
+  it('should not divide by zero when limit is 0', () => {
+    expect(PaginatedResult.of([], { page: 1, limit: 0, total: 10 }).pagination).toMatchObject({
+      totalPages: 0,
+      hasMore: false,
+    });
+  });
+
   it('should report no more pages on the last page or when empty', () => {
     expect(PaginatedResult.of([5], { page: 3, limit: 2, total: 5 }).pagination.hasMore).toBe(false);
     expect(PaginatedResult.of([], { page: 1, limit: 20, total: 0 }).pagination).toMatchObject({

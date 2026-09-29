@@ -45,6 +45,15 @@ describe('logger', () => {
     expect(http.transport).toBeUndefined();
   });
 
+  it('should not auto-log health probes', () => {
+    const params = buildLoggerParams(new AppConfig(parseEnv({})));
+    const { ignore } = (params.pinoHttp as { autoLogging: { ignore: (req: { url?: string }) => boolean } }).autoLogging;
+
+    expect(ignore({ url: '/health' })).toBe(true);
+    expect(ignore({ url: '/health/ready' })).toBe(true);
+    expect(ignore({ url: '/api/v1/cases' })).toBe(false);
+  });
+
   it('should use pino-pretty only when LOG_PRETTY is on', () => {
     const params = buildLoggerParams(new AppConfig(parseEnv({ LOG_PRETTY: 'true' })));
 

@@ -80,4 +80,14 @@ describe('Api* decorators', () => {
 
     expect(responses['201']?.schema.required).toEqual(['success', 'data', 'meta']);
   });
+
+  it('ApiZodResponse should document a paginated list with a description', () => {
+    const responses = metadataOf(
+      ApiZodResponse(200, ThingSchema, { paginated: true, description: 'Things' }),
+      DECORATORS.API_RESPONSE,
+    ) as Record<string, { description: string; schema: { properties: { data: { type: string } } } }>;
+
+    expect(responses['200']?.description).toBe('Things');
+    expect(responses['200']?.schema.properties.data.type).toBe('array');
+  });
 });

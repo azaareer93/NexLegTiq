@@ -10,7 +10,8 @@
       "decoratorMetadata": true,
       "legacyDecorator": true
     },
-    "keepClassNames": true
+    "keepClassNames": true,
+    "externalHelpers": true
   },
   "module": {
     "type": "es6"

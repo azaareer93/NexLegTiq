@@ -153,3 +153,25 @@ describe('readiness failure', () => {
     expect(JSON.stringify(res.body)).not.toContain('secret');
   });
 });
+
+describe('swagger disabled (production default)', () => {
+  let app: NestExpressApplication;
+  const previous = process.env['SWAGGER_ENABLED'];
+
+  beforeAll(async () => {
+    process.env['SWAGGER_ENABLED'] = 'false';
+    app = await createApp();
+  });
+
+  afterAll(async () => {
+    await app.close();
+    if (previous === undefined) delete process.env['SWAGGER_ENABLED'];
+    else process.env['SWAGGER_ENABLED'] = previous;
+  });
+
+  it('should not serve the docs', async () => {
+    const res = await request(app.getHttpServer()).get('/api/docs-json');
+
+    expect(res.status).toBe(404);
+  });
+});
