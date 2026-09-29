@@ -1,3 +1,7 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { parseEnv as parseDotenv } from 'node:util';
+
 import { AppConfig } from './app-config';
 import { REQUIRED_TEST_ENV, testEnv } from './env.fixture';
 import { parseEnv } from './env.schema';
@@ -152,5 +156,11 @@ describe('AppConfig', () => {
 
     expect(anonymous.mail).toEqual({ host: 'localhost', port: 1025, secure: false, from: 'no-reply@nexlegtiq.test' });
     expect(authenticated.mail.auth).toEqual({ user: 'mailer', pass: 'pw' });
+  });
+
+  it('should accept the committed .env.example as a complete development config', () => {
+    const example = parseDotenv(readFileSync(join(__dirname, '../../../../.env.example'), 'utf8'));
+
+    expect(parseEnv(example).NODE_ENV).toBe('development');
   });
 });
