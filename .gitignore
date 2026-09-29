@@ -45,6 +45,10 @@ memory/
 !.claude/skills/react-feature/
 !.claude/skills/rtl-i18n/
 !.claude/skills/tenant-isolation/
+!.claude/skills/task-observer/
+
+# Graphify knowledge graph — per machine, rebuilt by its git hooks (docs/tooling.md)
+graphify-out/
 
 # editors / OS
 .idea/

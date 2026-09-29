@@ -254,3 +254,16 @@ is 500 SYS-001 (only the request pipe produces VAL-001). Why: one table for clie
 is echoed in the `x-request-id` response header and `meta.requestId`, and bound to every log line of the request. Callers can
 choose it, so it is a correlation id only — never evidence of identity in audit or security decisions. Why: lets the SPAs and
 support correlate a user report with server logs without allowing header or log injection.
+
+**D-077 — Claude Code add-ons** · Accepted (MVP-4, 2026-09-29)
+Owner asked for OmniRoute, claude-mem, Headroom, claude-code-setup, task-observer, Ponytail, Graphify and Agent Skills.
+→ **Project-wide** (committed, every clone/cloud session): plugins `claude-code-setup` (official, read-only recommender),
+`ponytail` (minimal-code mode) and `agent-skills` (addyosmani, lifecycle skills) via `.claude/settings.json`; `task-observer`
+vendored as a project skill with its workspace pinned outside the repo; Graphify (tree-sitter code graph, local, code-only)
+wired per machine with `graphify claude install --project`, output git-ignored. **Per-machine opt-in only, never committed:**
+Headroom (local compression proxy; beacon off) and claude-mem (second memory system — Ruflo stays the curated memory;
+no hosted-observer sign-in). **Not used for this repo:** OmniRoute — it re-routes Claude Code to arbitrary/free-tier models,
+which lowers quality on security-critical code and sends code to providers without zero-retention terms; for the product's
+own AI calls D-057 (zero-retention providers, PII redaction) governs any gateway choice. Project rules always outrank plugin
+skills (see CLAUDE.md "Precedence"). Why: take the quality/context wins without a second source of truth or an unreviewed
+traffic path. Details and commands: `docs/tooling.md`.

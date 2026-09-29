@@ -58,6 +58,12 @@ pnpm nx run e2e:e2e                                   # Cypress
   `qa-engineer`, `rtl-i18n-reviewer`, `spec-guardian`.
 - Skills in `.claude/skills/`: `nest-module`, `react-feature`, `prisma-change`, `jira-workflow`, `rtl-i18n`, `ai-feature`, `tenant-isolation`.
 - Commands: `/ticket`, `/spec-check`, `/review`, `/ship`, `/adr`, `/remember`, `/sync-notion`, `/standup`, `/backlog`.
+- Add-ons (D-077, `docs/tooling.md`): plugins `ponytail`, `agent-skills`, `claude-code-setup` (enabled in `.claude/settings.json`);
+  `task-observer` skill (activation in `.claude/rules/task-observer.md`); Graphify code graph (`graphify query` when
+  `graphify-out/graph.json` exists). Headroom / claude-mem / OmniRoute are per-machine opt-ins only.
+- **Precedence:** this file, `decisions.md`, `.claude/rules`, and project skills/commands (`/review`, `/ship`, …) win over any
+  plugin skill. Ponytail-style minimalism never removes a non-negotiable (tenant tests, Zod contracts, audit, i18n keys,
+  PII redaction). agent-skills' trunk-based git advice is overridden by D-070 (`develop` + `MVP-<n>` branches).
 
 ## Decisions (canonical — keep in context)
 @docs/context/decisions.md
