@@ -49,9 +49,19 @@ The skill is already in the repo. The activation instructions load every session
 - To update: re-copy `SKILL.md`, `references/`, `scripts/` from upstream and bump `UPSTREAM.md`.
 
 ## 3. Graphify (once per machine, now that code exists)
-Requires Python ≥3.10 and `uv` (or `pipx`). PowerShell:
+Requires Python ≥3.10 and `uv`. **Windows (PowerShell) prerequisites, once:**
 ```powershell
-uv tool install graphifyy           # note the double y; or: pipx install graphifyy
+winget install --id astral-sh.uv -e   # or: pip install uv
+uv tool update-shell                  # puts %USERPROFILE%\.local\bin on PATH (where graphify/headroom land)
+# close ALL terminals and Claude Code, reopen, then check:
+graphify --help                       # must resolve, or the hooks Graphify adds will fail on every Read/Grep/Bash
+```
+Claude Code on Windows runs its Bash tool and hooks through Git Bash, so `graphify` must be on the Windows user PATH, not
+just in the current PowerShell session.
+
+Then, from `C:\Projects\NexLegTiq`:
+```powershell
+uv tool install graphifyy           # note the double y
 graphify extract . --code-only      # local AST only: no LLM calls, nothing leaves the machine
 graphify claude install --project   # adds a "## graphify" section to CLAUDE.md + PreToolUse hooks in .claude/settings.json
 graphify hook install               # post-commit/post-checkout hooks keep the graph fresh
@@ -69,7 +79,7 @@ Saves tokens on long logs and test output. Everything runs locally (Apache-2.0).
 to miss a detail in a log, run that session unwrapped.
 ```powershell
 uv tool install --python 3.13 "headroom-ai[all]"
-setx HEADROOM_BEACON off            # disable the anonymous usage beacon (on by default)
+setx HEADROOM_BEACON off            # disable the anonymous usage beacon; takes effect in NEW terminals only
 headroom wrap claude                # start Claude Code through the local proxy; undo: headroom unwrap claude
 ```
 Don't commit anything that sets `ANTHROPIC_BASE_URL`. The proxy is a personal choice, not a project default.

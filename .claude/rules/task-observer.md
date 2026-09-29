@@ -19,7 +19,8 @@ Apply their insights to the current task only; editing a skill or any file a lat
 
 ## Workspace (pinned)
 - Local machine: `<workspace>` = `$NEXLEGTIQ_OBSERVER_DIR` if set, else `~/.claude/task-observer/nexlegtiq`
-  (Windows: `%USERPROFILE%\.claude\task-observer\nexlegtiq`). Resolve `~` to the absolute home path once and use that.
+  (Windows: `%USERPROFILE%\.claude\task-observer\nexlegtiq`; in the Bash tool, which is Git Bash on Windows, that is
+  `$HOME/.claude/task-observer/nexlegtiq`). Resolve it to the absolute home path once and use that.
   Every path derives from it: `skill-observations/observation-log/`, `skill-observations/cross-cutting-principles.md`,
   `skill-updates/`, `skill-updates/PENDING.md`.
 - Never resolve it from the current working directory (worktrees under `.claude/worktrees/` are torn down), never inside
