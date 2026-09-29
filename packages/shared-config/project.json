@@ -1,0 +1,22 @@
+{
+  "name": "shared-config",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "packages/shared-config/src",
+  "projectType": "library",
+  "tags": [
+    "type:lib",
+    "scope:shared",
+    "layer:config"
+  ],
+  "targets": {
+    "test": {
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/eslint.config.mjs",
+        "{workspaceRoot}/apps/*/project.json",
+        "{workspaceRoot}/packages/*/project.json"
+      ]
+    }
+  }
+}

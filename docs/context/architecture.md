@@ -4,6 +4,9 @@
 > Resolutions: `decisions.md` (D-010…D-021).
 
 ## Monorepo (Nx + pnpm, Node 22)
+Tooling (MVP-28): Nx 23 with TS project references, pnpm 10 workspaces, **TypeScript 6.0** (TS 7 is not yet supported by
+Nx/typescript-eslint). Shared packages are non-buildable TS source packages (`exports` → `src/index.ts`), bundled by each app.
+Boundary constraints live in `packages/shared-config/eslint/module-boundaries.mjs` (tags `type:*`, `scope:*`, `layer:*`).
 ```
 apps/
   office-app/        React 19 + Vite SPA for law-office staff        :4200
@@ -25,7 +28,9 @@ packages/
 **Boundaries (Nx tags, enforced by `@nx/enforce-module-boundaries`):**
 `type:app` → may import `type:lib` only; apps never import apps.
 `scope:shared` libs: `shared-types` ← `shared-utils` ← `shared-contracts` ← `shared-api-client`;
-`shared-ui` may use types/utils/i18n; backend may use types/utils/contracts (never ui/api-client).
+`shared-ui` may use types/utils/i18n; `shared-i18n` may use types; backend may use types/utils/contracts (never ui/api-client/i18n);
+`type:e2e` projects may use libs only. Server-only npm packages (`@nestjs/*`, `@prisma/*`, `bullmq`, `ioredis`, `pg`, `@aws-sdk/*`)
+are banned in `scope:frontend`; `react`/`antd` are banned in `scope:backend`. Shared packages are source-only (D-074).
 
 ## Backend (apps/backend-api)
 NestJS 11 (SWC), Prisma 7 + PostgreSQL 17 (+ pgvector, pg_trgm, unaccent), Redis 7 (ioredis), BullMQ 5
@@ -75,7 +80,7 @@ Events: `document.processed`, `document.summary.ready`, `session.scheduled`, `se
 `task.assigned`, `task.updated`, `notification`, `ai.job.completed|failed`.
 
 ## Frontend (office-app, client-portal, admin-panel)
-React 19, Vite, React Router, AntD 5 (`ConfigProvider` with theme tokens, `direction`, `locale`), `@ant-design/icons`,
+React 19, Vite 8, **React Router 8** (data router: `createBrowserRouter` + `RouterProvider`, D-010), AntD 5 (`ConfigProvider` with theme tokens, `direction`, `locale`), `@ant-design/icons`,
 `@ant-design/pro-components` (tables/forms where helpful), TanStack Query 5, Zustand (auth/session/ui stores),
 axios via `shared-api-client`, i18next + react-i18next, dayjs (with `ar` locale), `@dnd-kit`, Vitest + Testing Library,
 Storybook (+ RTL toggle) for shared-ui. See `frontend.md`.

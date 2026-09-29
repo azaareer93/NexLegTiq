@@ -1,0 +1,43 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compileOnSave": false,
+  "files": [],
+  "references": [
+    {
+      "path": "./apps/backend-api-e2e"
+    },
+    {
+      "path": "./apps/backend-api"
+    },
+    {
+      "path": "./apps/office-app"
+    },
+    {
+      "path": "./apps/admin-panel"
+    },
+    {
+      "path": "./apps/client-portal"
+    },
+    {
+      "path": "./packages/shared-types"
+    },
+    {
+      "path": "./packages/shared-utils"
+    },
+    {
+      "path": "./packages/shared-contracts"
+    },
+    {
+      "path": "./packages/shared-api-client"
+    },
+    {
+      "path": "./packages/shared-i18n"
+    },
+    {
+      "path": "./packages/shared-config"
+    },
+    {
+      "path": "./packages/shared-ui"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "name": "admin-panel",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/admin-panel/src",
+  "projectType": "application",
+  "tags": [
+    "type:app",
+    "scope:frontend"
+  ],
+  "targets": {}
+}

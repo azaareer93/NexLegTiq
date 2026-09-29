@@ -1,0 +1,34 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "out-tsc/app",
+    "types": [
+      "node"
+    ],
+    "rootDir": "src",
+    "tsBuildInfoFile": "out-tsc/app/tsconfig.app.tsbuildinfo",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "out-tsc",
+    "dist",
+    "src/**/*.spec.ts",
+    "src/**/*.test.ts",
+    "eslint.config.js",
+    "eslint.config.cjs",
+    "eslint.config.mjs"
+  ],
+  "references": [
+    {
+      "path": "../../packages/shared-types/tsconfig.lib.json"
+    },
+    {
+      "path": "../../packages/shared-contracts/tsconfig.lib.json"
+    }
+  ]
+}

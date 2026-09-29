@@ -3,8 +3,31 @@
 The intelligent, bilingual (Arabic/English) workspace for modern law offices in MENA — cases, hearings & reminders,
 documents with OCR, tasks, billing, AI summaries and a client portal. Launch market: Palestine.
 
-> Status: pre-code. The repository currently contains the engineering knowledge base and the Claude Code delivery setup.
-> The application is scaffolded by **MVP-28** (see `docs/jira/backlog.md`).
+> Status: workspace scaffolded (MVP-28). Feature work follows the slices in `docs/jira/backlog.md`.
+
+## Getting started
+Prerequisites: **Node 22** (`.nvmrc`) and **pnpm 10** (`corepack enable` picks the version pinned in `package.json`).
+
+```bash
+pnpm install
+pnpm nx serve backend-api        # http://localhost:3000/api/v1
+pnpm nx serve office-app         # http://localhost:4200
+pnpm nx serve admin-panel        # http://localhost:4201
+pnpm nx serve client-portal      # http://localhost:4202
+pnpm nx serve-worker backend-api # BullMQ worker process (no HTTP)
+pnpm nx run-many -t lint typecheck test build   # everything CI checks
+pnpm nx e2e backend-api-e2e      # boots the API and runs the Jest/Supertest suite
+pnpm nx graph                    # project graph and module boundaries
+```
+
+| Project | Stack | Tags |
+|---|---|---|
+| `apps/backend-api` | NestJS 11, webpack + SWC; entrypoints `main` (HTTP) and `worker` (BullMQ) | `type:app`, `scope:backend` |
+| `apps/{office-app,admin-panel,client-portal}` | React 19, Vite 8, React Router 8, Vitest | `type:app`, `scope:frontend` |
+| `packages/shared-*` | TS source packages (`@nexlegtiq/*`), consumed without a build step | `type:lib`, `scope:shared`, `layer:*` |
+
+Module boundaries are defined once in `packages/shared-config/eslint/module-boundaries.mjs` and enforced by
+`@nx/enforce-module-boundaries`. Docker dev stack: MVP-30. Full lint/format tooling: MVP-29.
 
 ## Where things are
 | Path | What |

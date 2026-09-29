@@ -1,0 +1,40 @@
+{
+  "name": "backend-api-e2e",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "implicitDependencies": [
+    "backend-api"
+  ],
+  "targets": {
+    "e2e": {
+      "executor": "@nx/jest:jest",
+      "outputs": [
+        "{projectRoot}/test-output/jest/coverage"
+      ],
+      "dependsOn": [
+        "backend-api:build",
+        "backend-api:serve"
+      ],
+      "options": {
+        "jestConfig": "apps/backend-api-e2e/jest.config.cjs"
+      }
+    },
+    "e2e-ci": {
+      "executor": "@nx/jest:jest",
+      "outputs": [
+        "{projectRoot}/test-output/jest/coverage"
+      ],
+      "dependsOn": [
+        "backend-api:build",
+        "backend-api:serve"
+      ],
+      "options": {
+        "jestConfig": "apps/backend-api-e2e/jest.config.cjs"
+      }
+    }
+  },
+  "tags": [
+    "type:e2e",
+    "scope:backend"
+  ]
+}
