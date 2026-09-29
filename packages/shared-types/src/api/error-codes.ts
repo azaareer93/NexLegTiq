@@ -1,0 +1,20 @@
+/** Canonical API error codes (docs/context/api-conventions.md#error-codes). The FE maps each to `errors.<CODE>`. */
+export const ERROR_CODES = [
+  'AUTH-001', 'AUTH-002', 'AUTH-003', 'AUTH-004', 'AUTH-005', 'AUTH-006', 'AUTH-007', 'AUTH-008', 'AUTH-009', 'AUTH-010',
+  'AUTH-100', 'AUTH-101', 'AUTH-102', 'AUTH-103',
+  'VAL-001', 'VAL-002', 'VAL-003', 'VAL-004', 'VAL-005', 'VAL-006', 'VAL-007',
+  'RES-001', 'RES-002', 'RES-003', 'RES-004',
+  'BIZ-001', 'BIZ-002', 'BIZ-003', 'BIZ-004', 'BIZ-005', 'BIZ-006', 'BIZ-007', 'BIZ-008', 'BIZ-009',
+  'AI-001', 'AI-002', 'AI-003', 'AI-004', 'AI-005',
+  'STO-001', 'STO-002', 'STO-003', 'STO-004',
+  'EXT-001', 'EXT-002',
+  'RATE-001',
+  'SYS-001', 'SYS-002',
+  'DB-001',
+] as const;
+
+export type ErrorCode = (typeof ERROR_CODES)[number];
+
+export function isErrorCode(value: unknown): value is ErrorCode {
+  return typeof value === 'string' && (ERROR_CODES as readonly string[]).includes(value);
+}

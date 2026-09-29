@@ -28,6 +28,9 @@
 - Breach: notify affected offices & regulators ≤ 72h; incident log.
 
 ## Environments & deploy (D-020)
+- Runtime config (backend): `NODE_ENV=production` is the default when unset (fail closed: Swagger off, no pretty logs).
+  Containers set `HOST=0.0.0.0`, `METRICS_HOST=0.0.0.0` with port 9464 **not published** (internal network only), and
+  `TRUST_PROXY_HOPS=1` behind Caddy/Traefik so `req.ip` (lockout D-053, audit ipAddress) is the client, not the proxy.
 - `local` docker compose (`docker/compose.dev.yml`): postgres (pgvector pg17), redis, minio, mailpit, clamav.
 - `staging` ← `develop` auto-deploy; `prod` ← tag `v*` on `main` with manual approval (GitHub Environment protection).
 - Pipeline: CI (lint/typecheck/test/build/coverage/security) → build images (api, worker) → push GHCR → SSH deploy

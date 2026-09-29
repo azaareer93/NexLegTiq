@@ -10,7 +10,7 @@ Prerequisites: **Node 22** (`.nvmrc`) and **pnpm 10** (`corepack enable` picks t
 
 ```bash
 pnpm install
-pnpm nx serve backend-api        # http://localhost:3000/api/v1
+pnpm nx serve backend-api        # http://localhost:3000/api/v1 · Swagger /api/docs · /health · metrics :9464/metrics
 pnpm nx serve office-app         # http://localhost:4200
 pnpm nx serve admin-panel        # http://localhost:4201
 pnpm nx serve client-portal      # http://localhost:4202

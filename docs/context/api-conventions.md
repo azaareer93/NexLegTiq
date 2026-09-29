@@ -3,7 +3,8 @@
 > Source: "Complete API Documentation", Dev Guidelines, Flow Charts. Resolutions: D-013, D-014, D-019.
 
 ## Shape
-- Base `/api/v1`; Swagger UI `/api/docs` (disabled in prod unless `SWAGGER_ENABLED`); OpenAPI JSON `/api/docs-json`.
+- Base `/api/v1`; Swagger UI `/api/docs` (on by default outside production, off in production unless `SWAGGER_ENABLED=true`);
+  OpenAPI JSON `/api/docs-json`.
 - Resources plural kebab-case; tenant from token, never from path.
 - JSON camelCase; dates ISO-8601 UTC (`timestamptz`); money as decimal strings + `currency`.
 - Envelope (always):
@@ -30,8 +31,11 @@ BIZ-001 last office manager · 002 case already closed · 003 open tasks block c
 AI-001 provider unavailable · 002 rate limited · 003 input too large · 004 output invalid · 005 AI disabled for office
 STO-001 upload failed · 002 download failed · 003 delete failed · 004 malware detected
 EXT-001 email provider · 002 OCR provider
-RATE-001 rate limit · SYS-001 internal · DB-001 database
+RATE-001 rate limit · SYS-001 internal · SYS-002 service unavailable (readiness check failed, 503) · DB-001 database
+Canonical list in code: `packages/shared-types/src/api/error-codes.ts`; HTTP status per code: `apps/backend-api/src/common/errors/error-catalog.ts`.
 Prisma mapping: P2002 → 409 RES-002, P2025 → 404 RES-001, P2034 → 409 RES-003, else 500 DB-001.
+HTTP status per code and framework-error mapping: D-075. A `ZodError` thrown by server code (not the request pipe) is 500 SYS-001.
+Request ids: D-076.
 
 ## Rate limits (Redis, per ip+user)
 default 100/min · `/auth/login|register|forgot-password` 5/min · `/auth/refresh` 30/min · uploads 20/min ·
@@ -74,7 +78,9 @@ GET `me` · GET `files` · GET `files/:id` (status, next hearing, public timelin
 POST `files/:id/uploads` (quarantined into CLIENT_UPLOADS) · GET `invoices` · GET `invoices/:id/pdf`
 **admin** (`/api/v1/admin`, platform realm + MFA): offices list/detail/suspend · plans CRUD · subscriptions assign/extend/record-payment ·
 usage (AI, storage) · platform audit
-**health**: GET `/health` (liveness) · GET `/health/ready` (db, redis, storage) · GET `/metrics` (internal network only)
+**health** (not under the `/api/v1` prefix): GET `/health` (liveness) · GET `/health/ready` (checks registered in
+`ReadinessRegistry` by the db/redis/storage modules; 503 SYS-002 naming failed checks) · GET `/metrics` on its own internal
+port `METRICS_PORT` (never published)
 
 ## WebSocket
 socket.io `/ws`, `auth: { token }`; server joins `office:{officeId}` + `user:{userId}` (portal: `client:{clientUserId}`).
