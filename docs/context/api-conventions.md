@@ -30,7 +30,8 @@ BIZ-001 last office manager · 002 case already closed · 003 open tasks block c
 AI-001 provider unavailable · 002 rate limited · 003 input too large · 004 output invalid · 005 AI disabled for office
 STO-001 upload failed · 002 download failed · 003 delete failed · 004 malware detected
 EXT-001 email provider · 002 OCR provider
-RATE-001 rate limit · SYS-001 internal · DB-001 database
+RATE-001 rate limit · SYS-001 internal · SYS-002 service unavailable (readiness check failed, 503) · DB-001 database
+Canonical list in code: `packages/shared-types/src/api/error-codes.ts`; HTTP status per code: `apps/backend-api/src/common/errors/error-catalog.ts`.
 Prisma mapping: P2002 → 409 RES-002, P2025 → 404 RES-001, P2034 → 409 RES-003, else 500 DB-001.
 
 ## Rate limits (Redis, per ip+user)
