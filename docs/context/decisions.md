@@ -311,17 +311,22 @@ role split is the `docs/runbooks/db-roles.sql` runbook, not part of migrations.
 **D-080 — Tenant extension shape and limits** · Accepted (MVP-37, 2026-09-30)
 MVP-37 left the enforcement details of D-018 open. → `PrismaService.db` is the **scoped** client (Prisma `$extends`,
 `src/common/tenancy/`); `PrismaService.unscoped()` is the raw client for migrations, seeds, signup/login before an office
-is known and platform-admin code, and every call needs a `// unscoped: <reason>` comment (local lint rule
-`nexlegtiq/unscoped-needs-reason`). On the scoped client: tenant models get `officeId` in every `where` and created row,
-and a different `officeId` (value or filter) is rejected; **relation writes into tenant models are rejected at any depth**
-(nested create/connect/upsert/…) — tenant rows are written with scalar foreign keys, which the composite
-`(user_id, office_id)` FKs check (D-079); `Office` is limited to the current office's row (create/delete need
-`unscoped()`); includes/selects/`_count` of tenant lists reached from a global model are filtered by office; raw
-`$queryRaw`/`$executeRaw` touching a tenant table must take the current `officeId` as a parameter, and the `*Unsafe`
-variants are rejected at runtime and by lint. Violations are programming errors → 500 SYS-001 (not 404): a correct
-request never reaches them. Relation metadata comes from the client's internal `_runtimeDataModel`, checked at boot.
-**Known limit:** relation *filters* in `where` from a global model into tenant rows are not scoped (no such query
-exists; revisit with Phase 3 RLS). The data-layer isolation matrix (`tenant-isolation.matrix.ts`, every tenant model,
-two offices, real PostgreSQL) runs in the `integration` target; its HTTP half (404 RES-001 per endpoint) is added per
-resource once MVP-40 provides auth. Why: isolation by construction without a hand-maintained relation list, and loud
-failures instead of silent cross-tenant reads.
+is known and platform-admin code, and every access needs a `// unscoped: <reason>` comment (local lint rule
+`nexlegtiq/unscoped-needs-reason`, **error**; also catches `['unscoped']`, `.call` and destructuring). The raw client is an
+ES `#private` field. On the scoped client: tenant models get `officeId` in every `where` and created row, and a different
+`officeId` (value or filter) is rejected; **relation writes into tenant models or Office are rejected at any depth** —
+tenant rows are written with scalar foreign keys, which composite `(…, office_id)` FKs check (D-079, now also
+`refresh_tokens.replaced_by_id`); into global models only `connect`/`disconnect`. `Office` is limited to the current
+office's row (create/delete need `unscoped()`). **Global models (Plan, PlatformAdmin, LoginAttempt) are read-only.**
+Relation filters (`some`/`none`/`is` get the office; `every` judges only the office's rows), includes/selects/`_count`
+that reach tenant rows through a global model are scoped, and ordering a global model by a tenant relation is rejected.
+Raw `$queryRaw`/`$executeRaw` touching a tenant table must take the current `officeId` as a parameter; `*Unsafe` and
+`U&"…"` identifiers are rejected (runtime + lint). Unknown operations fail closed. Violations are programming errors →
+500 SYS-001 (not 404): a correct request never reaches them. `TenantRunner.run` always starts a fresh CLS context
+(`ifNested: 'override'`). Relation metadata comes from the client's internal `_runtimeDataModel`, checked at boot.
+**Known limits:** the raw-SQL guard matches table names and only checks the officeId is *among* the parameters (views or
+functions reading tenant tables are not seen); D-037 reference tables (`officeId` nullable = "global or own") will need a
+third category in the extension. Phase 3 RLS is the backstop. The data-layer isolation matrix
+(`tenant-isolation.matrix.ts`, every tenant model, two offices, real PostgreSQL) runs in the `integration` target; its HTTP
+half (404 RES-001 per endpoint) is added per resource once MVP-40 provides auth. Why: isolation by construction without a
+hand-maintained relation list, and loud failures instead of silent cross-tenant reads.
