@@ -16,6 +16,7 @@
     "dev:down": "docker compose -f docker/compose.dev.yml down",
     "dev:reset": "docker compose -f docker/compose.dev.yml down --volumes",
     "dev:ps": "docker compose -f docker/compose.dev.yml ps",
+    "hooks:install": "node scripts/install-git-hooks.mjs",
     "postinstall": "prisma generate --config apps/backend-api/prisma.config.ts"
   },
   "devDependencies": {

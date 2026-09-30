@@ -77,7 +77,8 @@ The backend refuses to boot while a required variable is missing or invalid, and
 ## One-time setup on your machine
 1. Clone, open in Claude Code, approve the project MCP servers (Atlassian, Notion, claude-flow) and sign in to Atlassian/Notion when prompted.
 2. Ruflo: follow `docs/ruflo.md` (`npx ruflo@latest init upgrade --add-missing`, then `node scripts/ruflo-seed.mjs`).
-   Add-ons: trust the folder so the plugins install, then wire Graphify per `docs/tooling.md`.
+   Add-ons: trust the folder so the plugins install, then wire Graphify per `docs/tooling.md`, then `pnpm hooks:install`
+   (post-merge sync of Graphify/Ruflo/Notion, `docs/tooling.md` section 7).
 3. GitHub: install the **GitHub for Jira** app on this repo (links branches/PRs to MVP tickets) and protect `main`/`develop`
    (required checks: CI, PR conventions; squash merge only).
 4. Create `develop` from `main` (the setup commit lands on `main`).

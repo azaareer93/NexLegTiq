@@ -5,6 +5,18 @@ argument-hint: MVP-123
 Start work on Jira issue **$ARGUMENTS** (project MVP, site nexlegtiq.atlassian.net, cloudId `9cb815a7-782c-46e9-a4ca-74b3977b88f4`).
 Follow the `jira-workflow` skill.
 
+0. **Sync local knowledge** (docs/tooling.md#7). Skip any part whose tool is unavailable and say so in one line.
+   - `git fetch && git switch develop && git pull --ff-only` (the post-merge hook refreshes Graphify; if
+     `.git/hooks/post-merge` lacks the `nexlegtiq-post-merge` block, run `pnpm hooks:install` first and say so).
+   - **Ruflo**: if `.git/nexlegtiq/ruflo-pending` exists, run
+     `node scripts/ruflo-seed.mjs --export=<scratchpad>/ruflo-changed.json --changed-since=$(cat .git/nexlegtiq/ruflo-pending)`,
+     store every exported entry with the claude-flow MCP tool `memory_store` (its namespace, key, value; tags `nexlegtiq`,
+     `seed`), then delete the pending file. Never run the seed script without `--export` in a session: the MCP server owns
+     `.swarm/memory.db`. If `memory_store` refuses (WAL sidecar files), stop the Ruflo part and tell me to restart Claude
+     Code with the fix from docs/ruflo.md; keep the pending file.
+   - **Notion**: if `git rev-parse HEAD:docs/context/decisions.md` differs from `.git/nexlegtiq/notion-decisions`
+     (or that file is missing), run `/sync-notion decisions`.
+   - task-observer: its session-start protocol already offers an overdue review; nothing extra here.
 1. **Load**: fetch the issue with the Atlassian MCP (`getJiraIssue`) including description, acceptance criteria, parent epic, links,
    comments, labels. If it's an Epic, list its children instead and ask which to start.
 2. **Context**: read `docs/context/00-index.md`, then the topic files relevant to the ticket's labels/epic and `decisions.md`.

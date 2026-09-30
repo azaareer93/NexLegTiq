@@ -34,7 +34,12 @@ npx ruflo@latest hooks pretrain --depth deep
 ### Windows notes
 - Run the seed script with **Claude Code closed**. On Windows Ruflo writes via sql.js (its native SQLite bridge is disabled
   upstream, ruflo #3024) and refuses to write while another process — usually Claude Code's `claude-flow` MCP server —
-  holds `.swarm/memory.db` open. The script detects this (`memory.db-wal` / `memory.db-shm` present) and prints the fix.
+  holds `.swarm/memory.db` open. The script detects this (`memory.db-wal` / `memory.db-shm` present, or a running
+  `ruflo mcp start` process) and exits with code 2. Writing underneath the MCP server leaves its in-memory copy stale and makes
+  it refuse later writes until Claude Code restarts. **Inside a session** use `--export=<file> [--changed-since=<commit>]` and
+  store the entries with the MCP tool `memory_store` (what `/ticket` step 0 does, docs/tooling.md#7).
+- Spec keys are `<file>/<section-slug>` (the MCP tools reject `#`). Entries seeded before 2026-09-30 used `#`; one full
+  re-seed with Claude Code closed adds the `/` keys, and the old `#` entries are harmless duplicates.
 - If those two files remain with nothing running, they are stale: move them aside (`Move-Item .swarm\memory.db-wal .swarm\memory.db-wal.bak`,
   same for `-shm`) and re-run.
 - Don't set `CLAUDE_FLOW_ENABLE_NATIVE_BRIDGE_ON_WINDOWS=1`; upstream disabled it because it can crash Node.
