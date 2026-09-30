@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 
 import { CoreModule } from '../common/core/core.module';
+import { DatabaseModule } from '../database/database.module';
 import { GlobalExceptionFilter } from '../common/errors/global-exception.filter';
 import { EnvelopeInterceptor } from '../common/http/envelope.interceptor';
 import { HealthModule } from '../health/health.module';
@@ -9,7 +10,7 @@ import { MetricsModule } from '../metrics/metrics.module';
 
 /** Root module of the HTTP API. */
 @Module({
-  imports: [CoreModule, HealthModule, MetricsModule],
+  imports: [CoreModule, DatabaseModule, HealthModule, MetricsModule],
   providers: [
     { provide: APP_INTERCEPTOR, useClass: EnvelopeInterceptor },
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },

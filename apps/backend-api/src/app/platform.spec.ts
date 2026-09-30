@@ -3,6 +3,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 
+import { PrismaService } from '../database/prisma.service';
 import { ReadinessRegistry } from '../health/readiness.registry';
 import { MetricsService } from '../metrics/metrics.service';
 import { AppModule } from './app.module';
@@ -20,7 +21,11 @@ class PlatformTestController {
 class PlatformTestModule {}
 
 async function createApp(): Promise<NestExpressApplication> {
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule, PlatformTestModule] }).compile();
+  // No database in unit tests: the real PrismaService would register a failing `db` readiness check.
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule, PlatformTestModule] })
+    .overrideProvider(PrismaService)
+    .useValue({})
+    .compile();
   const app = moduleRef.createNestApplication<NestExpressApplication>({ bodyParser: false, bufferLogs: true });
   configureApp(app);
   await app.init();
