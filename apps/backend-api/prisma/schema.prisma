@@ -1,0 +1,417 @@
+// NexLegTiq database schema. Canonical model: docs/context/domain-model.md; conventions: .claude/rules/prisma.md.
+// Tenant tables carry a non-null office_id and are listed in src/database/tenant-models.ts (MVP-37 enforces it).
+// Plan approved on MVP-33 (Jira comment 10044); choices recorded in D-079.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "cjs"
+  importFileExtension = ""
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums (UPPER_SNAKE, D-016; labels come from i18n) ──────────────────────────────────────────────────────────
+
+enum Jurisdiction {
+  PALESTINE
+  JORDAN
+  EGYPT
+  SAUDI_ARABIA
+  UAE
+  KUWAIT
+  QATAR
+  OMAN
+  BAHRAIN
+  LEBANON
+  IRAQ
+  MOROCCO
+  USA
+  UK
+  OTHER
+}
+
+enum OfficeLanguage {
+  AR
+  EN
+  BILINGUAL
+}
+
+enum UiLanguage {
+  AR
+  EN
+}
+
+enum Role {
+  OFFICE_MANAGER
+  SENIOR_LAWYER
+  LAWYER
+  PARALEGAL
+  ADMIN
+  TRAINEE
+  EXTERNAL_COLLABORATOR
+}
+
+enum BillingMethod {
+  HOURLY
+  FIXED_FEE
+  RETAINER
+  CONTINGENCY
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+enum LegalDocumentType {
+  TOS
+  PRIVACY
+  DPA
+}
+
+enum PlanMarket {
+  PALESTINE
+  GLOBAL
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CARD
+  NONE
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  VIEW
+  DOWNLOAD
+  SHARE
+  LOGIN
+  LOGOUT
+  EXPORT
+  PERMISSION_DENIED
+  SECURITY
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+}
+
+// ─── Tenancy & identity ─────────────────────────────────────────────────────────────────────────────────────────
+
+/// The tenant. Every tenant-owned row references it.
+model Office {
+  id                 String         @id @default(uuid(7)) @db.Uuid
+  name               String
+  registrationNumber String?        @map("registration_number")
+  taxId              String?        @map("tax_id")
+  phone              String?
+  email              String?        @db.Citext
+  address            String?
+  website            String?
+  jurisdiction       Jurisdiction   @default(PALESTINE)
+  defaultLanguage    OfficeLanguage @default(AR) @map("default_language")
+  /// ISO-4217 code (D-004): ILS, JOD, USD are common in Palestine.
+  currency           String         @default("ILS") @db.Char(3)
+  timezone           String         @default("Asia/Hebron")
+  isActive           Boolean        @default(true) @map("is_active")
+  createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  settings            OfficeSettings?
+  users               User[]
+  invitations         OfficeInvitation[]
+  refreshTokens       RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+  legalAcceptances    LegalAcceptance[]
+  subscriptions       Subscription[]
+  auditLogs           AuditLog[]
+  notifications       Notification[]
+
+  @@map("offices")
+}
+
+/// Typed per-office settings (not key/value). audit_retention_days >= 365 is a CHECK constraint (D-060).
+model OfficeSettings {
+  id                   String        @id @default(uuid(7)) @db.Uuid
+  officeId             String        @unique @map("office_id") @db.Uuid
+  courtReminderDays    Int[]         @default([7, 3, 1]) @map("court_reminder_days")
+  taskReminderDays     Int[]         @default([1]) @map("task_reminder_days")
+  defaultBillingRate   Decimal?      @map("default_billing_rate") @db.Decimal(14, 2)
+  defaultBillingMethod BillingMethod @default(HOURLY) @map("default_billing_method")
+  taxRatePercent       Decimal       @default(0) @map("tax_rate_percent") @db.Decimal(5, 2)
+  enableAi             Boolean       @default(true) @map("enable_ai")
+  enableOcr            Boolean       @default(true) @map("enable_ocr")
+  fileNumberFormat     String        @default("{YEAR}-{TYPE}-{SEQ:5}") @map("file_number_format")
+  sessionIdleMinutes   Int           @default(30) @map("session_idle_minutes")
+  auditRetentionDays   Int           @default(365) @map("audit_retention_days")
+  createdAt            DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office Office @relation(fields: [officeId], references: [id], onDelete: Cascade)
+
+  @@map("office_settings")
+}
+
+/// One login = one office (D-032): email is unique across all offices.
+model User {
+  id           String     @id @default(uuid(7)) @db.Uuid
+  officeId     String     @map("office_id") @db.Uuid
+  fullName     String     @map("full_name")
+  email        String     @unique @db.Citext
+  passwordHash String     @map("password_hash")
+  role         Role
+  phone        String?
+  avatarUrl    String?    @map("avatar_url")
+  isActive     Boolean    @default(true) @map("is_active")
+  lastLoginAt  DateTime?  @map("last_login_at") @db.Timestamptz(3)
+  uiLanguage   UiLanguage @default(AR) @map("ui_language")
+  timezone     String?
+  /// AES-256-GCM ciphertext (D-056), never the raw secret.
+  mfaSecret    String?    @map("mfa_secret")
+  mfaEnabled   Boolean    @default(false) @map("mfa_enabled")
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office              Office               @relation(fields: [officeId], references: [id])
+  sentInvitations     OfficeInvitation[]
+  refreshTokens       RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+  legalAcceptances    LegalAcceptance[]
+  auditLogs           AuditLog[]
+  notifications       Notification[]
+
+  @@index([officeId, role])
+  @@map("users")
+}
+
+/// Admin-panel operators. Not an office role; MFA is mandatory.
+model PlatformAdmin {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  fullName     String    @map("full_name")
+  email        String    @unique @db.Citext
+  passwordHash String    @map("password_hash")
+  /// AES-256-GCM ciphertext (D-056).
+  mfaSecret    String    @map("mfa_secret")
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at") @db.Timestamptz(3)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  auditLogs AuditLog[]
+
+  @@map("platform_admins")
+}
+
+model OfficeInvitation {
+  id          String           @id @default(uuid(7)) @db.Uuid
+  officeId    String           @map("office_id") @db.Uuid
+  email       String           @db.Citext
+  /// Any role except OFFICE_MANAGER (enforced by the service).
+  role        Role
+  /// SHA-256 of the emailed token; the token itself is never stored.
+  tokenHash   String           @unique @map("token_hash")
+  status      InvitationStatus @default(PENDING)
+  expiresAt   DateTime         @map("expires_at") @db.Timestamptz(3)
+  invitedById String           @map("invited_by_id") @db.Uuid
+  message     String?
+  acceptedAt  DateTime?        @map("accepted_at") @db.Timestamptz(3)
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office    Office @relation(fields: [officeId], references: [id])
+  invitedBy User   @relation(fields: [invitedById], references: [id])
+
+  @@index([officeId, status])
+  @@index([officeId, email])
+  @@map("office_invitations")
+}
+
+/// Office users only; admin-panel and portal sessions get their own tables (D-079). Rotated on every refresh;
+/// reuse of a revoked token revokes the whole family (auth-rbac.md).
+model RefreshToken {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  officeId     String    @map("office_id") @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  familyId     String    @map("family_id") @db.Uuid
+  /// SHA-256 of the opaque cookie value.
+  tokenHash    String    @unique @map("token_hash")
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(3)
+  replacedById String?   @unique @map("replaced_by_id") @db.Uuid
+  ipAddress    String?   @map("ip_address") @db.Inet
+  userAgent    String?   @map("user_agent")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  office     Office        @relation(fields: [officeId], references: [id])
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replacedBy RefreshToken? @relation("RefreshTokenRotation", fields: [replacedById], references: [id])
+  replaces   RefreshToken? @relation("RefreshTokenRotation")
+
+  @@index([officeId, userId])
+  @@index([familyId])
+  @@map("refresh_tokens")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  officeId  String    @map("office_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  office Office @relation(fields: [officeId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([officeId, userId])
+  @@map("password_reset_tokens")
+}
+
+/// Global (not tenant-scoped): recorded before login, when the email may match no user (D-053 lockout, D-079).
+model LoginAttempt {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  email       String   @db.Citext
+  ipAddress   String   @map("ip_address") @db.Inet
+  success     Boolean
+  attemptedAt DateTime @default(now()) @map("attempted_at") @db.Timestamptz(3)
+
+  @@index([email, attemptedAt])
+  @@index([ipAddress, attemptedAt])
+  @@map("login_attempts")
+}
+
+/// ToS / privacy / DPA version a user accepted. Portal users (clientUserId) arrive with the Client Portal.
+model LegalAcceptance {
+  id           String            @id @default(uuid(7)) @db.Uuid
+  officeId     String            @map("office_id") @db.Uuid
+  userId       String            @map("user_id") @db.Uuid
+  documentType LegalDocumentType @map("document_type")
+  version      String
+  acceptedAt   DateTime          @default(now()) @map("accepted_at") @db.Timestamptz(3)
+  ipAddress    String?           @map("ip_address") @db.Inet
+
+  office Office @relation(fields: [officeId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@unique([userId, documentType, version])
+  @@index([officeId, userId])
+  @@map("legal_acceptances")
+}
+
+// ─── Plans & subscriptions (D-005, D-006) ───────────────────────────────────────────────────────────────────────
+
+/// Platform-wide catalogue. Feature gating reads `features`, never plan codes or names.
+model Plan {
+  id             String     @id @default(uuid(7)) @db.Uuid
+  code           String     @unique
+  name           String
+  market         PlanMarket
+  priceMonthly   Decimal    @map("price_monthly") @db.Decimal(14, 2)
+  currency       String     @db.Char(3)
+  /// null = unlimited.
+  maxUsers       Int?       @map("max_users")
+  /// null = unlimited.
+  aiQuotaMonthly Int?       @map("ai_quota_monthly")
+  storageQuotaMb Int        @map("storage_quota_mb")
+  /// Free/trial length in days for plans that start in TRIALING (e.g. 180 for the Palestine freemium, 30 globally).
+  trialDays      Int?       @map("trial_days")
+  features       Json       @default("{}")
+  isActive       Boolean    @default(true) @map("is_active")
+  sortOrder      Int        @default(0) @map("sort_order")
+  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  subscriptions Subscription[]
+
+  @@index([market, isActive])
+  @@map("plans")
+}
+
+/// At most one TRIALING/ACTIVE subscription per office: partial unique index in the migration (D-079).
+model Subscription {
+  id                 String             @id @default(uuid(7)) @db.Uuid
+  officeId           String             @map("office_id") @db.Uuid
+  planId             String             @map("plan_id") @db.Uuid
+  status             SubscriptionStatus
+  currentPeriodStart DateTime           @map("current_period_start") @db.Timestamptz(3)
+  currentPeriodEnd   DateTime?          @map("current_period_end") @db.Timestamptz(3)
+  trialEndsAt        DateTime?          @map("trial_ends_at") @db.Timestamptz(3)
+  paymentMethod      PaymentMethod      @default(NONE) @map("payment_method")
+  cancelledAt        DateTime?          @map("cancelled_at") @db.Timestamptz(3)
+  notes              String?
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office Office @relation(fields: [officeId], references: [id])
+  plan   Plan   @relation(fields: [planId], references: [id])
+
+  @@index([officeId, status])
+  @@map("subscriptions")
+}
+
+// ─── Cross-cutting ──────────────────────────────────────────────────────────────────────────────────────────────
+
+/// Append-only: the app role has no UPDATE/DELETE grant (docs/runbooks/db-roles.sql). Retention purge runs as the
+/// migrator. Secrets are redacted from old/new values before insert.
+model AuditLog {
+  id              String      @id @default(uuid(7)) @db.Uuid
+  officeId        String      @map("office_id") @db.Uuid
+  userId          String?     @map("user_id") @db.Uuid
+  platformAdminId String?     @map("platform_admin_id") @db.Uuid
+  entityType      String      @map("entity_type")
+  entityId        String?     @map("entity_id") @db.Uuid
+  action          AuditAction
+  oldValues       Json?       @map("old_values")
+  newValues       Json?       @map("new_values")
+  ipAddress       String?     @map("ip_address") @db.Inet
+  userAgent       String?     @map("user_agent")
+  /// Correlation id only (D-076), never evidence of identity.
+  requestId       String?     @map("request_id")
+  occurredAt      DateTime    @default(now()) @map("occurred_at") @db.Timestamptz(3)
+
+  office        Office         @relation(fields: [officeId], references: [id])
+  user          User?          @relation(fields: [userId], references: [id])
+  platformAdmin PlatformAdmin? @relation(fields: [platformAdminId], references: [id])
+
+  @@index([officeId, occurredAt(sort: Desc)])
+  @@index([officeId, entityType, entityId])
+  @@map("audit_logs")
+}
+
+model Notification {
+  id        String              @id @default(uuid(7)) @db.Uuid
+  officeId  String              @map("office_id") @db.Uuid
+  userId    String              @map("user_id") @db.Uuid
+  type      String
+  /// i18n key; the UI renders it with `params`, never stored text.
+  titleKey  String              @map("title_key")
+  params    Json                @default("{}")
+  link      String?
+  channel   NotificationChannel @default(IN_APP)
+  readAt    DateTime?           @map("read_at") @db.Timestamptz(3)
+  createdAt DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  office Office @relation(fields: [officeId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([officeId, userId, readAt])
+  @@map("notifications")
+}
