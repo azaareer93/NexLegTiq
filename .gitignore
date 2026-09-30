@@ -7,6 +7,8 @@ coverage/
 .nx/cache/
 .nx/workspace-data/
 *.tsbuildinfo
+# prisma generate output (apps/backend-api/src/generated)
+apps/backend-api/src/generated/
 
 # env & secrets
 .env

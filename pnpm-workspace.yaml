@@ -7,4 +7,6 @@ onlyBuiltDependencies:
   - '@swc/core'
   - esbuild
   - nx
+  - prisma
+  - '@prisma/engines'
   - unrs-resolver

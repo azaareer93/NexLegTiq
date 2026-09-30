@@ -13,6 +13,8 @@ module.exports = {
   displayName: 'backend-api',
   preset: '../../jest.preset.js',
   setupFiles: ['<rootDir>/jest.setup.ts'],
+  // Database tests run in their own target (`nx run backend-api:integration`, jest.integration.config.cjs).
+  testPathIgnorePatterns: ['/node_modules/', '\\.int\\.spec\\.ts$'],
   testEnvironment: 'node',
   transform: {
     '^.+\\.[tj]s$': ['@swc/jest', swcJestConfig]
