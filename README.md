@@ -43,6 +43,11 @@ Module boundaries are defined once in `packages/shared-config/eslint/module-boun
 | Mailpit | 1025 (SMTP), 8025 (web UI) | catches every outgoing email: http://localhost:8025 |
 | ClamAV | 3310 (clamd) | first start downloads signatures (~5 min) before it reports healthy |
 
+Database (Prisma 7, `apps/backend-api/prisma/`): `pnpm nx run backend-api:prisma-migrate` (new migration, local only),
+`prisma-deploy` (apply), `seed` (reference plans), `seed-demo` (demo office; development/test only), `integration`
+(database tests; needs the stack). The client is generated on `pnpm install` and by `prisma-generate`. Production roles:
+`docs/runbooks/db-roles.sql`.
+
 The Postgres init script (`docker/postgres/init/`) runs only on an empty volume. After changing it, run `pnpm dev:reset`.
 The backend refuses to boot while a required variable is missing or invalid, and lists every offending key.
 

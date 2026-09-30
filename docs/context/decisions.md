@@ -280,3 +280,16 @@ TLS in transit — `DATABASE_URL` with `sslmode=require|verify-ca|verify-full`, 
 `requireTLS` unless implicit TLS — and rejects the documented dev/CI placeholder credentials (also the only values the
 gitleaks allowlist accepts). CI has no S3/mail/ClamAV containers until a job needs them. Why: one-command local setup
 without an unmaintained image, and a misconfigured production boot fails instead of running over plaintext.
+
+**D-079 — Base schema choices left open by the domain model** · Accepted (owner, MVP-33, 2026-09-30)
+→ Prisma 7.10 (`prisma-client` generator, CommonJS output in `src/generated/prisma`, git-ignored, generated on
+`pnpm install`) with the `pg` driver adapter. `RefreshToken` covers **office users only** (admin-panel and portal sessions
+get their own tables), with `familyId` for reuse detection. `LoginAttempt` is **global** (recorded before login, when the
+email may match no user). `LegalAcceptance.userId` is required until the portal adds `clientUserId`. **One live
+subscription per office**: partial unique index on `subscriptions(office_id) WHERE status IN ('TRIALING','ACTIVE')`.
+`AuditLog.officeId` is required; platform-level events without an office are decided with the admin panel. Audit
+append-only is enforced by **grants** (`docs/runbooks/db-roles.sql`), not a trigger, so retention purge can run as the
+migrator. CHECK constraints: `audit_retention_days >= 365`, `session_idle_minutes` 15–120. Plans are seeded
+create-only by `code` (the admin panel owns later edits); storage quotas and global AI quotas are provisional (not in
+the specs). `nlq_normalize_ar()` is IMMUTABLE and excludes `unaccent` (STABLE); callers compose it. Why: owner-approved
+plan (Jira MVP-33 comment 10044).

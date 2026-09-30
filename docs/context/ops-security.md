@@ -14,7 +14,7 @@
 - Secrets: never in repo; `.env.example` only; GitHub Environments for CI/CD; boot-time Zod validation.
 - Logging: Pino JSON with redaction; request id propagated to jobs; no PII in logs beyond ids.
 - Containers: non-root, read-only FS, `cap_drop: ALL`, `no-new-privileges`, tmpfs `/tmp`, resource limits; Trivy scan in CI.
-- DB roles: `nexlegtiq_migrator` (DDL), `nexlegtiq_app` (DML, no DELETE on audit_log), `nexlegtiq_readonly`.
+- DB roles: `nexlegtiq_migrator` (DDL), `nexlegtiq_app` (DML, no DELETE on audit_log), `nexlegtiq_readonly` (script: `docs/runbooks/db-roles.sql`).
 - Dependency hygiene: Renovate weekly, `pnpm audit`, lockfile committed.
 
 ## Privacy & compliance (product obligations)
