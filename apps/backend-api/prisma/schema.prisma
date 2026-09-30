@@ -197,6 +197,8 @@ model User {
   auditLogs           AuditLog[]
   notifications       Notification[]
 
+  /// Target of the composite (user_id, office_id) FKs: a child row can never name a user of another office (D-079).
+  @@unique([id, officeId])
   @@index([officeId, role])
   @@map("users")
 }
@@ -236,7 +238,7 @@ model OfficeInvitation {
   updatedAt   DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   office    Office @relation(fields: [officeId], references: [id])
-  invitedBy User   @relation(fields: [invitedById], references: [id])
+  invitedBy User   @relation(fields: [invitedById, officeId], references: [id, officeId])
 
   @@index([officeId, status])
   @@index([officeId, email])
@@ -260,7 +262,7 @@ model RefreshToken {
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
   office     Office        @relation(fields: [officeId], references: [id])
-  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User          @relation(fields: [userId, officeId], references: [id, officeId], onDelete: Cascade)
   replacedBy RefreshToken? @relation("RefreshTokenRotation", fields: [replacedById], references: [id])
   replaces   RefreshToken? @relation("RefreshTokenRotation")
 
@@ -279,7 +281,7 @@ model PasswordResetToken {
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
   office Office @relation(fields: [officeId], references: [id])
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId, officeId], references: [id, officeId], onDelete: Cascade)
 
   @@index([officeId, userId])
   @@map("password_reset_tokens")
@@ -309,7 +311,7 @@ model LegalAcceptance {
   ipAddress    String?           @map("ip_address") @db.Inet
 
   office Office @relation(fields: [officeId], references: [id])
-  user   User   @relation(fields: [userId], references: [id])
+  user   User   @relation(fields: [userId, officeId], references: [id, officeId])
 
   @@unique([userId, documentType, version])
   @@index([officeId, userId])
@@ -369,7 +371,7 @@ model Subscription {
 
 // ─── Cross-cutting ──────────────────────────────────────────────────────────────────────────────────────────────
 
-/// Append-only: the app role has no UPDATE/DELETE grant (docs/runbooks/db-roles.sql). Retention purge runs as the
+/// Append-only: the app role has no UPDATE/DELETE grant (revoked by the init migration and docs/runbooks/db-roles.sql). Retention purge runs as the
 /// migrator. Secrets are redacted from old/new values before insert.
 model AuditLog {
   id              String      @id @default(uuid(7)) @db.Uuid
@@ -388,8 +390,10 @@ model AuditLog {
   occurredAt      DateTime    @default(now()) @map("occurred_at") @db.Timestamptz(3)
 
   office        Office         @relation(fields: [officeId], references: [id])
-  user          User?          @relation(fields: [userId], references: [id])
-  platformAdmin PlatformAdmin? @relation(fields: [platformAdminId], references: [id])
+  // Restrict, not SetNull: FK actions run as the table owner, so SetNull/Cascade would let the app role rewrite the
+  // append-only log by deleting or re-keying a user (users are deactivated, never deleted).
+  user          User?          @relation(fields: [userId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
+  platformAdmin PlatformAdmin? @relation(fields: [platformAdminId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([officeId, occurredAt(sort: Desc)])
   @@index([officeId, entityType, entityId])
@@ -410,8 +414,9 @@ model Notification {
   createdAt DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
 
   office Office @relation(fields: [officeId], references: [id])
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId, officeId], references: [id, officeId], onDelete: Cascade)
 
-  @@index([officeId, userId, readAt])
+  // "My notifications, newest first"; unread counts filter on read_at within the same (office, user) range.
+  @@index([officeId, userId, createdAt(sort: Desc)])
   @@map("notifications")
 }

@@ -92,7 +92,13 @@
       },
       "cache": true,
       "inputs": [
-        "{projectRoot}/prisma/schema.prisma"
+        "{projectRoot}/prisma/schema.prisma",
+        "{projectRoot}/prisma.config.ts",
+        {
+          "externalDependencies": [
+            "prisma"
+          ]
+        }
       ],
       "outputs": [
         "{projectRoot}/src/generated/prisma"

@@ -1,5 +1,7 @@
 -- Extensions the schema relies on (D-032 citext, D-059 pg_trgm/unaccent, pgvector for Phase 2 embeddings).
--- Idempotent: the local dev image already installs them via docker/postgres/init; managed databases get them here.
+-- Idempotent: the dev image installs them via docker/postgres/init, and in staging/production the admin creates them
+-- first (docs/runbooks/db-roles.sql) because pgvector may need a superuser; managed databases without that step get
+-- the trusted ones here.
 CREATE EXTENSION IF NOT EXISTS citext;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE EXTENSION IF NOT EXISTS unaccent;
@@ -275,6 +277,9 @@ CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 CREATE INDEX "users_office_id_role_idx" ON "users"("office_id", "role");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "users_id_office_id_key" ON "users"("id", "office_id");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "platform_admins_email_key" ON "platform_admins"("email");
 
 -- CreateIndex
@@ -332,7 +337,7 @@ CREATE INDEX "audit_logs_office_id_occurred_at_idx" ON "audit_logs"("office_id",
 CREATE INDEX "audit_logs_office_id_entity_type_entity_id_idx" ON "audit_logs"("office_id", "entity_type", "entity_id");
 
 -- CreateIndex
-CREATE INDEX "notifications_office_id_user_id_read_at_idx" ON "notifications"("office_id", "user_id", "read_at");
+CREATE INDEX "notifications_office_id_user_id_created_at_idx" ON "notifications"("office_id", "user_id", "created_at" DESC);
 
 -- AddForeignKey
 ALTER TABLE "office_settings" ADD CONSTRAINT "office_settings_office_id_fkey" FOREIGN KEY ("office_id") REFERENCES "offices"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -344,13 +349,13 @@ ALTER TABLE "users" ADD CONSTRAINT "users_office_id_fkey" FOREIGN KEY ("office_i
 ALTER TABLE "office_invitations" ADD CONSTRAINT "office_invitations_office_id_fkey" FOREIGN KEY ("office_id") REFERENCES "offices"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "office_invitations" ADD CONSTRAINT "office_invitations_invited_by_id_fkey" FOREIGN KEY ("invited_by_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "office_invitations" ADD CONSTRAINT "office_invitations_invited_by_id_office_id_fkey" FOREIGN KEY ("invited_by_id", "office_id") REFERENCES "users"("id", "office_id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "refresh_tokens" ADD CONSTRAINT "refresh_tokens_office_id_fkey" FOREIGN KEY ("office_id") REFERENCES "offices"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "refresh_tokens" ADD CONSTRAINT "refresh_tokens_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "refresh_tokens" ADD CONSTRAINT "refresh_tokens_user_id_office_id_fkey" FOREIGN KEY ("user_id", "office_id") REFERENCES "users"("id", "office_id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "refresh_tokens" ADD CONSTRAINT "refresh_tokens_replaced_by_id_fkey" FOREIGN KEY ("replaced_by_id") REFERENCES "refresh_tokens"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -359,13 +364,13 @@ ALTER TABLE "refresh_tokens" ADD CONSTRAINT "refresh_tokens_replaced_by_id_fkey"
 ALTER TABLE "password_reset_tokens" ADD CONSTRAINT "password_reset_tokens_office_id_fkey" FOREIGN KEY ("office_id") REFERENCES "offices"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "password_reset_tokens" ADD CONSTRAINT "password_reset_tokens_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "password_reset_tokens" ADD CONSTRAINT "password_reset_tokens_user_id_office_id_fkey" FOREIGN KEY ("user_id", "office_id") REFERENCES "users"("id", "office_id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "legal_acceptances" ADD CONSTRAINT "legal_acceptances_office_id_fkey" FOREIGN KEY ("office_id") REFERENCES "offices"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "legal_acceptances" ADD CONSTRAINT "legal_acceptances_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "legal_acceptances" ADD CONSTRAINT "legal_acceptances_user_id_office_id_fkey" FOREIGN KEY ("user_id", "office_id") REFERENCES "users"("id", "office_id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "subscriptions" ADD CONSTRAINT "subscriptions_office_id_fkey" FOREIGN KEY ("office_id") REFERENCES "offices"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -377,16 +382,16 @@ ALTER TABLE "subscriptions" ADD CONSTRAINT "subscriptions_plan_id_fkey" FOREIGN 
 ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_office_id_fkey" FOREIGN KEY ("office_id") REFERENCES "offices"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_user_id_office_id_fkey" FOREIGN KEY ("user_id", "office_id") REFERENCES "users"("id", "office_id") ON DELETE RESTRICT ON UPDATE RESTRICT;
 
 -- AddForeignKey
-ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_platform_admin_id_fkey" FOREIGN KEY ("platform_admin_id") REFERENCES "platform_admins"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_platform_admin_id_fkey" FOREIGN KEY ("platform_admin_id") REFERENCES "platform_admins"("id") ON DELETE RESTRICT ON UPDATE RESTRICT;
 
 -- AddForeignKey
 ALTER TABLE "notifications" ADD CONSTRAINT "notifications_office_id_fkey" FOREIGN KEY ("office_id") REFERENCES "offices"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "notifications" ADD CONSTRAINT "notifications_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "notifications" ADD CONSTRAINT "notifications_user_id_office_id_fkey" FOREIGN KEY ("user_id", "office_id") REFERENCES "users"("id", "office_id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 
 -- ─── Raw SQL Prisma cannot express ──────────────────────────────────────────────────────────────────────────────
@@ -395,19 +400,32 @@ ALTER TABLE "notifications" ADD CONSTRAINT "notifications_user_id_fkey" FOREIGN 
 ALTER TABLE "office_settings" ADD CONSTRAINT "office_settings_audit_retention_days_check" CHECK ("audit_retention_days" >= 365);
 ALTER TABLE "office_settings" ADD CONSTRAINT "office_settings_session_idle_minutes_check" CHECK ("session_idle_minutes" BETWEEN 15 AND 120);
 
--- D-079: at most one live (TRIALING/ACTIVE) subscription per office.
+-- D-079: at most one live (TRIALING/ACTIVE) subscription per office, and one pending invitation per office + email.
 CREATE UNIQUE INDEX "subscriptions_one_live_per_office" ON "subscriptions" ("office_id") WHERE "status" IN ('TRIALING', 'ACTIVE');
+CREATE UNIQUE INDEX "office_invitations_one_pending_per_email" ON "office_invitations" ("office_id", "email") WHERE "status" = 'PENDING';
+
+-- D-079: audit_logs is append-only for the app role. Grant-based (the migrator can still purge after retention), and
+-- revoked here so it never depends on re-running docs/runbooks/db-roles.sql. No-op where the role does not exist
+-- (local, CI).
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'nexlegtiq_app') THEN
+    REVOKE UPDATE, DELETE, TRUNCATE ON "audit_logs" FROM nexlegtiq_app;
+  END IF;
+END
+$$;
 
 -- D-059: Arabic normalisation for search. Strips tashkeel (U+064B–U+065F, U+0670) and tatweel (U+0640), folds
--- alef variants (U+0623 U+0625 U+0622 U+0671 → U+0627), alef maqsura U+0649 → ya U+064A, ta marbuta U+0629 → ha U+0647,
--- and lower-cases Latin. IMMUTABLE so it can back generated tsvector columns and expression indexes. Callers add
--- unaccent() for Latin diacritics themselves (unaccent is only STABLE).
+-- alef variants (U+0623 U+0625 U+0622 U+0671 → U+0627), alef maqsura U+0649 and ya-hamza U+0626 → ya U+064A,
+-- waw-hamza U+0624 → waw U+0648, ta marbuta U+0629 → ha U+0647, and lower-cases Latin. IMMUTABLE so it can back
+-- generated tsvector columns and expression indexes. Callers add unaccent() for Latin diacritics themselves
+-- (unaccent is only STABLE).
 CREATE FUNCTION nlq_normalize_ar(input text) RETURNS text
   LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
   AS $$
     SELECT lower(translate(
       regexp_replace(input, U&'[\064B-\065F\0670\0640]', '', 'g'),
-      U&'\0623\0625\0622\0671\0649\0629',
-      U&'\0627\0627\0627\0627\064A\0647'
+      U&'\0623\0625\0622\0671\0649\0626\0624\0629',
+      U&'\0627\0627\0627\0627\064A\064A\0648\0647'
     ))
   $$;

@@ -6,8 +6,8 @@ export const DEMO_OFFICE_ID = '01920000-0000-7000-8000-000000000001';
 export const DEMO_MANAGER_EMAIL = 'manager@demo.nexlegtiq.test';
 
 /**
- * Demo data for local development and staging only. The manager's password hash is a placeholder that matches no
- * password: the auth story chooses the hashing algorithm and a way to set it.
+ * Demo data for local development and tests only (NODE_ENV=development|test). The manager's password hash is a
+ * placeholder that matches no password: the auth story chooses the hashing algorithm and a way to set it.
  */
 export async function seedDemo(prisma: PrismaClient): Promise<void> {
   await seedPlans(prisma);
