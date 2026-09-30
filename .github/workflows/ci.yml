@@ -35,6 +35,15 @@ jobs:
       NODE_ENV: test
       DATABASE_URL: postgresql://nexlegtiq:test@localhost:5432/nexlegtiq_test
       REDIS_URL: redis://localhost:6379
+      # Required by env.schema.ts; no CI job talks to storage/mail/ClamAV yet, so no service containers for them.
+      S3_ENDPOINT: http://localhost:9000
+      S3_REGION: us-east-1
+      S3_BUCKET: nexlegtiq-documents-ci
+      S3_ACCESS_KEY_ID: ci-only-access-key
+      S3_SECRET_ACCESS_KEY: ci-only-secret-key
+      SMTP_HOST: localhost
+      MAIL_FROM: no-reply@nexlegtiq.test
+      CLAMAV_HOST: localhost
       JWT_SECRET: ci-only-access-secret-at-least-32-characters
       JWT_REFRESH_SECRET: ci-only-refresh-secret-at-least-32-chars
       JWT_PORTAL_SECRET: ci-only-portal-secret-at-least-32-chars

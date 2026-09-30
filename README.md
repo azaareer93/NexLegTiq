@@ -10,6 +10,8 @@ Prerequisites: **Node 22** (`.nvmrc`) and **pnpm 10** (`corepack enable` picks t
 
 ```bash
 pnpm install
+cp .env.example .env             # local config; matches docker/compose.dev.yml (Nx loads .env for every task)
+pnpm dev:up                      # backing services (Docker) — see "Local dev stack" below
 pnpm nx serve backend-api        # http://localhost:3000/api/v1 · Swagger /api/docs · /health · metrics :9464/metrics
 pnpm nx serve office-app         # http://localhost:4200
 pnpm nx serve admin-panel        # http://localhost:4201
@@ -27,7 +29,22 @@ pnpm nx graph                    # project graph and module boundaries
 | `packages/shared-*` | TS source packages (`@nexlegtiq/*`), consumed without a build step | `type:lib`, `scope:shared`, `layer:*` |
 
 Module boundaries are defined once in `packages/shared-config/eslint/module-boundaries.mjs` and enforced by
-`@nx/enforce-module-boundaries`. Docker dev stack: MVP-30. Full lint/format tooling: MVP-29.
+`@nx/enforce-module-boundaries`. Full lint/format tooling: MVP-29.
+
+### Local dev stack
+`docker/compose.dev.yml` (Docker Desktop or Docker Engine + Compose v2). `pnpm dev:up` starts it, `pnpm dev:ps` shows health,
+`pnpm dev:down` stops it (data kept), `pnpm dev:reset` also deletes the volumes. Ports bind to `127.0.0.1` only.
+
+| Service | Port(s) | Notes |
+|---|---|---|
+| Postgres 17 + pgvector | 5432 | user/password/db `nexlegtiq`; extensions `vector`, `pg_trgm`, `unaccent`, `citext`; also `nexlegtiq_test` for integration tests |
+| Redis 7 | 6379 | AOF on; BullMQ keys prefixed `BULLMQ_PREFIX` |
+| RustFS (S3) | 9000 (S3 API), 9001 (console) | access key `nexlegtiq` / `nexlegtiq-dev-only`; bucket `nexlegtiq-documents-local` created by `s3-init` |
+| Mailpit | 1025 (SMTP), 8025 (web UI) | catches every outgoing email: http://localhost:8025 |
+| ClamAV | 3310 (clamd) | first start downloads signatures (~5 min) before it reports healthy |
+
+The Postgres init script (`docker/postgres/init/`) runs only on an empty volume. After changing it, run `pnpm dev:reset`.
+The backend refuses to boot while a required variable is missing or invalid, and lists every offending key.
 
 ## Where things are
 | Path | What |

@@ -1,0 +1,112 @@
+# Local backing services for NexLegTiq (MVP-30). Start: `pnpm dev:up` · stop: `pnpm dev:down` · wipe data: `pnpm dev:reset`.
+# Credentials here are local-only dev values and match `.env.example`. Every port binds to 127.0.0.1, never the LAN.
+name: nexlegtiq
+
+services:
+  postgres:
+    # Plain postgres:17 lacks pgvector (Phase 2 embeddings); this is PG 17 with the extension installed.
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: nexlegtiq
+      POSTGRES_PASSWORD: nexlegtiq
+      POSTGRES_DB: nexlegtiq
+    ports: ['127.0.0.1:5432:5432']
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      # Runs once, on an empty data volume: extensions + the nexlegtiq_test database.
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # Over TCP: the entrypoint runs init scripts on a socket-only server, so this stays unhealthy until they finish.
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U nexlegtiq -d nexlegtiq']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    # AOF so queued BullMQ jobs survive a container restart.
+    command: ['redis-server', '--appendonly', 'yes']
+    ports: ['127.0.0.1:6379:6379']
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # S3-compatible object storage. MinIO no longer publishes community images (D-078); RustFS is an Apache-2.0
+  # S3-compatible server with the same ports and path-style addressing.
+  s3:
+    image: rustfs/rustfs:1.0.0
+    command: ['/data']
+    environment:
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ENABLE: 'true'
+      RUSTFS_CONSOLE_ADDRESS: 0.0.0.0:9001
+      RUSTFS_ACCESS_KEY: nexlegtiq
+      RUSTFS_SECRET_KEY: nexlegtiq-dev-only
+    ports:
+      - '127.0.0.1:9000:9000' # S3 API
+      - '127.0.0.1:9001:9001' # web console
+    volumes:
+      - s3-data:/data
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:9000/health']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # One-shot: creates the documents bucket (idempotent), then exits.
+  s3-init:
+    image: amazon/aws-cli:2.37.5
+    depends_on:
+      s3:
+        condition: service_healthy
+    environment:
+      AWS_ACCESS_KEY_ID: nexlegtiq
+      AWS_SECRET_ACCESS_KEY: nexlegtiq-dev-only
+      AWS_DEFAULT_REGION: us-east-1
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >-
+        aws --endpoint-url http://s3:9000 s3api head-bucket --bucket nexlegtiq-documents-local ||
+        aws --endpoint-url http://s3:9000 s3api create-bucket --bucket nexlegtiq-documents-local
+    restart: 'no'
+
+  mailpit:
+    image: axllent/mailpit:v1.31.3
+    ports:
+      - '127.0.0.1:1025:1025' # SMTP (no auth, no TLS)
+      - '127.0.0.1:8025:8025' # web UI
+    volumes:
+      - mailpit-data:/data
+    environment:
+      MP_DATABASE: /data/mailpit.db
+    healthcheck:
+      test: ['CMD', '/mailpit', 'readyz']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  clamav:
+    image: clamav/clamav:stable
+    ports: ['127.0.0.1:3310:3310']
+    volumes:
+      # Signature DB (~300 MB) is downloaded by freshclam on first start; the volume keeps it across restarts.
+      - clamav-db:/var/lib/clamav
+    healthcheck:
+      test: ['CMD', 'clamdcheck.sh']
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      # First start downloads signatures before clamd listens.
+      start_period: 300s
+
+volumes:
+  pg-data:
+  redis-data:
+  s3-data:
+  mailpit-data:
+  clamav-db:

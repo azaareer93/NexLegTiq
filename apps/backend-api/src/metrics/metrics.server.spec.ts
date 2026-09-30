@@ -2,13 +2,14 @@ import type { PinoLogger } from 'nestjs-pino';
 import request from 'supertest';
 
 import { AppConfig } from '../config/app-config';
+import { testEnv } from '../config/env.fixture';
 import { parseEnv } from '../config/env.schema';
 import { MetricsServer } from './metrics.server';
 import { MetricsService } from './metrics.service';
 
 function createServer(env: Record<string, string> = {}): MetricsServer {
   const logger = { setContext: jest.fn(), info: jest.fn() } as unknown as PinoLogger;
-  return new MetricsServer(new MetricsService(), new AppConfig(parseEnv(env)), logger);
+  return new MetricsServer(new MetricsService(), new AppConfig(parseEnv(testEnv(env))), logger);
 }
 
 describe('MetricsServer', () => {

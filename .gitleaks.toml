@@ -1,0 +1,17 @@
+# Secret scanning (CI job "Secret scan", gitleaks-action). Built-in rules plus a narrow allowlist for values that
+# are fake by design. Never allowlist a whole file or a real-looking key: rotate the secret and fix history instead.
+title = "NexLegTiq gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Documented dev/CI placeholders (compose.dev.yml, .env.example, ci.yml, test fixtures)"
+# Matched against the extracted secret (gitleaks' default target) and anchored, so a real key that merely
+# contains one of these words is still reported. The backend also refuses these values in production (env.schema.ts).
+regexes = [
+  '''^ci-only-[a-z0-9-]+$''',
+  '''^nexlegtiq-dev-only$''',
+  '''^change-me[a-z0-9-]*$''',
+  '''^test-(access|secret)-key$''',
+]
