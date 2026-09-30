@@ -1,0 +1,31 @@
+# nexlegtiq-post-merge-start
+# Keeps local knowledge in sync after `git pull` / `git merge`: git fires no post-commit or post-checkout for these, so
+# graphify's own hooks leave the graph stale on a pulled develop. Installed by `pnpm hooks:install`
+# (scripts/install-git-hooks.mjs). Runs in the background and never blocks or fails git.
+# Log: $TMPDIR/nexlegtiq-post-merge.log
+#
+# Ruflo is NOT written here: Claude Code's claude-flow MCP server keeps its own copy of .swarm/memory.db, and a second
+# writer corrupts that view. The hook only records the commit the knowledge base changed after; /ticket step 0 stores the
+# changed entries through the MCP server (docs/tooling.md#7-after-a-merge).
+(
+  [ "${NEXLEGTIQ_SKIP_POST_MERGE:-0}" = "1" ] && exit 0
+  ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+  cd "$ROOT" || exit 0
+  STATE="$(git rev-parse --git-common-dir)/nexlegtiq"
+  LOG="${TMPDIR:-${TEMP:-/tmp}}/nexlegtiq-post-merge.log"
+
+  # Oldest unsynced base wins: several pulls before the next /ticket still cover every change.
+  if [ -n "$(git diff --name-only ORIG_HEAD HEAD -- 'docs/context/*.md' 2>/dev/null)" ] && [ ! -s "$STATE/ruflo-pending" ]; then
+    mkdir -p "$STATE" && git rev-parse ORIG_HEAD > "$STATE/ruflo-pending"
+  fi
+
+  {
+    echo "== $(date '+%F %T') post-merge $(git rev-parse --short HEAD)"
+    if command -v graphify >/dev/null 2>&1; then
+      PYTHONHASHSEED=0 GRAPHIFY_MAX_WORKERS="${GRAPHIFY_MAX_WORKERS:-1}" graphify update . || echo "graphify update failed"
+    else
+      echo "graphify not installed: skipped (docs/tooling.md#3-graphify)"
+    fi
+  } >>"$LOG" 2>&1 &
+)
+# nexlegtiq-post-merge-end
