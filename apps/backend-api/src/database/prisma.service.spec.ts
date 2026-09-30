@@ -49,4 +49,12 @@ describe('PrismaService', () => {
 
     await expect(prisma.db.user.findMany()).rejects.toThrow('No officeId in the request context for User.findMany');
   });
+
+  it('should keep global models read-only and reject Unsafe raw SQL on the scoped client', async () => {
+    const { prisma } = setup();
+
+    await expect(prisma.db.plan.deleteMany()).rejects.toThrow(/read-only/);
+    // eslint-disable-next-line no-restricted-properties -- proves the runtime guard rejects it too
+    await expect(prisma.db.$queryRawUnsafe('SELECT 1')).rejects.toThrow(/not allowed/);
+  });
 });

@@ -28,6 +28,10 @@ const READS = new Set([
 const CREATES = new Set(['create', 'createMany', 'createManyAndReturn']);
 const UPDATES = new Set(['update', 'updateMany', 'updateManyAndReturn']);
 const DELETES = new Set(['delete', 'deleteMany']);
+const LIST_FILTERS = ['some', 'every', 'none'];
+const RELATION_FILTERS = [...LIST_FILTERS, 'is', 'isNot'];
+/** The only relation writes allowed into a global model: pointing a foreign key at an existing row. */
+const GLOBAL_RELATION_WRITES = new Set(['connect', 'disconnect']);
 
 const isObject = (value: unknown): value is Json => typeof value === 'object' && value !== null && !Array.isArray(value);
 
@@ -39,41 +43,48 @@ export function requireOfficeId(officeId: string | undefined, target: string): s
 /**
  * Rewrites the arguments of one Prisma model operation so it cannot leave the current office (D-018, D-080):
  * - tenant models: `officeId` is added to every `where` and every created row; a different `officeId` is rejected;
- * - Office: reads and updates are limited to the current office's row; create/delete/upsert need the unscoped client;
- * - global models (Plan, PlatformAdmin, LoginAttempt): untouched, except relations into tenant models.
- * Relation writes into tenant models (nested create/connect/upsert/…) are rejected at any depth: tenant rows are
- * written with scalar foreign keys, which the composite (user_id, office_id) FKs check (D-079).
- * Includes/selects/_count of tenant lists reached from a global model get the same `officeId` filter.
+ * - Office (the tenant root): reads and updates of the current office's row only;
+ * - global models (Plan, PlatformAdmin, LoginAttempt): read-only — their writes need `PrismaService.unscoped()`.
+ * Relation writes into tenant models or Office are rejected at any depth (tenant rows are written with scalar foreign
+ * keys, checked by the composite (…, office_id) FKs, D-079); into global models only connect/disconnect are allowed.
+ * Relation filters, orderBy and include/select/_count that reach tenant rows through a global model are scoped too.
+ * Unknown operations fail closed.
  */
 export function scopeArgs(model: string, operation: string, args: unknown, ctx: ScopeContext): Json {
   const scoped: Json = isObject(args) ? { ...args } : {};
   const target = `${model}.${operation}`;
-
-  if (ctx.tenantModels.has(model)) {
-    const officeId = requireOfficeId(ctx.officeId(), target);
-    if (READS.has(operation) || UPDATES.has(operation) || DELETES.has(operation) || operation === 'upsert') {
-      scoped['where'] = withField(scoped['where'], 'officeId', officeId, target);
-    }
-    if (CREATES.has(operation)) scoped['data'] = mapRows(scoped['data'], (row) => createRow(model, row, officeId, ctx));
-    if (UPDATES.has(operation)) scoped['data'] = updateRow(model, scoped['data'], officeId, ctx);
-    if (operation === 'upsert') {
-      scoped['create'] = createRow(model, scoped['create'], officeId, ctx);
-      scoped['update'] = updateRow(model, scoped['update'], officeId, ctx);
-    }
-  } else if (model === OFFICE) {
-    if (CREATES.has(operation) || DELETES.has(operation) || operation === 'upsert') {
-      throw new TenantViolationError(`${target} is not allowed on the scoped client; use PrismaService.unscoped()`);
-    }
-    scoped['where'] = withField(scoped['where'], 'id', requireOfficeId(ctx.officeId(), target), target);
-    if (UPDATES.has(operation)) rejectTenantRelationWrites(model, scoped['data'], ctx);
-  } else {
-    for (const key of ['data', 'create', 'update']) {
-      if (key in scoped) mapRows(scoped[key], (row) => (rejectTenantRelationWrites(model, row, ctx), row));
-    }
+  if (ctx.tenantModels.has(model)) scopeTenantModel(model, operation, scoped, ctx, target);
+  else if (model === OFFICE) scopeOffice(operation, scoped, ctx, target);
+  else if (!READS.has(operation)) {
+    throw new TenantViolationError(`${target}: global models are read-only on the scoped client; use PrismaService.unscoped()`);
   }
-
-  scopeProjection(model, scoped, ctx);
+  scopeShape(model, scoped, ctx);
   return scoped;
+}
+
+function scopeTenantModel(model: string, operation: string, scoped: Json, ctx: ScopeContext, target: string): void {
+  const officeId = requireOfficeId(ctx.officeId(), target);
+  if (CREATES.has(operation)) {
+    scoped['data'] = mapRows(scoped['data'], target, (row) => createRow(model, row, officeId, ctx));
+    return;
+  }
+  if (!READS.has(operation) && !UPDATES.has(operation) && !DELETES.has(operation) && operation !== 'upsert') {
+    throw new TenantViolationError(`${target}: operation not supported by the tenant extension`);
+  }
+  scoped['where'] = withField(scoped['where'], 'officeId', officeId, target);
+  if (UPDATES.has(operation)) scoped['data'] = updateRow(model, scoped['data'], officeId, ctx);
+  if (operation === 'upsert') {
+    scoped['create'] = createRow(model, scoped['create'], officeId, ctx);
+    scoped['update'] = updateRow(model, scoped['update'], officeId, ctx);
+  }
+}
+
+function scopeOffice(operation: string, scoped: Json, ctx: ScopeContext, target: string): void {
+  if (!READS.has(operation) && !UPDATES.has(operation)) {
+    throw new TenantViolationError(`${target} is not allowed on the scoped client; use PrismaService.unscoped()`);
+  }
+  scoped['where'] = withField(scoped['where'], 'id', requireOfficeId(ctx.officeId(), target), target);
+  if (UPDATES.has(operation)) rejectRelationWrites(OFFICE, scoped['data'], ctx);
 }
 
 /** `where.<field> = value`; a caller-supplied different value (or filter object) is a violation, never overridden. */
@@ -86,9 +97,12 @@ function withField(where: unknown, field: string, value: string, target: string)
   return scoped;
 }
 
-function mapRows(data: unknown, fn: (row: Json) => Json): unknown {
-  if (Array.isArray(data)) return data.map((row) => fn(isObject(row) ? row : {}));
-  return isObject(data) ? fn(data) : data;
+function mapRows(data: unknown, target: string, fn: (row: Json) => Json): unknown {
+  const toRow = (row: unknown): Json => {
+    if (!isObject(row)) throw new TenantViolationError(`${target}: every data row must be an object`);
+    return fn(row);
+  };
+  return Array.isArray(data) ? data.map(toRow) : toRow(data);
 }
 
 function createRow(model: string, data: unknown, officeId: string, ctx: ScopeContext): Json {
@@ -97,7 +111,7 @@ function createRow(model: string, data: unknown, officeId: string, ctx: ScopeCon
     throw new TenantViolationError(`${model}: data.officeId names another office`);
   }
   row['officeId'] = officeId;
-  rejectTenantRelationWrites(model, row, ctx);
+  rejectRelationWrites(model, row, ctx);
   return row;
 }
 
@@ -106,14 +120,11 @@ function updateRow(model: string, data: unknown, officeId: string, ctx: ScopeCon
   if ('officeId' in data && data['officeId'] !== officeId) {
     throw new TenantViolationError(`${model}: data.officeId would move the row to another office`);
   }
-  rejectTenantRelationWrites(model, data, ctx);
+  rejectRelationWrites(model, data, ctx);
   return data;
 }
 
-const NESTED_PAYLOAD_KEYS = ['create', 'createMany', 'connectOrCreate', 'upsert', 'update', 'updateMany', 'data'];
-
-/** Throws on any relation write that reaches a tenant model (or the Office relation of a tenant row). */
-function rejectTenantRelationWrites(model: string, data: unknown, ctx: ScopeContext): void {
+function rejectRelationWrites(model: string, data: unknown, ctx: ScopeContext): void {
   if (!isObject(data)) return;
   const relations = ctx.relations.get(model);
   for (const [field, value] of Object.entries(data)) {
@@ -125,28 +136,72 @@ function rejectTenantRelationWrites(model: string, data: unknown, ctx: ScopeCont
           'write the row with scalar foreign keys',
       );
     }
-    walkNestedPayload(related, value, ctx);
+    if (!isObject(value) || Object.keys(value).some((op) => !GLOBAL_RELATION_WRITES.has(op))) {
+      throw new TenantViolationError(`${model}.${field}: only connect/disconnect into global ${related} on the scoped client`);
+    }
   }
 }
 
-/** Descends through nested-write payloads of a global model to find tenant writes deeper down. */
-function walkNestedPayload(model: string, value: unknown, ctx: ScopeContext): void {
-  if (Array.isArray(value)) {
-    for (const item of value) walkNestedPayload(model, item, ctx);
-    return;
-  }
-  if (!isObject(value)) return;
-  rejectTenantRelationWrites(model, value, ctx);
-  for (const key of NESTED_PAYLOAD_KEYS) {
-    if (key in value) walkNestedPayload(model, value[key], ctx);
-  }
-}
-
-/** Scopes include/select/_count of tenant relations reached from a global model, at any depth. */
-function scopeProjection(model: string, container: Json, ctx: ScopeContext): void {
+/** Scopes where, orderBy and include/select of one query level, recursing into included relations. */
+function scopeShape(model: string, container: Json, ctx: ScopeContext): void {
+  if ('where' in container) container['where'] = scopeWhere(model, container['where'], ctx);
+  if ('orderBy' in container) assertOrderByScoped(model, container['orderBy'], ctx);
   for (const key of ['include', 'select']) {
     const fields = container[key];
     if (isObject(fields)) container[key] = scopeFields(model, fields, ctx);
+  }
+}
+
+/** Relation filters (some/every/none/is/isNot) that cross from a global model into tenant rows get the office. */
+function scopeWhere(model: string, where: unknown, ctx: ScopeContext): unknown {
+  if (Array.isArray(where)) return where.map((item) => scopeWhere(model, item, ctx));
+  if (!isObject(where)) return where;
+  const relations = ctx.relations.get(model);
+  const scoped: Json = {};
+  for (const [key, value] of Object.entries(where)) {
+    const related = relations?.get(key);
+    if (key === 'AND' || key === 'OR' || key === 'NOT') scoped[key] = scopeWhere(model, value, ctx);
+    else scoped[key] = related === undefined ? value : scopeRelationFilter(model, key, related, value, ctx);
+  }
+  return scoped;
+}
+
+function scopeRelationFilter(model: string, field: string, related: string, filter: unknown, ctx: ScopeContext): unknown {
+  if (!isObject(filter)) return filter; // e.g. `{ plan: null }`
+  const leaks = leaksAcrossOffices(model, related, ctx);
+  const target = `${model}.${field}`;
+  if (!RELATION_FILTERS.some((op) => op in filter)) {
+    // To-one shorthand: `{ user: { email } }` filters the related row directly.
+    const inner = scopeWhere(related, filter, ctx);
+    return leaks ? withField(inner, 'officeId', requireOfficeId(ctx.officeId(), target), target) : inner;
+  }
+  const scoped: Json = { ...filter };
+  for (const op of RELATION_FILTERS) {
+    if (!(op in filter)) continue;
+    const inner = scopeWhere(related, filter[op], ctx);
+    if (!leaks || inner === null) {
+      scoped[op] = inner;
+      continue;
+    }
+    const officeId = requireOfficeId(ctx.officeId(), target);
+    // `every` must only judge the current office's rows: rows of other offices pass vacuously.
+    scoped[op] = op === 'every' ? { OR: [{ NOT: { officeId } }, inner ?? {}] } : withField(inner, 'officeId', officeId, target);
+  }
+  return scoped;
+}
+
+/** Ordering a global model by a tenant relation (e.g. `{ subscriptions: { _count } }`) would count every office. */
+function assertOrderByScoped(model: string, orderBy: unknown, ctx: ScopeContext): void {
+  for (const item of Array.isArray(orderBy) ? orderBy : [orderBy]) {
+    if (!isObject(item)) continue;
+    for (const [field, value] of Object.entries(item)) {
+      const related = ctx.relations.get(model)?.get(field);
+      if (related === undefined) continue;
+      if (leaksAcrossOffices(model, related, ctx)) {
+        throw new TenantViolationError(`${model}.orderBy.${field}: ordering by ${related} would count every office`);
+      }
+      assertOrderByScoped(related, value, ctx);
+    }
   }
 }
 
@@ -161,47 +216,50 @@ function scopeFields(model: string, fields: Json, ctx: ScopeContext): Json {
     const related = relations.get(field);
     if (related === undefined || value === false || value === undefined) continue;
     const nested: Json = isObject(value) ? { ...value } : {};
+    scopeShape(related, nested, ctx);
     if (leaksAcrossOffices(model, related, ctx)) {
       const target = `${model}.${field}`;
       nested['where'] = withField(nested['where'], 'officeId', requireOfficeId(ctx.officeId(), target), target);
     }
-    scopeProjection(related, nested, ctx);
     scoped[field] = Object.keys(nested).length > 0 ? nested : true;
   }
   return scoped;
 }
 
 function scopeCount(model: string, value: unknown, ctx: ScopeContext): unknown {
+  if (value === false || value === undefined) return value;
   const relations = ctx.relations.get(model) ?? new Map<string, string>();
-  const tenantRelations = [...relations].filter(([, related]) => leaksAcrossOffices(model, related, ctx));
-  if (tenantRelations.length === 0 || value === false || value === undefined) return value;
-  // `_count: true` counts every relation; expand it so the tenant ones can be filtered.
-  const select: Json =
-    value === true
-      ? Object.fromEntries([...relations.keys()].map((field) => [field, true]))
-      : isObject(value) && isObject(value['select'])
-        ? { ...value['select'] }
-        : {};
-  for (const [field] of tenantRelations) {
+  let select: Json;
+  if (value === true) select = Object.fromEntries([...relations.keys()].map((field) => [field, true]));
+  else if (isObject(value) && isObject(value['select'])) select = { ...value['select'] };
+  else return value;
+
+  for (const [field, related] of relations) {
     const current = select[field];
     if (current === undefined || current === false) continue;
-    const target = `${model}._count.${field}`;
-    const where = isObject(current) ? current['where'] : undefined;
-    select[field] = { where: withField(where, 'officeId', requireOfficeId(ctx.officeId(), target), target) };
+    const where = scopeWhere(related, isObject(current) ? current['where'] : undefined, ctx);
+    if (leaksAcrossOffices(model, related, ctx)) {
+      const target = `${model}._count.${field}`;
+      select[field] = { where: withField(where, 'officeId', requireOfficeId(ctx.officeId(), target), target) };
+    } else if (where !== undefined) {
+      select[field] = { where };
+    }
   }
   return { ...(isObject(value) ? value : {}), select };
 }
 
-/** Rows reached from a global model (Plan, PlatformAdmin) into a tenant list could belong to any office. */
+/** Rows reached from a global model (Plan, PlatformAdmin) into a tenant relation could belong to any office. */
 function leaksAcrossOffices(model: string, related: string, ctx: ScopeContext): boolean {
   return ctx.tenantModels.has(related) && !ctx.tenantModels.has(model) && model !== OFFICE;
 }
 
 /**
  * Raw SQL bypasses $extends. On the scoped client it is allowed on tenant tables only when the current officeId is one
- * of its parameters (e.g. `WHERE office_id = ${officeId}`); the `*Unsafe` variants are never allowed there.
- * ponytail: finds tenant tables by name in the SQL text; a name that also appears in a string literal is caught too
- * (fails closed). Whether the officeId parameter is used in the right place is left to review.
+ * of its parameters (e.g. `WHERE office_id = ${officeId}`); the `*Unsafe` variants and Unicode-escaped identifiers
+ * (`U&"…"`, which can spell a table name the check would not see) are never allowed there.
+ * ponytail: a guard against developer mistakes, not a parser — it finds tenant tables by name and only checks that the
+ * officeId is among the parameters, not where it is used; a view or function reading a tenant table is not seen.
+ * Phase 3 RLS is the backstop (D-018).
  */
 export function assertRawQueryScoped(
   operation: string,
@@ -214,6 +272,9 @@ export function assertRawQueryScoped(
   }
   const { text, values } = rawParts(args);
   const lowered = text.toLowerCase();
+  if (lowered.includes('u&"')) {
+    throw new TenantViolationError(`${operation}: Unicode-escaped identifiers are not allowed on the scoped client`);
+  }
   const touched = tenantTables.filter((table) => new RegExp(`(^|[^a-z0-9_])${table}($|[^a-z0-9_])`).test(lowered));
   if (touched.length === 0) return;
   const target = `${operation} on ${touched.join(', ')}`;

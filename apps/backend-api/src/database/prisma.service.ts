@@ -25,11 +25,12 @@ export type ScopedPrismaClient = ReturnType<typeof createScopedClient>;
  *
  * Repositories use `db`, scoped to the current office (tenant extension, D-018/D-080). `unscoped()` is only for
  * migrations, seeds, signup/login before an office is known, and platform-admin code; lint flags every call and each
- * one needs an eslint-disable comment saying why.
+ * one needs a `// unscoped: <reason>` comment directly above it (lint rule nexlegtiq/unscoped-needs-reason).
  */
 @Injectable()
 export class PrismaService implements OnModuleInit, OnModuleDestroy {
-  private readonly client: PrismaClient;
+  // ES private (not TS `private`): `prisma["client"]` must not be a way around unscoped() and its lint rule.
+  readonly #client: PrismaClient;
   readonly db: ScopedPrismaClient;
 
   constructor(
@@ -37,22 +38,22 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     private readonly readiness: ReadinessRegistry,
     cls: ClsService<RequestContext>,
   ) {
-    this.client = new PrismaClient({ adapter: new PrismaPg({ connectionString: config.database.url }) });
-    this.db = createScopedClient(this.client, cls);
+    this.#client = new PrismaClient({ adapter: new PrismaPg({ connectionString: config.database.url }) });
+    this.db = createScopedClient(this.#client, cls);
   }
 
   /** The raw client: no tenant scoping. See the class comment for the only allowed uses. */
   unscoped(): PrismaClient {
-    return this.client;
+    return this.#client;
   }
 
   onModuleInit(): void {
     this.readiness.register('db', async () => {
-      await this.client.$queryRaw`SELECT 1`;
+      await this.#client.$queryRaw`SELECT 1`;
     });
   }
 
   async onModuleDestroy(): Promise<void> {
-    await this.client.$disconnect();
+    await this.#client.$disconnect();
   }
 }

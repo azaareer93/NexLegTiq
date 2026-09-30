@@ -9,14 +9,18 @@ const unscopedNeedsReason = {
   meta: { type: "problem", schema: [], messages: { missing: "prisma.unscoped() bypasses tenant isolation: add `// unscoped: <reason>` directly above this call." } },
   create(context) {
     const source = context.sourceCode;
+    const check = (node) => {
+      const line = node.loc.start.line;
+      const justified = source
+        .getAllComments()
+        .some((comment) => (comment.loc.end.line === line - 1 || comment.loc.start.line === line) && /unscoped:\s*\S/.test(comment.value));
+      if (!justified) context.report({ node, messageId: "missing" });
+    };
+    // Any access, not only a direct call: `x.unscoped()`, `x['unscoped']`, `x.unscoped.call(x)`, `const { unscoped } = x`.
     return {
-      "CallExpression[callee.type='MemberExpression'][callee.property.name='unscoped']"(node) {
-        const line = node.loc.start.line;
-        const justified = source
-          .getAllComments()
-          .some((comment) => (comment.loc.end.line === line - 1 || comment.loc.start.line === line) && /unscoped:\s*\S/.test(comment.value));
-        if (!justified) context.report({ node, messageId: "missing" });
-      },
+      "MemberExpression[computed=false][property.name='unscoped']": check,
+      "MemberExpression[computed=true][property.value='unscoped']": check,
+      "ObjectPattern > Property[key.name='unscoped']": check,
     };
   },
 };
@@ -29,7 +33,8 @@ export default [
         files: ["**/*.ts"],
         plugins: { nexlegtiq: { rules: { "unscoped-needs-reason": unscopedNeedsReason } } },
         rules: {
-            "nexlegtiq/unscoped-needs-reason": "warn",
+            // error, not warn: CI does not fail on warnings. The `// unscoped: <reason>` comment is how a call is allowed.
+            "nexlegtiq/unscoped-needs-reason": "error",
             // String-built SQL is never allowed (CLAUDE.md non-negotiable 9); tagged $queryRaw/$executeRaw only.
             "no-restricted-properties": [
                 "error",

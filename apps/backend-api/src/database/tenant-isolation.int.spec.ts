@@ -55,12 +55,18 @@ describe('tenant isolation (two offices, scoped Prisma client)', () => {
   });
 
   afterAll(async () => {
+    if (!prisma) return;
     const raw = prisma.unscoped();
-    const offices = { officeId: { in: [a.officeId, b.officeId] } };
-    // Children first; audit rows are append-only for the app role only, the test superuser may delete them.
-    for (const model of [...TENANT_MODELS].filter((m) => m !== 'User').reverse()) await delegate(raw, model)['deleteMany']?.({ where: offices });
+    // Tolerates a beforeAll that failed half-way: only offices that were created are cleaned up.
+    const ids = [a?.officeId, b?.officeId].filter((id): id is string => id !== undefined);
+    const offices = { officeId: { in: ids } };
+    // Children first. Needs the test superuser: the app role cannot delete audit rows (D-079).
+    for (const model of [...TENANT_MODELS].filter((m) => m !== 'User').reverse()) {
+      await delegate(raw, model)['deleteMany']?.({ where: offices });
+    }
     await raw.user.deleteMany({ where: offices });
-    await raw.office.deleteMany({ where: { id: { in: [a.officeId, b.officeId] } } });
+    await raw.office.deleteMany({ where: { id: { in: ids } } });
+    await raw.plan.deleteMany({ where: { code: 'ISOLATION_TEST', subscriptions: { none: {} } } });
     await prisma.onModuleDestroy();
   });
 
@@ -97,6 +103,8 @@ describe('tenant isolation (two offices, scoped Prisma client)', () => {
         await expect(db['updateMany']?.({ where, data: resource.update })).resolves.toEqual({ count: 0 });
         await expect(db['delete']?.({ where })).rejects.toMatchObject({ code: 'P2025' });
         await expect(db['deleteMany']?.({ where })).resolves.toEqual({ count: 0 });
+        await expect(db['groupBy']?.({ by: ['id'], where })).resolves.toEqual([]);
+        await expect(db['aggregate']?.({ where, _count: { _all: true } })).resolves.toMatchObject({ _count: { _all: 0 } });
       }));
 
     it('should still reach its own row', () =>
@@ -130,12 +138,52 @@ describe('tenant isolation (two offices, scoped Prisma client)', () => {
       ).rejects.toThrow(TenantViolationError);
     }));
 
-  it('should limit Office to the current office and scope tenant lists included from a global model', () =>
-    asOffice(a, async () => {
+  it('should limit Office to the current office and scope tenant lists and filters reached from a global model', async () => {
+    const raw = prisma.unscoped();
+    const note = `probe-${b.officeId}`;
+    for (const office of [a, b]) {
+      await raw.subscription.create({
+        data: { officeId: office.officeId, planId: office.planId, status: 'CANCELLED', currentPeriodStart: new Date(), notes: note },
+      });
+    }
+
+    await asOffice(a, async () => {
       await expect(prisma.db.office.findMany({ select: { id: true } })).resolves.toEqual([{ id: a.officeId }]);
       const plan = await prisma.db.plan.findUniqueOrThrow({ where: { id: a.planId }, include: { subscriptions: true } });
-      expect(plan.subscriptions.every((subscription) => subscription.officeId === a.officeId)).toBe(true);
       expect(plan.subscriptions.length).toBeGreaterThan(0);
+      expect(plan.subscriptions.every((subscription) => subscription.officeId === a.officeId)).toBe(true);
+      // Office B's notes must not be observable through a relation filter on the shared plan.
+      await expect(
+        prisma.db.plan.count({ where: { subscriptions: { some: { notes: note, officeId: undefined } } } } as never),
+      ).rejects.toThrow(TenantViolationError);
+      await raw.subscription.updateMany({ where: { officeId: a.officeId, notes: note }, data: { notes: 'mine' } });
+      await expect(prisma.db.plan.count({ where: { subscriptions: { some: { notes: note } } } })).resolves.toBe(0);
+    });
+  });
+
+  it('should keep global models read-only on the scoped client', () =>
+    asOffice(a, async () => {
+      await expect(prisma.db.loginAttempt.deleteMany()).rejects.toThrow(TenantViolationError);
+      await expect(prisma.db.plan.update({ where: { id: a.planId }, data: { priceMonthly: '0' } })).rejects.toThrow(
+        TenantViolationError,
+      );
+    }));
+
+  it('should let the composite FKs reject rows that point at another office', () =>
+    asOffice(a, async () => {
+      // Scalar FKs pass the extension; the database refuses a user or rotated token of office B (D-079, D-080).
+      await expect(
+        prisma.db.notification.create({ data: { userId: b.userId, type: 'TEST', titleKey: 't' } as never }),
+      ).rejects.toMatchObject({ code: 'P2003' });
+      const mine = await prisma.db.refreshToken.create({
+        data: { userId: a.userId, familyId: a.userId, tokenHash: `own-${a.officeId}`, expiresAt: new Date(Date.now() + 60_000) } as never,
+      });
+      const theirs = await prisma.unscoped().refreshToken.create({
+        data: { officeId: b.officeId, userId: b.userId, familyId: b.userId, tokenHash: `their-${b.officeId}`, expiresAt: new Date() },
+      });
+      await expect(
+        prisma.db.refreshToken.update({ where: { id: mine.id }, data: { replacedById: theirs.id } }),
+      ).rejects.toMatchObject({ code: 'P2003' });
     }));
 
   it('should keep the scope inside interactive transactions', () =>

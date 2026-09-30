@@ -23,7 +23,9 @@ export class TenantRunner {
   constructor(private readonly cls: ClsService<RequestContext>) {}
 
   run<T>(context: TenantRunContext, work: () => Promise<T>): Promise<T> {
-    return this.cls.run(() => {
+    // override, not the default 'inherit': work for office B started inside office A's request must not keep A's user,
+    // role or permissions.
+    return this.cls.run({ ifNested: 'override' }, () => {
       this.cls.set(CLS_ID, context.requestId ?? randomUUID());
       this.cls.set('officeId', context.officeId);
       if (context.userId) this.cls.set('userId', context.userId);
