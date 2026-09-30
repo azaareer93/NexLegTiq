@@ -63,6 +63,8 @@ jobs:
       - run: pnpm nx affected -t lint typecheck --parallel=3
       - run: pnpm nx run backend-api:prisma-deploy
         if: ${{ hashFiles('apps/backend-api/prisma/schema.prisma') != '' }}
+      - run: pnpm nx run backend-api:integration
+        if: ${{ hashFiles('apps/backend-api/prisma/schema.prisma') != '' }}
       - run: pnpm nx affected -t test --parallel=3 --coverage
       - run: pnpm nx affected -t e2e-ci --parallel=1
       - run: pnpm nx affected -t build --parallel=3
