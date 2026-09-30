@@ -37,7 +37,7 @@ Module boundaries are defined once in `packages/shared-config/eslint/module-boun
 
 | Service | Port(s) | Notes |
 |---|---|---|
-| Postgres 17 + pgvector | 5432 | user/password/db `nexlegtiq`; extensions `vector`, `pg_trgm`, `unaccent`, `citext`; also `nexlegtiq_test` for integration tests |
+| Postgres 17 + pgvector | 5434 (container 5432) | user/password/db `nexlegtiq`; extensions `vector`, `pg_trgm`, `unaccent`, `citext`; also `nexlegtiq_test` for integration tests |
 | Redis 7 | 6379 | AOF on; BullMQ keys prefixed `BULLMQ_PREFIX` |
 | RustFS (S3) | 9000 (S3 API), 9001 (console) | access key `nexlegtiq` / `nexlegtiq-dev-only`; bucket `nexlegtiq-documents-local` created by `s3-init` |
 | Mailpit | 1025 (SMTP), 8025 (web UI) | catches every outgoing email: http://localhost:8025 |

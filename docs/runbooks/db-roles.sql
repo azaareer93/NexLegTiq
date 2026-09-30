@@ -27,11 +27,11 @@ $$;
 
 -- The migrator owns public, so every table/sequence/function a migration creates is owned by it.
 ALTER SCHEMA public OWNER TO nexlegtiq_migrator;
-DO $
+DO $$
 BEGIN
   EXECUTE format('GRANT CONNECT ON DATABASE %I TO nexlegtiq_app, nexlegtiq_readonly', current_database());
 END
-$;
+$$;
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 GRANT USAGE ON SCHEMA public TO nexlegtiq_app, nexlegtiq_readonly;
 

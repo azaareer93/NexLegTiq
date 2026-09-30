@@ -10,7 +10,7 @@ services:
       POSTGRES_USER: nexlegtiq
       POSTGRES_PASSWORD: nexlegtiq
       POSTGRES_DB: nexlegtiq
-    ports: ['127.0.0.1:5432:5432']
+    ports: ['127.0.0.1:5434:5432'] # 5434 on the host: 5432/5433 are often taken by a local PostgreSQL or another project
     volumes:
       - pg-data:/var/lib/postgresql/data
       # Runs once, on an empty data volume: extensions + the nexlegtiq_test database.
