@@ -70,7 +70,7 @@ helper `assertFileAccess(fileId, mode)` is the only way services load a file for
    get `where.officeId = cls.officeId`; `create*` gets `data.officeId`; missing context ⇒ throw
    `TenantContextMissingError` (workers must call `runInTenant(officeId, fn)`).
 3. Cross-tenant ⇒ 404 (D-019). 4. Every cache key prefixed `o:{officeId}` (D-058). 5. Storage keys prefixed
-`{officeId}/`. 6. WebSocket rooms per office/user. 7. Integration test suite `tenant-isolation.e2e-spec.ts` iterates
+`{officeId}/`. 6. WebSocket rooms per office/user. 7. Integration suite `tenant-isolation.int.spec.ts` + `tenant-isolation.matrix.ts` (D-080) iterates
 all resource endpoints with a second office's token.
 
 ## Hardening checklist

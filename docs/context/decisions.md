@@ -307,3 +307,21 @@ Notification) have no `updatedAt`; `AuditAction` adds `SECURITY` (token-reuse ev
 come from product.md (USD). **Amends D-078:** dev Postgres listens on host port **5434** (5432/5433 are commonly taken),
 `.env.example` uses `127.0.0.1` (compose binds IPv4 only; Node on Windows resolves `localhost` to `::1`), and the
 role split is the `docs/runbooks/db-roles.sql` runbook, not part of migrations.
+
+**D-080 — Tenant extension shape and limits** · Accepted (MVP-37, 2026-09-30)
+MVP-37 left the enforcement details of D-018 open. → `PrismaService.db` is the **scoped** client (Prisma `$extends`,
+`src/common/tenancy/`); `PrismaService.unscoped()` is the raw client for migrations, seeds, signup/login before an office
+is known and platform-admin code, and every call needs a `// unscoped: <reason>` comment (local lint rule
+`nexlegtiq/unscoped-needs-reason`). On the scoped client: tenant models get `officeId` in every `where` and created row,
+and a different `officeId` (value or filter) is rejected; **relation writes into tenant models are rejected at any depth**
+(nested create/connect/upsert/…) — tenant rows are written with scalar foreign keys, which the composite
+`(user_id, office_id)` FKs check (D-079); `Office` is limited to the current office's row (create/delete need
+`unscoped()`); includes/selects/`_count` of tenant lists reached from a global model are filtered by office; raw
+`$queryRaw`/`$executeRaw` touching a tenant table must take the current `officeId` as a parameter, and the `*Unsafe`
+variants are rejected at runtime and by lint. Violations are programming errors → 500 SYS-001 (not 404): a correct
+request never reaches them. Relation metadata comes from the client's internal `_runtimeDataModel`, checked at boot.
+**Known limit:** relation *filters* in `where` from a global model into tenant rows are not scoped (no such query
+exists; revisit with Phase 3 RLS). The data-layer isolation matrix (`tenant-isolation.matrix.ts`, every tenant model,
+two offices, real PostgreSQL) runs in the `integration` target; its HTTP half (404 RES-001 per endpoint) is added per
+resource once MVP-40 provides auth. Why: isolation by construction without a hand-maintained relation list, and loud
+failures instead of silent cross-tenant reads.
