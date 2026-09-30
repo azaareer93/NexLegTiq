@@ -5,11 +5,18 @@
  *   node scripts/ruflo-seed.mjs                 # all docs/context/*.md
  *   node scripts/ruflo-seed.mjs docs/context/auth-rbac.md
  *   node scripts/ruflo-seed.mjs --dry-run
+ *   node scripts/ruflo-seed.mjs --export=seed.json --changed-since=<commit>
+ *
+ * Direct storing is for when Claude Code is CLOSED: its claude-flow MCP server keeps its own in-memory copy of
+ * .swarm/memory.db, and a second writer leaves that copy stale and blocks its writes (exit code 2 below).
+ * Inside a session use --export (entries as ruflo-memory-export/v1 JSON, nothing stored) and let Claude store each
+ * entry with the MCP tool `memory_store`. --changed-since keeps only entries whose text differs from <commit>; the
+ * post-merge git hook records that commit in .git/nexlegtiq/ruflo-pending for /ticket (docs/tooling.md#7).
  *
  * Run from the repo root (Ruflo keeps its memory DB relative to the working directory).
  *
  * Namespaces:
- *   nexlegtiq-spec  one entry per "## section" of each docs/context file (key: <file>#<section-slug>)
+ *   nexlegtiq-spec  one entry per "## section" of each docs/context file (key: <file>/<section-slug>; the MCP tools reject "#" in keys)
  *   decisions       one entry per D-### in decisions.md (key: D-###)
  * Re-running is safe: `memory store` upserts by (namespace, key).
  *
@@ -24,13 +31,16 @@
  *   3. global install (`npm root -g`)/ruflo
  *   4. otherwise installs ruflo@latest into the local cache once
  */
-import { existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
-import { basename, dirname, join, resolve } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const args = process.argv.slice(2);
 const dryRun = args.includes('--dry-run');
 const verbose = args.includes('--verbose');
+const exportPath = args.find((a) => a.startsWith('--export='))?.slice('--export='.length);
+const changedSince = args.find((a) => a.startsWith('--changed-since='))?.slice('--changed-since='.length);
+const exported = [];
 const files = args.filter((a) => !a.startsWith('--'));
 const root = process.cwd();
 const ctxDir = join(root, 'docs', 'context');
@@ -103,7 +113,7 @@ function resolveRufloBin() {
 // DB open natively, or a crashed process left them behind. Detect that up front instead of failing every entry.
 const memoryRoot = process.env.CLAUDE_FLOW_MEMORY_PATH ? resolve(process.env.CLAUDE_FLOW_MEMORY_PATH) : join(root, '.swarm');
 const sidecars = ['memory.db-wal', 'memory.db-shm'].map((f) => join(memoryRoot, f)).filter((f) => existsSync(f));
-if (!dryRun && sidecars.length) {
+if (!dryRun && !exportPath && sidecars.length) {
   console.error(
     [
       'Ruflo memory DB is open by another process (found WAL sidecar files):',
@@ -122,12 +132,41 @@ if (!dryRun && sidecars.length) {
   process.exit(2);
 }
 
-const rufloBin = dryRun ? null : resolveRufloBin();
+// The MCP server (sql.js) holds the DB in memory without sidecar files, so the check above cannot see it. Writing
+// underneath it leaves its copy stale and makes it refuse later writes, so refuse while any `ruflo mcp start` runs.
+// ponytail: matches every Ruflo MCP server on the machine, not only this repo's — close the others too, or use --export.
+function rufloMcpRunning() {
+  const r = isWin
+    ? spawnSync(
+        'powershell',
+        ['-NoProfile', '-Command', "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | ForEach-Object CommandLine"],
+        { encoding: 'utf8', windowsHide: true },
+      )
+    : spawnSync('ps', ['-eo', 'args'], { encoding: 'utf8' });
+  return /\bruflo\b.*\bmcp\s+start\b/i.test(r.stdout ?? '');
+}
+if (!dryRun && !exportPath && rufloMcpRunning()) {
+  console.error(
+    [
+      'A Ruflo MCP server is running (usually Claude Code\'s claude-flow server), and it owns .swarm/memory.db.',
+      'Either close Claude Code and re-run, or export the entries and store them from the session:',
+      '  node scripts/ruflo-seed.mjs --export=<file.json> [--changed-since=<commit>] [files]',
+      'then ask Claude to store each entry with memory_store (/ticket step 0 does this).',
+    ].join('\n'),
+  );
+  process.exit(2);
+}
+
+const rufloBin = dryRun || exportPath ? null : resolveRufloBin();
 if (rufloBin) console.log(`Using ${rufloBin}\n`);
 
 function store(namespace, key, value) {
   if (dryRun) {
     console.log(`[dry-run] ${namespace} :: ${key} (${value.length} chars)`);
+    return true;
+  }
+  if (exportPath) {
+    exported.push({ key, namespace, value, tags: ['nexlegtiq', 'seed'] });
     return true;
   }
   const r = spawnSync(
@@ -157,24 +196,53 @@ const track = (res) => {
   }
 };
 
-for (const file of targets) {
-  const name = basename(file, '.md');
-  const text = readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
-
+/** Memory entries of one docs/context file: one per D-### in decisions.md, one per "## section" elsewhere. */
+function entriesOf(name, raw) {
+  const text = raw.replace(/\r\n/g, '\n');
   if (name === 'decisions') {
-    const entries = text.split(/\n(?=\*\*D-\d{3})/).filter((e) => /^\*\*D-\d{3}/.test(e));
-    for (const e of entries) track(store('decisions', e.match(/^\*\*(D-\d{3})/)[1], e.trim()));
-    continue;
+    return text
+      .split(/\n(?=\*\*D-\d{3})/)
+      .filter((e) => /^\*\*D-\d{3}/.test(e))
+      .map((e) => ({ namespace: 'decisions', key: e.match(/^\*\*(D-\d{3})/)[1], value: e.trim() }));
   }
-
   const sections = text.split(/\n(?=## )/);
   const intro = sections.shift() ?? '';
   const title = (intro.match(/^# (.+)$/m) ?? [])[1] ?? name;
-  if (intro.trim()) track(store('nexlegtiq-spec', `${name}#intro`, intro.trim()));
+  const entries = intro.trim() ? [{ namespace: 'nexlegtiq-spec', key: `${name}/intro`, value: intro.trim() }] : [];
   for (const s of sections) {
     const heading = (s.match(/^## (.+)$/m) ?? [])[1] ?? 'section';
-    track(store('nexlegtiq-spec', `${name}#${slug(heading)}`, `[${title}] (docs/context/${name}.md)\n${s.trim()}`));
+    entries.push({
+      namespace: 'nexlegtiq-spec',
+      key: `${name}/${slug(heading)}`,
+      value: `[${title}] (docs/context/${name}.md)\n${s.trim()}`,
+    });
   }
+  return entries;
+}
+
+/** The file as it was at `ref` ('' when it did not exist there). */
+function atRef(ref, file) {
+  const rel = relative(root, file).split(sep).join('/');
+  const r = spawnSync('git', ['show', `${ref}:${rel}`], { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+  return r.status === 0 ? r.stdout : '';
+}
+
+for (const file of targets) {
+  const name = basename(file, '.md');
+  let entries = entriesOf(name, readFileSync(file, 'utf8'));
+  if (changedSince) {
+    const before = new Map(entriesOf(name, atRef(changedSince, file)).map((e) => [`${e.namespace}:${e.key}`, e.value]));
+    entries = entries.filter((e) => before.get(`${e.namespace}:${e.key}`) !== e.value);
+  }
+  for (const e of entries) track(store(e.namespace, e.key, e.value));
+}
+
+if (exportPath) {
+  const out = resolve(exportPath);
+  const payload = { schema: 'ruflo-memory-export/v1', exportedAt: new Date().toISOString(), count: exported.length, entries: exported };
+  writeFileSync(out, JSON.stringify(payload, null, 2));
+  console.log(`Exported ${exported.length} entries to ${out}. Store each with the MCP tool memory_store (tags nexlegtiq, seed).`);
+  process.exit(0);
 }
 
 console.log(`\nDone: ${ok} stored, ${failed} failed${dryRun ? ' (dry run)' : ''}.`);
