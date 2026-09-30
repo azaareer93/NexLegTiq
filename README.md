@@ -37,11 +37,16 @@ Module boundaries are defined once in `packages/shared-config/eslint/module-boun
 
 | Service | Port(s) | Notes |
 |---|---|---|
-| Postgres 17 + pgvector | 5432 | user/password/db `nexlegtiq`; extensions `vector`, `pg_trgm`, `unaccent`, `citext`; also `nexlegtiq_test` for integration tests |
+| Postgres 17 + pgvector | 5434 (container 5432) | user/password/db `nexlegtiq`; extensions `vector`, `pg_trgm`, `unaccent`, `citext`; also `nexlegtiq_test` for integration tests |
 | Redis 7 | 6379 | AOF on; BullMQ keys prefixed `BULLMQ_PREFIX` |
 | RustFS (S3) | 9000 (S3 API), 9001 (console) | access key `nexlegtiq` / `nexlegtiq-dev-only`; bucket `nexlegtiq-documents-local` created by `s3-init` |
 | Mailpit | 1025 (SMTP), 8025 (web UI) | catches every outgoing email: http://localhost:8025 |
 | ClamAV | 3310 (clamd) | first start downloads signatures (~5 min) before it reports healthy |
+
+Database (Prisma 7, `apps/backend-api/prisma/`): `pnpm nx run backend-api:prisma-migrate` (new migration, local only),
+`prisma-deploy` (apply), `seed` (reference plans), `seed-demo` (demo office; development/test only), `integration`
+(database tests; needs the stack). The client is generated on `pnpm install` and by `prisma-generate`. Production roles:
+`docs/runbooks/db-roles.sql`.
 
 The Postgres init script (`docker/postgres/init/`) runs only on an empty volume. After changing it, run `pnpm dev:reset`.
 The backend refuses to boot while a required variable is missing or invalid, and lists every offending key.

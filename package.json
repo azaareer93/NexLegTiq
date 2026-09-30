@@ -15,7 +15,8 @@
     "dev:up": "docker compose -f docker/compose.dev.yml up -d",
     "dev:down": "docker compose -f docker/compose.dev.yml down",
     "dev:reset": "docker compose -f docker/compose.dev.yml down --volumes",
-    "dev:ps": "docker compose -f docker/compose.dev.yml ps"
+    "dev:ps": "docker compose -f docker/compose.dev.yml ps",
+    "postinstall": "prisma generate --config apps/backend-api/prisma.config.ts"
   },
   "devDependencies": {
     "@babel/core": "^7.14.5",
@@ -66,9 +67,11 @@
     "jsdom": "^27.1.0",
     "nx": "23.2.1",
     "pino-pretty": "^13.1.3",
+    "prisma": "7.10.0",
     "supertest": "^7.3.0",
     "swc-loader": "^0.2.7",
     "tslib": "^2.8.1",
+    "tsx": "^4.23.15",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.58.0",
     "vite": "^8.0.0",

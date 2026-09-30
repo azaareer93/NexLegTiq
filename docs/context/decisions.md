@@ -280,3 +280,30 @@ TLS in transit — `DATABASE_URL` with `sslmode=require|verify-ca|verify-full`, 
 `requireTLS` unless implicit TLS — and rejects the documented dev/CI placeholder credentials (also the only values the
 gitleaks allowlist accepts). CI has no S3/mail/ClamAV containers until a job needs them. Why: one-command local setup
 without an unmaintained image, and a misconfigured production boot fails instead of running over plaintext.
+
+**D-079 — Base schema choices left open by the domain model** · Accepted (owner, MVP-33, 2026-09-30)
+→ Prisma 7.10 (`prisma-client` generator, CommonJS output in `src/generated/prisma`, git-ignored, generated on
+`pnpm install`) with the `pg` driver adapter. `RefreshToken` covers **office users only** (admin-panel and portal sessions
+get their own tables), with `familyId` for reuse detection. `LoginAttempt` is **global** (recorded before login, when the
+email may match no user). `LegalAcceptance.userId` is required until the portal adds `clientUserId`. **One live
+subscription per office**: partial unique index on `subscriptions(office_id) WHERE status IN ('TRIALING','ACTIVE')`.
+`AuditLog.officeId` is required; platform-level events without an office are decided with the admin panel. Audit
+append-only is enforced by **grants** (`docs/runbooks/db-roles.sql`), not a trigger, so retention purge can run as the
+migrator. CHECK constraints: `audit_retention_days >= 365`, `session_idle_minutes` 15–120. Plans are seeded
+create-only by `code` (the admin panel owns later edits); storage quotas and global AI quotas are provisional (not in
+the specs). `nlq_normalize_ar()` is IMMUTABLE and excludes `unaccent` (STABLE); callers compose it. Why: owner-approved
+plan (Jira MVP-33 comment 10044).
+Review additions (same PR): tenant child rows reference users through composite FKs `(user_id, office_id) → users(id,
+office_id)`, so a token, invitation, acceptance, notification or audit row can never name a user of another office.
+Audit FKs are `RESTRICT` on delete and update (FK actions run as the table owner, so `SET NULL` would let the app role
+rewrite the log); users are deactivated, never deleted. The init migration revokes UPDATE/DELETE on `audit_logs` from
+`nexlegtiq_app` when the role exists; `db-roles.sql` also creates the extensions as admin, revokes database access from
+PUBLIC, and gives `nexlegtiq_readonly` no access to token tables or `password_hash`/`mfa_secret`. One PENDING
+invitation per office + email (partial unique index). `nlq_normalize_ar` also folds hamza seats (ئ → ي, ؤ → و).
+Conventions deliberately not applied: append-only/immutable rows (tokens, LoginAttempt, LegalAcceptance, AuditLog,
+Notification) have no `updatedAt`; `AuditAction` adds `SECURITY` (token-reuse events, auth-rbac.md);
+`Subscription.currentPeriodStart/End` (D-005 said periodStart/End), `paymentMethod` defaults to `NONE` and includes
+`CARD` (Phase 4); `clientUserId` on AuditLog/Notification/LegalAcceptance arrives with the Client Portal. Plan prices
+come from product.md (USD). **Amends D-078:** dev Postgres listens on host port **5434** (5432/5433 are commonly taken),
+`.env.example` uses `127.0.0.1` (compose binds IPv4 only; Node on Windows resolves `localhost` to `::1`), and the
+role split is the `docs/runbooks/db-roles.sql` runbook, not part of migrations.

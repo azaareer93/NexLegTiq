@@ -83,6 +83,61 @@
       "options": {
         "command": "node apps/backend-api/dist/worker.js"
       }
+    },
+    "prisma-generate": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "prisma generate",
+        "cwd": "apps/backend-api"
+      },
+      "cache": true,
+      "inputs": [
+        "{projectRoot}/prisma/schema.prisma",
+        "{projectRoot}/prisma.config.ts",
+        {
+          "externalDependencies": [
+            "prisma"
+          ]
+        }
+      ],
+      "outputs": [
+        "{projectRoot}/src/generated/prisma"
+      ]
+    },
+    "prisma-migrate": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "prisma migrate dev",
+        "cwd": "apps/backend-api"
+      }
+    },
+    "prisma-deploy": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "prisma migrate deploy",
+        "cwd": "apps/backend-api"
+      }
+    },
+    "seed": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsx prisma/seed.ts",
+        "cwd": "apps/backend-api"
+      }
+    },
+    "seed-demo": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsx prisma/seed-demo.ts",
+        "cwd": "apps/backend-api"
+      }
+    },
+    "integration": {
+      "executor": "@nx/jest:jest",
+      "options": {
+        "jestConfig": "apps/backend-api/jest.integration.config.cjs",
+        "runInBand": true
+      }
     }
   }
 }

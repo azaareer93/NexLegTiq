@@ -10,7 +10,7 @@ services:
       POSTGRES_USER: nexlegtiq
       POSTGRES_PASSWORD: nexlegtiq
       POSTGRES_DB: nexlegtiq
-    ports: ['127.0.0.1:5432:5432']
+    ports: ['127.0.0.1:5434:5432'] # 5434 on the host: 5432/5433 are often taken by a local PostgreSQL or another project
     volumes:
       - pg-data:/var/lib/postgresql/data
       # Runs once, on an empty data volume: extensions + the nexlegtiq_test database.
@@ -57,7 +57,7 @@ services:
       timeout: 5s
       retries: 20
 
-  # One-shot: creates the documents bucket (idempotent), then exits.
+  # One-shot: creates the documents bucket if missing, then exits. "Exited (0)" is its normal final state.
   s3-init:
     image: amazon/aws-cli:2.37.5
     depends_on:
@@ -71,8 +71,10 @@ services:
       - /bin/sh
       - -c
       - >-
-        aws --endpoint-url http://s3:9000 s3api head-bucket --bucket nexlegtiq-documents-local ||
-        aws --endpoint-url http://s3:9000 s3api create-bucket --bucket nexlegtiq-documents-local
+        if aws --endpoint-url http://s3:9000 s3api head-bucket --bucket nexlegtiq-documents-local 2>/dev/null;
+        then echo 'bucket nexlegtiq-documents-local already exists';
+        else aws --endpoint-url http://s3:9000 s3api create-bucket --bucket nexlegtiq-documents-local >/dev/null &&
+        echo 'created bucket nexlegtiq-documents-local'; fi
     restart: 'no'
 
   mailpit:
