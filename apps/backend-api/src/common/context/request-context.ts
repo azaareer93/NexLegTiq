@@ -21,6 +21,18 @@ export interface RequestContext extends ClsStore {
   realm?: AuthRealm;
 }
 
+/**
+ * The authenticated caller, put on `req.user` by the JWT guard (MVP-40) and copied into CLS by TenantInterceptor.
+ * `officeId` comes only from the verified token, never from the request body, path or query (D-018).
+ */
+export interface AuthPrincipal {
+  readonly userId: UserId;
+  readonly officeId: OfficeId;
+  readonly role: string;
+  readonly permissions: readonly string[];
+  readonly realm: AuthRealm;
+}
+
 // Accept caller-provided ids only if they are short and safe to echo into logs and headers.
 const SAFE_REQUEST_ID = /^[A-Za-z0-9._:-]{8,128}$/;
 
