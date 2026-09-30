@@ -91,3 +91,20 @@ means:
 
 Headroom gives the token savings without changing the model. The product's own AI calls are a separate question, covered by
 D-057 and MVP-83.
+
+## 7. After a merge: keeping local knowledge in sync
+Four things hold knowledge outside git and drift after a merge. Two are automatic, two run at the start of `/ticket`.
+
+| What | Refreshed by | When |
+|---|---|---|
+| Graphify graph (`graphify-out/`) | graphify's post-commit/post-checkout hooks + our **post-merge** hook (`graphify update .`) | every commit, checkout, pull/merge |
+| Ruflo `decisions` / `nexlegtiq-spec` | post-merge hook records the base commit in `.git/nexlegtiq/ruflo-pending`; `/ticket` step 0 exports the changed entries (`ruflo-seed.mjs --export --changed-since`) and stores them via the MCP `memory_store` | next `/ticket` |
+| Notion "Engineering Decision Log" | `/ticket` step 0 runs `/sync-notion decisions` when `decisions.md` differs from `.git/nexlegtiq/notion-decisions` | next `/ticket` |
+| Ruflo `lessons` / `patterns` | `/ship` (and `/remember`) | each ship |
+
+task-observer needs nothing: its workspace lives outside the repo and its session-start protocol offers an overdue review.
+Serena is not part of this loop (not in D-077; no language server configured for this repo).
+
+Once per clone: `pnpm hooks:install` (idempotent; keeps graphify's hooks). The hook never writes Ruflo: Claude Code's
+claude-flow MCP server owns `.swarm/memory.db`, and a second writer leaves its copy stale (docs/ruflo.md#windows-notes).
+The hook runs in the background and logs to `$TMPDIR/nexlegtiq-post-merge.log`; `NEXLEGTIQ_SKIP_POST_MERGE=1` disables it.
