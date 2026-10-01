@@ -5,7 +5,8 @@ description: NexLegTiq multi-tenant data-access rules and code patterns — CLS 
 # Tenant isolation (D-018, D-019, D-058)
 
 ## Rules
-1. Tenant models (🔒 in `docs/context/domain-model.md`) are listed in `TENANT_MODELS` (`apps/backend-api/src/infra/prisma/tenant-models.ts`).
+1. Tenant models (🔒 in `docs/context/domain-model.md`) are listed in `TENANT_MODELS` (`apps/backend-api/src/database/tenant-models.ts`)
+   and in `tenant-isolation.matrix.ts` next to it (a spec fails if either misses a model with a required `officeId`).
 2. `officeId` comes only from `ClsService` (set by `TenantInterceptor` from the JWT, or by `runInTenant` in workers).
 3. The Prisma client used by repositories is the **extended** client; the raw client is only for migrations/seed/platform-admin code
    (`PrismaService.unscoped()` — grep for it in review; every use needs a comment explaining why).
@@ -13,27 +14,11 @@ description: NexLegTiq multi-tenant data-access rules and code patterns — CLS 
 5. Keys: cache `CacheKeys.x(officeId, …)` → `o:{officeId}:…`; storage `{officeId}/{fileId}/{documentId}/…`; WS rooms `office:{id}` / `user:{id}`.
 6. Job payloads always include `officeId` and `requestId`.
 
-## Extension sketch
-```ts
-// infra/prisma/tenant.extension.ts
-export const tenantExtension = (cls: ClsService<AppCls>) =>
-  Prisma.defineExtension({
-    name: 'tenant',
-    query: {
-      $allModels: {
-        async $allOperations({ model, operation, args, query }) {
-          if (!TENANT_MODELS.has(model)) return query(args);
-          const officeId = cls.get('officeId');
-          if (!officeId) throw new TenantContextMissingError(model, operation);
-          return query(scopeArgs(operation, args, officeId)); // adds where.officeId / data.officeId; rejects foreign officeId in data
-        },
-      },
-    },
-  });
-```
-`scopeArgs` handles: findUnique/findUniqueOrThrow (convert to findFirst with officeId or verify after fetch), findFirst/findMany/count/
-aggregate/groupBy (`where`), create/createMany (`data`), update/updateMany/delete/deleteMany/upsert (`where` + `data`).
-Nested writes into tenant relations must also carry officeId — prefer explicit repository calls over deep nested creates.
+## Where things live
+`src/common/tenancy/`: `tenant-scope.ts` (pure rules, unit-tested per operation), `tenant.extension.ts`, `tenant.interceptor.ts`
+(CLS from `req.user`), `tenant-runner.ts` (`TenantRunner.run({officeId, requestId}, fn)` for jobs), `tenant-keys.ts`
+(`CacheKeys.tenant`, `documentStorageKey`, `assertStorageKeyInOffice`). Violations throw `TenantViolationError` /
+`TenantContextMissingError` (500 SYS-001).
 
 ## Workers
 ```ts
@@ -56,4 +41,5 @@ describe('GET /api/v1/cases/:id (tenant isolation)', () => {
   });
 });
 ```
-Add the endpoint to `test/tenant-isolation.matrix.ts` so the generic suite covers list/get/update/delete.
+New tenant model: add it to `TENANT_MODELS` and `TENANT_ISOLATION_MATRIX` (data layer, `pnpm nx run backend-api:integration`).
+New endpoint: give its matrix entry an `http` section so the generic suite covers list/get/update/delete → 404 RES-001.

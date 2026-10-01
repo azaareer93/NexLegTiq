@@ -13,10 +13,10 @@ paths:
 - Writes: one `prisma.$transaction` covering the entity + timeline event + audit row; enqueue jobs **after** commit
   (use `afterCommit` helper) so workers never see uncommitted rows.
 - Throw `AppException` subclasses with codes from `docs/context/api-conventions.md`; never `throw new Error` for expected cases.
-- Workers: `@Processor(QUEUE.X)` classes in `src/modules/*/workers/`, wrap with `runInTenant(job.data.officeId, …)`, idempotent by job id,
+- Workers: `@Processor(QUEUE.X)` classes in `src/modules/*/workers/`, wrap with `TenantRunner.run({ officeId: job.data.officeId, requestId: job.data.requestId }, …)`, idempotent by job id,
   log with `requestId` from job data.
 - Logging via injected `PinoLogger`; no `console.*`; never log bodies, tokens, or document text.
 - Config only through the typed `AppConfig` (Zod-validated env). Add new env vars to `env.schema.ts` **and** `.env.example`.
-- Tests: unit next to code (`*.spec.ts`), integration in `apps/backend-api-e2e` with two seeded offices; every new endpoint gets
+- Tests: unit next to code (`*.spec.ts`), data-layer integration in `apps/backend-api/src/**/*.int.spec.ts` (`nx run backend-api:integration`, real PostgreSQL, two seeded offices; tenant models go in `tenant-isolation.matrix.ts`), HTTP journeys in `apps/backend-api-e2e`; every new endpoint gets
   happy path + validation + permission + cross-tenant (404) cases.
 - Skill to use: `nest-module` for new modules/endpoints, `tenant-isolation` for anything touching data access.

@@ -263,9 +263,12 @@ model RefreshToken {
 
   office     Office        @relation(fields: [officeId], references: [id])
   user       User          @relation(fields: [userId, officeId], references: [id, officeId], onDelete: Cascade)
-  replacedBy RefreshToken? @relation("RefreshTokenRotation", fields: [replacedById], references: [id])
+  // Composite like the user FK: a rotation can only point at a token of the same office (D-080 review).
+  replacedBy RefreshToken? @relation("RefreshTokenRotation", fields: [replacedById, officeId], references: [id, officeId], onDelete: NoAction, onUpdate: NoAction)
   replaces   RefreshToken? @relation("RefreshTokenRotation")
 
+  @@unique([id, officeId])
+  @@unique([replacedById, officeId])
   @@index([officeId, userId])
   @@index([familyId])
   @@map("refresh_tokens")
