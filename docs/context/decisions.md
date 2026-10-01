@@ -330,3 +330,26 @@ third category in the extension. Phase 3 RLS is the backstop. The data-layer iso
 (`tenant-isolation.matrix.ts`, every tenant model, two offices, real PostgreSQL) runs in the `integration` target; its HTTP
 half (404 RES-001 per endpoint) is added per resource once MVP-40 provides auth. Why: isolation by construction without a
 hand-maintained relation list, and loud failures instead of silent cross-tenant reads.
+
+**D-081 — RBAC enforcement details and scope split** · Accepted (MVP-38, 2026-10-01)
+MVP-38's AC assumed login (MVP-40) and the legal-file model (MVP-57) already existed. → `packages/shared-types/src/permissions.ts`
+holds `ROLES`, `PERMISSIONS` and `ROLE_PERMISSIONS` (matrix rows of auth-rbac.md, guarded by an independently transcribed
+table test). The two conditional cells are data, not prose: `PERMISSION_CONDITIONS` = LAWYER `close:case`/`reopen:case` →
+`RESPONSIBLE_LAWYER` (D-052), EXTERNAL_COLLABORATOR `complete:task` → `OWN`; the role holds the permission and the service
+must check the condition. **Permissions are derived from the role on every request** (guard and CLS), never read from the
+token, so a role change applies immediately; `AuthPrincipal` is `{userId, officeId, role, realm}`. `PermissionsGuard` is a
+global `APP_GUARD` (the JWT guard of MVP-40 must be registered before it): no decorator → not checked; decorator without a
+principal → 401 AUTH-003; denied → 403 AUTH-100 plus a best-effort `PERMISSION_DENIED` audit row in the caller's office
+(audit failure is logged, never turns 403 into 500). `caseScope()` / `assignedFilesWhere()` implement D-051 "assigned"
+(responsible lawyer, responsible paralegal, `teamMembers`); the DB-backed `CaseAccessService.assertFileAccess` ships with
+MVP-57 when LegalFile/FileTeamMember exist, and "login response includes `permissions[]`" ships with MVP-40 (it returns
+`permissionsFor(role)`). Frontend: `PermissionsProvider` + `useCan` + `<Can>` in shared-ui — UI hiding only, the API always
+re-checks. Review additions (same PR): only `realm: 'OFFICE'` principals get office role/permissions (guard denies
+others, the interceptor sets no role/permissions for them); class- and method-level requirements must **both** pass;
+conditional cells count as held only on routes marked `@PermissionConditionsCheckedByService()` (fail closed);
+`permissionsFor` is total (unknown role → no permissions); the matrix is frozen; the audited user agent is capped at 512
+chars. "Role change applies immediately" requires the MVP-40 JWT guard to reload `role` and `isActive` from the database
+(or an office-tagged cache) on each request, never trusting the token's role. `TenantRunner.run` awaits the work inside
+the CLS context because Prisma queries are lazy (`() => prisma.db.x.create()` otherwise ran without an office — caught by
+the guard's integration test). Why: one matrix, no stale grants in tokens, and no code written against tables that do not
+exist yet.

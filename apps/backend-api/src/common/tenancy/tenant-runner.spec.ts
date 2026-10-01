@@ -27,6 +27,13 @@ describe('TenantRunner — isolation between runs', () => {
     expect([first, second]).toEqual([A, B]);
   });
 
+  it('should run lazy thenables (Prisma queries) inside the context', async () => {
+    // Like a PrismaPromise: nothing happens until then() is called.
+    const lazy = { then: (resolve: (value: unknown) => void) => resolve(cls.get('officeId')) };
+
+    await expect(runner.run({ officeId: A }, () => lazy as unknown as Promise<unknown>)).resolves.toBe(A);
+  });
+
   it('should not inherit the caller user, role or permissions when nested in a request context', async () => {
     await cls.run(async () => {
       cls.set('officeId', A);

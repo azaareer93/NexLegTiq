@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { CallHandler, ExecutionContext, NestInterceptor } from '@nestjs/common';
+import { permissionsFor } from '@nexlegtiq/shared-types';
 import { ClsService } from 'nestjs-cls';
 import type { Observable } from 'rxjs';
 
@@ -19,9 +20,12 @@ export class TenantInterceptor implements NestInterceptor {
     if (principal) {
       this.cls.set('userId', principal.userId);
       this.cls.set('officeId', principal.officeId);
-      this.cls.set('role', principal.role);
-      this.cls.set('permissions', principal.permissions);
       this.cls.set('realm', principal.realm);
+      // Office permissions only for the office realm, derived from the role, never from the token (D-081).
+      if (principal.realm === 'OFFICE') {
+        this.cls.set('role', principal.role);
+        this.cls.set('permissions', permissionsFor(principal.role));
+      }
     }
     return next.handle();
   }
