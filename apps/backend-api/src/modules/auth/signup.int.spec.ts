@@ -12,7 +12,7 @@ import { configureApp } from '../../app/configure-app';
 import { testEnv } from '../../config/env.fixture';
 import { PrismaService } from '../../database/prisma.service';
 import { REFRESH_COOKIE } from './refresh-token';
-import { LEGAL_VERSIONS } from './signup.service';
+import { LEGAL_VERSIONS } from './signup.repository';
 import { VerificationMailer } from './verification-mailer';
 import type { VerificationEmail } from './verification-mailer';
 
@@ -28,6 +28,8 @@ class ProbeController {
 class ProbeModule {}
 
 const ORIGIN = 'http://localhost:4200';
+const csrf = { Origin: ORIGIN, 'X-Requested-With': 'XMLHttpRequest' };
+const DAY = 86_400_000;
 const PASSWORD = 'Testtesttest1';
 
 /** MVP-39 on real PostgreSQL through HTTP: signup, duplicate and invalid input, email verification, AUTH-010 (D-083). */
@@ -45,7 +47,7 @@ describe('office signup (HTTP + PostgreSQL)', () => {
       fullName: 'عمر المصري',
       email,
       password: PASSWORD,
-      officeName: 'مكتب المصري للمحاماة',
+      officeName: `signup-test-${randomUUID()}`,
       accountType: 'SOLO',
       currency: 'ILS',
       acceptTerms: true,
@@ -53,19 +55,32 @@ describe('office signup (HTTP + PostgreSQL)', () => {
       ...overrides,
     };
   };
+  async function createApp(options: { throttle: boolean }): Promise<NestExpressApplication> {
+    let builder = Test.createTestingModule({ imports: [AppModule, ProbeModule] });
+    if (!options.throttle) builder = builder.overrideProvider(ThrottlerGuard).useValue({ canActivate: () => true });
+    const created = (await builder.compile()).createNestApplication<NestExpressApplication>({ bufferLogs: true });
+    configureApp(created);
+    await created.init();
+    return created;
+  }
+
   const register = (payload: object) => request(app.getHttpServer()).post('/api/v1/auth/register').send(payload);
   const verify = (token: string) => request(app.getHttpServer()).post('/api/v1/auth/verify-email').send({ token });
   const tokenFor = (email: string): string => sent.find((mail) => mail.email === email)?.token ?? '';
 
   beforeAll(async () => {
-    Object.assign(process.env, testEnv({ DATABASE_URL: process.env['DATABASE_URL'], NODE_ENV: 'test', CORS_ORIGINS: ORIGIN, METRICS_ENABLED: 'false' }));
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule, ProbeModule] })
-      .overrideProvider(ThrottlerGuard)
-      .useValue({ canActivate: () => true })
-      .compile();
-    app = moduleRef.createNestApplication<NestExpressApplication>({ bufferLogs: true });
-    configureApp(app);
-    await app.init();
+    // Verification enforced, as it will be once emails are delivered (D-083); the flag's default (off) is unit-tested.
+    Object.assign(
+      process.env,
+      testEnv({
+        DATABASE_URL: process.env['DATABASE_URL'],
+        NODE_ENV: 'test',
+        CORS_ORIGINS: ORIGIN,
+        METRICS_ENABLED: 'false',
+        EMAIL_VERIFICATION_ENFORCED: 'true',
+      }),
+    );
+    app = await createApp({ throttle: false });
     prisma = app.get(PrismaService);
     // unscoped: test setup — reference plans, as `pnpm nx run backend-api:seed` creates them.
     await seedPlans(prisma.unscoped());
@@ -74,7 +89,11 @@ describe('office signup (HTTP + PostgreSQL)', () => {
 
   afterAll(async () => {
     const raw = prisma.unscoped();
-    const users = await raw.user.findMany({ where: { email: { in: emails } }, select: { officeId: true } });
+    const users = await raw.user.findMany({
+      // Offices of this file are named signup-test-…: also catches users whose email a reclaim released.
+      where: { OR: [{ email: { in: emails } }, { office: { name: { startsWith: 'signup-test-' } } }] },
+      select: { officeId: true },
+    });
     const where = { officeId: { in: users.map((user) => user.officeId) } };
     await raw.auditLog.deleteMany({ where });
     await raw.refreshToken.deleteMany({ where });
@@ -100,6 +119,7 @@ describe('office signup (HTTP + PostgreSQL)', () => {
     });
     expect(Date.parse(res.body.data.user.verifyBy) - Date.now()).toBeGreaterThan(6.9 * 86_400_000);
     expect(([] as string[]).concat(res.headers['set-cookie'] ?? []).some((cookie) => cookie.startsWith(`${REFRESH_COOKIE}=`))).toBe(true);
+    expect(JSON.stringify(res.body)).not.toMatch(/passwordHash|argon2/);
 
     const raw = prisma.unscoped();
     const user = await raw.user.findUniqueOrThrow({ where: { email: payload.email }, include: { office: { include: { settings: true } } } });
@@ -137,10 +157,11 @@ describe('office signup (HTTP + PostgreSQL)', () => {
     expect(Math.round(((subscription.trialEndsAt?.getTime() ?? 0) - Date.now()) / 86_400_000)).toBe(30);
   });
 
-  it('should answer 409 RES-002 for an existing email, also for two signups racing', async () => {
+  it('should answer 409 RES-002 for an existing email in any case, also for two signups racing', async () => {
     const payload = body();
     await register(payload).expect(201);
-    expect((await register({ ...payload, officeName: 'Second' }).expect(409)).body.error).toMatchObject({ code: 'RES-002' });
+    expect((await register({ ...payload, officeName: 'signup-test-second' }).expect(409)).body.error).toMatchObject({ code: 'RES-002' });
+    await register({ ...payload, email: payload.email.toUpperCase() }).expect(409);
 
     const racing = body();
     const statuses = (await Promise.all([register(racing), register(racing)])).map((res) => res.status).sort();
@@ -175,7 +196,7 @@ describe('office signup (HTTP + PostgreSQL)', () => {
     expect(login.body.data.user).toMatchObject({ emailVerified: true, verifyBy: null });
   });
 
-  it('should refuse unknown and expired links with 410 RES-004', async () => {
+  it('should refuse unknown and expired links with 410 RES-004 and change nothing', async () => {
     const payload = body();
     await register(payload).expect(201);
     await prisma.unscoped().emailVerificationToken.updateMany({
@@ -184,12 +205,47 @@ describe('office signup (HTTP + PostgreSQL)', () => {
     });
     expect((await verify(tokenFor(payload.email)).expect(410)).body.error).toMatchObject({ code: 'RES-004' });
     await verify('A'.repeat(43)).expect(410);
+    const user = await prisma.unscoped().user.findUniqueOrThrow({ where: { email: payload.email }, include: { emailVerifications: true } });
+    expect(user.emailVerifiedAt).toBeNull();
+    expect(user.emailVerifications.map((link) => link.usedAt)).toEqual([null]);
+  });
+
+  it('should roll the whole signup back when a step fails (no office, no user)', async () => {
+    const payload = body();
+    const raw = prisma.unscoped();
+    await raw.plan.update({ where: { code: 'PS_FREE' }, data: { isActive: false } });
+    try {
+      expect((await register(payload).expect(500)).body.error).toMatchObject({ code: 'SYS-001' });
+    } finally {
+      await raw.plan.update({ where: { code: 'PS_FREE' }, data: { isActive: true } });
+    }
+    await expect(raw.user.count({ where: { email: payload.email } })).resolves.toBe(0);
+    await expect(raw.office.count({ where: { name: payload.officeName } })).resolves.toBe(0);
+  });
+
+  it('should let the real owner reclaim an email held by an abandoned unverified signup', async () => {
+    const payload = body();
+    const squatter = (await register(payload).expect(201)).body.data.user as { id: string; officeId: string };
+    const raw = prisma.unscoped();
+    await raw.user.update({ where: { id: squatter.id }, data: { createdAt: new Date(Date.now() - 8 * DAY) } });
+
+    const owner = (await register({ ...payload, officeName: `signup-test-${randomUUID()}` }).expect(201)).body.data.user;
+    expect(owner.officeId).not.toBe(squatter.officeId);
+    await expect(raw.user.findUniqueOrThrow({ where: { id: squatter.id } })).resolves.toMatchObject({
+      email: `released+${squatter.id}@invalid.nexlegtiq`,
+      isActive: false,
+    });
+    await expect(raw.office.findUniqueOrThrow({ where: { id: squatter.officeId } })).resolves.toMatchObject({ isActive: false });
+    await expect(raw.refreshToken.count({ where: { officeId: squatter.officeId, revokedAt: null } })).resolves.toBe(0);
+    await expect(raw.auditLog.count({ where: { officeId: squatter.officeId, action: 'SECURITY' } })).resolves.toBe(1);
   });
 
   it('should block an account still unverified 7 days after signup with 403 AUTH-010', async () => {
     const payload = body();
-    const token = (await register(payload).expect(201)).body.data.accessToken as string;
-    await prisma.unscoped().user.update({ where: { email: payload.email }, data: { createdAt: new Date(Date.now() - 8 * 86_400_000) } });
+    const signup = await register(payload).expect(201);
+    const token = signup.body.data.accessToken as string;
+    const signupCookie = (([] as string[]).concat(signup.headers['set-cookie'] ?? []).find((cookie) => cookie.startsWith(`${REFRESH_COOKIE}=`)) ?? '').split(';')[0] ?? '';
+    await prisma.unscoped().user.update({ where: { email: payload.email }, data: { createdAt: new Date(Date.now() - 8 * DAY) } });
 
     const server = app.getHttpServer();
     expect((await request(server).get('/api/v1/__signup_probe__').set('Authorization', `Bearer ${token}`).expect(403)).body.error).toMatchObject({
@@ -197,9 +253,37 @@ describe('office signup (HTTP + PostgreSQL)', () => {
     });
     const login = await request(server).post('/api/v1/auth/login').send({ email: payload.email, password: PASSWORD }).expect(403);
     expect(login.body.error).toMatchObject({ code: 'AUTH-010' });
+    const refresh = await request(server).post('/api/v1/auth/refresh').set('Cookie', signupCookie).set(csrf).expect(403);
+    expect(refresh.body.error).toMatchObject({ code: 'AUTH-010' });
 
     // Verifying lifts the block (the link is still valid here: only createdAt was moved back).
     await verify(tokenFor(payload.email)).expect(204);
     await request(server).post('/api/v1/auth/login').send({ email: payload.email, password: PASSWORD }).expect(200);
+  });
+
+  describe('rate limits', () => {
+    let limited: NestExpressApplication;
+
+    beforeAll(async () => {
+      limited = await createApp({ throttle: true });
+    });
+
+    afterAll(async () => {
+      await limited?.close();
+    });
+
+    it('should allow 5 signups a minute per client and answer 429 RATE-001 after that', async () => {
+      const attempt = () => request(limited.getHttpServer()).post('/api/v1/auth/register').set('X-Forwarded-For', '192.0.2.39').send({});
+      for (let i = 0; i < 5; i += 1) await attempt().expect(400);
+      const blocked = await attempt().expect(429);
+      expect(blocked.body.error).toMatchObject({ code: 'RATE-001' });
+      expect(blocked.headers['retry-after']).toBeDefined();
+    });
+
+    it('should allow 10 verification attempts a minute per client', async () => {
+      const attempt = () => request(limited.getHttpServer()).post('/api/v1/auth/verify-email').set('X-Forwarded-For', '192.0.2.40').send({ token: 'A'.repeat(43) });
+      for (let i = 0; i < 10; i += 1) await attempt().expect(410);
+      expect((await attempt().expect(429)).body.error).toMatchObject({ code: 'RATE-001' });
+    });
   });
 });

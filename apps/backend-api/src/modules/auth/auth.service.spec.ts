@@ -2,6 +2,7 @@ import { JwtService } from '@nestjs/jwt';
 import type { Request, Response } from 'express';
 import { ClsServiceManager } from 'nestjs-cls';
 
+import { hashOpaqueToken } from '../../common/auth/opaque-token';
 import type { RequestContext } from '../../common/context/request-context';
 import { AppException } from '../../common/errors/app.exception';
 import { TenantRunner } from '../../common/tenancy/tenant-runner';
@@ -11,13 +12,13 @@ import { parseEnv } from '../../config/env.schema';
 import type { PrismaService } from '../../database/prisma.service';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import type { ClientInfo, IssuedSession } from './auth.service';
+import type { IssuedSession } from './auth.service';
+import type { ClientInfo } from './client-info';
 import { LoginAttemptRepository } from './login-attempt.repository';
 import type { PasswordHasher } from './password-hasher';
-import { hashOpaqueToken } from '../../common/auth/opaque-token';
 import { REFRESH_COOKIE } from './refresh-token';
-import type { SignupService } from './signup.service';
 import { RefreshTokenRepository } from './refresh-token.repository';
+import type { SignupService } from './signup.service';
 
 const OFFICE = '01920000-0000-7000-8000-00000000000a';
 const USER = '01920000-0000-7000-8000-0000000000aa';
@@ -38,7 +39,15 @@ const activeUser = {
 };
 
 function setup(
-  overrides: { user?: unknown; token?: unknown; failures?: Date[]; valid?: boolean; claimed?: number; familyStartedAt?: Date } = {},
+  overrides: {
+    user?: unknown;
+    token?: unknown;
+    failures?: Date[];
+    valid?: boolean;
+    claimed?: number;
+    familyStartedAt?: Date;
+    enforced?: boolean;
+  } = {},
 ) {
   // One mock serves as the scoped client and as every transaction opened on it.
   const db = {
@@ -70,6 +79,7 @@ function setup(
     passwords,
     new RefreshTokenRepository(prisma),
     new LoginAttemptRepository(prisma),
+    new AppConfig(parseEnv(testEnv({ EMAIL_VERIFICATION_ENFORCED: String(overrides.enforced ?? true) }))),
   );
   return { service, db, raw };
 }
@@ -132,7 +142,14 @@ describe('AuthService.login', () => {
     const overdue = { ...fresh, createdAt: new Date(Date.now() - 8 * 86_400_000) };
     const { service, raw } = setup({ user: overdue });
     await expect(service.login(request, client)).rejects.toMatchObject({ code: 'AUTH-010' });
-    expect(raw.loginAttempt.create).toHaveBeenCalledWith({ data: expect.objectContaining({ success: false }) });
+    // The password was right: the attempt counts as a success, so retries never turn AUTH-010 into a lockout.
+    expect(raw.loginAttempt.create).toHaveBeenCalledWith({ data: expect.objectContaining({ success: true }) });
+  });
+
+  it('should not block an overdue verification while EMAIL_VERIFICATION_ENFORCED is off', async () => {
+    const overdue = { ...activeUser, emailVerifiedAt: null, createdAt: new Date(Date.now() - 8 * 86_400_000), passwordHash: 'h' };
+    const issued = await setup({ user: overdue, enforced: false }).service.login(request, client);
+    expect(issued.session.user.emailVerified).toBe(false);
   });
 });
 
@@ -178,6 +195,13 @@ describe('AuthService.refresh', () => {
     const old = setup({ token: remembered, familyStartedAt: new Date(Date.now() - 91 * 86_400_000) });
     await expect(old.service.refresh('cookie', client)).rejects.toMatchObject({ code: 'AUTH-004' });
     expect(old.db.refreshToken.create).not.toHaveBeenCalled();
+  });
+
+  it('should refuse an overdue verification with AUTH-010 and end the session', async () => {
+    const overdue = { ...activeUser, emailVerifiedAt: null, createdAt: new Date(Date.now() - 8 * 86_400_000) };
+    const { service, db } = setup({ token: storedToken({ user: overdue }) });
+    await expect(service.refresh('cookie', client)).rejects.toMatchObject({ code: 'AUTH-010' });
+    expect(db.refreshToken.updateMany).toHaveBeenCalledWith({ where: { familyId: 'family', revokedAt: null }, data: { revokedAt: expect.any(Date) } });
   });
 
   it('should revoke the family and refuse when the user was deactivated', async () => {

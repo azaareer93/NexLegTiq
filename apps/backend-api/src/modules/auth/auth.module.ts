@@ -8,6 +8,7 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { LoginAttemptRepository } from './login-attempt.repository';
 import { PasswordHasher } from './password-hasher';
 import { RefreshTokenRepository } from './refresh-token.repository';
+import { SignupRepository } from './signup.repository';
 import { SignupService } from './signup.service';
 import { VerificationMailer } from './verification-mailer';
 
@@ -23,6 +24,7 @@ import { VerificationMailer } from './verification-mailer';
   providers: [
     AuthService,
     SignupService,
+    SignupRepository,
     VerificationMailer,
     PasswordHasher,
     JwtAuthGuard,

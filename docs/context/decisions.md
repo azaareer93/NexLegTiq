@@ -382,23 +382,35 @@ IPs yet (a distributed guess against one email is only slowed per IP). `@nestjs/
 backend is CommonJS). `JWT_REFRESH_SECRET` is not used (refresh tokens are opaque). Why: OWASP-grade storage, sessions
 revocable within one request, and replay of a stolen refresh token kills the session.
 
-**D-083 — Office signup and email verification** · Accepted (owner chose schema, plan mapping and the email split; MVP-39, 2026-10-01)
+**D-083 — Office signup and email verification** · Accepted (owner chose schema, plan mapping, the email split, the
+enforcement flag and reclaiming abandoned signups; MVP-39, 2026-10-01)
 → `POST /auth/register` (5/min per IP) creates, in **one transaction on the raw client** (the office does not exist yet,
 D-080): Office (`accountType` SOLO|FIRM|CORPORATE, new column), OfficeSettings (schema defaults: reminders 7/3/1, file
 number `{YEAR}-{TYPE}-{SEQ:5}`), the OFFICE_MANAGER user (Argon2id, `uiLanguage` EN only for an English office, else AR),
 a `TRIALING` subscription, ToS + Privacy `LegalAcceptance` rows, the verification link and a `CREATE Office` audit row.
 **Plan:** jurisdiction PALESTINE → `PS_FREE` (180 days); elsewhere a 30-day trial sized by account type: SOLO →
 `GLOBAL_SOLO`, FIRM → `GLOBAL_SMALL_FIRM`, CORPORATE → `GLOBAL_PROFESSIONAL`; `trialEndsAt = currentPeriodEnd = now +
-plan.trialDays`. **Legal versions** are server constants (`LEGAL_VERSIONS`, bumped when a text changes); the client only
+plan.trialDays`; a missing or inactive plan is a deployment fault (500 SYS-001, nothing written). **Legal versions** are server constants (`LEGAL_VERSIONS`, bumped when a text changes); the client only
 sends `acceptTerms: true` and `acceptPrivacy: true`. Then the manager is logged in like `/auth/login` (201 + session +
-cookie) in a second, scoped transaction — a failure there leaves a complete office the user can log in to. An existing
+cookie) in a second, scoped transaction — a failure there leaves a complete office: on a 5xx after signup the client
+offers /auth/login (a retry would get 409). An existing
 email → 409 RES-002 (D-032; a racing duplicate loses on the unique index). **Password policy** follows auth-rbac.md (≥10,
 upper + lower + digit, not a well-known password, not the email), not the Notion onboarding page's 8+; the common list is
-short (a breached-password check can replace it). **Email verification:** `User.emailVerifiedAt` + `EmailVerificationToken`
+short (a breached-password check can replace it). Names reject control characters and bidi overrides/isolates (ZWJ/ZWNJ
+allowed); `currency` must be an ISO-4217 code the runtime knows (`Intl.supportedValuesOf`). **Email verification:** `User.emailVerifiedAt` + `EmailVerificationToken`
 (32 random bytes, SHA-256 at rest, 7 days, single use, tenant table hidden from the read-only role). `POST /auth/verify-email`
 → 204; an unknown, used or expired link → **410 RES-004** (not 401, so the SPA's refresh-on-401 never fires on a public
-link). Login and refresh responses carry `emailVerified` and `verifyBy` for the banner. Once 7 days pass unverified, login,
-refresh and every Bearer request get **403 AUTH-010** (refresh also revokes the session). Accounts that existed before the
-migration (seeds, invitations) are backfilled as verified. **Sending** the AR/EN email, and a resend endpoint, belong to the
-email adapter story: until then `VerificationMailer` logs that delivery was skipped (never the token). Why: one-step
-freemium signup now, without building email delivery twice.
+link; 10/min per IP); only a real change writes the `UPDATE User {emailVerified}` audit row. Login and refresh responses
+carry `emailVerified` and `verifyBy` for the banner. **Enforcement is behind `EMAIL_VERIFICATION_ENFORCED`** (default
+`false`): when on, 7 days unverified → login, refresh and every Bearer request get **403 AUTH-010** (refresh also revokes
+the session; a correct-password login is still recorded as a success, so retries never turn AUTH-010 into AUTH-007 lockout).
+It stays off until the email adapter story ships sending + resend, because nobody can verify before that. **Reclaiming
+abandoned signups** (only while enforced): a signup for an email whose user never verified within 7 days and is the only user
+of its office releases that account in the same transaction — the office is deactivated, its sessions and links end, the
+user is deactivated and its email renamed to `released+{userId}@invalid.nexlegtiq` (nothing deleted: audit FKs are RESTRICT),
+with a `SECURITY` audit row in the released office; a verification racing the reclaim wins (409). Accounts that existed
+before the migration (seeds, invitations) are backfilled as verified, and **accepting an invitation must set
+`emailVerifiedAt`** (the link proves the address). **Sending** the AR/EN email, and a resend endpoint, belong to the email
+adapter story: until then `VerificationMailer` logs that delivery was skipped (never the token), and a hand-off failure never
+fails the signup. Why: one-step freemium signup now, without building email delivery twice, and no account can be locked
+out or squatted for good.

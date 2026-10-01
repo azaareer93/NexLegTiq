@@ -3,6 +3,9 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 
 import { AppException, PermissionDeniedException } from '../../common/errors/app.exception';
+import { AppConfig } from '../../config/app-config';
+import { testEnv } from '../../config/env.fixture';
+import { parseEnv } from '../../config/env.schema';
 import type { PrismaService } from '../../database/prisma.service';
 import { hashOpaqueToken, newOpaqueToken } from '../../common/auth/opaque-token';
 import { Public } from '../../common/auth/public.decorator';
@@ -120,7 +123,7 @@ describe('JwtAuthGuard', () => {
   function setup(user: unknown = { role: 'LAWYER', isActive: true, ...verified, office: { isActive: true } }) {
     const findFirst = jest.fn().mockResolvedValue(user);
     const prisma = { unscoped: () => ({ user: { findFirst } }) } as unknown as PrismaService;
-    const guard = new JwtAuthGuard(new Reflector(), jwt, prisma);
+    const guard = new JwtAuthGuard(new Reflector(), jwt, prisma, new AppConfig(parseEnv(testEnv({ EMAIL_VERIFICATION_ENFORCED: 'true' }))));
     const request: { headers: Record<string, string>; user?: unknown } = { headers: {} };
     const run = (authorization?: string, handler: object = () => undefined): Promise<boolean> => {
       if (authorization) request.headers['authorization'] = authorization;

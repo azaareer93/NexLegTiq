@@ -38,7 +38,8 @@ HTTP status per code and framework-error mapping: D-075. A `ZodError` thrown by 
 Request ids: D-076.
 
 ## Rate limits (Redis, per ip+user)
-default 100/min · `/auth/login|register|forgot-password` 5/min · `/auth/refresh` 30/min · uploads 20/min ·
+default 100/min · `/auth/login|register|forgot-password` 5/min · `/auth/verify-email` 10/min · `/auth/refresh` 30/min ·
+uploads 20/min ·
 `/ai/*` 20/min (plus plan quota) · search 60/min. Headers `X-RateLimit-Limit|Remaining|Reset`, `Retry-After`.
 
 ## Endpoint map (MVP)

@@ -316,7 +316,6 @@ model LoginAttempt {
   @@map("login_attempts")
 }
 
-/// ToS / privacy / DPA version a user accepted. Portal users (clientUserId) arrive with the Client Portal.
 /// Signup email-verification link (D-083): 7 days, single use, stored as SHA-256 only.
 model EmailVerificationToken {
   id        String    @id @default(uuid(7)) @db.Uuid
@@ -334,6 +333,7 @@ model EmailVerificationToken {
   @@map("email_verification_tokens")
 }
 
+/// ToS / privacy / DPA version a user accepted. Portal users (clientUserId) arrive with the Client Portal.
 model LegalAcceptance {
   id           String            @id @default(uuid(7)) @db.Uuid
   officeId     String            @map("office_id") @db.Uuid
