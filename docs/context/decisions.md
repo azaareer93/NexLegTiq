@@ -356,18 +356,28 @@ exist yet.
 
 **D-082 — Office authentication details** · Accepted (owner chose Argon2id; MVP-40, 2026-10-01)
 → Passwords: **Argon2id** (`@node-rs/argon2`, OWASP minimum m=19 MiB, t=2, p=1; parameters live in each hash, so raising
-them later only affects new hashes); unknown emails are verified against a dummy hash (no timing oracle) and get the same
-401 AUTH-001 as a wrong password. Access JWT: HS256 with `JWT_SECRET` (≥32 chars, required, no placeholder in production),
-`iss=nexlegtiq`, `aud=office`, 15 min, claims `{sub, officeId, role, sid}`. `JwtAuthGuard` is the first global guard
-(**deny-by-default**, `@Public()` opts out) and reloads `role`, `isActive` and the office's `isActive` on every request
-(D-081): inactive user or suspended office → 403 AUTH-006 (login, refresh and Bearer alike), expired token → 401 AUTH-002,
-anything else → 401 AUTH-003. Refresh: opaque 32 random bytes in the `nlq_rt` cookie, SHA-256 at rest, 7 or 30 days; a
-rotation keeps the family's original lifetime; the old token is claimed with a conditional update, so a replayed **or
-concurrently reused** token revokes the whole family (+ `SECURITY` audit). Logout revokes the family; already-issued access
-tokens stay valid until they expire (≤15 min). CSRF on refresh/logout (D-055): allowed `Origin` **and**
-`X-Requested-With: XMLHttpRequest`, else 403 AUTH-100. Lockout (D-053): ≥5 failures for the same email + IP within 15 min,
-counted since that pair's last success → 423 AUTH-007; every attempt is a `LoginAttempt` row. Rate limits via
-`@nestjs/throttler` (login 5/min, refresh and logout 30/min, 429 RATE-001 + `Retry-After`), **in-memory** until Redis is
-wired (one API container, D-020). `@nestjs/jwt` is pinned to 11.x (12 is ESM-only; the backend is CommonJS).
-`JWT_REFRESH_SECRET` is not used (refresh tokens are opaque). Why: OWASP-grade storage, sessions revocable within one
-request, and replay of a stolen refresh token kills the session.
+them later only affects new hashes); unknown emails and non-Argon2 stored hashes are verified against a dummy hash (no
+timing oracle) and get the same 401 AUTH-001 as a wrong password. Access JWT: HS256 with `JWT_SECRET` (≥32 chars, required,
+no placeholder in production), `iss=nexlegtiq`, `aud=office`, 15 min, claims `{sub, officeId, role, sid}`; `role` is
+informational and `sid` (the refresh family id) is reserved for revoking access tokens early — neither is read today.
+`JwtAuthGuard` is a global guard (**deny-by-default**, `@Public()` from `common/auth` opts out) and reloads `role`,
+`isActive` and the office's `isActive` on every request (D-081): inactive user or suspended office → 403 AUTH-006 (login,
+refresh and Bearer alike), expired token → 401 AUTH-002, anything else → 401 AUTH-003. Refresh: opaque 32 random bytes in
+the `nlq_rt` cookie, SHA-256 at rest, 7 or 30 days; a rotation keeps the token's lifetime, but no session outlives
+**90 days** from its login (then AUTH-004); the old token is claimed with a conditional update, so a replayed **or
+concurrently reused** token revokes the whole family (+ `SECURITY` audit). The SPA must therefore serialize refreshes across
+tabs. Refresh clears the cookie only when the session is dead (AUTH-004/005/006). Logout revokes the family and is an
+idempotent 204 (no cookie, an unknown or already-revoked token: nothing revoked, nothing audited); access tokens already
+issued stay valid until they expire (≤15 min). Every session write and its audit row share one transaction.
+CSRF on refresh/logout (D-055): allowed `Origin` **and** `X-Requested-With: XMLHttpRequest`, else 403 AUTH-100 — a missing
+`Origin` is rejected too. Lockout (D-053): 5 failures for the same email + IP since that pair's last success, all within
+15 min, lock the pair for **15 min from the 5th failure** (fixed window; attempts while locked are refused before they are
+recorded, so they do not extend it) → 423 AUTH-007. Login by an inactive user or office is recorded as a failure (it never
+resets the counter). Every attempt is a `LoginAttempt` row (index `email, ip_address, attempted_at`). Lockout and rate
+limits key on the client IP, so production requires `TRUST_PROXY_HOPS` ≥ 1 (boot fails otherwise). Rate limits via
+`@nestjs/throttler` as a global guard (before authentication): default 100/min per IP, login 5/min, refresh and logout 30/min,
+429 RATE-001 + `Retry-After`; health probes are exempt. **Deviation from api-conventions.md:** limits are per IP, not ip+user
+(no user is known before login) and **in-memory** until Redis is wired (one API container, D-020). No per-account limit across
+IPs yet (a distributed guess against one email is only slowed per IP). `@nestjs/jwt` is pinned to 11.x (12 is ESM-only; the
+backend is CommonJS). `JWT_REFRESH_SECRET` is not used (refresh tokens are opaque). Why: OWASP-grade storage, sessions
+revocable within one request, and replay of a stolen refresh token kills the session.

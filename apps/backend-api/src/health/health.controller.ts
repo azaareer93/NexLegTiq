@@ -1,10 +1,11 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 import { z } from 'zod';
 
 import { DependencyUnavailableException } from '../common/errors/app.exception';
 import { ApiZodResponse } from '../common/openapi/api-zod.decorators';
-import { Public } from '../modules/auth/auth.constants';
+import { Public } from '../common/auth/public.decorator';
 import { ReadinessRegistry } from './readiness.registry';
 import type { ReadinessReport } from './readiness.registry';
 
@@ -17,6 +18,8 @@ const ReadinessSchema = z.object({
 /** Outside the /api/v1 prefix: `/health` (liveness) and `/health/ready` (readiness, used by deploys and uptime checks). */
 @ApiTags('health')
 @Public()
+// Probes from the proxy and uptime checks share one IP; they must never be rate limited.
+@SkipThrottle()
 @Controller('health')
 export class HealthController {
   constructor(private readonly readiness: ReadinessRegistry) {}

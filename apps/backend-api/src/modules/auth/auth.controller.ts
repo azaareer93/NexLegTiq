@@ -1,6 +1,6 @@
-import { Body, Controller, HttpCode, HttpStatus, Post, Req, Res, UseGuards } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { Body, Controller, HttpCode, HttpStatus, Post, Req, Res } from '@nestjs/common';
+import { ApiCookieAuth, ApiNoContentResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { AuthSessionSchema, LoginRequestSchema } from '@nexlegtiq/shared-contracts';
 import type { AuthSession, LoginRequest } from '@nexlegtiq/shared-contracts';
 import type { Request, Response } from 'express';
@@ -10,17 +10,20 @@ import type { RequestContext } from '../../common/context/request-context';
 import { ZodValidationPipe } from '../../common/http/zod-validation.pipe';
 import { ApiZodBody, ApiZodResponse } from '../../common/openapi/api-zod.decorators';
 import { AppConfig } from '../../config/app-config';
-import { Public, REFRESH_COOKIE, refreshCookieOptions } from './auth.constants';
+import { Public } from '../../common/auth/public.decorator';
+import { AppException } from '../../common/errors/app.exception';
 import { AuthService } from './auth.service';
 import type { ClientInfo, IssuedSession } from './auth.service';
 import { assertCookieRequestOrigin } from './csrf';
+import { REFRESH_COOKIE, refreshCookieOptions } from './refresh-token';
 
 const MINUTE_MS = 60_000;
+/** Refusals that mean the cookie is dead; any other error (CSRF, rate limit, outage) leaves it alone. */
+const DEAD_COOKIE_CODES = new Set(['AUTH-004', 'AUTH-005', 'AUTH-006']);
 
 /** `/api/v1/auth` — login, refresh, logout (auth-rbac.md, Flows; D-050, D-053, D-055). */
 @ApiTags('auth')
 @Public()
-@UseGuards(ThrottlerGuard)
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -44,6 +47,7 @@ export class AuthController {
   }
 
   @Post('refresh')
+  @ApiCookieAuth('refresh')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 30, ttl: MINUTE_MS } })
   @ApiOperation({ summary: 'Rotate the refresh cookie and get a new access token (needs Origin + X-Requested-With)' })
@@ -53,16 +57,19 @@ export class AuthController {
     try {
       return this.respond(await this.auth.refresh(this.cookie(req), this.client(req)), res);
     } catch (error) {
-      // A refused refresh never leaves a stale cookie behind.
-      res.clearCookie(REFRESH_COOKIE, refreshCookieOptions());
+      if (error instanceof AppException && DEAD_COOKIE_CODES.has(error.code)) {
+        res.clearCookie(REFRESH_COOKIE, refreshCookieOptions());
+      }
       throw error;
     }
   }
 
   @Post('logout')
+  @ApiCookieAuth('refresh')
   @HttpCode(HttpStatus.NO_CONTENT)
   @Throttle({ default: { limit: 30, ttl: MINUTE_MS } })
   @ApiOperation({ summary: 'Revoke the session family and clear the refresh cookie (needs Origin + X-Requested-With)' })
+  @ApiNoContentResponse({ description: 'Signed out (also when there was no live session)' })
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<void> {
     assertCookieRequestOrigin(req.headers, this.config.corsOrigins);
     await this.auth.logout(this.cookie(req), this.client(req));

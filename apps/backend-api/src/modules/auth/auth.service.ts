@@ -9,19 +9,15 @@ import type { OfficeId, UserId } from '@nexlegtiq/shared-types';
 import { AppException } from '../../common/errors/app.exception';
 import { TenantRunner } from '../../common/tenancy/tenant-runner';
 import { PrismaService } from '../../database/prisma.service';
+import type { ScopedPrismaClient } from '../../database/prisma.service';
 import type { AuditAction, Prisma } from '../../generated/prisma/client';
-import {
-  ACCESS_TOKEN_TTL_SECONDS,
-  hashRefreshToken,
-  JWT_AUDIENCE,
-  JWT_ISSUER,
-  LOCKOUT_MAX_FAILURES,
-  LOCKOUT_WINDOW_MS,
-  newRefreshToken,
-  refreshExpiry,
-} from './auth.constants';
+import { ACCESS_TOKEN_TTL_SECONDS, JWT_AUDIENCE, JWT_ISSUER } from './auth.constants';
 import type { AccessTokenClaims } from './auth.constants';
+import { isLocked } from './lockout';
+import { LoginAttemptRepository } from './login-attempt.repository';
 import { PasswordHasher } from './password-hasher';
+import { hashRefreshToken, newRefreshToken, refreshExpiry, rotatedExpiry } from './refresh-token';
+import { RefreshTokenRepository, USER_FOR_SESSION } from './refresh-token.repository';
 
 /** Who is calling, for LoginAttempt rows and audit (D-076: requestId is correlation only). */
 export interface ClientInfo {
@@ -37,24 +33,15 @@ export interface IssuedSession {
   readonly refreshExpiresAt: Date;
 }
 
-const USER_FOR_SESSION = {
-  id: true,
-  officeId: true,
-  fullName: true,
-  email: true,
-  role: true,
-  uiLanguage: true,
-  isActive: true,
-  office: { select: { name: true, isActive: true } },
-} as const;
 type SessionUser = Prisma.UserGetPayload<{ select: typeof USER_FOR_SESSION }>;
+type Tx = Pick<ScopedPrismaClient, 'refreshToken' | 'auditLog' | 'user'>;
 
 const MAX_USER_AGENT = 512;
 
 /**
  * Login, refresh-token rotation with reuse detection, and logout (MVP-40, D-050, D-053, D-055, D-082).
  * Before the office is known (credentials, lockout, refresh-token lookup) the raw client is used; every write after
- * that runs in the user's office through TenantRunner and the scoped client.
+ * that runs in the user's office through TenantRunner and the scoped client, one transaction per write + audit row.
  */
 @Injectable()
 export class AuthService {
@@ -63,10 +50,13 @@ export class AuthService {
     private readonly tenant: TenantRunner,
     private readonly jwt: JwtService,
     private readonly passwords: PasswordHasher,
+    private readonly refreshTokens: RefreshTokenRepository,
+    private readonly loginAttempts: LoginAttemptRepository,
   ) {}
 
   async login(request: LoginRequest, client: ClientInfo): Promise<IssuedSession> {
-    if (await this.isLockedOut(request.email, client.ip)) {
+    const now = new Date();
+    if (isLocked(await this.loginAttempts.recentFailures(request.email, client.ip, now), now)) {
       throw new AppException('AUTH-007', 'Too many failed attempts; try again later');
     }
     // unscoped: login runs before any office is known; users are looked up by their globally unique email (D-032).
@@ -75,57 +65,53 @@ export class AuthService {
       select: { ...USER_FOR_SESSION, passwordHash: true },
     });
     const valid = await this.passwords.verify(user?.passwordHash, request.password);
+    // An inactive user or office counts as a failure: it must not reset the lockout counter.
     const allowed = valid && user !== null && user.isActive && user.office.isActive;
-    await this.recordAttempt(request.email, client.ip, allowed);
+    await this.loginAttempts.record(request.email, client.ip, allowed);
 
     if (!valid || user === null) throw new AppException('AUTH-001', 'Invalid email or password');
     this.assertActive(user);
 
-    return this.tenant.run(this.runContext(user, client), async () => {
-      await this.prisma.db.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
-      const issued = await this.startFamily(user, request.rememberMe, client);
-      await this.audit(user, 'LOGIN', client);
-      return issued;
-    });
+    const token = newRefreshToken();
+    const expiresAt = refreshExpiry(now, request.rememberMe);
+    // A new family (session) per login; every rotation stays in it.
+    const familyId = randomUUID();
+    await this.tenant.run(this.runContext(user, client), () =>
+      this.prisma.db.$transaction(async (tx) => {
+        await tx.user.update({ where: { id: user.id }, data: { lastLoginAt: now } });
+        await this.refreshTokens.create(tx, this.newTokenRow(user, familyId, token, expiresAt, client));
+        await this.audit(tx, user, 'LOGIN', client);
+      }),
+    );
+    return this.issue(user, familyId, token, expiresAt);
   }
 
   /** Rotates the refresh token. A revoked token being replayed revokes the whole family (theft signal). */
   async refresh(refreshToken: string | undefined, client: ClientInfo): Promise<IssuedSession> {
-    const existing = await this.findRefreshToken(refreshToken);
+    const existing = refreshToken ? await this.refreshTokens.findByHash(hashRefreshToken(refreshToken)) : null;
     if (!existing) throw new AppException('AUTH-005', 'Invalid refresh token');
     const { user } = existing;
 
     return this.tenant.run(this.runContext(user, client), async () => {
       if (existing.revokedAt !== null) return this.reuseDetected(existing.familyId, user, client);
-      if (existing.expiresAt <= new Date()) throw new AppException('AUTH-004', 'Refresh token expired');
-      if (!user.isActive || !user.office.isActive) {
-        await this.revokeFamily(existing.familyId);
+      const now = new Date();
+      if (existing.expiresAt <= now) throw new AppException('AUTH-004', 'Refresh token expired');
+      try {
         this.assertActive(user);
+      } catch (error) {
+        await this.prisma.db.$transaction((tx) => this.refreshTokens.revokeFamily(tx, existing.familyId));
+        throw error;
       }
 
+      const expiresAt = rotatedExpiry(now, existing, await this.refreshTokens.familyStartedAt(existing.familyId));
+      if (expiresAt <= now) throw new AppException('AUTH-004', 'Refresh token expired');
       const token = newRefreshToken();
-      const lifetime = existing.expiresAt.getTime() - existing.createdAt.getTime();
-      const expiresAt = new Date(Date.now() + lifetime);
       const rotated = await this.prisma.db.$transaction(async (tx) => {
         // Conditional claim: of two concurrent refreshes with the same token, only one can win.
-        const claimed = await tx.refreshToken.updateMany({
-          where: { id: existing.id, revokedAt: null },
-          data: { revokedAt: new Date() },
-        });
-        if (claimed.count === 0) return null;
-        const next = await tx.refreshToken.create({
-          data: {
-            officeId: user.officeId,
-            userId: user.id,
-            familyId: existing.familyId,
-            tokenHash: hashRefreshToken(token),
-            expiresAt,
-            ipAddress: client.ip,
-            userAgent: truncate(client.userAgent),
-          },
-        });
-        await tx.refreshToken.update({ where: { id: existing.id }, data: { replacedById: next.id } });
-        return next;
+        if (!(await this.refreshTokens.claim(tx, existing.id))) return false;
+        const next = await this.refreshTokens.create(tx, this.newTokenRow(user, existing.familyId, token, expiresAt, client));
+        await this.refreshTokens.linkReplacement(tx, existing.id, next.id);
+        return true;
       });
       if (!rotated) return this.reuseDetected(existing.familyId, user, client);
       return this.issue(user, existing.familyId, token, expiresAt);
@@ -134,45 +120,35 @@ export class AuthService {
 
   /** Revokes the session family of the given refresh token. Idempotent: an unknown or missing token is a no-op. */
   async logout(refreshToken: string | undefined, client: ClientInfo): Promise<void> {
-    const existing = await this.findRefreshToken(refreshToken);
-    if (!existing) return;
-    await this.tenant.run(this.runContext(existing.user, client), async () => {
-      await this.revokeFamily(existing.familyId);
-      await this.audit(existing.user, 'LOGOUT', client);
-    });
-  }
-
-  private async findRefreshToken(token: string | undefined) {
-    if (!token) return null;
-    // unscoped: the cookie is the only credential here; the office is learned from the token row itself.
-    return this.prisma.unscoped().refreshToken.findUnique({
-      where: { tokenHash: hashRefreshToken(token) },
-      select: { id: true, familyId: true, expiresAt: true, revokedAt: true, createdAt: true, user: { select: USER_FOR_SESSION } },
-    });
+    const existing = refreshToken ? await this.refreshTokens.findByHash(hashRefreshToken(refreshToken)) : null;
+    // Already revoked (second logout, or a rotated-away token): nothing to do and nothing to audit.
+    if (!existing || existing.revokedAt !== null) return;
+    await this.tenant.run(this.runContext(existing.user, client), () =>
+      this.prisma.db.$transaction(async (tx) => {
+        await this.refreshTokens.revokeFamily(tx, existing.familyId);
+        await this.audit(tx, existing.user, 'LOGOUT', client);
+      }),
+    );
   }
 
   private async reuseDetected(familyId: string, user: SessionUser, client: ClientInfo): Promise<never> {
-    await this.revokeFamily(familyId);
-    await this.audit(user, 'SECURITY', client, { reason: 'REFRESH_TOKEN_REUSE', familyId });
+    await this.prisma.db.$transaction(async (tx) => {
+      await this.refreshTokens.revokeFamily(tx, familyId);
+      await this.audit(tx, user, 'SECURITY', client, { reason: 'REFRESH_TOKEN_REUSE', familyId });
+    });
     throw new AppException('AUTH-005', 'Invalid refresh token');
   }
 
-  private async startFamily(user: SessionUser, rememberMe: boolean, client: ClientInfo): Promise<IssuedSession> {
-    const token = newRefreshToken();
-    const expiresAt = refreshExpiry(new Date(), rememberMe);
-    const created = await this.prisma.db.refreshToken.create({
-      data: {
-        userId: user.id,
-        officeId: user.officeId,
-        // A new family (session) per login; every rotation stays in it.
-        familyId: randomUUID(),
-        tokenHash: hashRefreshToken(token),
-        expiresAt,
-        ipAddress: client.ip,
-        userAgent: truncate(client.userAgent),
-      },
-    });
-    return this.issue(user, created.familyId, token, expiresAt);
+  private newTokenRow(user: SessionUser, familyId: string, token: string, expiresAt: Date, client: ClientInfo) {
+    return {
+      officeId: user.officeId,
+      userId: user.id,
+      familyId,
+      tokenHash: hashRefreshToken(token),
+      expiresAt,
+      ipAddress: client.ip,
+      userAgent: truncate(client.userAgent),
+    };
   }
 
   private async issue(user: SessionUser, familyId: string, refreshToken: string, refreshExpiresAt: Date): Promise<IssuedSession> {
@@ -203,10 +179,6 @@ export class AuthService {
     };
   }
 
-  private async revokeFamily(familyId: string): Promise<void> {
-    await this.prisma.db.refreshToken.updateMany({ where: { familyId, revokedAt: null }, data: { revokedAt: new Date() } });
-  }
-
   /** Inactive user → 403 AUTH-006; suspended office → AUTH-006 with its own message (MVP-40 AC). */
   private assertActive(user: SessionUser): void {
     if (!user.isActive) throw new AppException('AUTH-006', 'User account is inactive');
@@ -214,28 +186,8 @@ export class AuthService {
     if (!isRole(user.role)) throw new AppException('AUTH-006', 'User account is inactive');
   }
 
-  /** D-053: 5 failures in 15 min for this email + IP, counted since the last success, lock that pair. */
-  private async isLockedOut(email: string, ip: string): Promise<boolean> {
-    const windowStart = new Date(Date.now() - LOCKOUT_WINDOW_MS);
-    // unscoped: LoginAttempt is global and written before an office is known (D-079).
-    const attempts = this.prisma.unscoped().loginAttempt;
-    const lastSuccess = await attempts.findFirst({
-      where: { email, ipAddress: ip, success: true, attemptedAt: { gte: windowStart } },
-      orderBy: { attemptedAt: 'desc' },
-      select: { attemptedAt: true },
-    });
-    const since = lastSuccess?.attemptedAt ?? windowStart;
-    const failures = await attempts.count({ where: { email, ipAddress: ip, success: false, attemptedAt: { gt: since } } });
-    return failures >= LOCKOUT_MAX_FAILURES;
-  }
-
-  private async recordAttempt(email: string, ip: string, success: boolean): Promise<void> {
-    // unscoped: see isLockedOut.
-    await this.prisma.unscoped().loginAttempt.create({ data: { email, ipAddress: ip, success } });
-  }
-
-  private async audit(user: SessionUser, action: AuditAction, client: ClientInfo, details?: Prisma.InputJsonObject): Promise<void> {
-    await this.prisma.db.auditLog.create({
+  private async audit(tx: Tx, user: SessionUser, action: AuditAction, client: ClientInfo, details?: Prisma.InputJsonObject) {
+    await tx.auditLog.create({
       data: {
         officeId: user.officeId,
         userId: user.id,

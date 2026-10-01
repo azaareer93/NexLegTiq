@@ -19,7 +19,7 @@ describe('parseEnv', () => {
       SWAGGER_ENABLED: false,
       METRICS_ENABLED: true,
       METRICS_PORT: 9464,
-      TRUST_PROXY_HOPS: 0,
+      TRUST_PROXY_HOPS: 1,
     });
     expect(env.CORS_ORIGINS).toEqual(['http://localhost:4200', 'http://localhost:4201', 'http://localhost:4202']);
   });
@@ -109,7 +109,8 @@ describe('parseEnv', () => {
       message = (error as Error).message;
     }
 
-    for (const key of Object.keys(REQUIRED_TEST_ENV)) {
+    // TRUST_PROXY_HOPS is only required in production, checked after the shape (fixture defaults to production).
+    for (const key of Object.keys(REQUIRED_TEST_ENV).filter((name) => name !== 'TRUST_PROXY_HOPS')) {
       expect(message).toContain(key);
     }
   });
@@ -143,6 +144,8 @@ describe('parseEnv', () => {
     ['DATABASE_URL', 'postgresql://nexlegtiq:nexlegtiq@db:5432/nexlegtiq?sslmode=require'],
     ['S3_SECRET_ACCESS_KEY', 'nexlegtiq-dev-only'],
     ['S3_ACCESS_KEY_ID', 'ci-only-access-key'],
+    ['TRUST_PROXY_HOPS', '0'],
+    ['TRUST_PROXY_HOPS', undefined],
   ])('should reject %s=%s in production (plaintext transport or dev credential)', (key, value) => {
     expect(() => parseEnv(testEnv({ NODE_ENV: 'production', [key]: value }))).toThrow(new RegExp(key));
     expect(() => parseEnv(testEnv({ NODE_ENV: 'development', [key]: value }))).not.toThrow();
@@ -184,7 +187,7 @@ describe('AppConfig', () => {
     expect(config.http).toEqual({
       host: '0.0.0.0',
       port: 3000,
-      trustProxyHops: 0,
+      trustProxyHops: 1,
     });
     expect(config.log).toEqual({ level: 'info', pretty: false });
     expect(config.swaggerEnabled).toBe(false);

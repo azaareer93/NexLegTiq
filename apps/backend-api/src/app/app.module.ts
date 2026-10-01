@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 import { CoreModule } from '../common/core/core.module';
 import { DatabaseModule } from '../database/database.module';
@@ -14,9 +15,23 @@ import { JwtAuthGuard } from '../modules/auth/jwt-auth.guard';
 
 /** Root module of the HTTP API. */
 @Module({
-  imports: [CoreModule, DatabaseModule, HealthModule, MetricsModule, AuthModule],
+  imports: [
+    CoreModule,
+    DatabaseModule,
+    HealthModule,
+    MetricsModule,
+    AuthModule,
+    // Default 100 requests/min per IP (api-conventions.md); auth routes set stricter limits with @Throttle.
+    // ponytail: counters live in process memory, fine for one API container (D-020); move to Redis storage when a
+    // second API instance runs.
+    ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 100 }]),
+  ],
   providers: [
-    // Guards run in registration order: authentication (deny-by-default, @Public() opts out), then permissions.
+    // Guards run in registration order: rate limit (also for unauthenticated callers), authentication
+    // (deny-by-default, @Public() opts out), then permissions.
+    // useExisting (like JwtAuthGuard) so tests can replace the guard with overrideProvider.
+    ThrottlerGuard,
+    { provide: APP_GUARD, useExisting: ThrottlerGuard },
     { provide: APP_GUARD, useExisting: JwtAuthGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
     // First: fills CLS (officeId, userId, …) from req.user before anything reads it.

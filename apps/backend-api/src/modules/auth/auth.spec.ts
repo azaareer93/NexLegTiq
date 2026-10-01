@@ -4,22 +4,24 @@ import { JwtService } from '@nestjs/jwt';
 
 import { AppException, PermissionDeniedException } from '../../common/errors/app.exception';
 import type { PrismaService } from '../../database/prisma.service';
-import {
-  hashRefreshToken,
-  JWT_AUDIENCE,
-  JWT_ISSUER,
-  newRefreshToken,
-  Public,
-  refreshCookieOptions,
-  refreshExpiry,
-} from './auth.constants';
+import { Public } from '../../common/auth/public.decorator';
+import { JWT_AUDIENCE, JWT_ISSUER } from './auth.constants';
 import { assertCookieRequestOrigin } from './csrf';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { isLocked, lockedUntil } from './lockout';
 import { PasswordHasher } from './password-hasher';
+import { hashRefreshToken, newRefreshToken, refreshCookieOptions, refreshExpiry, rotatedExpiry } from './refresh-token';
 
 const SECRET = 'unit-test-only-jwt-secret-0123456789abcdef';
 const OFFICE = '01920000-0000-7000-8000-00000000000a';
 const USER = '01920000-0000-7000-8000-0000000000aa';
+
+/** alg:none token with valid claims: must be refused whatever its payload says. */
+function unsigned(): string {
+  const part = (value: object): string => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const now = Math.floor(Date.now() / 1000);
+  return `${part({ alg: 'none', typ: 'JWT' })}.${part({ sub: USER, officeId: OFFICE, iss: JWT_ISSUER, aud: JWT_AUDIENCE, iat: now, exp: now + 900 })}.`;
+}
 
 describe('refresh tokens and cookie', () => {
   it('should create opaque 32-byte tokens and store only their SHA-256', () => {
@@ -36,8 +38,33 @@ describe('refresh tokens and cookie', () => {
     expect(refreshExpiry(now, true).toISOString()).toBe('2026-10-31T00:00:00.000Z');
   });
 
+  it('should keep the lifetime on rotation, capped at 90 days from the session start', () => {
+    const now = new Date('2026-10-01T00:00:00Z');
+    const previous = { createdAt: new Date('2026-09-30T00:00:00Z'), expiresAt: new Date('2026-10-07T00:00:00Z') };
+    expect(rotatedExpiry(now, previous, previous.createdAt).toISOString()).toBe('2026-10-08T00:00:00.000Z');
+    const started = new Date('2026-07-05T00:00:00Z');
+    expect(rotatedExpiry(now, previous, started).toISOString()).toBe('2026-10-03T00:00:00.000Z');
+  });
+
   it('should set an httpOnly Secure SameSite=Lax cookie scoped to /api/v1/auth (D-050)', () => {
     expect(refreshCookieOptions()).toEqual({ httpOnly: true, secure: true, sameSite: 'lax', path: '/api/v1/auth' });
+  });
+});
+
+describe('lockout (D-053)', () => {
+  const at = (minutes: number): Date => new Date(Date.UTC(2026, 9, 1, 12, minutes));
+  const failures = (...minutes: number[]): Date[] => minutes.map(at);
+
+  it('should lock for 15 minutes from the newest of 5 failures within 15 minutes', () => {
+    const recent = failures(14, 10, 5, 2, 0);
+    expect(lockedUntil(recent)).toEqual(at(29));
+    expect(isLocked(recent, at(28))).toBe(true);
+    expect(isLocked(recent, at(29))).toBe(false);
+  });
+
+  it('should not lock with fewer than 5 failures or when they span more than 15 minutes', () => {
+    expect(lockedUntil(failures(4, 3, 2, 1))).toBeNull();
+    expect(lockedUntil(failures(16, 10, 5, 2, 0))).toBeNull();
   });
 });
 
@@ -73,6 +100,7 @@ describe('PasswordHasher (Argon2id)', () => {
   it('should answer false for unknown users and malformed hashes without throwing', async () => {
     await expect(hasher.verify(undefined, 'anything')).resolves.toBe(false);
     await expect(hasher.verify('!', 'anything')).resolves.toBe(false);
+    await expect(hasher.verify('$2b$10$notargon', 'anything')).resolves.toBe(false);
   });
 });
 
@@ -123,13 +151,16 @@ describe('JwtAuthGuard', () => {
   it.each([
     ['no token', undefined, 'AUTH-003'],
     ['a malformed header', 'Token abc', 'AUTH-003'],
+    ['an unsigned alg:none token', `Bearer ${unsigned()}`, 'AUTH-003'],
+    ['an HS512 token', `Bearer ${jwt.sign({ sub: USER, officeId: OFFICE }, { algorithm: 'HS512', issuer: JWT_ISSUER, audience: JWT_AUDIENCE })}`, 'AUTH-003'],
     ['a forged signature', `Bearer ${new JwtService({ secret: 'x'.repeat(40) }).sign({ sub: USER }, { issuer: JWT_ISSUER, audience: JWT_AUDIENCE })}`, 'AUTH-003'],
   ])('should answer 401 for %s', async (_label, header, code) => {
     const { run } = setup();
     await expect(run(header)).rejects.toMatchObject({ code });
   });
 
-  it('should answer 401 AUTH-002 for an expired token and AUTH-003 for the wrong audience', async () => {
+  it('should answer 401 AUTH-002 for an expired token and AUTH-003 for the wrong audience or issuer', async () => {
+    await expect(setup().run(`Bearer ${sign({}, { issuer: 'someone-else' })}`)).rejects.toMatchObject({ code: 'AUTH-003' });
     await expect(setup().run(`Bearer ${sign({}, { expiresIn: -10 })}`)).rejects.toMatchObject({ code: 'AUTH-002' });
     await expect(setup().run(`Bearer ${sign({}, { audience: 'portal' })}`)).rejects.toMatchObject({ code: 'AUTH-003' });
   });

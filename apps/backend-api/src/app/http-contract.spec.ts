@@ -8,7 +8,7 @@ import { BusinessRuleException } from '../common/errors/app.exception';
 import { PaginatedResult } from '../common/http/paginated-result';
 import { ZodValidationPipe } from '../common/http/zod-validation.pipe';
 import { AppModule } from './app.module';
-import { Public } from '../modules/auth/auth.constants';
+import { Public } from '../common/auth/public.decorator';
 import { configureApp } from './configure-app';
 
 const CreateThingSchema = z.object({ title: z.string().min(3), amount: z.string().regex(/^\d+(\.\d{1,2})?$/) });

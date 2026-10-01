@@ -37,7 +37,8 @@ const EnvObject = z.object({
   METRICS_HOST: z.string().trim().min(1).default('localhost'),
   METRICS_PORT: port.default(9464),
   // Number of reverse proxies (Caddy/Traefik, D-020) in front of the API whose X-Forwarded-For is trusted. 0 = none.
-  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
+  // Optional (0) outside production; production must set it, since lockout and rate limits key on the client IP.
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).optional(),
 
   DATABASE_URL: databaseUrl,
   REDIS_URL: redisUrl,
@@ -93,6 +94,10 @@ export const EnvSchema = EnvObject.refine((env) => !(env.NODE_ENV === 'productio
     }
     if (!env.REDIS_URL.startsWith('rediss:')) fail('REDIS_URL', 'must use rediss:// (TLS) in production');
     if (!env.S3_ENDPOINT.startsWith('https:')) fail('S3_ENDPOINT', 'must use https:// in production');
+    if (env.TRUST_PROXY_HOPS === undefined || env.TRUST_PROXY_HOPS < 1) {
+      // With 0 behind a proxy every client shares the proxy's IP: one attacker would lock out or throttle everyone.
+      fail('TRUST_PROXY_HOPS', 'must be set to the number of reverse proxies (>= 1) in production');
+    }
     if (env.SMTP_REQUIRE_TLS === false && !env.SMTP_SECURE) {
       fail('SMTP_REQUIRE_TLS', 'must not be false in production unless SMTP_SECURE is true');
     }
@@ -112,6 +117,7 @@ export const EnvSchema = EnvObject.refine((env) => !(env.NODE_ENV === 'productio
     // Swagger defaults to on outside production (api-conventions.md).
     SWAGGER_ENABLED: env.SWAGGER_ENABLED ?? env.NODE_ENV !== 'production',
     SMTP_REQUIRE_TLS: env.SMTP_REQUIRE_TLS ?? env.NODE_ENV === 'production',
+    TRUST_PROXY_HOPS: env.TRUST_PROXY_HOPS ?? 0,
   }));
 
 export type Env = z.output<typeof EnvSchema>;

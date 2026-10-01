@@ -14,6 +14,9 @@ export function setupSwagger(app: INestApplication): void {
     )
     .setVersion('1')
     .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'JWT')
+    .addCookieAuth('nlq_rt', { type: 'apiKey', in: 'cookie', name: 'nlq_rt' }, 'refresh')
+    // Every route needs the access token unless marked @Public() (D-082).
+    .addSecurityRequirements('JWT')
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup(SWAGGER_PATH, app, document, { jsonDocumentUrl: SWAGGER_JSON_PATH });

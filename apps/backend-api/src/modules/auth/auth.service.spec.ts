@@ -3,16 +3,19 @@ import type { Request, Response } from 'express';
 import { ClsServiceManager } from 'nestjs-cls';
 
 import type { RequestContext } from '../../common/context/request-context';
+import { AppException } from '../../common/errors/app.exception';
 import { TenantRunner } from '../../common/tenancy/tenant-runner';
 import { AppConfig } from '../../config/app-config';
 import { testEnv } from '../../config/env.fixture';
 import { parseEnv } from '../../config/env.schema';
 import type { PrismaService } from '../../database/prisma.service';
-import { hashRefreshToken, REFRESH_COOKIE } from './auth.constants';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import type { ClientInfo, IssuedSession } from './auth.service';
+import { LoginAttemptRepository } from './login-attempt.repository';
 import type { PasswordHasher } from './password-hasher';
+import { hashRefreshToken, REFRESH_COOKIE } from './refresh-token';
+import { RefreshTokenRepository } from './refresh-token.repository';
 
 const OFFICE = '01920000-0000-7000-8000-00000000000a';
 const USER = '01920000-0000-7000-8000-0000000000aa';
@@ -30,33 +33,41 @@ const activeUser = {
   office: { name: 'Office', isActive: true },
 };
 
-function setup(overrides: { user?: unknown; token?: unknown; failures?: number; valid?: boolean; claimed?: number } = {}) {
-  const tx = {
+function setup(
+  overrides: { user?: unknown; token?: unknown; failures?: Date[]; valid?: boolean; claimed?: number; familyStartedAt?: Date } = {},
+) {
+  // One mock serves as the scoped client and as every transaction opened on it.
+  const db = {
+    user: { update: jest.fn().mockResolvedValue({}) },
     refreshToken: {
       updateMany: jest.fn().mockResolvedValue({ count: overrides.claimed ?? 1 }),
       create: jest.fn().mockResolvedValue({ id: 'next', familyId: 'family' }),
       update: jest.fn().mockResolvedValue({}),
+      findFirst: jest.fn().mockResolvedValue({ createdAt: overrides.familyStartedAt ?? new Date(Date.now() - 1000) }),
     },
-  };
-  const db = {
-    user: { update: jest.fn().mockResolvedValue({}) },
-    refreshToken: { create: jest.fn().mockResolvedValue({ familyId: 'family' }), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
     auditLog: { create: jest.fn().mockResolvedValue({}) },
-    $transaction: jest.fn((work: (t: typeof tx) => unknown) => work(tx)),
   };
   const raw = {
     user: { findUnique: jest.fn().mockResolvedValue(overrides.user === undefined ? { ...activeUser, passwordHash: 'h' } : overrides.user) },
     refreshToken: { findUnique: jest.fn().mockResolvedValue(overrides.token ?? null) },
     loginAttempt: {
       findFirst: jest.fn().mockResolvedValue(null),
-      count: jest.fn().mockResolvedValue(overrides.failures ?? 0),
+      findMany: jest.fn().mockResolvedValue((overrides.failures ?? []).map((attemptedAt) => ({ attemptedAt }))),
       create: jest.fn().mockResolvedValue({}),
     },
   };
-  const prisma = { db, unscoped: () => raw } as unknown as PrismaService;
+  const scoped = { ...db, $transaction: jest.fn((work: (t: typeof db) => unknown) => work(db)) };
+  const prisma = { db: scoped, unscoped: () => raw } as unknown as PrismaService;
   const passwords = { verify: jest.fn().mockResolvedValue(overrides.valid ?? true) } as unknown as PasswordHasher;
-  const service = new AuthService(prisma, new TenantRunner(cls), new JwtService({ secret: 'x'.repeat(40) }), passwords);
-  return { service, db, raw, tx };
+  const service = new AuthService(
+    prisma,
+    new TenantRunner(cls),
+    new JwtService({ secret: 'x'.repeat(40) }),
+    passwords,
+    new RefreshTokenRepository(prisma),
+    new LoginAttemptRepository(prisma),
+  );
+  return { service, db, raw };
 }
 
 const request = { email: 'lawyer@example.test', password: 'pw', rememberMe: false };
@@ -86,7 +97,7 @@ describe('AuthService.login', () => {
   });
 
   it('should lock out before checking the password', async () => {
-    const { service, raw } = setup({ failures: 5 });
+    const { service, raw } = setup({ failures: Array.from({ length: 5 }, () => new Date(Date.now() - 1000)) });
     await expect(service.login(request, client)).rejects.toMatchObject({ code: 'AUTH-007' });
     expect(raw.user.findUnique).not.toHaveBeenCalled();
   });
@@ -112,12 +123,12 @@ describe('AuthService.login', () => {
 
 describe('AuthService.refresh', () => {
   it('should rotate: claim the old token, create the next in the same family and link them', async () => {
-    const { service, tx } = setup({ token: storedToken() });
+    const { service, db } = setup({ token: storedToken() });
     const issued = await service.refresh('cookie', client);
 
-    expect(tx.refreshToken.updateMany).toHaveBeenCalledWith({ where: { id: 'old', revokedAt: null }, data: { revokedAt: expect.any(Date) } });
-    expect(tx.refreshToken.create).toHaveBeenCalledWith({ data: expect.objectContaining({ officeId: OFFICE, familyId: 'family' }) });
-    expect(tx.refreshToken.update).toHaveBeenCalledWith({ where: { id: 'old' }, data: { replacedById: 'next' } });
+    expect(db.refreshToken.updateMany).toHaveBeenCalledWith({ where: { id: 'old', revokedAt: null }, data: { revokedAt: expect.any(Date) } });
+    expect(db.refreshToken.create).toHaveBeenCalledWith({ data: expect.objectContaining({ officeId: OFFICE, familyId: 'family' }) });
+    expect(db.refreshToken.update).toHaveBeenCalledWith({ where: { id: 'old' }, data: { replacedById: 'next' } });
     expect(issued.session.user.id).toBe(USER);
   });
 
@@ -144,6 +155,16 @@ describe('AuthService.refresh', () => {
     await expect(service.refresh('cookie', client)).rejects.toMatchObject({ code: 'AUTH-004' });
   });
 
+  it('should keep the token lifetime across rotation but end the session 90 days after login', async () => {
+    const remembered = storedToken({ createdAt: new Date(Date.now() - 1000), expiresAt: new Date(Date.now() + 30 * 86_400_000 - 1000) });
+    const fresh = await setup({ token: remembered }).service.refresh('cookie', client);
+    expect(fresh.refreshExpiresAt.getTime()).toBeGreaterThan(Date.now() + 29 * 86_400_000);
+
+    const old = setup({ token: remembered, familyStartedAt: new Date(Date.now() - 91 * 86_400_000) });
+    await expect(old.service.refresh('cookie', client)).rejects.toMatchObject({ code: 'AUTH-004' });
+    expect(old.db.refreshToken.create).not.toHaveBeenCalled();
+  });
+
   it('should revoke the family and refuse when the user was deactivated', async () => {
     const { service, db } = setup({ token: storedToken({ user: { ...activeUser, isActive: false } }) });
     await expect(service.refresh('cookie', client)).rejects.toMatchObject({ code: 'AUTH-006' });
@@ -161,6 +182,10 @@ describe('AuthService.logout', () => {
     const missing = setup();
     await missing.service.logout(undefined, client);
     expect(missing.db.auditLog.create).not.toHaveBeenCalled();
+
+    const again = setup({ token: storedToken({ revokedAt: new Date() }) });
+    await again.service.logout('cookie', client);
+    expect(again.db.auditLog.create).not.toHaveBeenCalled();
   });
 });
 
@@ -190,12 +215,19 @@ describe('AuthController', () => {
     expect(login).toHaveBeenCalledWith(expect.anything(), { ip: '0.0.0.0', userAgent: null, requestId: null });
   });
 
-  it('should clear the cookie when a refresh is refused, and pass non-string cookies as missing', async () => {
-    const refresh = jest.fn().mockRejectedValue(new Error('refused'));
+  it('should clear the cookie when the session is dead, and pass non-string cookies as missing', async () => {
+    const refresh = jest.fn().mockRejectedValue(new AppException('AUTH-005', 'refused'));
     const response = res();
     await expect(controller({ refresh }).refresh(req(csrf, { [REFRESH_COOKIE]: 42 }), response)).rejects.toThrow('refused');
     expect(refresh).toHaveBeenCalledWith(undefined, expect.anything());
     expect(response.clearCookie).toHaveBeenCalledWith(REFRESH_COOKIE, expect.objectContaining({ path: '/api/v1/auth' }));
+  });
+
+  it('should keep the cookie when a refresh fails for another reason (outage, rate limit)', async () => {
+    const response = res();
+    const refresh = jest.fn().mockRejectedValue(new AppException('DB-001', 'down'));
+    await expect(controller({ refresh }).refresh(req(), response)).rejects.toThrow('down');
+    expect(response.clearCookie).not.toHaveBeenCalled();
   });
 
   it('should rotate the cookie on refresh and clear it on logout', async () => {

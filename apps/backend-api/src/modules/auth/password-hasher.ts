@@ -17,9 +17,12 @@ export class PasswordHasher {
     return hash(password, OPTIONS);
   }
 
-  /** False for a wrong password and for any malformed or placeholder hash (e.g. the demo seed's `!`). */
+  /**
+   * False for a wrong password and for any malformed or placeholder hash (e.g. the demo seed's `!`). Unknown users and
+   * non-Argon2 hashes still pay for one dummy verification, so response time does not reveal which case applies.
+   */
   async verify(passwordHash: string | undefined, password: string): Promise<boolean> {
-    if (passwordHash === undefined) {
+    if (passwordHash === undefined || !passwordHash.startsWith('$argon2')) {
       await verify(await this.dummyHash, password).catch(() => false);
       return false;
     }

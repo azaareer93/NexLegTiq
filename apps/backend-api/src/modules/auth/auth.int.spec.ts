@@ -12,7 +12,7 @@ import { AppModule } from '../../app/app.module';
 import { RequirePermissions } from '../../common/rbac/permissions.decorator';
 import { testEnv } from '../../config/env.fixture';
 import { PrismaService } from '../../database/prisma.service';
-import { REFRESH_COOKIE } from './auth.constants';
+import { REFRESH_COOKIE } from './refresh-token';
 import { PasswordHasher } from './password-hasher';
 
 @Controller('__auth_probe__')
@@ -38,7 +38,7 @@ const csrf = { Origin: ORIGIN, 'X-Requested-With': 'XMLHttpRequest' };
 
 async function createApp(options: { throttle: boolean }): Promise<NestExpressApplication> {
   let builder = Test.createTestingModule({ imports: [AppModule, ProbeModule] });
-  if (!options.throttle) builder = builder.overrideGuard(ThrottlerGuard).useValue({ canActivate: () => true });
+  if (!options.throttle) builder = builder.overrideProvider(ThrottlerGuard).useValue({ canActivate: () => true });
   const app = (await builder.compile()).createNestApplication<NestExpressApplication>({ bufferLogs: true });
   configureApp(app);
   await app.init();
@@ -82,9 +82,12 @@ describe('auth (HTTP + PostgreSQL)', () => {
 
   const login = (email: string, password = PASSWORD, rememberMe = false) =>
     request(app.getHttpServer()).post('/api/v1/auth/login').send({ email, password, rememberMe });
+  const refresh = (cookie: string) => request(app.getHttpServer()).post('/api/v1/auth/refresh').set('Cookie', cookie).set(csrf);
+  const savedEnv = { ...process.env };
 
   beforeAll(async () => {
-    // Real database from the environment; every other required variable from the test fixture.
+    // Real database from the environment; every other required variable from the test fixture (TRUST_PROXY_HOPS=1, so
+    // X-Forwarded-For sets the client IP).
     Object.assign(process.env, testEnv({ DATABASE_URL: process.env['DATABASE_URL'], NODE_ENV: 'test', CORS_ORIGINS: ORIGIN, METRICS_ENABLED: 'false' }));
     // (metrics off: two app instances in this file would both bind the metrics port)
     app = await createApp({ throttle: false });
@@ -100,6 +103,8 @@ describe('auth (HTTP + PostgreSQL)', () => {
     await raw.office.deleteMany({ where: { id: { in: officeIds } } });
     await raw.loginAttempt.deleteMany({ where: { email: { in: emails } } });
     await app.close();
+    for (const key of Object.keys(process.env)) if (!(key in savedEnv)) delete process.env[key];
+    Object.assign(process.env, savedEnv);
   });
 
   describe('login', () => {
@@ -141,6 +146,7 @@ describe('auth (HTTP + PostgreSQL)', () => {
       expect(wrong.body.error).toMatchObject({ code: 'AUTH-001' });
       expect(unknown.body.error).toEqual(wrong.body.error);
       await expect(prisma.unscoped().loginAttempt.count({ where: { email, success: false } })).resolves.toBe(1);
+      expect(refreshCookie(wrong)).toBeUndefined();
     });
 
     it('should refuse an inactive user and a suspended office with 403 AUTH-006', async () => {
@@ -155,6 +161,41 @@ describe('auth (HTTP + PostgreSQL)', () => {
       for (let i = 0; i < 5; i += 1) await login(email, 'wrong-password-1').expect(401);
       const locked = await login(email).expect(423);
       expect(locked.body.error).toMatchObject({ code: 'AUTH-007' });
+    });
+  });
+
+  describe('lockout window (D-053)', () => {
+    const IP = '203.0.113.7';
+    const loginFrom = (ip: string, email: string, password = PASSWORD) => login(email, password).set('X-Forwarded-For', ip);
+    async function seedAttempts(email: string, minutesAgo: number[], success = false) {
+      await prisma.unscoped().loginAttempt.createMany({
+        data: minutesAgo.map((minutes) => ({ email, ipAddress: IP, success, attemptedAt: new Date(Date.now() - minutes * 60_000) })),
+      });
+    }
+
+    it('should lock only the email + IP pair that failed', async () => {
+      const { email } = await seedUser();
+      await seedAttempts(email, [1, 2, 3, 4, 5]);
+      expect((await loginFrom(IP, email).expect(423)).body.error).toMatchObject({ code: 'AUTH-007' });
+      await loginFrom('203.0.113.8', email).expect(200);
+    });
+
+    it('should not lock for failures older than 15 minutes or spread over more than 15 minutes', async () => {
+      const old = await seedUser();
+      await seedAttempts(old.email, [16, 17, 18, 19, 20]);
+      await loginFrom(IP, old.email).expect(200);
+
+      const spread = await seedUser();
+      await seedAttempts(spread.email, [1, 2, 3, 4, 17]);
+      await loginFrom(IP, spread.email).expect(200);
+    });
+
+    it('should not count failures before the last successful login', async () => {
+      const { email } = await seedUser();
+      await seedAttempts(email, [6, 7, 8, 9]);
+      await seedAttempts(email, [5], true);
+      await seedAttempts(email, [1]);
+      await loginFrom(IP, email).expect(200);
     });
   });
 
@@ -220,6 +261,36 @@ describe('auth (HTTP + PostgreSQL)', () => {
       expect(security.newValues).toMatchObject({ reason: 'REFRESH_TOKEN_REUSE' });
     });
 
+    it('should let exactly one of two concurrent refreshes win and treat the other as reuse', async () => {
+      const { email, userId, officeId } = await seedUser();
+      const cookie = cookieValue(refreshCookie(await login(email).expect(200)));
+      const statuses = (await Promise.all([refresh(cookie), refresh(cookie)])).map((res) => res.status).sort();
+
+      expect(statuses).toEqual([200, 401]);
+      await expect(prisma.unscoped().refreshToken.count({ where: { userId, revokedAt: null } })).resolves.toBe(0);
+      await expect(prisma.unscoped().auditLog.count({ where: { officeId, action: 'SECURITY' } })).resolves.toBe(1);
+    });
+
+    it('should keep the remember-me lifetime across rotation', async () => {
+      const { email, userId } = await seedUser();
+      const cookie = cookieValue(refreshCookie(await login(email, PASSWORD, true).expect(200)));
+      await refresh(cookie).expect(200);
+      const latest = await prisma.unscoped().refreshToken.findFirstOrThrow({ where: { userId, revokedAt: null } });
+      expect(Math.round((latest.expiresAt.getTime() - Date.now()) / 86_400_000)).toBe(30);
+    });
+
+    it('should audit with client details and never store a token in the log', async () => {
+      const { email, officeId } = await seedUser();
+      const res = await login(email).set('X-Forwarded-For', '198.51.100.4').set('User-Agent', 'jest-agent').set('x-request-id', 'req-audit-0001');
+      const token = cookieValue(refreshCookie(res)).split('=')[1] ?? '';
+      const row = await prisma.unscoped().auditLog.findFirstOrThrow({ where: { officeId, action: 'LOGIN' } });
+
+      expect(row).toMatchObject({ ipAddress: '198.51.100.4', userAgent: 'jest-agent', requestId: 'req-audit-0001' });
+      const stored = JSON.stringify(row);
+      expect(stored).not.toContain(token);
+      expect(stored).not.toContain(res.body.data.accessToken);
+    });
+
     it('should answer 401 AUTH-004 for an expired refresh token and AUTH-005 for an unknown one', async () => {
       const { email, userId } = await seedUser();
       const cookie = cookieValue(refreshCookie(await login(email).expect(200)));
@@ -245,6 +316,9 @@ describe('auth (HTTP + PostgreSQL)', () => {
       await expect(prisma.unscoped().auditLog.count({ where: { officeId, action: 'LOGOUT' } })).resolves.toBe(1);
       await request(server).post('/api/v1/auth/refresh').set('Cookie', cookie).set(csrf).expect(401);
       await request(server).post('/api/v1/auth/logout').set(csrf).expect(204);
+      // A second logout with the same cookie is a no-op: no second audit row.
+      await request(server).post('/api/v1/auth/logout').set('Cookie', cookie).set(csrf).expect(204);
+      await expect(prisma.unscoped().auditLog.count({ where: { officeId, action: 'LOGOUT' } })).resolves.toBe(1);
     });
 
     it('should end the session when the user was deactivated since login', async () => {
@@ -277,6 +351,13 @@ describe('auth (HTTP + PostgreSQL)', () => {
       const blocked = await attempt().expect(429);
       expect(blocked.body.error).toMatchObject({ code: 'RATE-001' });
       expect(blocked.headers['retry-after']).toBeDefined();
+    });
+
+    it('should allow 30 refreshes a minute per client', async () => {
+      const attempt = () =>
+        request(limited.getHttpServer()).post('/api/v1/auth/refresh').set('X-Forwarded-For', '192.0.2.30').set(csrf);
+      for (let i = 0; i < 30; i += 1) await attempt().expect(401);
+      expect((await attempt().expect(429)).body.error).toMatchObject({ code: 'RATE-001' });
     });
   });
 });

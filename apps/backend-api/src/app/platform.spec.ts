@@ -7,7 +7,7 @@ import { PrismaService } from '../database/prisma.service';
 import { ReadinessRegistry } from '../health/readiness.registry';
 import { MetricsService } from '../metrics/metrics.service';
 import { AppModule } from './app.module';
-import { Public } from '../modules/auth/auth.constants';
+import { Public } from '../common/auth/public.decorator';
 import { configureApp } from './configure-app';
 
 // Public: this suite tests the HTTP platform (headers, compression, metrics), not authentication.
