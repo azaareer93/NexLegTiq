@@ -25,12 +25,14 @@ export class TenantRunner {
   run<T>(context: TenantRunContext, work: () => Promise<T>): Promise<T> {
     // override, not the default 'inherit': work for office B started inside office A's request must not keep A's user,
     // role or permissions.
-    return this.cls.run({ ifNested: 'override' }, () => {
+    return this.cls.run({ ifNested: 'override' }, async () => {
       // CLS_ID holds the request id (a string); the typed store does not model that symbol key.
       this.cls.set(CLS_ID, (context.requestId ?? randomUUID()) as never);
       this.cls.set('officeId', context.officeId);
       if (context.userId) this.cls.set('userId', context.userId);
-      return work();
+      // Awaited here, inside the context: Prisma queries are lazy (they run on `.then()`), so returning the promise
+      // unawaited would execute `() => prisma.db.x.create(…)` after the context ended, without an office.
+      return await work();
     });
   }
 }
