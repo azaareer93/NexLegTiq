@@ -14,7 +14,8 @@ export interface SeededOffice {
  * One entry per tenant model (asserted against TENANT_MODELS). `create` makes a row in the given office with the raw
  * client; `update` is a harmless change used to prove another office's row cannot be touched.
  * `http` lists the resource's endpoints once it has any; tenant-isolation.int.spec.ts then also checks
- * list/get/update/delete → 404 RES-001 for the other office (needs the auth helper from MVP-40).
+ * list/get/update/delete → 404 RES-001 for the other office, calling as the seeded user with
+ * `bearerFor(app.get(JwtService), { ...office, role: 'OFFICE_MANAGER' })` from modules/auth/auth.test-helper.ts.
  */
 export interface TenantResource {
   readonly model: TenantModel;

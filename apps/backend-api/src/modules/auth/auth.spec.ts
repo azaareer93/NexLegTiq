@@ -7,6 +7,7 @@ import type { PrismaService } from '../../database/prisma.service';
 import { Public } from '../../common/auth/public.decorator';
 import { JWT_AUDIENCE, JWT_ISSUER } from './auth.constants';
 import { assertCookieRequestOrigin } from './csrf';
+import { bearerFor } from './auth.test-helper';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { isLocked, lockedUntil } from './lockout';
 import { PasswordHasher } from './password-hasher';
@@ -139,6 +140,11 @@ describe('JwtAuthGuard', () => {
     }
     const { run } = setup();
     await expect(run(undefined, Open.prototype.handler)).resolves.toBe(true);
+  });
+
+  it('should accept the header built by the bearerFor test helper', async () => {
+    const { run } = setup();
+    await expect(run(bearerFor(jwt, { userId: USER, officeId: OFFICE, role: 'LAWYER' }).Authorization)).resolves.toBe(true);
   });
 
   it('should authenticate a valid token and reload the role from the database', async () => {

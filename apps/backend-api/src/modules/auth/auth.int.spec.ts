@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { Controller, Get, Module } from '@nestjs/common';
 import type { INestApplication } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import request from 'supertest';
@@ -12,6 +13,7 @@ import { AppModule } from '../../app/app.module';
 import { RequirePermissions } from '../../common/rbac/permissions.decorator';
 import { testEnv } from '../../config/env.fixture';
 import { PrismaService } from '../../database/prisma.service';
+import { bearerFor } from './auth.test-helper';
 import { REFRESH_COOKIE } from './refresh-token';
 import { PasswordHasher } from './password-hasher';
 
@@ -200,6 +202,12 @@ describe('auth (HTTP + PostgreSQL)', () => {
   });
 
   describe('Bearer access', () => {
+    it('should accept a header from the bearerFor test helper for a seeded user', async () => {
+      const { userId, officeId } = await seedUser();
+      const headers = bearerFor(app.get(JwtService), { userId, officeId, role: 'LAWYER' });
+      await request(app.getHttpServer()).get('/api/v1/__auth_probe__/me').set(headers).expect(200);
+    });
+
     it('should accept the access token, refuse without it, and apply role changes on the next request', async () => {
       const { email, userId } = await seedUser({ role: 'OFFICE_MANAGER' });
       const token = (await login(email).expect(200)).body.data.accessToken as string;
