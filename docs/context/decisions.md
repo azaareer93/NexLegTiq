@@ -344,4 +344,12 @@ principal → 401 AUTH-003; denied → 403 AUTH-100 plus a best-effort `PERMISSI
 (responsible lawyer, responsible paralegal, `teamMembers`); the DB-backed `CaseAccessService.assertFileAccess` ships with
 MVP-57 when LegalFile/FileTeamMember exist, and "login response includes `permissions[]`" ships with MVP-40 (it returns
 `permissionsFor(role)`). Frontend: `PermissionsProvider` + `useCan` + `<Can>` in shared-ui — UI hiding only, the API always
-re-checks. Why: one matrix, no stale grants in tokens, and no code written against tables that do not exist yet.
+re-checks. Review additions (same PR): only `realm: 'OFFICE'` principals get office role/permissions (guard denies
+others, the interceptor sets no role/permissions for them); class- and method-level requirements must **both** pass;
+conditional cells count as held only on routes marked `@PermissionConditionsCheckedByService()` (fail closed);
+`permissionsFor` is total (unknown role → no permissions); the matrix is frozen; the audited user agent is capped at 512
+chars. "Role change applies immediately" requires the MVP-40 JWT guard to reload `role` and `isActive` from the database
+(or an office-tagged cache) on each request, never trusting the token's role. `TenantRunner.run` awaits the work inside
+the CLS context because Prisma queries are lazy (`() => prisma.db.x.create()` otherwise ran without an office — caught by
+the guard's integration test). Why: one matrix, no stale grants in tokens, and no code written against tables that do not
+exist yet.
