@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import { DependencyUnavailableException } from '../common/errors/app.exception';
 import { ApiZodResponse } from '../common/openapi/api-zod.decorators';
+import { Public } from '../modules/auth/auth.constants';
 import { ReadinessRegistry } from './readiness.registry';
 import type { ReadinessReport } from './readiness.registry';
 
@@ -15,6 +16,7 @@ const ReadinessSchema = z.object({
 
 /** Outside the /api/v1 prefix: `/health` (liveness) and `/health/ready` (readiness, used by deploys and uptime checks). */
 @ApiTags('health')
+@Public()
 @Controller('health')
 export class HealthController {
   constructor(private readonly readiness: ReadinessRegistry) {}

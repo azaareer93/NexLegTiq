@@ -1,5 +1,6 @@
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import compression from 'compression';
+import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 
@@ -28,6 +29,8 @@ export function configureApp(app: NestExpressApplication): void {
   // First after CLS so every request is measured, including CORS preflights and body-parser rejections.
   app.use(app.get(MetricsService).middleware);
   app.use(helmet());
+  // Reads the httpOnly refresh cookie on /api/v1/auth (D-050); unsigned: the value is an opaque, hashed-at-rest token.
+  app.use(cookieParser());
   app.enableCors({
     origin: [...config.corsOrigins],
     // Refresh-token cookie (D-050); CSRF defence for cookie endpoints lives with auth (D-055).

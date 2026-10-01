@@ -1,0 +1,148 @@
+import type { ExecutionContext } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { JwtService } from '@nestjs/jwt';
+
+import { AppException, PermissionDeniedException } from '../../common/errors/app.exception';
+import type { PrismaService } from '../../database/prisma.service';
+import {
+  hashRefreshToken,
+  JWT_AUDIENCE,
+  JWT_ISSUER,
+  newRefreshToken,
+  Public,
+  refreshCookieOptions,
+  refreshExpiry,
+} from './auth.constants';
+import { assertCookieRequestOrigin } from './csrf';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { PasswordHasher } from './password-hasher';
+
+const SECRET = 'unit-test-only-jwt-secret-0123456789abcdef';
+const OFFICE = '01920000-0000-7000-8000-00000000000a';
+const USER = '01920000-0000-7000-8000-0000000000aa';
+
+describe('refresh tokens and cookie', () => {
+  it('should create opaque 32-byte tokens and store only their SHA-256', () => {
+    const token = newRefreshToken();
+    expect(Buffer.from(token, 'base64url')).toHaveLength(32);
+    expect(newRefreshToken()).not.toBe(token);
+    expect(hashRefreshToken(token)).toMatch(/^[0-9a-f]{64}$/);
+    expect(hashRefreshToken(token)).not.toContain(token);
+  });
+
+  it('should last 7 days, or 30 with remember me', () => {
+    const now = new Date('2026-10-01T00:00:00Z');
+    expect(refreshExpiry(now, false).toISOString()).toBe('2026-10-08T00:00:00.000Z');
+    expect(refreshExpiry(now, true).toISOString()).toBe('2026-10-31T00:00:00.000Z');
+  });
+
+  it('should set an httpOnly Secure SameSite=Lax cookie scoped to /api/v1/auth (D-050)', () => {
+    expect(refreshCookieOptions()).toEqual({ httpOnly: true, secure: true, sameSite: 'lax', path: '/api/v1/auth' });
+  });
+});
+
+describe('assertCookieRequestOrigin (D-055)', () => {
+  const allowed = ['http://localhost:4200'];
+
+  it('should accept an allowed origin with X-Requested-With', () => {
+    expect(() =>
+      assertCookieRequestOrigin({ origin: 'http://localhost:4200', 'x-requested-with': 'XMLHttpRequest' }, allowed),
+    ).not.toThrow();
+  });
+
+  it.each([
+    ['no origin', { 'x-requested-with': 'XMLHttpRequest' }],
+    ['a foreign origin', { origin: 'https://evil.test', 'x-requested-with': 'XMLHttpRequest' }],
+    ['no X-Requested-With', { origin: 'http://localhost:4200' }],
+    ['another X-Requested-With', { origin: 'http://localhost:4200', 'x-requested-with': 'fetch' }],
+  ])('should reject %s with 403 AUTH-100', (_label, headers) => {
+    expect(() => assertCookieRequestOrigin(headers, allowed)).toThrow(PermissionDeniedException);
+  });
+});
+
+describe('PasswordHasher (Argon2id)', () => {
+  const hasher = new PasswordHasher();
+
+  it('should hash with Argon2id at the OWASP parameters and verify', async () => {
+    const hash = await hasher.hash('correct horse battery');
+    expect(hash).toMatch(/^\$argon2id\$v=19\$m=19456,t=2,p=1\$/);
+    await expect(hasher.verify(hash, 'correct horse battery')).resolves.toBe(true);
+    await expect(hasher.verify(hash, 'wrong')).resolves.toBe(false);
+  });
+
+  it('should answer false for unknown users and malformed hashes without throwing', async () => {
+    await expect(hasher.verify(undefined, 'anything')).resolves.toBe(false);
+    await expect(hasher.verify('!', 'anything')).resolves.toBe(false);
+  });
+});
+
+describe('JwtAuthGuard', () => {
+  const jwt = new JwtService({ secret: SECRET });
+  const sign = (claims: object, options: object = {}): string =>
+    jwt.sign({ sub: USER, officeId: OFFICE, role: 'LAWYER', sid: 'family', ...claims }, {
+      expiresIn: 900,
+      issuer: JWT_ISSUER,
+      audience: JWT_AUDIENCE,
+      ...options,
+    });
+
+  function setup(user: unknown = { role: 'LAWYER', isActive: true, office: { isActive: true } }) {
+    const findFirst = jest.fn().mockResolvedValue(user);
+    const prisma = { unscoped: () => ({ user: { findFirst } }) } as unknown as PrismaService;
+    const guard = new JwtAuthGuard(new Reflector(), jwt, prisma);
+    const request: { headers: Record<string, string>; user?: unknown } = { headers: {} };
+    const run = (authorization?: string, handler: object = () => undefined): Promise<boolean> => {
+      if (authorization) request.headers['authorization'] = authorization;
+      return guard.canActivate({
+        getHandler: () => handler,
+        getClass: () => class {},
+        switchToHttp: () => ({ getRequest: () => request }),
+      } as unknown as ExecutionContext);
+    };
+    return { run, request, findFirst };
+  }
+
+  it('should let @Public() routes through without a token', async () => {
+    class Open {
+      @Public()
+      handler(): void {
+        return undefined;
+      }
+    }
+    const { run } = setup();
+    await expect(run(undefined, Open.prototype.handler)).resolves.toBe(true);
+  });
+
+  it('should authenticate a valid token and reload the role from the database', async () => {
+    const { run, request, findFirst } = setup({ role: 'SENIOR_LAWYER', isActive: true, office: { isActive: true } });
+    await expect(run(`Bearer ${sign({ role: 'TRAINEE' })}`)).resolves.toBe(true);
+    expect(findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: USER, officeId: OFFICE } }));
+    expect(request.user).toEqual({ userId: USER, officeId: OFFICE, role: 'SENIOR_LAWYER', realm: 'OFFICE' });
+  });
+
+  it.each([
+    ['no token', undefined, 'AUTH-003'],
+    ['a malformed header', 'Token abc', 'AUTH-003'],
+    ['a forged signature', `Bearer ${new JwtService({ secret: 'x'.repeat(40) }).sign({ sub: USER }, { issuer: JWT_ISSUER, audience: JWT_AUDIENCE })}`, 'AUTH-003'],
+  ])('should answer 401 for %s', async (_label, header, code) => {
+    const { run } = setup();
+    await expect(run(header)).rejects.toMatchObject({ code });
+  });
+
+  it('should answer 401 AUTH-002 for an expired token and AUTH-003 for the wrong audience', async () => {
+    await expect(setup().run(`Bearer ${sign({}, { expiresIn: -10 })}`)).rejects.toMatchObject({ code: 'AUTH-002' });
+    await expect(setup().run(`Bearer ${sign({}, { audience: 'portal' })}`)).rejects.toMatchObject({ code: 'AUTH-003' });
+  });
+
+  it.each([
+    ['a user that no longer exists (or moved office)', null, 'AUTH-003', 'Invalid or missing access token'],
+    ['an inactive user', { role: 'LAWYER', isActive: false, office: { isActive: true } }, 'AUTH-006', 'User account is inactive'],
+    ['a suspended office', { role: 'LAWYER', isActive: true, office: { isActive: false } }, 'AUTH-006', 'Office is suspended'],
+    ['an unknown role', { role: 'GHOST', isActive: true, office: { isActive: true } }, 'AUTH-003', 'Invalid or missing access token'],
+  ])('should refuse %s', async (_label, user, code, message) => {
+    const { run } = setup(user);
+    const error = await run(`Bearer ${sign({})}`).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(AppException);
+    expect(error).toMatchObject({ code, message });
+  });
+});
