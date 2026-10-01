@@ -21,7 +21,7 @@ Client portal uses a separate realm: audience `portal`, secret `JWT_PORTAL_SECRE
 - **Logout**: revoke current family, clear cookie, FE clears stores + `queryClient.clear()`.
 - **Password reset**: `forgot-password` always 200 (anti-enumeration); token 1h, single use; success revokes all sessions.
 - **Password policy**: ≥ 10 chars, upper+lower+digit (special optional), not in breached/common list, not equal to email.
-  bcrypt cost 12 (or argon2id — pick once in Sprint 1 and record).
+  Argon2id (m=19 MiB, t=2, p=1), D-082.
 - **Invite** (W2): OM invites → email with link (token 7 days) → accept: set name/password/phone → user created with role.
   Existing email anywhere → 409 (D-032).
 - **Deactivate** (W5): must reassign open files (responsible lawyer) in same request; last OFFICE_MANAGER can't be
