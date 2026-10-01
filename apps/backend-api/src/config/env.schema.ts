@@ -68,6 +68,9 @@ const EnvObject = z.object({
 
   CLAMAV_HOST: required,
   CLAMAV_PORT: port.default(3310),
+
+  // HS256 key of the office access JWT (auth-rbac.md, Tokens); at least 32 characters of randomness.
+  JWT_SECRET: z.string().min(32),
 });
 
 /** Every variable the backend reads; `.env.example` must document each of them (asserted in env.schema.spec.ts). */
@@ -97,6 +100,7 @@ export const EnvSchema = EnvObject.refine((env) => !(env.NODE_ENV === 'productio
       DATABASE_URL: decodeURIComponent(new URL(env.DATABASE_URL).password),
       S3_ACCESS_KEY_ID: env.S3_ACCESS_KEY_ID,
       S3_SECRET_ACCESS_KEY: env.S3_SECRET_ACCESS_KEY,
+      JWT_SECRET: env.JWT_SECRET,
       SMTP_PASSWORD: env.SMTP_PASSWORD ?? '',
     };
     for (const [key, value] of Object.entries(secrets)) {
