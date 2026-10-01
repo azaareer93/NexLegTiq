@@ -14,7 +14,8 @@ Client portal uses a separate realm: audience `portal`, secret `JWT_PORTAL_SECRE
 
 ## Flows
 - **Signup** (W1 + onboarding): office + OFFICE_MANAGER user + Free/Trial subscription + default settings/folders +
-  ToS acceptance, in one transaction; email verification link (must verify within 7 days to keep access).
+  ToS acceptance, in one transaction; email verification link (must verify within 7 days to keep access). Plan, legal
+  versions, auto-login, 410 for bad links and AUTH-010: D-083.
 - **Login**: rate-limited per IP (login 5/min, refresh/logout 30/min) + lockout (D-053, details D-082). Inactive user → 403 `AUTH-006`.
   Response: `{accessToken, expiresIn: 900, user{id, fullName, email, role, officeId, officeName, uiLanguage, permissions[]}}`.
 - **Refresh**: `POST /auth/refresh` (cookie) → new pair. FE: single-flight refresh on 401, queue concurrent requests, retry once.

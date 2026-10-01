@@ -42,8 +42,8 @@ default 100/min · `/auth/login|register|forgot-password` 5/min · `/auth/refres
 `/ai/*` 20/min (plus plan quota) · search 60/min. Headers `X-RateLimit-Limit|Remaining|Reset`, `Retry-After`.
 
 ## Endpoint map (MVP)
-**auth**: POST `auth/register` (office signup) · POST `auth/login` · POST `auth/refresh` · POST `auth/logout` ·
-POST `auth/forgot-password` · POST `auth/reset-password` · POST `auth/verify-email` · POST `auth/accept-invite` ·
+**auth**: POST `auth/register` (office signup, 201 + session like login) · POST `auth/login` · POST `auth/refresh` · POST `auth/logout` ·
+POST `auth/forgot-password` · POST `auth/reset-password` · POST `auth/verify-email` (204; 410 RES-004 for an invalid/used/expired link) · POST `auth/accept-invite` ·
 GET `auth/invites/:token` (preview)
 **users**: GET/PATCH `users/me` · POST `users/me/password` · GET `users` (office team) · POST `users/invite` ·
 GET `users/invitations` · DELETE `users/invitations/:id` · PATCH `users/:id/role` · POST `users/:id/deactivate` (with reassignment) ·

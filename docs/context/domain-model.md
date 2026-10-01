@@ -7,18 +7,19 @@
 
 ## Tenancy & identity
 - **Office** — name, registrationNumber, taxId, phone, email, address, website, `jurisdiction: Jurisdiction`
-  (default PALESTINE), `defaultLanguage: AR|EN|BILINGUAL`, `currency` (ISO), `timezone` (default Asia/Hebron),
+  (default PALESTINE), `accountType: SOLO|FIRM|CORPORATE` (signup, D-083), `defaultLanguage: AR|EN|BILINGUAL`, `currency` (ISO), `timezone` (default Asia/Hebron),
   `isActive`. Settings live in **OfficeSettings** 🔒 (typed columns, not key/value): courtReminderDays int[] (7,3,1),
   taskReminderDays, defaultBillingRate, defaultBillingMethod, taxRatePercent, enableAI, enableOCR,
   fileNumberFormat, sessionIdleMinutes, auditRetentionDays (≥365).
 - **Plan** (platform) / **Subscription** 🔒 — D-005.
 - **User** 🔒 — fullName, email (citext, unique global D-032), passwordHash, `role: Role`, phone, avatarUrl, isActive,
-  lastLoginAt, uiLanguage, timezone, mfaSecret? (encrypted), mfaEnabled.
+  lastLoginAt, emailVerifiedAt? (signup verification, D-083), uiLanguage, timezone, mfaSecret? (encrypted), mfaEnabled.
   `Role` = OFFICE_MANAGER, SENIOR_LAWYER, LAWYER, PARALEGAL, ADMIN (office admin/finance), TRAINEE, EXTERNAL_COLLABORATOR.
 - **PlatformAdmin** — separate table for the admin panel (not an office role); MFA required.
 - **OfficeInvitation** 🔒 — email, role (any except OFFICE_MANAGER; SENIOR_LAWYER allowed), tokenHash, status
   PENDING|ACCEPTED|EXPIRED|REVOKED, expiresAt (7d), invitedById, message.
-- **RefreshToken**, **PasswordResetToken** (hashed, 1h, usedAt), **LoginAttempt** (email, ip, success, at).
+- **RefreshToken**, **PasswordResetToken** (hashed, 1h, usedAt), **EmailVerificationToken** 🔒 (hashed, 7d, usedAt; D-083),
+  **LoginAttempt** (email, ip, success, at).
 - **LegalAcceptance** — userId|clientUserId, documentType TOS|PRIVACY|DPA, version, acceptedAt, ip.
 
 ## Clients & parties
