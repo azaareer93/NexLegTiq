@@ -14,7 +14,9 @@ import { AuthService } from './auth.service';
 import type { ClientInfo, IssuedSession } from './auth.service';
 import { LoginAttemptRepository } from './login-attempt.repository';
 import type { PasswordHasher } from './password-hasher';
-import { hashRefreshToken, REFRESH_COOKIE } from './refresh-token';
+import { hashOpaqueToken } from '../../common/auth/opaque-token';
+import { REFRESH_COOKIE } from './refresh-token';
+import type { SignupService } from './signup.service';
 import { RefreshTokenRepository } from './refresh-token.repository';
 
 const OFFICE = '01920000-0000-7000-8000-00000000000a';
@@ -30,6 +32,8 @@ const activeUser = {
   role: 'LAWYER',
   uiLanguage: 'AR',
   isActive: true,
+  emailVerifiedAt: new Date('2026-09-01T00:00:00Z'),
+  createdAt: new Date('2026-09-01T00:00:00Z'),
   office: { name: 'Office', isActive: true },
 };
 
@@ -91,7 +95,7 @@ describe('AuthService.login', () => {
     expect(raw.loginAttempt.create).toHaveBeenCalledWith({ data: { email: request.email, ipAddress: '10.0.0.1', success: true } });
     expect(db.user.update).toHaveBeenCalled();
     expect(db.refreshToken.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ officeId: OFFICE, userId: USER, tokenHash: hashRefreshToken(issued.refreshToken) }),
+      data: expect.objectContaining({ officeId: OFFICE, userId: USER, tokenHash: hashOpaqueToken(issued.refreshToken) }),
     });
     expect(db.auditLog.create).toHaveBeenCalledWith({ data: expect.objectContaining({ action: 'LOGIN', requestId: 'req-12345678' }) });
   });
@@ -118,6 +122,17 @@ describe('AuthService.login', () => {
   ])('should refuse %s with AUTH-006', async (_label, user, message) => {
     const { service } = setup({ user: { ...user, passwordHash: 'h' } });
     await expect(service.login(request, client)).rejects.toMatchObject({ code: 'AUTH-006', message });
+  });
+
+  it('should log in an unverified user within 7 days and say until when, then refuse with AUTH-010', async () => {
+    const fresh = { ...activeUser, emailVerifiedAt: null, createdAt: new Date(Date.now() - 86_400_000), passwordHash: 'h' };
+    const issued = await setup({ user: fresh }).service.login(request, client);
+    expect(issued.session.user).toMatchObject({ emailVerified: false, verifyBy: new Date(fresh.createdAt.getTime() + 7 * 86_400_000).toISOString() });
+
+    const overdue = { ...fresh, createdAt: new Date(Date.now() - 8 * 86_400_000) };
+    const { service, raw } = setup({ user: overdue });
+    await expect(service.login(request, client)).rejects.toMatchObject({ code: 'AUTH-010' });
+    expect(raw.loginAttempt.create).toHaveBeenCalledWith({ data: expect.objectContaining({ success: false }) });
   });
 });
 
@@ -202,7 +217,7 @@ describe('AuthController', () => {
   const res = () => ({ cookie: jest.fn(), clearCookie: jest.fn() }) as unknown as Response & { cookie: jest.Mock; clearCookie: jest.Mock };
 
   function controller(auth: Partial<AuthService>): AuthController {
-    return new AuthController(auth as AuthService, config, cls);
+    return new AuthController(auth as AuthService, {} as SignupService, config, cls);
   }
 
   it('should set the refresh cookie and return only the session body on login', async () => {

@@ -12,6 +12,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { IS_PUBLIC_KEY } from '../../common/auth/public.decorator';
 import { JWT_AUDIENCE, JWT_ISSUER } from './auth.constants';
 import type { AccessTokenClaims } from './auth.constants';
+import { isVerificationOverdue } from './email-verification';
 
 type AuthenticatedRequest = { headers: Record<string, string | string[] | undefined>; user?: AuthPrincipal };
 
@@ -19,7 +20,8 @@ type AuthenticatedRequest = { headers: Record<string, string | string[] | undefi
  * Global, deny-by-default authentication (auth-rbac.md: JwtAuthGuard → PermissionsGuard). Registered before
  * PermissionsGuard. Routes opt out with `@Public()`. The Bearer access token (HS256, 15 min) only identifies the user:
  * role, active flags and office status are reloaded from the database on every request, so a demotion, deactivation or
- * office suspension applies on the next request rather than when the token expires (D-081, D-082).
+ * office suspension applies on the next request rather than when the token expires (D-081, D-082). An email still
+ * unverified 7 days after signup is refused with 403 AUTH-010 (D-083).
  */
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -39,11 +41,12 @@ export class JwtAuthGuard implements CanActivate {
     // unscoped: authentication itself; the office comes from the verified token and is matched on the row.
     const user = await this.prisma.unscoped().user.findFirst({
       where: { id: claims.sub, officeId: claims.officeId },
-      select: { role: true, isActive: true, office: { select: { isActive: true } } },
+      select: { role: true, isActive: true, emailVerifiedAt: true, createdAt: true, office: { select: { isActive: true } } },
     });
     if (!user || !isRole(user.role)) throw new AppException('AUTH-003', DEFAULT_MESSAGE['AUTH-003']);
     if (!user.isActive) throw new AppException('AUTH-006', 'User account is inactive');
     if (!user.office.isActive) throw new AppException('AUTH-006', 'Office is suspended');
+    if (isVerificationOverdue(user, new Date())) throw new AppException('AUTH-010', 'Email address not verified');
 
     request.user = {
       userId: claims.sub as UserId,

@@ -1,5 +1,3 @@
-import { createHash, randomBytes } from 'node:crypto';
-
 import type { CookieOptions } from 'express';
 
 /** The opaque refresh token travels only in this httpOnly cookie, scoped to the auth endpoints (D-050). */
@@ -11,16 +9,6 @@ export const REFRESH_TTL_DAYS = 7;
 export const REFRESH_TTL_REMEMBER_DAYS = 30;
 /** No session outlives this, however often it rotates (D-082). */
 export const SESSION_MAX_AGE_DAYS = 90;
-
-/** 32 random bytes, base64url. */
-export function newRefreshToken(): string {
-  return randomBytes(32).toString('base64url');
-}
-
-/** Stored as SHA-256 only: a database leak yields no usable token. */
-export function hashRefreshToken(token: string): string {
-  return createHash('sha256').update(token).digest('hex');
-}
 
 export function refreshExpiry(now: Date, rememberMe: boolean): Date {
   return new Date(now.getTime() + (rememberMe ? REFRESH_TTL_REMEMBER_DAYS : REFRESH_TTL_DAYS) * DAY_MS);
