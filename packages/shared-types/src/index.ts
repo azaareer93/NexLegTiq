@@ -17,7 +17,7 @@ export {
   conditionFor,
   hasAllPermissions,
   isRole,
-  matchedPermissions,
+  hasAnyPermission,
   PERMISSION_CONDITIONS,
   PERMISSIONS,
   permissionsFor,

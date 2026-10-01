@@ -20,10 +20,12 @@ export class TenantInterceptor implements NestInterceptor {
     if (principal) {
       this.cls.set('userId', principal.userId);
       this.cls.set('officeId', principal.officeId);
-      this.cls.set('role', principal.role);
-      // From the role, not the token: a role change takes effect without waiting for tokens to expire (D-081).
-      this.cls.set('permissions', permissionsFor(principal.role));
       this.cls.set('realm', principal.realm);
+      // Office permissions only for the office realm, derived from the role, never from the token (D-081).
+      if (principal.realm === 'OFFICE') {
+        this.cls.set('role', principal.role);
+        this.cls.set('permissions', permissionsFor(principal.role));
+      }
     }
     return next.handle();
   }

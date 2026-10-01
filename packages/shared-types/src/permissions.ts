@@ -92,10 +92,12 @@ const GRANTS: Readonly<Record<Permission, readonly Role[]>> = {
   'manage:portal-access': [OM, SL, L],
 };
 
-/** Role → granted permissions, derived from the matrix rows above. */
-export const ROLE_PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = Object.fromEntries(
-  ROLES.map((role) => [role, PERMISSIONS.filter((permission) => GRANTS[permission].includes(role))]),
-) as unknown as Record<Role, readonly Permission[]>;
+/** Role → granted permissions, derived from the matrix rows above. Frozen: the security matrix is not mutable at runtime. */
+export const ROLE_PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = Object.freeze(
+  Object.fromEntries(
+    ROLES.map((role) => [role, Object.freeze(PERMISSIONS.filter((permission) => GRANTS[permission].includes(role)))]),
+  ) as Record<Role, readonly Permission[]>,
+);
 
 /**
  * Conditional cells of the matrix: the role holds the permission only on its own records, and the service must check
@@ -112,13 +114,17 @@ export function isRole(value: unknown): value is Role {
   return typeof value === 'string' && (ROLES as readonly string[]).includes(value);
 }
 
-export function permissionsFor(role: Role): readonly Permission[] {
-  return ROLE_PERMISSIONS[role];
+/**
+ * Permissions of a role; none for anything that is not a known role. Total on purpose: a token or caller may carry
+ * an unexpected string, and inherited keys such as "constructor" must never resolve to something truthy.
+ */
+export function permissionsFor(role: unknown): readonly Permission[] {
+  return isRole(role) ? ROLE_PERMISSIONS[role] : [];
 }
 
 /** The condition the service must enforce for this role/permission, if the matrix cell is conditional. */
 export function conditionFor(role: Role, permission: Permission): PermissionCondition | undefined {
-  return PERMISSION_CONDITIONS[role]?.[permission];
+  return isRole(role) && Object.hasOwn(PERMISSION_CONDITIONS, role) ? PERMISSION_CONDITIONS[role]?.[permission] : undefined;
 }
 
 /** `@RequirePermissions` semantics (D-051): every permission is held. */
@@ -126,7 +132,7 @@ export function hasAllPermissions(held: readonly Permission[], required: readonl
   return required.every((permission) => held.includes(permission));
 }
 
-/** `@RequireAnyPermission` semantics (D-051): the ones held, in the order required (empty = denied). */
-export function matchedPermissions(held: readonly Permission[], anyOf: readonly Permission[]): Permission[] {
-  return anyOf.filter((permission) => held.includes(permission));
+/** `@RequireAnyPermission` semantics (D-051): at least one permission is held. */
+export function hasAnyPermission(held: readonly Permission[], anyOf: readonly Permission[]): boolean {
+  return anyOf.some((permission) => held.includes(permission));
 }

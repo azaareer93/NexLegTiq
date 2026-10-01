@@ -2,7 +2,7 @@ import {
   conditionFor,
   hasAllPermissions,
   isRole,
-  matchedPermissions,
+  hasAnyPermission,
   PERMISSIONS,
   permissionsFor,
   ROLE_PERMISSIONS,
@@ -79,8 +79,19 @@ describe('permission helpers', () => {
     const held = permissionsFor('LAWYER');
     expect(hasAllPermissions(held, ['create:case', 'use:ai'])).toBe(true);
     expect(hasAllPermissions(held, ['create:case', 'view:audit'])).toBe(false);
-    expect(matchedPermissions(held, ['view:all:cases', 'view:assigned:cases'])).toEqual(['view:assigned:cases']);
-    expect(matchedPermissions(permissionsFor('TRAINEE'), ['view:all:invoices', 'view:assigned:invoices'])).toEqual([]);
+    expect(hasAnyPermission(held, ['view:all:cases', 'view:assigned:cases'])).toBe(true);
+    expect(hasAnyPermission(permissionsFor('TRAINEE'), ['view:all:invoices', 'view:assigned:invoices'])).toBe(false);
+  });
+
+  it('should give nothing to unknown roles, including inherited object keys', () => {
+    for (const role of ['GHOST', 'constructor', 'toString', '__proto__', undefined, 42]) {
+      expect(permissionsFor(role)).toEqual([]);
+    }
+  });
+
+  it('should freeze the matrix', () => {
+    expect(Object.isFrozen(ROLE_PERMISSIONS)).toBe(true);
+    expect(Object.isFrozen(ROLE_PERMISSIONS.LAWYER)).toBe(true);
   });
 
   it('should recognise roles', () => {

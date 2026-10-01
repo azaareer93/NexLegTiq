@@ -30,6 +30,16 @@ describe('TenantInterceptor', () => {
     });
   });
 
+  it('should give portal principals an office but no office role or permissions', async () => {
+    await cls.run(async () => {
+      await lastValueFrom(interceptor.intercept(httpContext({ ...principal, realm: 'PORTAL' }), { handle: () => of(null) }));
+
+      expect(cls.get('officeId')).toBe(OFFICE);
+      expect(cls.get('role')).toBeUndefined();
+      expect(cls.get('permissions')).toBeUndefined();
+    });
+  });
+
   it('should leave CLS without an office on public routes', async () => {
     await cls.run(async () => {
       await lastValueFrom(interceptor.intercept(httpContext(), { handle: () => of(null) }));

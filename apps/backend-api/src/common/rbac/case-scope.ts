@@ -19,6 +19,7 @@ export function caseScope(permissions: readonly Permission[], userId: UserId): C
  * Prisma `where` for "assigned" files (auth-rbac.md, D-051): the caller is the responsible lawyer, the responsible
  * paralegal, or a FileTeamMember. Field names follow domain-model.md#legal-files; LegalFile itself arrives with MVP-57,
  * whose CaseAccessService.assertFileAccess composes this filter with the file id (D-081).
+ * TODO(MVP-57): retype as Prisma.LegalFileWhereInput once the model exists.
  */
 export function assignedFilesWhere(userId: UserId): Record<string, unknown> {
   return {

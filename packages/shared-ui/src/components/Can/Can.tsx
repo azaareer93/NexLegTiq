@@ -14,7 +14,7 @@ export interface PermissionsProviderProps {
  * Makes the current user's permissions available to `useCan` / `<Can>`. UI hiding only: the API enforces every
  * permission again (PermissionsGuard, D-051), so a hidden button is a convenience, not a security boundary.
  */
-export function PermissionsProvider({ permissions, children }: PermissionsProviderProps): React.JSX.Element {
+export function PermissionsProvider({ permissions, children }: PermissionsProviderProps): ReactNode {
   return <PermissionsContext.Provider value={permissions}>{children}</PermissionsContext.Provider>;
 }
 
@@ -27,7 +27,7 @@ export interface CanProps {
   /** Shown when the user holds this permission. */
   readonly perform: Permission;
   readonly children: ReactNode;
-  /** Shown otherwise (nothing by default). */
+  /** Shown otherwise (nothing by default). Pass translated content (t()), never a literal string. */
   readonly fallback?: ReactNode;
 }
 
