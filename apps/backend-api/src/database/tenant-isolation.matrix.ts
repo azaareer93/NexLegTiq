@@ -68,6 +68,12 @@ export const TENANT_ISOLATION_MATRIX: readonly TenantResource[] = [
     update: { usedAt: new Date() },
   },
   {
+    model: 'EmailVerificationToken',
+    create: (db, { officeId, userId }) =>
+      db.emailVerificationToken.create({ data: { officeId, userId, tokenHash: randomUUID(), expiresAt: soon() } }),
+    update: { usedAt: new Date() },
+  },
+  {
     model: 'LegalAcceptance',
     create: (db, { officeId, userId }) =>
       db.legalAcceptance.create({ data: { officeId, userId, documentType: 'TOS', version: randomUUID() } }),

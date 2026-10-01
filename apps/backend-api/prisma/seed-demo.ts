@@ -25,6 +25,7 @@ export async function seedDemo(prisma: PrismaClient): Promise<void> {
       email: DEMO_MANAGER_EMAIL,
       passwordHash: '!',
       role: 'OFFICE_MANAGER',
+      emailVerifiedAt: new Date(),
     },
     update: {},
   });

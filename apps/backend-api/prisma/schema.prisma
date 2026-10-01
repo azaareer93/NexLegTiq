@@ -39,6 +39,13 @@ enum OfficeLanguage {
   BILINGUAL
 }
 
+/// Chosen at signup (onboarding step 1); picks the global trial plan (D-083).
+enum AccountType {
+  SOLO
+  FIRM
+  CORPORATE
+}
+
 enum UiLanguage {
   AR
   EN
@@ -126,6 +133,7 @@ model Office {
   address            String?
   website            String?
   jurisdiction       Jurisdiction   @default(PALESTINE)
+  accountType        AccountType    @default(SOLO) @map("account_type")
   defaultLanguage    OfficeLanguage @default(AR) @map("default_language")
   /// ISO-4217 code (D-004): ILS, JOD, USD are common in Palestine.
   currency           String         @default("ILS") @db.Char(3)
@@ -139,6 +147,7 @@ model Office {
   invitations         OfficeInvitation[]
   refreshTokens       RefreshToken[]
   passwordResetTokens PasswordResetToken[]
+  emailVerifications  EmailVerificationToken[]
   legalAcceptances    LegalAcceptance[]
   subscriptions       Subscription[]
   auditLogs           AuditLog[]
@@ -171,28 +180,31 @@ model OfficeSettings {
 
 /// One login = one office (D-032): email is unique across all offices.
 model User {
-  id           String     @id @default(uuid(7)) @db.Uuid
-  officeId     String     @map("office_id") @db.Uuid
-  fullName     String     @map("full_name")
-  email        String     @unique @db.Citext
-  passwordHash String     @map("password_hash")
-  role         Role
-  phone        String?
-  avatarUrl    String?    @map("avatar_url")
-  isActive     Boolean    @default(true) @map("is_active")
-  lastLoginAt  DateTime?  @map("last_login_at") @db.Timestamptz(3)
-  uiLanguage   UiLanguage @default(AR) @map("ui_language")
-  timezone     String?
+  id              String     @id @default(uuid(7)) @db.Uuid
+  officeId        String     @map("office_id") @db.Uuid
+  fullName        String     @map("full_name")
+  email           String     @unique @db.Citext
+  passwordHash    String     @map("password_hash")
+  role            Role
+  phone           String?
+  avatarUrl       String?    @map("avatar_url")
+  isActive        Boolean    @default(true) @map("is_active")
+  lastLoginAt     DateTime?  @map("last_login_at") @db.Timestamptz(3)
+  /// Null until the signup email is confirmed; unverified accounts lose access 7 days after signup (AUTH-010, D-083).
+  emailVerifiedAt DateTime?  @map("email_verified_at") @db.Timestamptz(3)
+  uiLanguage      UiLanguage @default(AR) @map("ui_language")
+  timezone        String?
   /// AES-256-GCM ciphertext (D-056), never the raw secret.
-  mfaSecret    String?    @map("mfa_secret")
-  mfaEnabled   Boolean    @default(false) @map("mfa_enabled")
-  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+  mfaSecret       String?    @map("mfa_secret")
+  mfaEnabled      Boolean    @default(false) @map("mfa_enabled")
+  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  office              Office               @relation(fields: [officeId], references: [id])
+  office              Office                   @relation(fields: [officeId], references: [id])
   sentInvitations     OfficeInvitation[]
   refreshTokens       RefreshToken[]
   passwordResetTokens PasswordResetToken[]
+  emailVerifications  EmailVerificationToken[]
   legalAcceptances    LegalAcceptance[]
   auditLogs           AuditLog[]
   notifications       Notification[]
@@ -305,6 +317,23 @@ model LoginAttempt {
 }
 
 /// ToS / privacy / DPA version a user accepted. Portal users (clientUserId) arrive with the Client Portal.
+/// Signup email-verification link (D-083): 7 days, single use, stored as SHA-256 only.
+model EmailVerificationToken {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  officeId  String    @map("office_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  office Office @relation(fields: [officeId], references: [id])
+  user   User   @relation(fields: [userId, officeId], references: [id, officeId], onDelete: Cascade)
+
+  @@index([officeId, userId])
+  @@map("email_verification_tokens")
+}
+
 model LegalAcceptance {
   id           String            @id @default(uuid(7)) @db.Uuid
   officeId     String            @map("office_id") @db.Uuid
