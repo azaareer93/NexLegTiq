@@ -26,7 +26,8 @@ export class TenantRunner {
     // override, not the default 'inherit': work for office B started inside office A's request must not keep A's user,
     // role or permissions.
     return this.cls.run({ ifNested: 'override' }, () => {
-      this.cls.set(CLS_ID, context.requestId ?? randomUUID());
+      // CLS_ID holds the request id (a string); the typed store does not model that symbol key.
+      this.cls.set(CLS_ID, (context.requestId ?? randomUUID()) as never);
       this.cls.set('officeId', context.officeId);
       if (context.userId) this.cls.set('userId', context.userId);
       return work();

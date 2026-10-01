@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { CallHandler, ExecutionContext, NestInterceptor } from '@nestjs/common';
+import { permissionsFor } from '@nexlegtiq/shared-types';
 import { ClsService } from 'nestjs-cls';
 import type { Observable } from 'rxjs';
 
@@ -20,7 +21,8 @@ export class TenantInterceptor implements NestInterceptor {
       this.cls.set('userId', principal.userId);
       this.cls.set('officeId', principal.officeId);
       this.cls.set('role', principal.role);
-      this.cls.set('permissions', principal.permissions);
+      // From the role, not the token: a role change takes effect without waiting for tokens to expire (D-081).
+      this.cls.set('permissions', permissionsFor(principal.role));
       this.cls.set('realm', principal.realm);
     }
     return next.handle();

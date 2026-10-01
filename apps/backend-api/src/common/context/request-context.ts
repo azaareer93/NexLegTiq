@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-import type { OfficeId, UserId } from '@nexlegtiq/shared-types';
+import type { OfficeId, Permission, Role, UserId } from '@nexlegtiq/shared-types';
 import type { ClsStore } from 'nestjs-cls';
 
 export const REQUEST_ID_HEADER = 'x-request-id';
@@ -16,8 +16,9 @@ export type AuthRealm = 'OFFICE' | 'PORTAL' | 'PLATFORM';
 export interface RequestContext extends ClsStore {
   userId?: UserId;
   officeId?: OfficeId;
-  role?: string;
-  permissions?: readonly string[];
+  role?: Role;
+  /** Derived from `role` by TenantInterceptor (ROLE_PERMISSIONS), never taken from the token. */
+  permissions?: readonly Permission[];
   realm?: AuthRealm;
 }
 
@@ -28,8 +29,7 @@ export interface RequestContext extends ClsStore {
 export interface AuthPrincipal {
   readonly userId: UserId;
   readonly officeId: OfficeId;
-  readonly role: string;
-  readonly permissions: readonly string[];
+  readonly role: Role;
   readonly realm: AuthRealm;
 }
 
