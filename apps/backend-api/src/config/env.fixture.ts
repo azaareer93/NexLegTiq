@@ -11,6 +11,8 @@ export const REQUIRED_TEST_ENV: Readonly<Record<string, string>> = {
   S3_BUCKET: 'nexlegtiq-documents-local',
   S3_ACCESS_KEY_ID: 'test-access-key',
   S3_SECRET_ACCESS_KEY: 'test-secret-key',
+  JWT_SECRET: 'unit-test-only-jwt-secret-0123456789abcdef',
+  TRUST_PROXY_HOPS: '1',
   SMTP_HOST: 'localhost',
   MAIL_FROM: 'no-reply@nexlegtiq.test',
   CLAMAV_HOST: 'localhost',

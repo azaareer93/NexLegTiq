@@ -98,6 +98,10 @@ export class AppConfig {
     };
   }
 
+  get auth(): { readonly jwtSecret: string } {
+    return { jwtSecret: this.#env.JWT_SECRET };
+  }
+
   get clamav(): { readonly host: string; readonly port: number } {
     return { host: this.#env.CLAMAV_HOST, port: this.#env.CLAMAV_PORT };
   }

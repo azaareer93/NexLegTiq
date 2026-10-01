@@ -45,7 +45,6 @@ jobs:
       MAIL_FROM: no-reply@nexlegtiq.test
       CLAMAV_HOST: localhost
       JWT_SECRET: ci-only-access-secret-at-least-32-characters
-      JWT_REFRESH_SECRET: ci-only-refresh-secret-at-least-32-chars
       JWT_PORTAL_SECRET: ci-only-portal-secret-at-least-32-chars
       ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
       AI_PRIMARY_PROVIDER: fake

@@ -298,7 +298,8 @@ model LoginAttempt {
   success     Boolean
   attemptedAt DateTime @default(now()) @map("attempted_at") @db.Timestamptz(3)
 
-  @@index([email, attemptedAt])
+  // Lockout reads one email + IP pair, newest first (D-053); the email prefix also serves per-account queries.
+  @@index([email, ipAddress, attemptedAt])
   @@index([ipAddress, attemptedAt])
   @@map("login_attempts")
 }

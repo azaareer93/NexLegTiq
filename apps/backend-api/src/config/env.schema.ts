@@ -37,7 +37,8 @@ const EnvObject = z.object({
   METRICS_HOST: z.string().trim().min(1).default('localhost'),
   METRICS_PORT: port.default(9464),
   // Number of reverse proxies (Caddy/Traefik, D-020) in front of the API whose X-Forwarded-For is trusted. 0 = none.
-  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
+  // Optional (0) outside production; production must set it, since lockout and rate limits key on the client IP.
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).optional(),
 
   DATABASE_URL: databaseUrl,
   REDIS_URL: redisUrl,
@@ -68,6 +69,9 @@ const EnvObject = z.object({
 
   CLAMAV_HOST: required,
   CLAMAV_PORT: port.default(3310),
+
+  // HS256 key of the office access JWT (auth-rbac.md, Tokens); at least 32 characters of randomness.
+  JWT_SECRET: z.string().min(32),
 });
 
 /** Every variable the backend reads; `.env.example` must document each of them (asserted in env.schema.spec.ts). */
@@ -90,6 +94,10 @@ export const EnvSchema = EnvObject.refine((env) => !(env.NODE_ENV === 'productio
     }
     if (!env.REDIS_URL.startsWith('rediss:')) fail('REDIS_URL', 'must use rediss:// (TLS) in production');
     if (!env.S3_ENDPOINT.startsWith('https:')) fail('S3_ENDPOINT', 'must use https:// in production');
+    if (env.TRUST_PROXY_HOPS === undefined || env.TRUST_PROXY_HOPS < 1) {
+      // With 0 behind a proxy every client shares the proxy's IP: one attacker would lock out or throttle everyone.
+      fail('TRUST_PROXY_HOPS', 'must be set to the number of reverse proxies (>= 1) in production');
+    }
     if (env.SMTP_REQUIRE_TLS === false && !env.SMTP_SECURE) {
       fail('SMTP_REQUIRE_TLS', 'must not be false in production unless SMTP_SECURE is true');
     }
@@ -97,6 +105,7 @@ export const EnvSchema = EnvObject.refine((env) => !(env.NODE_ENV === 'productio
       DATABASE_URL: decodeURIComponent(new URL(env.DATABASE_URL).password),
       S3_ACCESS_KEY_ID: env.S3_ACCESS_KEY_ID,
       S3_SECRET_ACCESS_KEY: env.S3_SECRET_ACCESS_KEY,
+      JWT_SECRET: env.JWT_SECRET,
       SMTP_PASSWORD: env.SMTP_PASSWORD ?? '',
     };
     for (const [key, value] of Object.entries(secrets)) {
@@ -108,6 +117,7 @@ export const EnvSchema = EnvObject.refine((env) => !(env.NODE_ENV === 'productio
     // Swagger defaults to on outside production (api-conventions.md).
     SWAGGER_ENABLED: env.SWAGGER_ENABLED ?? env.NODE_ENV !== 'production',
     SMTP_REQUIRE_TLS: env.SMTP_REQUIRE_TLS ?? env.NODE_ENV === 'production',
+    TRUST_PROXY_HOPS: env.TRUST_PROXY_HOPS ?? 0,
   }));
 
 export type Env = z.output<typeof EnvSchema>;

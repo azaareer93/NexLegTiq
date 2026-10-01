@@ -6,7 +6,7 @@
 ## Tokens
 | Token | Lifetime | Where | Payload |
 |---|---|---|---|
-| Access JWT (HS256, `JWT_SECRET`) | 15 min | FE memory (Zustand, not persisted) | `{sub, officeId, role, sid}` |
+| Access JWT (HS256, `JWT_SECRET`) | 15 min | FE memory (Zustand, not persisted) | `{sub, officeId, role, sid}` — `role` informational (reloaded per request), `sid` = refresh family, reserved |
 | Refresh (opaque random 32B, stored SHA-256 in `refresh_token`) | 7 days (30 with "remember me") | httpOnly Secure SameSite=Lax cookie `nlq_rt`, path `/api/v1/auth` | – |
 Rotation on every refresh; reuse of a revoked token ⇒ revoke the whole family (`sid`) + audit `SECURITY` event.
 Permissions are **not** in the JWT; resolved server-side from role (cached) so role changes apply within one request.
@@ -15,13 +15,13 @@ Client portal uses a separate realm: audience `portal`, secret `JWT_PORTAL_SECRE
 ## Flows
 - **Signup** (W1 + onboarding): office + OFFICE_MANAGER user + Free/Trial subscription + default settings/folders +
   ToS acceptance, in one transaction; email verification link (must verify within 7 days to keep access).
-- **Login**: rate-limited (5/min/IP on `/auth/*`) + lockout (D-053). Inactive user → 403 `AUTH-006`.
+- **Login**: rate-limited per IP (login 5/min, refresh/logout 30/min) + lockout (D-053, details D-082). Inactive user → 403 `AUTH-006`.
   Response: `{accessToken, expiresIn: 900, user{id, fullName, email, role, officeId, officeName, uiLanguage, permissions[]}}`.
 - **Refresh**: `POST /auth/refresh` (cookie) → new pair. FE: single-flight refresh on 401, queue concurrent requests, retry once.
 - **Logout**: revoke current family, clear cookie, FE clears stores + `queryClient.clear()`.
 - **Password reset**: `forgot-password` always 200 (anti-enumeration); token 1h, single use; success revokes all sessions.
 - **Password policy**: ≥ 10 chars, upper+lower+digit (special optional), not in breached/common list, not equal to email.
-  bcrypt cost 12 (or argon2id — pick once in Sprint 1 and record).
+  Argon2id (m=19 MiB, t=2, p=1), D-082.
 - **Invite** (W2): OM invites → email with link (token 7 days) → accept: set name/password/phone → user created with role.
   Existing email anywhere → 409 (D-032).
 - **Deactivate** (W5): must reassign open files (responsible lawyer) in same request; last OFFICE_MANAGER can't be
