@@ -54,7 +54,8 @@ export const REDACT_PATHS = [
 ];
 
 /** Error properties that carry request/response data (body-parser `body`, axios/SDK `config` with API keys…). */
-const UNSAFE_ERROR_PROPS = ['body', 'config', 'request', 'response'];
+// `command`: ioredis reply errors carry the command's arguments, e.g. a serialized job payload (D-084).
+const UNSAFE_ERROR_PROPS = ['body', 'config', 'request', 'response', 'command'];
 
 const QUIET_PATHS = new Set(['/health', '/health/ready']);
 

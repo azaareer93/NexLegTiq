@@ -8,6 +8,7 @@ import { API_PREFIX } from '../bootstrap';
 import { clsMiddleware } from '../common/context/context.module';
 import { REQUEST_ID_HEADER } from '../common/context/request-context';
 import { setupSwagger } from '../common/openapi/swagger';
+import { mountBullBoard } from '../common/queue/bull-board';
 import { AppConfig } from '../config/app-config';
 import { MetricsService } from '../metrics/metrics.service';
 
@@ -28,6 +29,8 @@ export function configureApp(app: NestExpressApplication): void {
   app.use(clsMiddleware());
   // First after CLS so every request is measured, including CORS preflights and body-parser rejections.
   app.use(app.get(MetricsService).middleware);
+  // Before helmet: the dashboard serves its own scripts, which the API's strict CSP would block. Off in production.
+  if (config.bullBoardEnabled) mountBullBoard(app);
   app.use(helmet());
   // Reads the httpOnly refresh cookie on /api/v1/auth (D-050); unsigned: the value is an opaque, hashed-at-rest token.
   app.use(cookieParser());

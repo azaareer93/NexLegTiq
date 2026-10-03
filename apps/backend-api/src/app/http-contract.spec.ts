@@ -4,6 +4,8 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { z } from 'zod';
 
+import { QueueModule } from '../common/queue/queue.module';
+import { QueueStubModule } from '../common/queue/testing';
 import { BusinessRuleException } from '../common/errors/app.exception';
 import { PaginatedResult } from '../common/http/paginated-result';
 import { ZodValidationPipe } from '../common/http/zod-validation.pipe';
@@ -69,7 +71,10 @@ describe('HTTP contract (envelope + errors)', () => {
   let app: NestExpressApplication;
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule, ContractTestModule] }).compile();
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule, ContractTestModule] })
+      .overrideModule(QueueModule)
+      .useModule(QueueStubModule)
+      .compile();
     app = moduleRef.createNestApplication<NestExpressApplication>({ bodyParser: false, bufferLogs: true });
     configureApp(app);
     await app.init();

@@ -9,7 +9,7 @@ import request from 'supertest';
 import { seedPlans } from '../../../prisma/seed';
 import { AppModule } from '../../app/app.module';
 import { configureApp } from '../../app/configure-app';
-import { testEnv } from '../../config/env.fixture';
+import { integrationEnv } from '../../config/env.fixture';
 import { PrismaService } from '../../database/prisma.service';
 import { REFRESH_COOKIE } from './refresh-token';
 import { LEGAL_VERSIONS } from './signup.repository';
@@ -72,13 +72,7 @@ describe('office signup (HTTP + PostgreSQL)', () => {
     // Verification enforced, as it will be once emails are delivered (D-083); the flag's default (off) is unit-tested.
     Object.assign(
       process.env,
-      testEnv({
-        DATABASE_URL: process.env['DATABASE_URL'],
-        NODE_ENV: 'test',
-        CORS_ORIGINS: ORIGIN,
-        METRICS_ENABLED: 'false',
-        EMAIL_VERIFICATION_ENFORCED: 'true',
-      }),
+      integrationEnv({ CORS_ORIGINS: ORIGIN, EMAIL_VERIFICATION_ENFORCED: 'true' }),
     );
     app = await createApp({ throttle: false });
     prisma = app.get(PrismaService);

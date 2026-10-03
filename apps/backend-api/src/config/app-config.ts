@@ -57,6 +57,10 @@ export class AppConfig {
     return { url: this.#env.DATABASE_URL };
   }
 
+  get bullBoardEnabled(): boolean {
+    return this.#env.BULL_BOARD_ENABLED;
+  }
+
   get redis(): { readonly url: string; readonly bullmqPrefix: string } {
     return { url: this.#env.REDIS_URL, bullmqPrefix: this.#env.BULLMQ_PREFIX };
   }

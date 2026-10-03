@@ -3,6 +3,8 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 
+import { QueueModule } from '../common/queue/queue.module';
+import { QueueStubModule } from '../common/queue/testing';
 import { PrismaService } from '../database/prisma.service';
 import { ReadinessRegistry } from '../health/readiness.registry';
 import { MetricsService } from '../metrics/metrics.service';
@@ -26,6 +28,9 @@ class PlatformTestModule {}
 async function createApp(): Promise<NestExpressApplication> {
   // No database in unit tests: the real PrismaService would register a failing `db` readiness check.
   const moduleRef = await Test.createTestingModule({ imports: [AppModule, PlatformTestModule] })
+    // No Redis in unit tests either: the real QueueModule would register a failing `redis` readiness check.
+    .overrideModule(QueueModule)
+    .useModule(QueueStubModule)
     .overrideProvider(PrismaService)
     .useValue({})
     .compile();

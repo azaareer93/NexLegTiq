@@ -21,3 +21,17 @@ export const REQUIRED_TEST_ENV: Readonly<Record<string, string>> = {
 export function testEnv(overrides: Record<string, string | undefined> = {}): Record<string, string | undefined> {
   return { ...REQUIRED_TEST_ENV, ...overrides };
 }
+
+/**
+ * Integration tests: the real PostgreSQL and Redis from the environment (local dev stack or CI services), everything else
+ * from the fixture. Metrics are off: several apps in one run would all bind the metrics port.
+ */
+export function integrationEnv(overrides: Record<string, string | undefined> = {}): Record<string, string | undefined> {
+  return testEnv({
+    DATABASE_URL: process.env['DATABASE_URL'],
+    REDIS_URL: process.env['REDIS_URL'] ?? 'redis://127.0.0.1:6379',
+    NODE_ENV: 'test',
+    METRICS_ENABLED: 'false',
+    ...overrides,
+  });
+}

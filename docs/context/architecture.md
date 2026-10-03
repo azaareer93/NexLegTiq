@@ -71,7 +71,10 @@ timeline event → enqueue async work → audit log → invalidate cache → str
 | `notification` | high | `fan-out` (WS + DB) | 3× |
 | `report` | low | `invoice-pdf`, `office-export` | 2× |
 | `batch-ingest` | medium | Phase 2 (email/voice ingest) | – |
-Defaults: removeOnComplete 7d/1000, removeOnFail 30d. Bull Board mounted at `/admin/queues` (platform admin only).
+Defaults: removeOnComplete 7d/1000, removeOnFail 30d. Priority = worker concurrency (high 10, medium 5, low 2); timeouts
+are enforced by `TenantProcessor`. Code: `src/common/queue/` (`QUEUE`, `QUEUE_POLICY`, `QueueProducer`, `TenantProcessor`),
+`UnitOfWork` for after-commit enqueueing. Bull Board at `/admin/queues` only with `BULL_BOARD_ENABLED` (refused in
+production until the platform-admin realm guards it; D-084).
 
 ### Caching
 React Query on the client (staleTime 2m); Redis cache-aside with `CacheKeys` (all tenant keys `o:{officeId}:…`,
