@@ -18,8 +18,6 @@ export interface NewOfficeAccount {
   readonly planCode: string;
   readonly passwordHash: string;
   readonly uiLanguage: 'AR' | 'EN';
-  readonly verificationTokenHash: string;
-  readonly verificationExpiresAt: Date;
   readonly now: Date;
   readonly client: ClientInfo;
   /** An abandoned unverified signup holding this email, released in the same transaction (D-083). */
@@ -32,6 +30,8 @@ export interface ExistingAccount {
   readonly officeId: string;
   readonly emailVerifiedAt: Date | null;
   readonly createdAt: Date;
+  readonly isActive: boolean;
+  readonly officeActive: boolean;
   readonly officeUsers: number;
 }
 
@@ -47,14 +47,21 @@ export class SignupRepository {
     // unscoped: signup runs before any office is known; emails are globally unique (D-032).
     const user = await this.prisma.unscoped().user.findUnique({
       where: { email },
-      select: { id: true, officeId: true, emailVerifiedAt: true, createdAt: true, office: { select: { _count: { select: { users: true } } } } },
+      select: {
+        id: true,
+        officeId: true,
+        emailVerifiedAt: true,
+        createdAt: true,
+        isActive: true,
+        office: { select: { isActive: true, _count: { select: { users: true } } } },
+      },
     });
-    return user && { ...user, officeUsers: user.office._count.users };
+    return user && { id: user.id, officeId: user.officeId, emailVerifiedAt: user.emailVerifiedAt, createdAt: user.createdAt, isActive: user.isActive, officeActive: user.office.isActive, officeUsers: user.office._count.users };
   }
 
   /**
-   * One transaction: the office, its settings, the OFFICE_MANAGER, the trial subscription, ToS/Privacy acceptances, the
-   * verification link and the CREATE audit row. A concurrent signup with the same email loses on the unique index
+   * One transaction: the office, its settings, the OFFICE_MANAGER, the trial subscription, ToS/Privacy acceptances and the
+   * CREATE audit row (the worker creates the verification link, D-085). A concurrent signup with the same email loses on the unique index
    * (P2002 → 409 RES-002).
    */
   createOfficeAccount(input: NewOfficeAccount) {
@@ -105,9 +112,6 @@ export class SignupRepository {
           acceptedAt: now,
           ipAddress: client.ip,
         })),
-      });
-      await tx.emailVerificationToken.create({
-        data: { officeId, userId: user.id, tokenHash: input.verificationTokenHash, expiresAt: input.verificationExpiresAt },
       });
       await tx.auditLog.create({
         data: {

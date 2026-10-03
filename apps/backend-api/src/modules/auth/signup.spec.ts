@@ -74,6 +74,8 @@ describe('SignupService', () => {
     officeId: 'old-office',
     emailVerifiedAt: null,
     createdAt: new Date(Date.now() - 8 * DAY),
+    isActive: true,
+    officeActive: true,
     officeUsers: 1,
   };
 
@@ -90,8 +92,8 @@ describe('SignupService', () => {
       openSession: jest.fn().mockResolvedValue({ familyId: 'f', refreshToken: 'r', refreshExpiresAt: new Date() }),
       issue: jest.fn().mockResolvedValue(issued),
     };
-    const mailer = new VerificationMailer(logger());
-    const send = jest.spyOn(mailer, 'send');
+    const mailer = { send: jest.fn().mockResolvedValue(undefined) };
+    const send = mailer.send;
     const passwords = { hash: jest.fn().mockResolvedValue('$argon2id$hash') } as unknown as PasswordHasher;
     const config = new AppConfig(parseEnv(testEnv({ EMAIL_VERIFICATION_ENFORCED: String(options.enforced ?? true) })));
     const service = new SignupService(
@@ -100,33 +102,22 @@ describe('SignupService', () => {
       auth as unknown as AuthService,
       passwords,
       signups as unknown as SignupRepository,
-      mailer,
+      mailer as unknown as VerificationMailer,
       config,
       logger(),
     );
     return { service, signups, auth, send, tx };
   }
 
-  it('should create the account, log in in the new office and hand off the matching link', async () => {
+  it('should create the account, log in in the new office and ask the worker for the verification email', async () => {
     const { service, signups, auth, send, tx } = setup();
     await expect(service.register(body, client)).resolves.toBe(issued);
 
     const input = signups.createOfficeAccount.mock.calls[0][0] as NewOfficeAccount;
     expect(input).toMatchObject({ planCode: 'PS_FREE', passwordHash: '$argon2id$hash', uiLanguage: 'EN' });
     expect(input.release).toBeUndefined();
-    expect(input.verificationExpiresAt.getTime() - input.now.getTime()).toBe(7 * DAY);
     expect(auth.openSession).toHaveBeenCalledWith(tx, user, { rememberMe: false, now: input.now, client });
-    const sent = send.mock.calls[0]?.[0];
-    expect(sent).toMatchObject({ userId: USER, language: 'EN' });
-    expect(input.verificationTokenHash).toBe(hashOpaqueToken(sent?.token ?? ''));
-  });
-
-  it('should still return the session when handing off the email fails', async () => {
-    const { service, send } = setup();
-    send.mockImplementation(() => {
-      throw new Error('queue down');
-    });
-    await expect(service.register(body, client)).resolves.toBe(issued);
+    expect(send).toHaveBeenCalledWith({ userId: USER, officeId: OFFICE }, client);
   });
 
   it.each([
@@ -146,6 +137,25 @@ describe('SignupService', () => {
     expect(signups.createOfficeAccount).toHaveBeenCalledWith(
       expect.objectContaining({ release: { userId: 'old-user', officeId: 'old-office' } }),
     );
+  });
+
+  describe('resendVerification', () => {
+    it('should ask for a new link for an unverified, active account', async () => {
+      const { service, send } = setup({ existing: { ...overdueAccount, createdAt: new Date() } });
+      await service.resendVerification({ email: body.email }, client);
+      expect(send).toHaveBeenCalledWith({ userId: 'old-user', officeId: 'old-office' }, client);
+    });
+
+    it.each([
+      ['no account', null],
+      ['a verified account', { ...overdueAccount, emailVerifiedAt: new Date() }],
+      ['a deactivated user', { ...overdueAccount, isActive: false }],
+      ['a suspended office', { ...overdueAccount, officeActive: false }],
+    ])('should quietly send nothing for %s', async (_label, existing) => {
+      const { service, send } = setup({ existing });
+      await expect(service.resendVerification({ email: body.email }, client)).resolves.toBeUndefined();
+      expect(send).not.toHaveBeenCalled();
+    });
   });
 
   describe('verifyEmail', () => {
@@ -178,8 +188,6 @@ describe('SignupRepository', () => {
     planCode: 'PS_FREE',
     passwordHash: '$argon2id$hash',
     uiLanguage: 'EN',
-    verificationTokenHash: 'hash',
-    verificationExpiresAt: verificationLinkExpiry(now),
     now,
     client,
   };
@@ -220,9 +228,7 @@ describe('SignupRepository', () => {
       expect.objectContaining({ documentType: 'TOS', version: LEGAL_VERSIONS.TOS, ipAddress: '10.0.0.1' }),
       expect.objectContaining({ documentType: 'PRIVACY', version: LEGAL_VERSIONS.PRIVACY }),
     ]);
-    expect(tx.emailVerificationToken.create).toHaveBeenCalledWith({
-      data: { officeId: OFFICE, userId: USER, tokenHash: 'hash', expiresAt: input.verificationExpiresAt },
-    });
+    expect(tx.emailVerificationToken.create).not.toHaveBeenCalled();
     expect(tx.auditLog.create).toHaveBeenCalledWith({ data: expect.objectContaining({ entityType: 'Office', action: 'CREATE' }) });
     expect(tx.user.updateMany).not.toHaveBeenCalled();
   });

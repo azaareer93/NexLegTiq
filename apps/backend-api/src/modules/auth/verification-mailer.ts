@@ -1,27 +1,36 @@
 import { Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 
-export interface VerificationEmail {
-  readonly userId: string;
-  readonly officeId: string;
-  readonly email: string;
-  readonly language: 'AR' | 'EN';
-  /** Raw link token; only its SHA-256 is stored. Never log it. */
-  readonly token: string;
-}
+import { QueueProducer } from '../../common/queue/queue-producer';
+import { QUEUE } from '../../common/queue/queues';
+import { TenantRunner } from '../../common/tenancy/tenant-runner';
+import { tenantContextFor } from './client-info';
+import type { ClientInfo } from './client-info';
+
+export const SEND_VERIFICATION_EMAIL_JOB = 'send-verification-email';
 
 /**
- * Hands the signup verification link to email delivery, after the signup transaction has committed (D-083).
- * ponytail: the email queue and bilingual templates arrive with the storage & email adapter story; until then the link is
- * created but not sent, and this logs that it was skipped (without the token).
+ * Asks the worker to send a signup verification email (D-083, D-085). The job carries only the user id: the worker creates
+ * the link itself (VerificationLinks), so no token ever sits in Redis or on Bull Board. Called after signup has committed
+ * and by resend; a failure is logged, never shown to the user — resend is the way back.
  */
 @Injectable()
 export class VerificationMailer {
-  constructor(private readonly logger: PinoLogger) {
+  constructor(
+    private readonly tenant: TenantRunner,
+    private readonly queues: QueueProducer,
+    private readonly logger: PinoLogger,
+  ) {
     this.logger.setContext(VerificationMailer.name);
   }
 
-  send(email: VerificationEmail): void {
-    this.logger.warn({ userId: email.userId, officeId: email.officeId }, 'Verification email not sent: email delivery is not wired yet');
+  async send(user: { userId: string; officeId: string }, client: ClientInfo): Promise<void> {
+    try {
+      await this.tenant.run(tenantContextFor(user.officeId, user.userId, client), () =>
+        this.queues.enqueue(QUEUE.EMAIL, SEND_VERIFICATION_EMAIL_JOB, { userId: user.userId }),
+      );
+    } catch (error) {
+      this.logger.error({ err: error, userId: user.userId }, 'Could not enqueue the verification email');
+    }
   }
 }

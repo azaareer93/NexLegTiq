@@ -56,6 +56,9 @@ const EnvObject = z.object({
   S3_SECRET_ACCESS_KEY: required,
   // Local S3 servers need path-style URLs; AWS/R2 work with virtual-hosted style.
   S3_FORCE_PATH_STYLE: z.stringbool().default(false),
+  // Server-side encryption requested on every upload (D-035, D-085). AWS S3 takes AES256; R2 and RustFS encrypt at rest
+  // on their own and reject or ignore the header, so they use none.
+  S3_SSE: z.enum(['AES256', 'none']).default('none'),
 
   SMTP_HOST: required,
   SMTP_PORT: port.default(587),
@@ -66,6 +69,11 @@ const EnvObject = z.object({
   SMTP_USER: required.optional(),
   SMTP_PASSWORD: required.optional(),
   MAIL_FROM: z.email(),
+  // Delivery of rendered emails (D-085): smtp (Mailpit locally, any SMTP relay) or the Resend HTTP API.
+  EMAIL_PROVIDER: z.enum(['smtp', 'resend']).default('smtp'),
+  RESEND_API_KEY: required.optional(),
+  // Base URL of the office app, for links in emails (verify email, invitations, password reset).
+  OFFICE_APP_URL: z.url({ protocol: /^https?$/ }).default('http://localhost:4200'),
 
   CLAMAV_HOST: required,
   CLAMAV_PORT: port.default(3310),
@@ -86,6 +94,10 @@ export const EnvSchema = EnvObject.refine((env) => !(env.NODE_ENV === 'productio
   message: 'LOG_PRETTY must be false in production (pino-pretty is a dev dependency)',
   path: ['LOG_PRETTY'],
 })
+  .refine((env) => env.EMAIL_PROVIDER !== 'resend' || env.RESEND_API_KEY !== undefined, {
+    message: 'RESEND_API_KEY is required when EMAIL_PROVIDER=resend',
+    path: ['RESEND_API_KEY'],
+  })
   .refine((env) => (env.SMTP_USER === undefined) === (env.SMTP_PASSWORD === undefined), {
     message: 'SMTP_USER and SMTP_PASSWORD must be set together',
     path: ['SMTP_PASSWORD'],
@@ -103,6 +115,7 @@ export const EnvSchema = EnvObject.refine((env) => !(env.NODE_ENV === 'productio
       // With 0 behind a proxy every client shares the proxy's IP: one attacker would lock out or throttle everyone.
       fail('TRUST_PROXY_HOPS', 'must be set to the number of reverse proxies (>= 1) in production');
     }
+    if (!env.OFFICE_APP_URL.startsWith('https:')) fail('OFFICE_APP_URL', 'must use https:// in production (links in emails)');
     if (env.BULL_BOARD_ENABLED) fail('BULL_BOARD_ENABLED', 'must be false in production until platform-admin auth guards it');
     if (env.SMTP_REQUIRE_TLS === false && !env.SMTP_SECURE) {
       fail('SMTP_REQUIRE_TLS', 'must not be false in production unless SMTP_SECURE is true');
@@ -113,6 +126,7 @@ export const EnvSchema = EnvObject.refine((env) => !(env.NODE_ENV === 'productio
       S3_SECRET_ACCESS_KEY: env.S3_SECRET_ACCESS_KEY,
       JWT_SECRET: env.JWT_SECRET,
       SMTP_PASSWORD: env.SMTP_PASSWORD ?? '',
+      RESEND_API_KEY: env.RESEND_API_KEY ?? '',
     };
     for (const [key, value] of Object.entries(secrets)) {
       if (PLACEHOLDER_SECRET.test(value)) fail(key, 'uses a documented dev/CI placeholder credential');

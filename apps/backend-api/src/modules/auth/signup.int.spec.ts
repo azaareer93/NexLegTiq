@@ -4,17 +4,21 @@ import { Controller, Get, Module } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import { ThrottlerGuard } from '@nestjs/throttler';
+import type { OfficeId } from '@nexlegtiq/shared-types';
+import { ClsService } from 'nestjs-cls';
 import request from 'supertest';
 
 import { seedPlans } from '../../../prisma/seed';
 import { AppModule } from '../../app/app.module';
 import { configureApp } from '../../app/configure-app';
+import { TenantRunner } from '../../common/tenancy/tenant-runner';
+import { AppConfig } from '../../config/app-config';
 import { integrationEnv } from '../../config/env.fixture';
 import { PrismaService } from '../../database/prisma.service';
 import { REFRESH_COOKIE } from './refresh-token';
 import { LEGAL_VERSIONS } from './signup.repository';
+import { VerificationLinks } from './verification-links';
 import { VerificationMailer } from './verification-mailer';
-import type { VerificationEmail } from './verification-mailer';
 
 @Controller('__signup_probe__')
 class ProbeController {
@@ -36,7 +40,8 @@ const PASSWORD = 'Testtesttest1';
 describe('office signup (HTTP + PostgreSQL)', () => {
   let app: NestExpressApplication;
   let prisma: PrismaService;
-  const sent: VerificationEmail[] = [];
+  /** Verification emails requested from the worker (the HTTP app only enqueues; D-085). */
+  const requested: { userId: string; officeId: string }[] = [];
   const emails: string[] = [];
   const savedEnv = { ...process.env };
 
@@ -66,7 +71,13 @@ describe('office signup (HTTP + PostgreSQL)', () => {
 
   const register = (payload: object) => request(app.getHttpServer()).post('/api/v1/auth/register').send(payload);
   const verify = (token: string) => request(app.getHttpServer()).post('/api/v1/auth/verify-email').send({ token });
-  const tokenFor = (email: string): string => sent.find((mail) => mail.email === email)?.token ?? '';
+  /** What the worker does for a verification job: issues a link (in the user's office) and returns its token. */
+  async function tokenFor(email: string): Promise<string> {
+    const user = await prisma.unscoped().user.findUniqueOrThrow({ where: { email }, select: { id: true, officeId: true } });
+    const links = new VerificationLinks(prisma, app.get(ClsService), app.get(AppConfig));
+    const mail = await app.get(TenantRunner).run({ officeId: user.officeId as OfficeId }, () => links.issue(user.id, new Date()));
+    return new URL(mail?.vars.link ?? 'http://x').searchParams.get('token') ?? '';
+  }
 
   beforeAll(async () => {
     // Verification enforced, as it will be once emails are delivered (D-083); the flag's default (off) is unit-tested.
@@ -78,7 +89,7 @@ describe('office signup (HTTP + PostgreSQL)', () => {
     prisma = app.get(PrismaService);
     // unscoped: test setup — reference plans, as `pnpm nx run backend-api:seed` creates them.
     await seedPlans(prisma.unscoped());
-    jest.spyOn(app.get(VerificationMailer), 'send').mockImplementation((mail) => void sent.push(mail));
+    jest.spyOn(app.get(VerificationMailer), 'send').mockImplementation(async (user) => void requested.push(user));
   });
 
   afterAll(async () => {
@@ -133,10 +144,13 @@ describe('office signup (HTTP + PostgreSQL)', () => {
     const actions = await raw.auditLog.findMany({ where: { officeId: user.officeId }, select: { action: true, entityType: true } });
     expect(actions).toEqual(expect.arrayContaining([{ action: 'CREATE', entityType: 'Office' }, { action: 'LOGIN', entityType: 'User' }]));
 
-    // The link handed to email delivery is the stored one (hash only in the database).
+    // Signup only asks the worker for the email; the worker creates the link (hash only in the database, D-085).
+    expect(requested).toContainEqual({ userId: user.id, officeId: user.officeId });
+    await expect(raw.emailVerificationToken.count({ where: { userId: user.id } })).resolves.toBe(0);
+    const token = await tokenFor(payload.email);
+    expect(token).toHaveLength(43);
     const link = await raw.emailVerificationToken.findFirstOrThrow({ where: { userId: user.id } });
-    expect(link.tokenHash).not.toBe(tokenFor(payload.email));
-    expect(tokenFor(payload.email)).toHaveLength(43);
+    expect(link.tokenHash).not.toBe(token);
   });
 
   it('should give other jurisdictions a 30-day trial sized by account type, in English', async () => {
@@ -178,7 +192,7 @@ describe('office signup (HTTP + PostgreSQL)', () => {
   it('should verify the email once with the link token (204), then refuse it (410 RES-004)', async () => {
     const payload = body();
     const officeId = (await register(payload).expect(201)).body.data.user.officeId as string;
-    const token = tokenFor(payload.email);
+    const token = await tokenFor(payload.email);
 
     await verify(token).expect(204);
     const user = await prisma.unscoped().user.findUniqueOrThrow({ where: { email: payload.email } });
@@ -193,11 +207,12 @@ describe('office signup (HTTP + PostgreSQL)', () => {
   it('should refuse unknown and expired links with 410 RES-004 and change nothing', async () => {
     const payload = body();
     await register(payload).expect(201);
+    const token = await tokenFor(payload.email);
     await prisma.unscoped().emailVerificationToken.updateMany({
       where: { user: { email: payload.email } },
       data: { expiresAt: new Date(Date.now() - 1000) },
     });
-    expect((await verify(tokenFor(payload.email)).expect(410)).body.error).toMatchObject({ code: 'RES-004' });
+    expect((await verify(token).expect(410)).body.error).toMatchObject({ code: 'RES-004' });
     await verify('A'.repeat(43)).expect(410);
     const user = await prisma.unscoped().user.findUniqueOrThrow({ where: { email: payload.email }, include: { emailVerifications: true } });
     expect(user.emailVerifiedAt).toBeNull();
@@ -251,8 +266,32 @@ describe('office signup (HTTP + PostgreSQL)', () => {
     expect(refresh.body.error).toMatchObject({ code: 'AUTH-010' });
 
     // Verifying lifts the block (the link is still valid here: only createdAt was moved back).
-    await verify(tokenFor(payload.email)).expect(204);
+    await verify(await tokenFor(payload.email)).expect(204);
     await request(server).post('/api/v1/auth/login').send({ email: payload.email, password: PASSWORD }).expect(200);
+  });
+
+  it('should invalidate earlier links when a new one is issued', async () => {
+    const payload = body();
+    await register(payload).expect(201);
+    const first = await tokenFor(payload.email);
+    const second = await tokenFor(payload.email);
+    await verify(first).expect(410);
+    await verify(second).expect(204);
+  });
+
+  it('should accept resend requests with 202 whether or not the account exists, asking only for unverified ones', async () => {
+    const payload = body();
+    const userId = (await register(payload).expect(201)).body.data.user.id as string;
+    requested.length = 0;
+    const resend = (email: string) => request(app.getHttpServer()).post('/api/v1/auth/resend-verification').send({ email });
+
+    await resend(payload.email.toUpperCase()).expect(202);
+    await resend(`nobody-${randomUUID()}@example.test`).expect(202);
+    expect(requested).toEqual([expect.objectContaining({ userId })]);
+
+    await verify(await tokenFor(payload.email)).expect(204);
+    await resend(payload.email).expect(202);
+    expect(requested).toHaveLength(1);
   });
 
   describe('rate limits', () => {

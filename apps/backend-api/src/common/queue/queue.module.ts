@@ -1,6 +1,6 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Global, Module } from '@nestjs/common';
-import type { OnModuleInit } from '@nestjs/common';
+import type { OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { PinoLogger } from 'nestjs-pino';
 
@@ -9,6 +9,7 @@ import { ReadinessRegistry } from '../../health/readiness.registry';
 import { QueueProducer } from './queue-producer';
 import { getQueue, QUEUE, QUEUE_NAMES, QUEUE_POLICY } from './queues';
 import { redisConnectionOptions } from './redis-connection';
+import { withTimeout } from './with-timeout';
 
 /**
  * BullMQ (D-011, D-084): the Redis connection and key prefix from env, every canonical queue with its default job
@@ -30,7 +31,7 @@ import { redisConnectionOptions } from './redis-connection';
   providers: [QueueProducer],
   exports: [BullModule, QueueProducer],
 })
-export class QueueModule implements OnModuleInit {
+export class QueueModule implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly moduleRef: ModuleRef,
     private readonly readiness: ReadinessRegistry,
@@ -42,6 +43,17 @@ export class QueueModule implements OnModuleInit {
     for (const name of QUEUE_NAMES) {
       getQueue(moduleRef, name).on('error', (error: Error) => this.logger.warn({ err: error, queue: name }, 'Queue connection error'));
     }
+  }
+
+  /**
+   * Runs before BullModule closes the queues (onApplicationShutdown). Closing a queue whose connection is still starting makes
+   * BullMQ emit 'Connection is closed' on an object nobody listens to any more — an unhandled error on a fast shutdown.
+   * Letting each connection settle first (at most 1 s; an unreachable Redis settles at once) avoids it.
+   */
+  async onModuleDestroy(): Promise<void> {
+    await Promise.all(
+      QUEUE_NAMES.map((name) => withTimeout(() => getQueue(this.moduleRef, name).waitUntilReady(), 1000).catch(() => undefined)),
+    );
   }
 
   onModuleInit(): void {

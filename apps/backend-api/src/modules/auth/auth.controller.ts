@@ -1,8 +1,20 @@
 import { Body, Controller, HttpCode, HttpStatus, Post, Req, Res } from '@nestjs/common';
-import { ApiCookieAuth, ApiNoContentResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiAcceptedResponse, ApiCookieAuth, ApiNoContentResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { AuthSessionSchema, LoginRequestSchema, RegisterRequestSchema, VerifyEmailRequestSchema } from '@nexlegtiq/shared-contracts';
-import type { AuthSession, LoginRequest, RegisterRequest, VerifyEmailRequest } from '@nexlegtiq/shared-contracts';
+import {
+  AuthSessionSchema,
+  LoginRequestSchema,
+  RegisterRequestSchema,
+  ResendVerificationRequestSchema,
+  VerifyEmailRequestSchema,
+} from '@nexlegtiq/shared-contracts';
+import type {
+  AuthSession,
+  LoginRequest,
+  RegisterRequest,
+  ResendVerificationRequest,
+  VerifyEmailRequest,
+} from '@nexlegtiq/shared-contracts';
 import type { Request, Response } from 'express';
 import { ClsService } from 'nestjs-cls';
 
@@ -57,6 +69,19 @@ export class AuthController {
   @ApiNoContentResponse({ description: 'Email verified' })
   async verifyEmail(@Body(new ZodValidationPipe(VerifyEmailRequestSchema)) body: VerifyEmailRequest, @Req() req: Request): Promise<void> {
     await this.signup.verifyEmail(body, this.client(req));
+  }
+
+  @Post('resend-verification')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @Throttle({ default: { limit: 3, ttl: MINUTE_MS } })
+  @ApiOperation({ summary: 'Send a new email verification link; always 202, whether or not the email has an account' })
+  @ApiZodBody(ResendVerificationRequestSchema)
+  @ApiAcceptedResponse({ description: 'Accepted (an email is sent only to an unverified account)' })
+  async resendVerification(
+    @Body(new ZodValidationPipe(ResendVerificationRequestSchema)) body: ResendVerificationRequest,
+    @Req() req: Request,
+  ): Promise<void> {
+    await this.signup.resendVerification(body, this.client(req));
   }
 
   @Post('login')
