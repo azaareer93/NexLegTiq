@@ -111,6 +111,10 @@ export const EnvSchema = EnvObject.refine((env) => !(env.NODE_ENV === 'productio
     }
     if (!env.REDIS_URL.startsWith('rediss:')) fail('REDIS_URL', 'must use rediss:// (TLS) in production');
     if (!env.S3_ENDPOINT.startsWith('https:')) fail('S3_ENDPOINT', 'must use https:// in production');
+    // AWS S3 does not encrypt unless asked (D-035, D-085); R2 and other providers encrypt at rest on their own.
+    if (new URL(env.S3_ENDPOINT).hostname.endsWith('.amazonaws.com') && env.S3_SSE !== 'AES256') {
+      fail('S3_SSE', 'must be AES256 when storing on AWS S3 in production');
+    }
     if (env.TRUST_PROXY_HOPS === undefined || env.TRUST_PROXY_HOPS < 1) {
       // With 0 behind a proxy every client shares the proxy's IP: one attacker would lock out or throttle everyone.
       fail('TRUST_PROXY_HOPS', 'must be set to the number of reverse proxies (>= 1) in production');

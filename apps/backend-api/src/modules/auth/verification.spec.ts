@@ -24,10 +24,17 @@ const logger = () => ({ setContext: jest.fn(), error: jest.fn() }) as unknown as
 describe('VerificationLinks (worker side, D-085)', () => {
   const now = new Date('2026-10-03T10:00:00Z');
 
-  function setup(user: object | null = { email: 'a@b.test', fullName: 'Omar', uiLanguage: 'EN', emailVerifiedAt: null, isActive: true }) {
+  function setup(
+    user: object | null = { email: 'a@b.test', fullName: 'Omar', uiLanguage: 'EN', emailVerifiedAt: null, isActive: true },
+    recentLinks: Date[] = [],
+  ) {
     const tx = {
       user: { findFirst: jest.fn().mockResolvedValue(user) },
-      emailVerificationToken: { updateMany: jest.fn().mockResolvedValue({ count: 1 }), create: jest.fn().mockResolvedValue({}) },
+      emailVerificationToken: {
+        findMany: jest.fn().mockResolvedValue(recentLinks.map((createdAt) => ({ createdAt }))),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        create: jest.fn().mockResolvedValue({}),
+      },
     };
     const prisma = { db: { $transaction: jest.fn((work: (t: typeof tx) => unknown) => work(tx)) } } as unknown as PrismaService;
     const config = new AppConfig(parseEnv(testEnv({ NODE_ENV: 'development', OFFICE_APP_URL: 'https://app.test/' })));
@@ -55,6 +62,30 @@ describe('VerificationLinks (worker side, D-085)', () => {
     const { links, tx } = setup(user);
     await expect(runner.run({ officeId: OFFICE as never }, () => links.issue(USER, now))).resolves.toBeNull();
     expect(tx.emailVerificationToken.create).not.toHaveBeenCalled();
+  });
+
+  it('should issue at most one link a minute per user, except for a retry of the same job', async () => {
+    const active = { email: 'a@b.test', fullName: 'O', uiLanguage: 'EN', emailVerifiedAt: null, isActive: true };
+    const justNow = [new Date(now.getTime() - 30_000)];
+    const blocked = setup(active, justNow);
+    await expect(runner.run({ officeId: OFFICE as never }, () => blocked.links.issue(USER, now))).resolves.toBeNull();
+    expect(blocked.tx.emailVerificationToken.create).not.toHaveBeenCalled();
+
+    const retry = setup(active, justNow);
+    await expect(runner.run({ officeId: OFFICE as never }, () => retry.links.issue(USER, now, { retry: true }))).resolves.not.toBeNull();
+
+    const later = setup(active, [new Date(now.getTime() - 61_000)]);
+    await expect(runner.run({ officeId: OFFICE as never }, () => later.links.issue(USER, now))).resolves.not.toBeNull();
+  });
+
+  it('should issue at most five links a day per user, retries included', async () => {
+    const active = { email: 'a@b.test', fullName: 'O', uiLanguage: 'EN', emailVerifiedAt: null, isActive: true };
+    const five = Array.from({ length: 5 }, (_unused, index) => new Date(now.getTime() - (index + 1) * 3_600_000));
+    const { links, tx } = setup(active, five);
+    await expect(runner.run({ officeId: OFFICE as never }, () => links.issue(USER, now, { retry: true }))).resolves.toBeNull();
+    expect(tx.emailVerificationToken.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: USER, createdAt: { gt: new Date(now.getTime() - 86_400_000) } }, take: 5 }),
+    );
   });
 
   it('should write Arabic emails for Arabic users and refuse to run outside an office', async () => {

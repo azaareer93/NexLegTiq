@@ -11,6 +11,8 @@ import request from 'supertest';
 import { seedPlans } from '../../../prisma/seed';
 import { AppModule } from '../../app/app.module';
 import { configureApp } from '../../app/configure-app';
+import { QUEUE, QUEUE_NAMES } from '../../common/queue/queues';
+import { getQueue } from '../../common/queue/testing';
 import { TenantRunner } from '../../common/tenancy/tenant-runner';
 import { AppConfig } from '../../config/app-config';
 import { integrationEnv } from '../../config/env.fixture';
@@ -75,7 +77,8 @@ describe('office signup (HTTP + PostgreSQL)', () => {
   async function tokenFor(email: string): Promise<string> {
     const user = await prisma.unscoped().user.findUniqueOrThrow({ where: { email }, select: { id: true, officeId: true } });
     const links = new VerificationLinks(prisma, app.get(ClsService), app.get(AppConfig));
-    const mail = await app.get(TenantRunner).run({ officeId: user.officeId as OfficeId }, () => links.issue(user.id, new Date()));
+    // retry: as a retried job would, so consecutive calls in one test are not held back by the one-a-minute limit.
+    const mail = await app.get(TenantRunner).run({ officeId: user.officeId as OfficeId }, () => links.issue(user.id, new Date(), { retry: true }));
     return new URL(mail?.vars.link ?? 'http://x').searchParams.get('token') ?? '';
   }
 
@@ -83,13 +86,20 @@ describe('office signup (HTTP + PostgreSQL)', () => {
     // Verification enforced, as it will be once emails are delivered (D-083); the flag's default (off) is unit-tested.
     Object.assign(
       process.env,
-      integrationEnv({ CORS_ORIGINS: ORIGIN, EMAIL_VERIFICATION_ENFORCED: 'true' }),
+      // A queue prefix of its own: the verification jobs this file enqueues never reach a dev worker.
+      integrationEnv({ CORS_ORIGINS: ORIGIN, EMAIL_VERIFICATION_ENFORCED: 'true', BULLMQ_PREFIX: `it-${randomUUID().slice(0, 8)}` }),
     );
     app = await createApp({ throttle: false });
     prisma = app.get(PrismaService);
     // unscoped: test setup — reference plans, as `pnpm nx run backend-api:seed` creates them.
     await seedPlans(prisma.unscoped());
-    jest.spyOn(app.get(VerificationMailer), 'send').mockImplementation(async (user) => void requested.push(user));
+    // Records what is requested and still enqueues for real (no worker consumes this file's queue prefix).
+    const mailer = app.get(VerificationMailer);
+    const enqueue = mailer.send.bind(mailer);
+    jest.spyOn(mailer, 'send').mockImplementation(async (user, client) => {
+      requested.push(user);
+      await enqueue(user, client);
+    });
   });
 
   afterAll(async () => {
@@ -109,6 +119,7 @@ describe('office signup (HTTP + PostgreSQL)', () => {
     await raw.user.deleteMany({ where });
     await raw.office.deleteMany({ where: { id: { in: where.officeId.in } } });
     await raw.loginAttempt.deleteMany({ where: { email: { in: emails } } });
+    for (const name of QUEUE_NAMES) await getQueue(app, name).obliterate({ force: true });
     await app.close();
     for (const key of Object.keys(process.env)) if (!(key in savedEnv)) delete process.env[key];
     Object.assign(process.env, savedEnv);
@@ -146,6 +157,10 @@ describe('office signup (HTTP + PostgreSQL)', () => {
 
     // Signup only asks the worker for the email; the worker creates the link (hash only in the database, D-085).
     expect(requested).toContainEqual({ userId: user.id, officeId: user.officeId });
+    const jobs = await getQueue(app, QUEUE.EMAIL).getJobs(['waiting', 'prioritized', 'delayed']);
+    const job = jobs.find((candidate) => candidate.data.userId === user.id);
+    expect(job?.name).toBe('send-verification-email');
+    expect(job?.data).toEqual({ userId: user.id, officeId: user.officeId, requestId: expect.any(String) });
     await expect(raw.emailVerificationToken.count({ where: { userId: user.id } })).resolves.toBe(0);
     const token = await tokenFor(payload.email);
     expect(token).toHaveLength(43);
@@ -285,9 +300,13 @@ describe('office signup (HTTP + PostgreSQL)', () => {
     requested.length = 0;
     const resend = (email: string) => request(app.getHttpServer()).post('/api/v1/auth/resend-verification').send({ email });
 
-    await resend(payload.email.toUpperCase()).expect(202);
-    await resend(`nobody-${randomUUID()}@example.test`).expect(202);
+    const known = await resend(payload.email.toUpperCase()).expect(202);
+    const unknown = await resend(`nobody-${randomUUID()}@example.test`).expect(202);
+    // Same answer either way: the response never tells whether an account exists.
+    expect(unknown.body.data).toEqual(known.body.data);
+    expect(unknown.body.success).toBe(known.body.success);
     expect(requested).toEqual([expect.objectContaining({ userId })]);
+    expect((await resend('not-an-email').expect(400)).body.error).toMatchObject({ code: 'VAL-001' });
 
     await verify(await tokenFor(payload.email)).expect(204);
     await resend(payload.email).expect(202);
@@ -308,6 +327,15 @@ describe('office signup (HTTP + PostgreSQL)', () => {
     it('should allow 5 signups a minute per client and answer 429 RATE-001 after that', async () => {
       const attempt = () => request(limited.getHttpServer()).post('/api/v1/auth/register').set('X-Forwarded-For', '192.0.2.39').send({});
       for (let i = 0; i < 5; i += 1) await attempt().expect(400);
+      const blocked = await attempt().expect(429);
+      expect(blocked.body.error).toMatchObject({ code: 'RATE-001' });
+      expect(blocked.headers['retry-after']).toBeDefined();
+    });
+
+    it('should allow 3 resend requests a minute per client', async () => {
+      const attempt = () =>
+        request(limited.getHttpServer()).post('/api/v1/auth/resend-verification').set('X-Forwarded-For', '192.0.2.41').send({ email: 'x@example.test' });
+      for (let i = 0; i < 3; i += 1) await attempt().expect(202);
       const blocked = await attempt().expect(429);
       expect(blocked.body.error).toMatchObject({ code: 'RATE-001' });
       expect(blocked.headers['retry-after']).toBeDefined();

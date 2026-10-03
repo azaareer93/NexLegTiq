@@ -1,7 +1,10 @@
+import type { EventEmitter } from 'node:events';
+
 import { BullModule } from '@nestjs/bullmq';
 import { Global, Module } from '@nestjs/common';
-import type { OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import type { OnModuleInit } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
+import type { Queue } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 
 import { AppConfig } from '../../config/app-config';
@@ -9,7 +12,6 @@ import { ReadinessRegistry } from '../../health/readiness.registry';
 import { QueueProducer } from './queue-producer';
 import { getQueue, QUEUE, QUEUE_NAMES, QUEUE_POLICY } from './queues';
 import { redisConnectionOptions } from './redis-connection';
-import { withTimeout } from './with-timeout';
 
 /**
  * BullMQ (D-011, D-084): the Redis connection and key prefix from env, every canonical queue with its default job
@@ -31,29 +33,20 @@ import { withTimeout } from './with-timeout';
   providers: [QueueProducer],
   exports: [BullModule, QueueProducer],
 })
-export class QueueModule implements OnModuleInit, OnModuleDestroy {
+export class QueueModule implements OnModuleInit {
   constructor(
     private readonly moduleRef: ModuleRef,
     private readonly readiness: ReadinessRegistry,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(QueueModule.name);
-    // Attached as soon as the queues exist: an 'error' event without a listener crashes the process, and a Redis outage
-    // must degrade (503 on /health/ready, failed enqueues) instead. ioredis reconnects on its own.
     for (const name of QUEUE_NAMES) {
-      getQueue(moduleRef, name).on('error', (error: Error) => this.logger.warn({ err: error, queue: name }, 'Queue connection error'));
+      const queue = getQueue(moduleRef, name);
+      // Attached as soon as the queues exist: an 'error' event without a listener crashes the process, and a Redis outage
+      // must degrade (503 on /health/ready, failed enqueues) instead. ioredis reconnects on its own.
+      queue.on('error', (error: Error) => this.logger.warn({ err: error, queue: name }, 'Queue connection error'));
+      dropErrorsAfterClose(queue);
     }
-  }
-
-  /**
-   * Runs before BullModule closes the queues (onApplicationShutdown). Closing a queue whose connection is still starting makes
-   * BullMQ emit 'Connection is closed' on an object nobody listens to any more — an unhandled error on a fast shutdown.
-   * Letting each connection settle first (at most 1 s; an unreachable Redis settles at once) avoids it.
-   */
-  async onModuleDestroy(): Promise<void> {
-    await Promise.all(
-      QUEUE_NAMES.map((name) => withTimeout(() => getQueue(this.moduleRef, name).waitUntilReady(), 1000).catch(() => undefined)),
-    );
   }
 
   onModuleInit(): void {
@@ -64,4 +57,18 @@ export class QueueModule implements OnModuleInit, OnModuleDestroy {
       await (await probe.client).runCommand('ping', []);
     });
   }
+}
+
+/**
+ * BullMQ 5.81 race: `RedisConnection.close()` removes every listener, but a connection that was still starting (Redis slow
+ * or unreachable at shutdown) later re-emits its failed start as 'error' — with nobody listening, Node throws and a graceful
+ * shutdown crashes. After close there is nothing left to handle, so such an event is dropped. Uses the protected
+ * `connection` field; re-check on a BullMQ upgrade.
+ */
+function dropErrorsAfterClose(queue: Queue): void {
+  const connection = (queue as unknown as { connection?: EventEmitter }).connection;
+  if (!connection) return;
+  const emit = connection.emit.bind(connection);
+  connection.emit = (event: string | symbol, ...args: unknown[]): boolean =>
+    event === 'error' && connection.listenerCount('error') === 0 ? false : emit(event, ...args);
 }

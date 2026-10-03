@@ -93,7 +93,7 @@ describe('email worker (Redis + PostgreSQL + Mailpit)', () => {
     await drainQueue(queue());
 
     const mail = await receivedBy(user.email);
-    expect(mail.Subject).toBe('أكّد بريدك الإلكتروني في NexLegTiq');
+    expect(mail.Subject).toBe('تأكيد بريدك الإلكتروني في NexLegTiq');
     expect(mail.HTML).toContain('dir="rtl"');
     expect(mail.HTML).toContain('lang="ar"');
     const link = /https:\/\/app\.example\.test\/verify-email\?token=([A-Za-z0-9_-]{43})/.exec(mail.Text);
@@ -105,6 +105,21 @@ describe('email worker (Redis + PostgreSQL + Mailpit)', () => {
     // unscoped: test assertion.
     const stored = await app.get(PrismaService).unscoped().emailVerificationToken.findFirstOrThrow({ where: { userId: user.id, usedAt: null } });
     expect(stored.tokenHash).toBe(hashOpaqueToken(link?.[1] ?? ''));
+  });
+
+  it('should send English users an English, left-to-right link that lasts 7 days', async () => {
+    const user = await createUser('EN');
+    const before = Date.now();
+    await inOffice(() => app.get(QueueProducer).enqueue(QUEUE.EMAIL, SEND_VERIFICATION_EMAIL_JOB, { userId: user.id }));
+    await drainQueue(queue());
+
+    const mail = await receivedBy(user.email);
+    expect(mail.Subject).toBe('Confirm your email for NexLegTiq');
+    expect(mail.HTML).toContain('dir="ltr"');
+    expect(mail.Text).toMatch(/https:\/\/app\.example\.test\/verify-email\?token=[A-Za-z0-9_-]{43}/);
+    // unscoped: test assertion.
+    const stored = await app.get(PrismaService).unscoped().emailVerificationToken.findFirstOrThrow({ where: { userId: user.id } });
+    expect(Math.round((stored.expiresAt.getTime() - before) / 86_400_000)).toBe(7);
   });
 
   it('should send nothing for an already verified user', async () => {
@@ -124,7 +139,8 @@ describe('email worker (Redis + PostgreSQL + Mailpit)', () => {
     await drainQueue(queue());
 
     const mail = await receivedBy(to);
-    expect(mail.Subject).toBe('Invitation to join Al-Masri & Partners on NexLegTiq');
+    // The office name sits between isolate marks so it keeps its direction inside any sentence.
+    expect(mail.Subject).toBe('Invitation to join ⁨Al-Masri & Partners⁩ on NexLegTiq');
     expect(mail.HTML).toContain('dir="ltr"');
     expect(mail.HTML).toContain('Al-Masri &amp; Partners');
     expect(mail.HTML).toContain('https://app.example.test/legal/privacy');

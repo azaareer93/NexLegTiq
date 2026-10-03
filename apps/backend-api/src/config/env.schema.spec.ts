@@ -147,9 +147,25 @@ describe('parseEnv', () => {
     ['TRUST_PROXY_HOPS', '0'],
     ['TRUST_PROXY_HOPS', undefined],
     ['BULL_BOARD_ENABLED', 'true'],
+    ['OFFICE_APP_URL', 'http://app.nexlegtiq.test'],
+    ['RESEND_API_KEY', 'ci-only-resend-key'],
   ])('should reject %s=%s in production (plaintext transport or dev credential)', (key, value) => {
     expect(() => parseEnv(testEnv({ NODE_ENV: 'production', [key]: value }))).toThrow(new RegExp(key));
     expect(() => parseEnv(testEnv({ NODE_ENV: 'development', [key]: value }))).not.toThrow();
+  });
+
+  it('should require RESEND_API_KEY when EMAIL_PROVIDER=resend', () => {
+    expect(() => parseEnv(testEnv({ EMAIL_PROVIDER: 'resend' }))).toThrow(/RESEND_API_KEY/);
+    expect(parseEnv(testEnv({ EMAIL_PROVIDER: 'resend', RESEND_API_KEY: 're_live_key' })).EMAIL_PROVIDER).toBe('resend');
+    expect(() => parseEnv(testEnv({ EMAIL_PROVIDER: 'sendgrid' }))).toThrow(/EMAIL_PROVIDER/);
+  });
+
+  it('should accept S3_SSE AES256 or none and require AES256 on AWS S3 in production', () => {
+    expect(parseEnv(testEnv()).S3_SSE).toBe('none');
+    expect(() => parseEnv(testEnv({ S3_SSE: 'aws:kms' }))).toThrow(/S3_SSE/);
+    const aws = { S3_ENDPOINT: 'https://s3.eu-central-1.amazonaws.com' };
+    expect(() => parseEnv(testEnv(aws))).toThrow(/S3_SSE: must be AES256/);
+    expect(parseEnv(testEnv({ ...aws, S3_SSE: 'AES256' })).S3_SSE).toBe('AES256');
   });
 
   it('should allow SMTP_REQUIRE_TLS=false in production when SMTP_SECURE uses implicit TLS', () => {
