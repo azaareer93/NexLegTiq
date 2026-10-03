@@ -38,11 +38,12 @@ export class PasswordService {
     }
   }
 
-  /** Sets the new password with a valid link. Unknown, used and expired links all get 410 RES-004. */
+  /** Sets the new password with a valid link. Unknown, used or expired links, and those of a deactivated user or suspended office, get 410 RES-004. */
   async resetPassword(body: ResetPasswordRequest, client: ClientInfo): Promise<void> {
     const now = new Date();
     const link = await this.accounts.findResetLink(hashOpaqueToken(body.token));
-    if (!link || link.usedAt !== null || link.expiresAt <= now || !link.user.isActive) throw new AppException('RES-004', INVALID_LINK);
+    const usable = link && link.usedAt === null && link.expiresAt > now && link.user.isActive && link.user.office.isActive;
+    if (!usable) throw new AppException('RES-004', INVALID_LINK);
     if (!passwordIsNotEmail(body.newPassword, link.user.email)) {
       throw new ValidationException([{ field: 'newPassword', message: 'validation.password.sameAsEmail' }]);
     }

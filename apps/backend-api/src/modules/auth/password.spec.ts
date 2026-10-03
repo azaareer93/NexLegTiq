@@ -86,7 +86,7 @@ describe('PasswordService', () => {
     userId: USER,
     expiresAt: new Date(Date.now() + 3_600_000),
     usedAt: null,
-    user: { email: 'omar@example.test', isActive: true },
+    user: { email: 'omar@example.test', isActive: true, office: { isActive: true } },
     ...extra,
   });
 
@@ -116,6 +116,13 @@ describe('PasswordService', () => {
       expect(mailer.sendPasswordReset).toHaveBeenCalledWith({ userId: USER, officeId: OFFICE }, client);
     });
 
+    it('should answer without waiting for the enqueue, so a known email is not slower than an unknown one', async () => {
+      const { service, mailer } = setup({ account: { id: USER, officeId: OFFICE, isActive: true, office: { isActive: true } } });
+      mailer.sendPasswordReset.mockReturnValue(new Promise(() => undefined));
+      await expect(service.forgotPassword({ email: 'omar@example.test' }, client)).resolves.toBeUndefined();
+      expect(mailer.sendPasswordReset).toHaveBeenCalledTimes(1);
+    });
+
     it.each([
       ['no account', null],
       ['a deactivated user', { id: USER, officeId: OFFICE, isActive: false, office: { isActive: true } }],
@@ -142,7 +149,8 @@ describe('PasswordService', () => {
       ['unknown', null, true],
       ['used', link({ usedAt: new Date() }), true],
       ['expired', link({ expiresAt: new Date(Date.now() - 1) }), true],
-      ['for a deactivated user', link({ user: { email: 'omar@example.test', isActive: false } }), true],
+      ['for a deactivated user', link({ user: { email: 'omar@example.test', isActive: false, office: { isActive: true } } }), true],
+      ['for a suspended office', link({ user: { email: 'omar@example.test', isActive: true, office: { isActive: false } } }), true],
       ['used concurrently', link(), false],
     ])('should answer 410 RES-004 for a link that is %s', async (_label, found, used) => {
       const { service } = setup({ link: found, used });
@@ -150,7 +158,7 @@ describe('PasswordService', () => {
     });
 
     it('should refuse the email as the new password', async () => {
-      const { service, accounts } = setup({ link: link({ user: { email: 'omar12345A@example.test', isActive: true } }) });
+      const { service, accounts } = setup({ link: link({ user: { email: 'omar12345A@example.test', isActive: true, office: { isActive: true } } }) });
       const sameAsEmail = { ...body, newPassword: 'Omar12345A', confirmPassword: 'Omar12345A' };
       await expect(service.resetPassword(sameAsEmail, client)).rejects.toMatchObject({
         code: 'VAL-001',

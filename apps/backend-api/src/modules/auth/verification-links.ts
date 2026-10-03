@@ -7,7 +7,7 @@ import { TenantContextMissingError } from '../../common/tenancy/tenant.errors';
 import { AppConfig } from '../../config/app-config';
 import { PrismaService } from '../../database/prisma.service';
 import { VERIFY_EMAIL_WITHIN_DAYS, verificationLinkExpiry } from './email-verification';
-import { linkWindowStart, MAX_LINKS_PER_DAY, mayIssueLink } from './link-limits';
+import { linkWindowStart, MAX_LINKS_PER_WINDOW, mayIssueLink } from './link-limits';
 
 /** What the email worker sends for a verification job. */
 export interface VerificationEmail {
@@ -20,8 +20,7 @@ export interface VerificationEmail {
  * Creates signup verification links in the worker (D-085), in the user's office (TenantRunner context): earlier unused links
  * stop working, a new 7-day link is stored as SHA-256 only, and the raw token goes straight into the email. A retried job
  * simply issues another link. Nothing is sent once the user is verified or deactivated.
- * Resend abuse (D-085): at most one link a minute (a retry of the same job is exempt) and five a day per user, whatever
- * the number of IPs asking — so nobody can flood an inbox or keep killing the link the user just received.
+ * Per-user limits against resend abuse: `link-limits.ts` (D-085).
  */
 @Injectable()
 export class VerificationLinks {
@@ -45,7 +44,7 @@ export class VerificationLinks {
         where: { userId, createdAt: { gt: linkWindowStart(now) } },
         select: { createdAt: true },
         orderBy: { createdAt: 'desc' },
-        take: MAX_LINKS_PER_DAY,
+        take: MAX_LINKS_PER_WINDOW,
       });
       if (!mayIssueLink(recent.map((link) => link.createdAt), now, options.retry ?? false)) return null;
       await tx.emailVerificationToken.updateMany({ where: { userId, usedAt: null }, data: { usedAt: now } });

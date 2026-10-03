@@ -28,7 +28,14 @@ export class PasswordRepository {
     // unscoped: the link is the only credential; the office is learned from the token row itself.
     return this.prisma.unscoped().passwordResetToken.findUnique({
       where: { tokenHash },
-      select: { id: true, officeId: true, userId: true, expiresAt: true, usedAt: true, user: { select: { email: true, isActive: true } } },
+      select: {
+        id: true,
+        officeId: true,
+        userId: true,
+        expiresAt: true,
+        usedAt: true,
+        user: { select: { email: true, isActive: true, office: { select: { isActive: true } } } },
+      },
     });
   }
 
@@ -43,12 +50,12 @@ export class PasswordRepository {
    */
   resetPassword(link: { id: string; officeId: string; userId: string }, passwordHash: string, now: Date, client: ClientInfo): Promise<boolean> {
     return this.prisma.db.$transaction(async (tx) => {
-      const claimed = await tx.passwordResetToken.updateMany({ where: { id: link.id, usedAt: null }, data: { usedAt: now } });
+      const claimed = await tx.passwordResetToken.updateMany({ where: { id: link.id, usedAt: null, expiresAt: { gt: now } }, data: { usedAt: now } });
       if (claimed.count === 0) return false;
       await tx.user.update({ where: { id: link.userId }, data: { passwordHash } });
       await tx.user.updateMany({ where: { id: link.userId, emailVerifiedAt: null }, data: { emailVerifiedAt: now } });
       await tx.passwordResetToken.updateMany({ where: { userId: link.userId, usedAt: null }, data: { usedAt: now } });
-      await this.refreshTokens.revokeAllForUser(tx, link.userId);
+      await this.refreshTokens.revokeAllForUser(tx, link.userId, now);
       await tx.auditLog.create({ data: audit(link.officeId, link.userId, { passwordReset: true }, client) });
       return true;
     });
@@ -59,7 +66,7 @@ export class PasswordRepository {
     await this.prisma.db.$transaction(async (tx) => {
       await tx.user.update({ where: { id: user.userId }, data: { passwordHash } });
       await tx.passwordResetToken.updateMany({ where: { userId: user.userId, usedAt: null }, data: { usedAt: now } });
-      await this.refreshTokens.revokeAllForUser(tx, user.userId, user.sessionId);
+      await this.refreshTokens.revokeAllForUser(tx, user.userId, now, user.sessionId);
       await tx.auditLog.create({ data: audit(user.officeId, user.userId, { passwordChanged: true }, client) });
     });
   }

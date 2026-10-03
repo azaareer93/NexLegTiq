@@ -6,7 +6,7 @@ import type { RequestContext } from '../../common/context/request-context';
 import { TenantContextMissingError } from '../../common/tenancy/tenant.errors';
 import { AppConfig } from '../../config/app-config';
 import { PrismaService } from '../../database/prisma.service';
-import { linkWindowStart, MAX_LINKS_PER_DAY, mayIssueLink } from './link-limits';
+import { linkWindowStart, MAX_LINKS_PER_WINDOW, mayIssueLink } from './link-limits';
 
 /** Reset links last one hour (auth-rbac.md, Flows). */
 export const RESET_LINK_MINUTES = 60;
@@ -39,10 +39,10 @@ export class PasswordResetLinks {
       const found = await tx.user.findFirst({ where: { id: userId }, select: { email: true, fullName: true, uiLanguage: true, isActive: true } });
       if (!found?.isActive) return null;
       const recent = await tx.passwordResetToken.findMany({
-        where: { userId, createdAt: { gt: linkWindowStart(now) } },
+        where: { userId, createdAt: { gt: linkWindowStart(now, RESET_LINK_MINUTES * 60_000) } },
         select: { createdAt: true },
         orderBy: { createdAt: 'desc' },
-        take: MAX_LINKS_PER_DAY,
+        take: MAX_LINKS_PER_WINDOW,
       });
       if (!mayIssueLink(recent.map((link) => link.createdAt), now, options.retry ?? false)) return null;
       await tx.passwordResetToken.updateMany({ where: { userId, usedAt: null }, data: { usedAt: now } });

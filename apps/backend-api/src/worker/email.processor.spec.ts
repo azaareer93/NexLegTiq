@@ -63,6 +63,10 @@ describe('EmailProcessor', () => {
     expect(mail.text).toContain('60 minutes');
     expect(options).toEqual({ signal: expect.any(AbortSignal), idempotencyKey: '7-0' });
 
+    await processor.process(job('send-password-reset', { userId: USER }, 2));
+    expect(issueReset).toHaveBeenLastCalledWith(USER, expect.any(Date), { retry: true });
+    expect(send.mock.calls[1]?.[2]).toEqual({ signal: expect.any(AbortSignal), idempotencyKey: '7-2' });
+
     issueReset.mockResolvedValueOnce(null);
     await expect(processor.process(job('send-password-reset', { userId: USER }))).resolves.toEqual(SKIPPED_NOTHING_TO_SEND);
   });

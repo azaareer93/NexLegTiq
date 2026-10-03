@@ -59,6 +59,7 @@ function setup(
       findFirst: jest.fn().mockResolvedValue({ createdAt: overrides.familyStartedAt ?? new Date(Date.now() - 1000) }),
     },
     auditLog: { create: jest.fn().mockResolvedValue({}) },
+    $queryRaw: jest.fn().mockResolvedValue([]),
   };
   const raw = {
     user: { findUnique: jest.fn().mockResolvedValue(overrides.user === undefined ? { ...activeUser, passwordHash: 'h' } : overrides.user) },
@@ -161,6 +162,9 @@ describe('AuthService.refresh', () => {
     expect(db.refreshToken.updateMany).toHaveBeenCalledWith({ where: { id: 'old', revokedAt: null }, data: { revokedAt: expect.any(Date) } });
     expect(db.refreshToken.create).toHaveBeenCalledWith({ data: expect.objectContaining({ officeId: OFFICE, familyId: 'family' }) });
     expect(db.refreshToken.update).toHaveBeenCalledWith({ where: { id: 'old' }, data: { replacedById: 'next' } });
+    // The user row is locked before the claim, so a concurrent password reset cannot miss the new token (D-086).
+    expect(db.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(db.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(db.refreshToken.updateMany.mock.invocationCallOrder[0] ?? 0);
     expect(issued.session.user.id).toBe(USER);
   });
 

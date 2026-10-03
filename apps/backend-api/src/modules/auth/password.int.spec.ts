@@ -9,6 +9,7 @@ import request from 'supertest';
 
 import { AppModule } from '../../app/app.module';
 import { configureApp } from '../../app/configure-app';
+import { hashOpaqueToken, newOpaqueToken } from '../../common/auth/opaque-token';
 import { QUEUE, QUEUE_NAMES } from '../../common/queue/queues';
 import { getQueue } from '../../common/queue/testing';
 import { TenantRunner } from '../../common/tenancy/tenant-runner';
@@ -58,6 +59,19 @@ describe('password reset and change (HTTP + PostgreSQL)', () => {
   const cookieOf = (res: request.Response) =>
     (([] as string[]).concat(res.headers['set-cookie'] ?? []).find((cookie) => cookie.startsWith(`${REFRESH_COOKIE}=`)) ?? '').split(';')[0] ?? '';
   const refresh = (cookie: string) => http().post('/api/v1/auth/refresh').set('Cookie', cookie).set(csrf);
+  const reset = (token: string, password = NEW_PASSWORD) =>
+    http().post('/api/v1/auth/reset-password').send({ token, newPassword: password, confirmPassword: password });
+  const audits = (user: { userId: string; officeId: string }) =>
+    prisma.unscoped().auditLog.findMany({ where: { officeId: user.officeId, userId: user.userId, action: 'UPDATE' }, select: { newValues: true } });
+
+  /** A second unused reset link, stored directly (the worker would end the first one). */
+  async function extraResetLink(user: { userId: string; officeId: string }): Promise<string> {
+    const token = newOpaqueToken();
+    await prisma.unscoped().passwordResetToken.create({
+      data: { officeId: user.officeId, userId: user.userId, tokenHash: hashOpaqueToken(token), expiresAt: new Date(Date.now() + 3_600_000) },
+    });
+    return token;
+  }
 
   /** What the worker does for a reset job: issue a link in the user's office and return its token. */
   async function resetTokenFor(user: { userId: string; officeId: string }): Promise<string> {
@@ -112,32 +126,53 @@ describe('password reset and change (HTTP + PostgreSQL)', () => {
       const session = cookieOf(await login(user.email).expect(200));
       const token = await resetTokenFor(user);
 
-      await http().post('/api/v1/auth/reset-password').send({ token, newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD }).expect(204);
+      const other = await extraResetLink(user);
+      const otherOffice = await seedUser();
+      const otherSession = cookieOf(await login(otherOffice.email).expect(200));
+
+      await reset(token).expect(204);
 
       expect((await refresh(session).expect(401)).body.error).toMatchObject({ code: 'AUTH-005' });
       expect((await login(user.email).expect(401)).body.error).toMatchObject({ code: 'AUTH-001' });
       await login(user.email, NEW_PASSWORD).expect(200);
-      await expect(prisma.unscoped().auditLog.count({ where: { officeId: user.officeId, action: 'UPDATE', userId: user.userId } })).resolves.toBe(1);
-      const again = await http().post('/api/v1/auth/reset-password').send({ token, newPassword: 'Anotherpass3', confirmPassword: 'Anotherpass3' });
-      expect(again.status).toBe(410);
-      expect(again.body.error).toMatchObject({ code: 'RES-004' });
+      await expect(audits(user)).resolves.toEqual([{ newValues: { passwordReset: true } }]);
+      expect((await reset(token, 'Anotherpass3').expect(410)).body.error).toMatchObject({ code: 'RES-004' });
+      // The other link stopped working, and the link proved the address.
+      await reset(other, 'Anotherpass3').expect(410);
+      await expect(prisma.unscoped().user.findUniqueOrThrow({ where: { id: user.userId } })).resolves.toMatchObject({ emailVerifiedAt: expect.any(Date) });
+      // Another office's user is untouched.
+      await refresh(otherSession).expect(200);
+      await login(otherOffice.email).expect(200);
     });
 
-    it('should refuse unknown and expired links with 410 RES-004 and change nothing', async () => {
+    it('should let only one of two concurrent resets with the same link succeed', async () => {
+      const user = await seedUser();
+      const token = await resetTokenFor(user);
+      const statuses = (await Promise.all([reset(token), reset(token, 'Anotherpass3')])).map((res) => res.status).sort();
+      expect(statuses).toEqual([204, 410]);
+      await expect(audits(user)).resolves.toHaveLength(1);
+    });
+
+    it('should refuse unknown and expired links, and links of a suspended office, with 410 RES-004 and change nothing', async () => {
       const user = await seedUser();
       const token = await resetTokenFor(user);
       await prisma.unscoped().passwordResetToken.updateMany({ where: { userId: user.userId }, data: { expiresAt: new Date(Date.now() - 1000) } });
-      const body = { newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD };
-      await http().post('/api/v1/auth/reset-password').send({ token, ...body }).expect(410);
-      await http().post('/api/v1/auth/reset-password').send({ token: 'A'.repeat(43), ...body }).expect(410);
+      await reset(token).expect(410);
+      await reset('A'.repeat(43)).expect(410);
       await login(user.email).expect(200);
+
+      const suspended = await seedUser();
+      const link = await resetTokenFor(suspended);
+      await prisma.unscoped().office.update({ where: { id: suspended.officeId }, data: { isActive: false } });
+      expect((await reset(link).expect(410)).body.error).toMatchObject({ code: 'RES-004' });
+      await expect(audits(suspended)).resolves.toEqual([]);
     });
 
     it('should answer 400 VAL-001 for a weak or mismatched password', async () => {
       const token = 'A'.repeat(43);
-      const weak = await http().post('/api/v1/auth/reset-password').send({ token, newPassword: 'weak', confirmPassword: 'weak' }).expect(400);
-      expect(weak.body.error).toMatchObject({ code: 'VAL-001' });
-      await http().post('/api/v1/auth/reset-password').send({ token, newPassword: NEW_PASSWORD, confirmPassword: 'Different99x' }).expect(400);
+      expect((await reset(token, 'weak').expect(400)).body.error).toMatchObject({ code: 'VAL-001' });
+      const mismatch = await http().post('/api/v1/auth/reset-password').send({ token, newPassword: NEW_PASSWORD, confirmPassword: 'Different99x' }).expect(400);
+      expect(mismatch.body.error).toMatchObject({ code: 'VAL-001', details: [expect.objectContaining({ field: 'confirmPassword' })] });
     });
   });
 
@@ -147,6 +182,7 @@ describe('password reset and change (HTTP + PostgreSQL)', () => {
       const first = await login(user.email).expect(200);
       const other = cookieOf(await login(user.email).expect(200));
       const bearer = { Authorization: `Bearer ${first.body.data.accessToken as string}` };
+      const pendingLink = await resetTokenFor(user);
 
       const wrong = await http().post('/api/v1/users/me/password').set(bearer).send({ currentPassword: 'Wrongwrong99', newPassword: NEW_PASSWORD });
       expect(wrong.status).toBe(400);
@@ -157,7 +193,9 @@ describe('password reset and change (HTTP + PostgreSQL)', () => {
       await refresh(cookieOf(first)).expect(200);
       await refresh(other).expect(401);
       await login(user.email, NEW_PASSWORD).expect(200);
-      await expect(prisma.unscoped().auditLog.count({ where: { officeId: user.officeId, action: 'UPDATE', userId: user.userId } })).resolves.toBe(1);
+      await expect(audits(user)).resolves.toEqual([{ newValues: { passwordChanged: true } }]);
+      // A reset link requested before the change no longer works.
+      await reset(pendingLink, 'Anotherpass3').expect(410);
     });
 
     it('should require authentication', async () => {
@@ -178,12 +216,25 @@ describe('password reset and change (HTTP + PostgreSQL)', () => {
     });
 
     it.each([
-      ['forgot-password', '/api/v1/auth/forgot-password', { email: 'x@example.test' }, 200],
-      ['reset-password', '/api/v1/auth/reset-password', { token: 'A'.repeat(43), newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD }, 410],
-    ])('should allow 5 %s requests a minute per client', async (_label, path, body, status) => {
-      const ip = `192.0.2.${path.length}`;
+      ['forgot-password', '192.0.2.41', '/api/v1/auth/forgot-password', { email: 'x@example.test' }, 200],
+      ['reset-password', '192.0.2.42', '/api/v1/auth/reset-password', { token: 'A'.repeat(43), newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD }, 410],
+    ])('should allow 5 %s requests a minute per client', async (_label, ip, path, body, status) => {
       const attempt = () => request(limited.getHttpServer()).post(path).set('X-Forwarded-For', ip).send(body);
       for (let i = 0; i < 5; i += 1) await attempt().expect(status);
+      expect((await attempt().expect(429)).body.error).toMatchObject({ code: 'RATE-001' });
+    });
+
+    it('should allow 5 password changes a minute per client', async () => {
+      const user = await seedUser();
+      const ip = '192.0.2.43';
+      const session = await request(limited.getHttpServer()).post('/api/v1/auth/login').set('X-Forwarded-For', ip).send({ email: user.email, password: PASSWORD }).expect(200);
+      const attempt = () =>
+        request(limited.getHttpServer())
+          .post('/api/v1/users/me/password')
+          .set('X-Forwarded-For', ip)
+          .set('Authorization', `Bearer ${session.body.data.accessToken as string}`)
+          .send({ currentPassword: 'Wrongwrong99', newPassword: NEW_PASSWORD });
+      for (let i = 0; i < 5; i += 1) await attempt().expect(400);
       expect((await attempt().expect(429)).body.error).toMatchObject({ code: 'RATE-001' });
     });
   });
