@@ -34,7 +34,7 @@ export interface AuthPrincipal {
 }
 
 // Accept caller-provided ids only if they are short and safe to echo into logs and headers.
-const SAFE_REQUEST_ID = /^[A-Za-z0-9._:-]{8,128}$/;
+export const SAFE_REQUEST_ID = /^[A-Za-z0-9._:-]{8,128}$/;
 
 type RequestWithId = IncomingMessage & { id?: unknown };
 

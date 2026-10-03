@@ -185,7 +185,11 @@ describe('integrationEnv', () => {
         CORS_ORIGINS: 'http://x.test',
       });
     } finally {
-      Object.assign(process.env, { DATABASE_URL: saved.db, ...(saved.redis ? { REDIS_URL: saved.redis } : {}) });
+      // Assigning undefined to process.env would store the string "undefined".
+      for (const [key, value] of [['DATABASE_URL', saved.db], ['REDIS_URL', saved.redis]] as const) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
     }
   });
 });

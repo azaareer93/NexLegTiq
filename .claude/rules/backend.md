@@ -13,9 +13,9 @@ paths:
 - Writes: one transaction covering the entity + timeline event + audit row; enqueue jobs **after** commit so workers
   never see uncommitted rows: `UnitOfWork.run((tx, afterCommit) => …)` + `QueueProducer.enqueue` (D-084).
 - Throw `AppException` subclasses with codes from `docs/context/api-conventions.md`; never `throw new Error` for expected cases.
-- Workers: `@Processor(QUEUE.X, workerOptions(QUEUE.X))` classes extending `TenantProcessor` in `src/modules/*/workers/`
-  (it validates the payload and runs `handle` in `TenantRunner` with the job's office and request id), registered only in
-  `WorkerModule`, idempotent by job id,
+- Workers: `@Processor(QUEUE.X, workerOptions(QUEUE.X))` classes extending `TenantProcessor` in `src/modules/*/workers/`,
+  with a Zod `schema` for the job fields (it validates the payload and runs `handle(job, signal)` in `TenantRunner` with the
+  job's office and request id; pass `signal` to HTTP/SDK calls), registered only in `WorkerModule`, idempotent by job id,
   log with `requestId` from job data.
 - Logging via injected `PinoLogger`; no `console.*`; never log bodies, tokens, or document text.
 - Config only through the typed `AppConfig` (Zod-validated env). Add new env vars to `env.schema.ts` **and** `.env.example`.

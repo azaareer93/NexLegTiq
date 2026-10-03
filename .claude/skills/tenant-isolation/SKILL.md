@@ -31,8 +31,11 @@ await this.uow.run(async (tx, afterCommit) => {
 // Consumer (registered in WorkerModule only): TenantProcessor validates the payload and runs handle() in the job's office.
 @Processor(QUEUE.OCR, workerOptions(QUEUE.OCR))
 export class OcrWorker extends TenantProcessor<OcrJob> {
-  constructor(tenant: TenantRunner, logger: PinoLogger, private readonly ocr: OcrService) { super(tenant, logger); }
-  protected handle(job: Job<OcrJob & TenantJobData>) { return this.ocr.process(job.data.documentId); }
+  protected readonly schema = OcrJobSchema; // z.object({ documentId: z.uuid() })
+  constructor(tenant: TenantRunner, prisma: PrismaService, logger: PinoLogger, private readonly ocr: OcrService) {
+    super(tenant, prisma, logger);
+  }
+  protected handle(job: Job<OcrJob & TenantJobData>, signal: AbortSignal) { return this.ocr.process(job.data.documentId, signal); }
 }
 ```
 
