@@ -2,6 +2,7 @@ import { JwtService } from '@nestjs/jwt';
 import type { Request, Response } from 'express';
 import { ClsServiceManager } from 'nestjs-cls';
 
+import { hashOpaqueToken } from '../../common/auth/opaque-token';
 import type { RequestContext } from '../../common/context/request-context';
 import { AppException } from '../../common/errors/app.exception';
 import { TenantRunner } from '../../common/tenancy/tenant-runner';
@@ -11,11 +12,13 @@ import { parseEnv } from '../../config/env.schema';
 import type { PrismaService } from '../../database/prisma.service';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import type { ClientInfo, IssuedSession } from './auth.service';
+import type { IssuedSession } from './auth.service';
+import type { ClientInfo } from './client-info';
 import { LoginAttemptRepository } from './login-attempt.repository';
 import type { PasswordHasher } from './password-hasher';
-import { hashRefreshToken, REFRESH_COOKIE } from './refresh-token';
+import { REFRESH_COOKIE } from './refresh-token';
 import { RefreshTokenRepository } from './refresh-token.repository';
+import type { SignupService } from './signup.service';
 
 const OFFICE = '01920000-0000-7000-8000-00000000000a';
 const USER = '01920000-0000-7000-8000-0000000000aa';
@@ -30,11 +33,21 @@ const activeUser = {
   role: 'LAWYER',
   uiLanguage: 'AR',
   isActive: true,
+  emailVerifiedAt: new Date('2026-09-01T00:00:00Z'),
+  createdAt: new Date('2026-09-01T00:00:00Z'),
   office: { name: 'Office', isActive: true },
 };
 
 function setup(
-  overrides: { user?: unknown; token?: unknown; failures?: Date[]; valid?: boolean; claimed?: number; familyStartedAt?: Date } = {},
+  overrides: {
+    user?: unknown;
+    token?: unknown;
+    failures?: Date[];
+    valid?: boolean;
+    claimed?: number;
+    familyStartedAt?: Date;
+    enforced?: boolean;
+  } = {},
 ) {
   // One mock serves as the scoped client and as every transaction opened on it.
   const db = {
@@ -66,6 +79,7 @@ function setup(
     passwords,
     new RefreshTokenRepository(prisma),
     new LoginAttemptRepository(prisma),
+    new AppConfig(parseEnv(testEnv({ EMAIL_VERIFICATION_ENFORCED: String(overrides.enforced ?? true) }))),
   );
   return { service, db, raw };
 }
@@ -91,7 +105,7 @@ describe('AuthService.login', () => {
     expect(raw.loginAttempt.create).toHaveBeenCalledWith({ data: { email: request.email, ipAddress: '10.0.0.1', success: true } });
     expect(db.user.update).toHaveBeenCalled();
     expect(db.refreshToken.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ officeId: OFFICE, userId: USER, tokenHash: hashRefreshToken(issued.refreshToken) }),
+      data: expect.objectContaining({ officeId: OFFICE, userId: USER, tokenHash: hashOpaqueToken(issued.refreshToken) }),
     });
     expect(db.auditLog.create).toHaveBeenCalledWith({ data: expect.objectContaining({ action: 'LOGIN', requestId: 'req-12345678' }) });
   });
@@ -118,6 +132,24 @@ describe('AuthService.login', () => {
   ])('should refuse %s with AUTH-006', async (_label, user, message) => {
     const { service } = setup({ user: { ...user, passwordHash: 'h' } });
     await expect(service.login(request, client)).rejects.toMatchObject({ code: 'AUTH-006', message });
+  });
+
+  it('should log in an unverified user within 7 days and say until when, then refuse with AUTH-010', async () => {
+    const fresh = { ...activeUser, emailVerifiedAt: null, createdAt: new Date(Date.now() - 86_400_000), passwordHash: 'h' };
+    const issued = await setup({ user: fresh }).service.login(request, client);
+    expect(issued.session.user).toMatchObject({ emailVerified: false, verifyBy: new Date(fresh.createdAt.getTime() + 7 * 86_400_000).toISOString() });
+
+    const overdue = { ...fresh, createdAt: new Date(Date.now() - 8 * 86_400_000) };
+    const { service, raw } = setup({ user: overdue });
+    await expect(service.login(request, client)).rejects.toMatchObject({ code: 'AUTH-010' });
+    // The password was right: the attempt counts as a success, so retries never turn AUTH-010 into a lockout.
+    expect(raw.loginAttempt.create).toHaveBeenCalledWith({ data: expect.objectContaining({ success: true }) });
+  });
+
+  it('should not block an overdue verification while EMAIL_VERIFICATION_ENFORCED is off', async () => {
+    const overdue = { ...activeUser, emailVerifiedAt: null, createdAt: new Date(Date.now() - 8 * 86_400_000), passwordHash: 'h' };
+    const issued = await setup({ user: overdue, enforced: false }).service.login(request, client);
+    expect(issued.session.user.emailVerified).toBe(false);
   });
 });
 
@@ -165,6 +197,13 @@ describe('AuthService.refresh', () => {
     expect(old.db.refreshToken.create).not.toHaveBeenCalled();
   });
 
+  it('should refuse an overdue verification with AUTH-010 and end the session', async () => {
+    const overdue = { ...activeUser, emailVerifiedAt: null, createdAt: new Date(Date.now() - 8 * 86_400_000) };
+    const { service, db } = setup({ token: storedToken({ user: overdue }) });
+    await expect(service.refresh('cookie', client)).rejects.toMatchObject({ code: 'AUTH-010' });
+    expect(db.refreshToken.updateMany).toHaveBeenCalledWith({ where: { familyId: 'family', revokedAt: null }, data: { revokedAt: expect.any(Date) } });
+  });
+
   it('should revoke the family and refuse when the user was deactivated', async () => {
     const { service, db } = setup({ token: storedToken({ user: { ...activeUser, isActive: false } }) });
     await expect(service.refresh('cookie', client)).rejects.toMatchObject({ code: 'AUTH-006' });
@@ -202,7 +241,7 @@ describe('AuthController', () => {
   const res = () => ({ cookie: jest.fn(), clearCookie: jest.fn() }) as unknown as Response & { cookie: jest.Mock; clearCookie: jest.Mock };
 
   function controller(auth: Partial<AuthService>): AuthController {
-    return new AuthController(auth as AuthService, config, cls);
+    return new AuthController(auth as AuthService, {} as SignupService, config, cls);
   }
 
   it('should set the refresh cookie and return only the session body on login', async () => {

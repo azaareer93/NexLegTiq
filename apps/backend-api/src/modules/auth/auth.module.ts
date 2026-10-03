@@ -8,6 +8,9 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { LoginAttemptRepository } from './login-attempt.repository';
 import { PasswordHasher } from './password-hasher';
 import { RefreshTokenRepository } from './refresh-token.repository';
+import { SignupRepository } from './signup.repository';
+import { SignupService } from './signup.service';
+import { VerificationMailer } from './verification-mailer';
 
 /** Office authentication (MVP-40). JwtAuthGuard is exported for AppModule to register as a global guard. */
 @Module({
@@ -18,7 +21,16 @@ import { RefreshTokenRepository } from './refresh-token.repository';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, PasswordHasher, JwtAuthGuard, RefreshTokenRepository, LoginAttemptRepository],
+  providers: [
+    AuthService,
+    SignupService,
+    SignupRepository,
+    VerificationMailer,
+    PasswordHasher,
+    JwtAuthGuard,
+    RefreshTokenRepository,
+    LoginAttemptRepository,
+  ],
   exports: [JwtAuthGuard],
 })
 export class AuthModule {}

@@ -1,8 +1,8 @@
 import { Body, Controller, HttpCode, HttpStatus, Post, Req, Res } from '@nestjs/common';
 import { ApiCookieAuth, ApiNoContentResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { AuthSessionSchema, LoginRequestSchema } from '@nexlegtiq/shared-contracts';
-import type { AuthSession, LoginRequest } from '@nexlegtiq/shared-contracts';
+import { AuthSessionSchema, LoginRequestSchema, RegisterRequestSchema, VerifyEmailRequestSchema } from '@nexlegtiq/shared-contracts';
+import type { AuthSession, LoginRequest, RegisterRequest, VerifyEmailRequest } from '@nexlegtiq/shared-contracts';
 import type { Request, Response } from 'express';
 import { ClsService } from 'nestjs-cls';
 
@@ -13,24 +13,51 @@ import { AppConfig } from '../../config/app-config';
 import { Public } from '../../common/auth/public.decorator';
 import { AppException } from '../../common/errors/app.exception';
 import { AuthService } from './auth.service';
-import type { ClientInfo, IssuedSession } from './auth.service';
+import type { IssuedSession } from './auth.service';
+import type { ClientInfo } from './client-info';
 import { assertCookieRequestOrigin } from './csrf';
 import { REFRESH_COOKIE, refreshCookieOptions } from './refresh-token';
+import { SignupService } from './signup.service';
 
 const MINUTE_MS = 60_000;
 /** Refusals that mean the cookie is dead; any other error (CSRF, rate limit, outage) leaves it alone. */
-const DEAD_COOKIE_CODES = new Set(['AUTH-004', 'AUTH-005', 'AUTH-006']);
+const DEAD_COOKIE_CODES = new Set(['AUTH-004', 'AUTH-005', 'AUTH-006', 'AUTH-010']);
 
-/** `/api/v1/auth` — login, refresh, logout (auth-rbac.md, Flows; D-050, D-053, D-055). */
+/** `/api/v1/auth` — signup, email verification, login, refresh, logout (auth-rbac.md, Flows; D-050, D-053, D-055, D-083). */
 @ApiTags('auth')
 @Public()
 @Controller('auth')
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
+    private readonly signup: SignupService,
     private readonly config: AppConfig,
     private readonly cls: ClsService<RequestContext>,
   ) {}
+
+  @Post('register')
+  @HttpCode(HttpStatus.CREATED)
+  @Throttle({ default: { limit: 5, ttl: MINUTE_MS } })
+  @ApiOperation({ summary: 'Sign up an office and its manager; logs in like /auth/login (409 RES-002 if the email exists)' })
+  @ApiZodBody(RegisterRequestSchema)
+  @ApiZodResponse(201, AuthSessionSchema)
+  async register(
+    @Body(new ZodValidationPipe(RegisterRequestSchema)) body: RegisterRequest,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AuthSession> {
+    return this.respond(await this.signup.register(body, this.client(req)), res);
+  }
+
+  @Post('verify-email')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Throttle({ default: { limit: 10, ttl: MINUTE_MS } })
+  @ApiOperation({ summary: 'Confirm the signup email with the token from the link (410 RES-004 if invalid, used or expired)' })
+  @ApiZodBody(VerifyEmailRequestSchema)
+  @ApiNoContentResponse({ description: 'Email verified' })
+  async verifyEmail(@Body(new ZodValidationPipe(VerifyEmailRequestSchema)) body: VerifyEmailRequest, @Req() req: Request): Promise<void> {
+    await this.signup.verifyEmail(body, this.client(req));
+  }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)

@@ -72,6 +72,9 @@ const EnvObject = z.object({
 
   // HS256 key of the office access JWT (auth-rbac.md, Tokens); at least 32 characters of randomness.
   JWT_SECRET: z.string().min(32),
+  // AUTH-010 after 7 unverified days, and reclaiming abandoned unverified signups (D-083). Off until verification emails
+  // and resend are delivered: with no way to receive the link, enforcing it would lock out every new office.
+  EMAIL_VERIFICATION_ENFORCED: z.stringbool().default(false),
 });
 
 /** Every variable the backend reads; `.env.example` must document each of them (asserted in env.schema.spec.ts). */

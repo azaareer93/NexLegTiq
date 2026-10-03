@@ -81,7 +81,7 @@ DECLARE
   people_table text;
   readable text;
 BEGIN
-  FOREACH secret_table IN ARRAY ARRAY['refresh_tokens', 'password_reset_tokens', 'office_invitations'] LOOP
+  FOREACH secret_table IN ARRAY ARRAY['refresh_tokens', 'password_reset_tokens', 'email_verification_tokens', 'office_invitations'] LOOP
     IF to_regclass('public.' || secret_table) IS NOT NULL THEN
       EXECUTE format('REVOKE ALL ON public.%I FROM nexlegtiq_readonly', secret_table);
     END IF;

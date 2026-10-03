@@ -11,6 +11,7 @@ export const TENANT_MODELS = [
   'OfficeInvitation',
   'RefreshToken',
   'PasswordResetToken',
+  'EmailVerificationToken',
   'LegalAcceptance',
   'Subscription',
   'AuditLog',

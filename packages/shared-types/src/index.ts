@@ -12,6 +12,8 @@ export type { ErrorCode } from './api/error-codes.js';
 export type { Brand } from './brand.js';
 export type { OfficeId, UserId } from './ids.js';
 export { isLocale, SUPPORTED_LOCALES } from './locale.js';
+export { ACCOUNT_TYPES, JURISDICTIONS, OFFICE_LANGUAGES } from './office.js';
+export type { AccountType, Jurisdiction, OfficeLanguage } from './office.js';
 export type { Locale } from './locale.js';
 export {
   conditionFor,

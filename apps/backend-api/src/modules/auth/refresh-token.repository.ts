@@ -14,6 +14,8 @@ export const USER_FOR_SESSION = {
   role: true,
   uiLanguage: true,
   isActive: true,
+  emailVerifiedAt: true,
+  createdAt: true,
   office: { select: { name: true, isActive: true } },
 } as const;
 

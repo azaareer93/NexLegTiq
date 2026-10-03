@@ -3,7 +3,11 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 
 import { AppException, PermissionDeniedException } from '../../common/errors/app.exception';
+import { AppConfig } from '../../config/app-config';
+import { testEnv } from '../../config/env.fixture';
+import { parseEnv } from '../../config/env.schema';
 import type { PrismaService } from '../../database/prisma.service';
+import { hashOpaqueToken, newOpaqueToken } from '../../common/auth/opaque-token';
 import { Public } from '../../common/auth/public.decorator';
 import { JWT_AUDIENCE, JWT_ISSUER } from './auth.constants';
 import { assertCookieRequestOrigin } from './csrf';
@@ -11,7 +15,7 @@ import { bearerFor } from './auth.test-helper';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { isLocked, lockedUntil } from './lockout';
 import { PasswordHasher } from './password-hasher';
-import { hashRefreshToken, newRefreshToken, refreshCookieOptions, refreshExpiry, rotatedExpiry } from './refresh-token';
+import { refreshCookieOptions, refreshExpiry, rotatedExpiry } from './refresh-token';
 
 const SECRET = 'unit-test-only-jwt-secret-0123456789abcdef';
 const OFFICE = '01920000-0000-7000-8000-00000000000a';
@@ -26,11 +30,11 @@ function unsigned(): string {
 
 describe('refresh tokens and cookie', () => {
   it('should create opaque 32-byte tokens and store only their SHA-256', () => {
-    const token = newRefreshToken();
+    const token = newOpaqueToken();
     expect(Buffer.from(token, 'base64url')).toHaveLength(32);
-    expect(newRefreshToken()).not.toBe(token);
-    expect(hashRefreshToken(token)).toMatch(/^[0-9a-f]{64}$/);
-    expect(hashRefreshToken(token)).not.toContain(token);
+    expect(newOpaqueToken()).not.toBe(token);
+    expect(hashOpaqueToken(token)).toMatch(/^[0-9a-f]{64}$/);
+    expect(hashOpaqueToken(token)).not.toContain(token);
   });
 
   it('should last 7 days, or 30 with remember me', () => {
@@ -115,10 +119,11 @@ describe('JwtAuthGuard', () => {
       ...options,
     });
 
-  function setup(user: unknown = { role: 'LAWYER', isActive: true, office: { isActive: true } }) {
+  const verified = { emailVerifiedAt: new Date('2026-09-01T00:00:00Z'), createdAt: new Date('2026-09-01T00:00:00Z') };
+  function setup(user: unknown = { role: 'LAWYER', isActive: true, ...verified, office: { isActive: true } }) {
     const findFirst = jest.fn().mockResolvedValue(user);
     const prisma = { unscoped: () => ({ user: { findFirst } }) } as unknown as PrismaService;
-    const guard = new JwtAuthGuard(new Reflector(), jwt, prisma);
+    const guard = new JwtAuthGuard(new Reflector(), jwt, prisma, new AppConfig(parseEnv(testEnv({ EMAIL_VERIFICATION_ENFORCED: 'true' }))));
     const request: { headers: Record<string, string>; user?: unknown } = { headers: {} };
     const run = (authorization?: string, handler: object = () => undefined): Promise<boolean> => {
       if (authorization) request.headers['authorization'] = authorization;
@@ -148,7 +153,7 @@ describe('JwtAuthGuard', () => {
   });
 
   it('should authenticate a valid token and reload the role from the database', async () => {
-    const { run, request, findFirst } = setup({ role: 'SENIOR_LAWYER', isActive: true, office: { isActive: true } });
+    const { run, request, findFirst } = setup({ role: 'SENIOR_LAWYER', isActive: true, ...verified, office: { isActive: true } });
     await expect(run(`Bearer ${sign({ role: 'TRAINEE' })}`)).resolves.toBe(true);
     expect(findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: USER, officeId: OFFICE } }));
     expect(request.user).toEqual({ userId: USER, officeId: OFFICE, role: 'SENIOR_LAWYER', realm: 'OFFICE' });
@@ -173,9 +178,15 @@ describe('JwtAuthGuard', () => {
 
   it.each([
     ['a user that no longer exists (or moved office)', null, 'AUTH-003', 'Invalid or missing access token'],
-    ['an inactive user', { role: 'LAWYER', isActive: false, office: { isActive: true } }, 'AUTH-006', 'User account is inactive'],
-    ['a suspended office', { role: 'LAWYER', isActive: true, office: { isActive: false } }, 'AUTH-006', 'Office is suspended'],
-    ['an unknown role', { role: 'GHOST', isActive: true, office: { isActive: true } }, 'AUTH-003', 'Invalid or missing access token'],
+    ['an inactive user', { role: 'LAWYER', isActive: false, ...verified, office: { isActive: true } }, 'AUTH-006', 'User account is inactive'],
+    ['a suspended office', { role: 'LAWYER', isActive: true, ...verified, office: { isActive: false } }, 'AUTH-006', 'Office is suspended'],
+    ['an unknown role', { role: 'GHOST', isActive: true, ...verified, office: { isActive: true } }, 'AUTH-003', 'Invalid or missing access token'],
+    [
+      'an email unverified 7 days after signup',
+      { role: 'LAWYER', isActive: true, emailVerifiedAt: null, createdAt: new Date(Date.now() - 8 * 86_400_000), office: { isActive: true } },
+      'AUTH-010',
+      'Email address not verified',
+    ],
   ])('should refuse %s', async (_label, user, code, message) => {
     const { run } = setup(user);
     const error = await run(`Bearer ${sign({})}`).catch((caught: unknown) => caught);
