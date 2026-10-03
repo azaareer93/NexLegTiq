@@ -22,12 +22,17 @@ description: NexLegTiq multi-tenant data-access rules and code patterns — CLS 
 
 ## Workers
 ```ts
-@Processor(QUEUE.OCR)
-export class OcrWorker extends WorkerHost {
-  constructor(private readonly tenant: TenantRunner, private readonly ocr: OcrService) { super(); }
-  async process(job: Job<OcrJob>) {
-    return this.tenant.run({ officeId: job.data.officeId, requestId: job.data.requestId }, () => this.ocr.process(job.data.documentId));
-  }
+// Producer (in the request): officeId/requestId are added from CLS, never passed by the caller (D-084).
+await this.uow.run(async (tx, afterCommit) => {
+  const doc = await tx.document.create({ … });
+  afterCommit(() => this.queues.enqueue(QUEUE.OCR, 'process-document', { documentId: doc.id }));
+});
+
+// Consumer (registered in WorkerModule only): TenantProcessor validates the payload and runs handle() in the job's office.
+@Processor(QUEUE.OCR, workerOptions(QUEUE.OCR))
+export class OcrWorker extends TenantProcessor<OcrJob> {
+  constructor(tenant: TenantRunner, logger: PinoLogger, private readonly ocr: OcrService) { super(tenant, logger); }
+  protected handle(job: Job<OcrJob & TenantJobData>) { return this.ocr.process(job.data.documentId); }
 }
 ```
 

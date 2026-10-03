@@ -414,3 +414,26 @@ before the migration (seeds, invitations) are backfilled as verified, and **acce
 adapter story: until then `VerificationMailer` logs that delivery was skipped (never the token), and a hand-off failure never
 fails the signup. Why: one-step freemium signup now, without building email delivery twice, and no account can be locked
 out or squatted for good.
+
+**D-084 — Queue infrastructure details** · Accepted (MVP-34, 2026-10-03)
+MVP-34 left the library versions, producer/consumer shape, timeouts, Bull Board access and test Redis open. →
+`@nestjs/bullmq` pinned to **11.x** (12 is ESM-only; the backend is CommonJS, as for `@nestjs/jwt` in D-082) with **BullMQ
+5** (D-011; 6 is a new major). `src/common/queue/`: `QUEUE` (the seven canonical names) and `QUEUE_POLICY` (attempts,
+backoff, timeout, concurrency per architecture.md; priority = worker concurrency high 10 / medium 5 / low 2; retention 7 days
+or 1000 completed, 30 days failed). `QueueModule` (global, both processes) registers every queue from `REDIS_URL` +
+`BULLMQ_PREFIX`, logs queue connection errors (an unhandled `error` event would crash the process) and the `redis` readiness
+check (PING). **Producers:** `QueueProducer.enqueue(queue, name, fields)` is the only way to enqueue; it adds `officeId` and
+`requestId` from CLS (`TenantContextMissingError` outside a tenant context), and the field types forbid callers from passing
+them. **Consumers:** processors extend `TenantProcessor`, which validates the payload (no valid `officeId` →
+`UnrecoverableError`, no retries), runs `handle` in `TenantRunner` with the job's office and request id, applies the queue
+timeout (the attempt fails and is retried; the work itself is not cancelled) and logs failed attempts with queue, job id,
+attempt and request id; they are registered only in `WorkerModule`, so the HTTP app is producer-only. **After commit:**
+`UnitOfWork.run((tx, afterCommit) => …)` runs tasks in order after the transaction commits and never after a rollback; a task
+failing after commit is logged, not thrown (the data is committed) — a transactional outbox replaces this if lost jobs ever
+matter more than a retry endpoint. **Bull Board** at `/admin/queues` (unprefixed, plain Express middleware, so no Nest guard
+sees it) is mounted only with `BULL_BOARD_ENABLED` (default `false`), which the env schema **refuses in production** until the
+platform-admin realm can guard it. **Tests:** integration tests use real Redis (local stack or the CI service) — BullMQ runs
+Lua scripts that in-memory fakes do not, so the ticket's "in-memory switch" is not provided; `integrationEnv()` gives real
+`DATABASE_URL`/`REDIS_URL`, queue tests use a random `BULLMQ_PREFIX`, `drainQueue()` waits until a queue has no pending work,
+and unit tests that build the app without Redis replace `QueueModule` with `QueueStubModule`. Why: tenant context can't be
+forged or forgotten by producers, jobs can't leak across offices, and a Redis outage degrades instead of crashing.
