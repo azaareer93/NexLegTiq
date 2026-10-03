@@ -75,6 +75,35 @@ export type VerifyEmailRequest = z.infer<typeof VerifyEmailRequestSchema>;
 export const ResendVerificationRequestSchema = z.object({ email: EmailSchema });
 export type ResendVerificationRequest = z.infer<typeof ResendVerificationRequestSchema>;
 
+/** `POST /auth/forgot-password`: always 200, whether or not the email has an account (auth-rbac.md, D-086). */
+export const ForgotPasswordRequestSchema = z.object({ email: EmailSchema });
+export type ForgotPasswordRequest = z.infer<typeof ForgotPasswordRequestSchema>;
+
+/** `POST /auth/reset-password`: the token from the emailed link and the new password, typed twice (D-086). */
+export const ResetPasswordRequestSchema = z
+  .object({
+    token: z.string().trim().min(16, 'validation.invalidToken').max(128, 'validation.invalidToken'),
+    newPassword: NewPasswordSchema,
+    confirmPassword: z.string().max(256, 'validation.tooLong'),
+  })
+  .refine((body) => body.newPassword === body.confirmPassword, {
+    message: 'validation.password.mismatch',
+    path: ['confirmPassword'],
+  });
+export type ResetPasswordRequest = z.infer<typeof ResetPasswordRequestSchema>;
+
+/** `POST /users/me/password`: the current password, then a new one that differs from it (D-086). */
+export const ChangePasswordRequestSchema = z
+  .object({
+    currentPassword: z.string().min(1, 'validation.required').max(256, 'validation.tooLong'),
+    newPassword: NewPasswordSchema,
+  })
+  .refine((body) => body.newPassword !== body.currentPassword, {
+    message: 'validation.password.unchanged',
+    path: ['newPassword'],
+  });
+export type ChangePasswordRequest = z.infer<typeof ChangePasswordRequestSchema>;
+
 export const AuthUserSchema = z.object({
   id: z.uuid(),
   fullName: z.string(),

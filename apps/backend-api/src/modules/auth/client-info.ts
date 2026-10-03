@@ -1,4 +1,5 @@
 import type { OfficeId, UserId } from '@nexlegtiq/shared-types';
+import type { Request } from 'express';
 
 import type { TenantRunContext } from '../../common/tenancy/tenant-runner';
 
@@ -23,4 +24,9 @@ export function tenantContextFor(officeId: string, userId: string, client: Clien
     userId: userId as UserId,
     ...(client.requestId ? { requestId: client.requestId } : {}),
   };
+}
+
+/** Client details of an HTTP request. Behind the proxy chain of TRUST_PROXY_HOPS, so lockout and audit see the real address. */
+export function clientFromRequest(req: Request, requestId: string | null): ClientInfo {
+  return { ip: req.ip ?? '0.0.0.0', userAgent: req.get('user-agent') ?? null, requestId };
 }

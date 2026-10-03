@@ -1,8 +1,11 @@
 import {
   AuthSessionSchema,
+  ChangePasswordRequestSchema,
+  ForgotPasswordRequestSchema,
   LoginRequestSchema,
   RegisterRequestSchema,
   ResendVerificationRequestSchema,
+  ResetPasswordRequestSchema,
   VerifyEmailRequestSchema,
 } from './auth.contract.js';
 
@@ -113,5 +116,33 @@ describe('VerifyEmailRequestSchema', () => {
   it('should accept a link token and reject junk', () => {
     expect(VerifyEmailRequestSchema.safeParse({ token: 'A'.repeat(43) }).success).toBe(true);
     expect(VerifyEmailRequestSchema.safeParse({ token: 'short' }).success).toBe(false);
+  });
+});
+
+describe('password reset and change contracts (D-086)', () => {
+  const token = 'A'.repeat(43);
+
+  it('should normalise the forgot-password email', () => {
+    expect(ForgotPasswordRequestSchema.parse({ email: ' A@B.Test ' })).toEqual({ email: 'a@b.test' });
+  });
+
+  it('should accept a reset with a policy-compliant password typed twice', () => {
+    expect(ResetPasswordRequestSchema.safeParse({ token, newPassword: 'New-Pass-2026x', confirmPassword: 'New-Pass-2026x' }).success).toBe(true);
+  });
+
+  it.each([
+    [{ newPassword: 'New-Pass-2026x', confirmPassword: 'Testtesttest2' }, 'validation.password.mismatch'],
+    [{ newPassword: 'short', confirmPassword: 'short' }, 'validation.password.tooShort'],
+    [{ newPassword: 'Password123', confirmPassword: 'Password123' }, 'validation.password.common'],
+  ])('should reject reset %j', (change, message) => {
+    const result = ResetPasswordRequestSchema.safeParse({ token, ...change });
+    expect(result.error?.issues.map((issue) => issue.message)).toContain(message);
+  });
+
+  it('should require a new password that differs from the current one', () => {
+    expect(ChangePasswordRequestSchema.safeParse({ currentPassword: 'Old-Pass-2026x', newPassword: 'New-Pass-2026x' }).success).toBe(true);
+    const same = ChangePasswordRequestSchema.safeParse({ currentPassword: 'New-Pass-2026x', newPassword: 'New-Pass-2026x' });
+    expect(same.error?.issues.map((issue) => issue.message)).toContain('validation.password.unchanged');
+    expect(ChangePasswordRequestSchema.safeParse({ currentPassword: '', newPassword: 'New-Pass-2026x' }).success).toBe(false);
   });
 });

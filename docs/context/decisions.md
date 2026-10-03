@@ -482,3 +482,22 @@ and `localhost` is ::1 on Windows); CI starts the same containers in a step (Rus
 pass). **Amends D-078:** CI now runs storage and mail containers. **Amends D-084:** BullMQ 5.81 re-emits a connection's failed start
 as 'error' after `close()` removed its listeners (Redis unreachable at shutdown → thrown); `QueueModule` drops such events. Why: provider-agnostic storage and email with the tenant
 prefix enforced in one place, and no token ever stored outside the database's hash.
+
+**D-086 — Password reset and change details** · Accepted (MVP-41, 2026-10-03)
+→ `POST /auth/forgot-password` (`{email}`, public, 5/min per IP) always answers 200 with the same body. Only for an active
+user of an active office it enqueues `send-password-reset {userId}` — **without awaiting** the enqueue, so a known email
+does not answer measurably slower than an unknown one (`resend-verification` now does the same). The worker
+(`PasswordResetLinks`, the D-085 pattern) ends earlier unused reset links, stores the SHA-256 of a new **1-hour** token and
+emails the AR/EN `password-reset` template; the per-user limits (1 link a minute, retries exempt; 5 a day) are shared with
+verification links (`link-limits.ts`). `POST /auth/reset-password` (`{token, newPassword, confirmPassword}`, public, 5/min)
+applies the password policy (incl. "not the email"); unknown, used, expired or deactivated-user links → **410 RES-004**. One
+transaction claims the link (conditional update, so concurrent use fails), sets the new hash, ends every other reset link,
+revokes **all** the user's refresh tokens, marks the email verified (only its owner could open the link) and writes a
+`UPDATE` audit row (`{passwordReset: true}`); 204, the user signs in again. `POST /users/me/password`
+(`{currentPassword, newPassword}`, authenticated, 5/min, no permission needed — it is the caller's own account): a wrong
+current password is **400 VAL-001 on `currentPassword`**, not 401, so the SPA's refresh-on-401 never fires; the new
+password must differ from the current one. It revokes every refresh-token family **except the caller's** — the JWT guard
+now puts `sid` on the principal as `sessionId` (correlation only, never used for authorisation) — ends pending reset
+links and audits `{passwordChanged: true}`. Already-issued access tokens stay valid until they expire (≤15 min, D-082).
+`VerificationMailer` became `AccountMailer` (verification and reset jobs). Why: no account enumeration through answers or
+timing, a stolen session dies with a reset, and a password change does not sign the user out of the device they used.

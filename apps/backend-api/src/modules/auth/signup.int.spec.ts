@@ -20,7 +20,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { REFRESH_COOKIE } from './refresh-token';
 import { LEGAL_VERSIONS } from './signup.repository';
 import { VerificationLinks } from './verification-links';
-import { VerificationMailer } from './verification-mailer';
+import { AccountMailer } from './account-mailer';
 
 @Controller('__signup_probe__')
 class ProbeController {
@@ -94,9 +94,9 @@ describe('office signup (HTTP + PostgreSQL)', () => {
     // unscoped: test setup — reference plans, as `pnpm nx run backend-api:seed` creates them.
     await seedPlans(prisma.unscoped());
     // Records what is requested and still enqueues for real (no worker consumes this file's queue prefix).
-    const mailer = app.get(VerificationMailer);
-    const enqueue = mailer.send.bind(mailer);
-    jest.spyOn(mailer, 'send').mockImplementation(async (user, client) => {
+    const mailer = app.get(AccountMailer);
+    const enqueue = mailer.sendVerification.bind(mailer);
+    jest.spyOn(mailer, 'sendVerification').mockImplementation(async (user, client) => {
       requested.push(user);
       await enqueue(user, client);
     });

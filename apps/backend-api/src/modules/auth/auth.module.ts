@@ -2,15 +2,18 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 
 import { AppConfig } from '../../config/app-config';
+import { AccountMailer } from './account-mailer';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { LoginAttemptRepository } from './login-attempt.repository';
 import { PasswordHasher } from './password-hasher';
+import { PasswordController } from './password.controller';
+import { PasswordRepository } from './password.repository';
+import { PasswordService } from './password.service';
 import { RefreshTokenRepository } from './refresh-token.repository';
 import { SignupRepository } from './signup.repository';
 import { SignupService } from './signup.service';
-import { VerificationMailer } from './verification-mailer';
 
 /** Office authentication (MVP-40). JwtAuthGuard is exported for AppModule to register as a global guard. */
 @Module({
@@ -20,12 +23,14 @@ import { VerificationMailer } from './verification-mailer';
       useFactory: (config: AppConfig) => ({ secret: config.auth.jwtSecret }),
     }),
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, PasswordController],
   providers: [
     AuthService,
     SignupService,
     SignupRepository,
-    VerificationMailer,
+    AccountMailer,
+    PasswordService,
+    PasswordRepository,
     PasswordHasher,
     JwtAuthGuard,
     RefreshTokenRepository,

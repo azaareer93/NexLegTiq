@@ -4,6 +4,7 @@ import { CoreModule } from '../common/core/core.module';
 import { MailModule } from '../common/mail/mail.module';
 import { QueueModule } from '../common/queue/queue.module';
 import { StorageModule } from '../common/storage/storage.module';
+import { PasswordResetLinks } from '../modules/auth/password-reset-links';
 import { VerificationLinks } from '../modules/auth/verification-links';
 import { EmailProcessor } from './email.processor';
 import { DatabaseModule } from '../database/database.module';
@@ -14,6 +15,6 @@ import { DatabaseModule } from '../database/database.module';
  */
 @Module({
   imports: [CoreModule, DatabaseModule, QueueModule, StorageModule, MailModule],
-  providers: [EmailProcessor, VerificationLinks],
+  providers: [EmailProcessor, VerificationLinks, PasswordResetLinks],
 })
 export class WorkerModule {}

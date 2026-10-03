@@ -12,7 +12,7 @@ import { parseEnv } from '../../config/env.schema';
 import type { PrismaService } from '../../database/prisma.service';
 import type { ClientInfo } from './client-info';
 import { VerificationLinks } from './verification-links';
-import { SEND_VERIFICATION_EMAIL_JOB, VerificationMailer } from './verification-mailer';
+import { SEND_VERIFICATION_EMAIL_JOB, AccountMailer } from './account-mailer';
 
 const OFFICE = '01920000-0000-7000-8000-00000000000a';
 const USER = '01920000-0000-7000-8000-0000000000aa';
@@ -95,10 +95,10 @@ describe('VerificationLinks (worker side, D-085)', () => {
   });
 });
 
-describe('VerificationMailer', () => {
+describe('AccountMailer', () => {
   it("should enqueue only the user id, in the user's office", async () => {
     const enqueue = jest.fn(async () => ({ officeId: cls.get('officeId') }));
-    await new VerificationMailer(runner, { enqueue } as unknown as QueueProducer, logger()).send({ userId: USER, officeId: OFFICE }, client);
+    await new AccountMailer(runner, { enqueue } as unknown as QueueProducer, logger()).sendVerification({ userId: USER, officeId: OFFICE }, client);
     expect(enqueue).toHaveBeenCalledWith('email', SEND_VERIFICATION_EMAIL_JOB, { userId: USER });
     await expect(enqueue.mock.results[0]?.value).resolves.toEqual({ officeId: OFFICE });
   });
@@ -106,7 +106,7 @@ describe('VerificationMailer', () => {
   it('should log a failed enqueue instead of failing the caller', async () => {
     const log = logger();
     const enqueue = jest.fn().mockRejectedValue(new Error('redis down'));
-    await expect(new VerificationMailer(runner, { enqueue } as unknown as QueueProducer, log).send({ userId: USER, officeId: OFFICE }, client)).resolves.toBeUndefined();
-    expect(log.error).toHaveBeenCalledWith(expect.objectContaining({ userId: USER }), 'Could not enqueue the verification email');
+    await expect(new AccountMailer(runner, { enqueue } as unknown as QueueProducer, log).sendVerification({ userId: USER, officeId: OFFICE }, client)).resolves.toBeUndefined();
+    expect(log.error).toHaveBeenCalledWith(expect.objectContaining({ userId: USER }), 'Could not enqueue an account email');
   });
 });

@@ -76,6 +76,14 @@ export class RefreshTokenRepository {
     await tx.refreshToken.update({ where: { id }, data: { replacedById } });
   }
 
+  /** Ends every session of a user (password reset), or every other one (password change keeps `exceptFamilyId`). */
+  async revokeAllForUser(tx: ScopedTx, userId: string, exceptFamilyId?: string): Promise<void> {
+    await tx.refreshToken.updateMany({
+      where: { userId, revokedAt: null, ...(exceptFamilyId ? { familyId: { not: exceptFamilyId } } : {}) },
+      data: { revokedAt: new Date() },
+    });
+  }
+
   async revokeFamily(tx: ScopedTx, familyId: string): Promise<void> {
     await tx.refreshToken.updateMany({ where: { familyId, revokedAt: null }, data: { revokedAt: new Date() } });
   }

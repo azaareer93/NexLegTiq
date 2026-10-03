@@ -31,6 +31,11 @@ export interface AuthPrincipal {
   readonly officeId: OfficeId;
   readonly role: Role;
   readonly realm: AuthRealm;
+  /**
+   * The refresh-token family behind the access token (JWT `sid`, D-082): lets a password change end every session but
+   * this one (D-086). Never used for authorisation.
+   */
+  readonly sessionId?: string;
 }
 
 // Accept caller-provided ids only if they are short and safe to echo into logs and headers.
