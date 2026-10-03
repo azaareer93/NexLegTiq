@@ -13,6 +13,7 @@ import type { RequestContext } from '../context/request-context';
 import { TenantRunner } from '../tenancy/tenant-runner';
 import { TenantContextMissingError } from '../tenancy/tenant.errors';
 import { BULL_BOARD_PATH, mountBullBoard } from './bull-board';
+import { QueueModule } from './queue.module';
 import { ENQUEUE_TIMEOUT_MS, QueueProducer } from './queue-producer';
 import { QUEUE, QUEUE_NAMES, QUEUE_POLICY, workerOptions } from './queues';
 import { redisConnectionOptions } from './redis-connection';
@@ -55,6 +56,23 @@ describe('queues (D-011, architecture.md)', () => {
         removeOnFail: { age: 30 * 86_400 },
       });
     }
+  });
+});
+
+describe('QueueModule', () => {
+  it('should log queue errors and drop a connection error that arrives after close instead of crashing', () => {
+    const connections = QUEUE_NAMES.map(() => new EventEmitter());
+    const queues = connections.map((connection) => Object.assign(new EventEmitter(), { connection }));
+    const pending = [...queues];
+    const log = logger();
+    new QueueModule({ get: () => pending.shift() } as never, { register: jest.fn() } as never, log);
+
+    queues[0]?.emit('error', new Error('ECONNREFUSED'));
+    expect(log.warn).toHaveBeenCalledWith(expect.objectContaining({ queue: QUEUE_NAMES[0] }), 'Queue connection error');
+    // What BullMQ's close() leaves behind: a connection with no listeners whose failed start still emits 'error'.
+    expect(() => connections[0]?.emit('error', new Error('Connection is closed.'))).not.toThrow();
+    connections[1]?.on('error', () => undefined);
+    expect(connections[1]?.emit('error', new Error('handled'))).toBe(true);
   });
 });
 

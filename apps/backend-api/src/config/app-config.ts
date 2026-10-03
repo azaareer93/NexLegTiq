@@ -72,6 +72,7 @@ export class AppConfig {
     readonly accessKeyId: string;
     readonly secretAccessKey: string;
     readonly forcePathStyle: boolean;
+    readonly sse: 'AES256' | 'none';
   } {
     return {
       endpoint: this.#env.S3_ENDPOINT,
@@ -80,6 +81,7 @@ export class AppConfig {
       accessKeyId: this.#env.S3_ACCESS_KEY_ID,
       secretAccessKey: this.#env.S3_SECRET_ACCESS_KEY,
       forcePathStyle: this.#env.S3_FORCE_PATH_STYLE,
+      sse: this.#env.S3_SSE,
     };
   }
 
@@ -90,6 +92,9 @@ export class AppConfig {
     readonly requireTLS: boolean;
     readonly auth?: { readonly user: string; readonly pass: string };
     readonly from: string;
+    readonly provider: 'smtp' | 'resend';
+    readonly resendApiKey?: string;
+    readonly officeAppUrl: string;
   } {
     const { SMTP_USER: user, SMTP_PASSWORD: pass } = this.#env;
     return {
@@ -99,6 +104,10 @@ export class AppConfig {
       requireTLS: this.#env.SMTP_REQUIRE_TLS,
       ...(user !== undefined && pass !== undefined ? { auth: { user, pass } } : {}),
       from: this.#env.MAIL_FROM,
+      provider: this.#env.EMAIL_PROVIDER,
+      ...(this.#env.RESEND_API_KEY ? { resendApiKey: this.#env.RESEND_API_KEY } : {}),
+      // Without a trailing slash, so templates can append paths.
+      officeAppUrl: this.#env.OFFICE_APP_URL.replace(/\/+$/, ''),
     };
   }
 

@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import type { RegisterRequest, VerifyEmailRequest } from '@nexlegtiq/shared-contracts';
+import type { RegisterRequest, ResendVerificationRequest, VerifyEmailRequest } from '@nexlegtiq/shared-contracts';
 import type { AccountType } from '@nexlegtiq/shared-types';
 import { PinoLogger } from 'nestjs-pino';
 
-import { hashOpaqueToken, newOpaqueToken } from '../../common/auth/opaque-token';
+import { hashOpaqueToken } from '../../common/auth/opaque-token';
 import { AppException } from '../../common/errors/app.exception';
 import { TenantRunner } from '../../common/tenancy/tenant-runner';
 import { AppConfig } from '../../config/app-config';
@@ -12,7 +12,7 @@ import { AuthService } from './auth.service';
 import type { IssuedSession } from './auth.service';
 import { tenantContextFor } from './client-info';
 import type { ClientInfo } from './client-info';
-import { isVerificationOverdue, verificationLinkExpiry } from './email-verification';
+import { isVerificationOverdue } from './email-verification';
 import { PasswordHasher } from './password-hasher';
 import { SignupRepository } from './signup.repository';
 import type { ExistingAccount } from './signup.repository';
@@ -56,15 +56,12 @@ export class SignupService {
     const existing = await this.signups.findAccount(body.email);
     if (existing && !this.isReclaimable(existing, now)) throw new AppException('RES-002', EMAIL_TAKEN);
 
-    const verificationToken = newOpaqueToken();
     const uiLanguage = body.defaultLanguage === 'EN' ? 'EN' : 'AR';
     const user = await this.signups.createOfficeAccount({
       body,
       planCode: signupPlanCode(body),
       passwordHash: await this.passwords.hash(body.password),
       uiLanguage,
-      verificationTokenHash: hashOpaqueToken(verificationToken),
-      verificationExpiresAt: verificationLinkExpiry(now),
       now,
       client,
       ...(existing ? { release: { userId: existing.id, officeId: existing.officeId } } : {}),
@@ -74,13 +71,20 @@ export class SignupService {
     const opened = await this.tenant.run(tenantContextFor(user.officeId, user.id, client), () =>
       this.prisma.db.$transaction((tx) => this.auth.openSession(tx, user, { rememberMe: false, now, client })),
     );
-    try {
-      this.mailer.send({ userId: user.id, officeId: user.officeId, email: user.email, language: uiLanguage, token: verificationToken });
-    } catch (error) {
-      // The office is committed: a delivery problem must not turn signup into an error (resend comes with delivery).
-      this.logger.error({ err: error, userId: user.id }, 'Could not hand off the verification email');
-    }
+    // The worker creates the link and sends it (D-085); a failure here is logged, never turns signup into an error.
+    await this.mailer.send({ userId: user.id, officeId: user.officeId }, client);
     return this.auth.issue(user, opened);
+  }
+
+  /**
+   * Sends a new verification link (D-085). Always the same answer, so it never reveals whether an account exists; an email
+   * is only sent to an unverified, active user of an active office.
+   */
+  async resendVerification(body: ResendVerificationRequest, client: ClientInfo): Promise<void> {
+    const account = await this.signups.findAccount(body.email);
+    if (account && account.emailVerifiedAt === null && account.isActive && account.officeActive) {
+      await this.mailer.send({ userId: account.id, officeId: account.officeId }, client);
+    }
   }
 
   /** Confirms the address. Unknown, used and expired links all get the same 410 RES-004. */

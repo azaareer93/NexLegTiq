@@ -33,6 +33,7 @@ export const SENSITIVE_KEYS = [
   'REDIS_URL',
   'S3_SECRET_ACCESS_KEY',
   'JWT_SECRET',
+  'RESEND_API_KEY',
   'jwtSecret',
   'SMTP_PASSWORD',
   'apiKey',

@@ -71,6 +71,10 @@ export const VerifyEmailRequestSchema = z.object({
 });
 export type VerifyEmailRequest = z.infer<typeof VerifyEmailRequestSchema>;
 
+/** `POST /auth/resend-verification`: always 202, whether or not the email has an account (D-085). */
+export const ResendVerificationRequestSchema = z.object({ email: EmailSchema });
+export type ResendVerificationRequest = z.infer<typeof ResendVerificationRequestSchema>;
+
 export const AuthUserSchema = z.object({
   id: z.uuid(),
   fullName: z.string(),

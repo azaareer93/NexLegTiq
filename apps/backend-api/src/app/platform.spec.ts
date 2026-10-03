@@ -5,6 +5,7 @@ import request from 'supertest';
 
 import { QueueModule } from '../common/queue/queue.module';
 import { QueueStubModule } from '../common/queue/testing';
+import { StorageService } from '../common/storage/storage.service';
 import { PrismaService } from '../database/prisma.service';
 import { ReadinessRegistry } from '../health/readiness.registry';
 import { MetricsService } from '../metrics/metrics.service';
@@ -32,6 +33,9 @@ async function createApp(): Promise<NestExpressApplication> {
     .overrideModule(QueueModule)
     .useModule(QueueStubModule)
     .overrideProvider(PrismaService)
+    .useValue({})
+    // No object storage either: the real StorageService would register a failing `storage` readiness check.
+    .overrideProvider(StorageService)
     .useValue({})
     .compile();
   const app = moduleRef.createNestApplication<NestExpressApplication>({ bodyParser: false, bufferLogs: true });

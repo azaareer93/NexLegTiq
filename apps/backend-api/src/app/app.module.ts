@@ -3,7 +3,9 @@ import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 import { CoreModule } from '../common/core/core.module';
+import { MailModule } from '../common/mail/mail.module';
 import { QueueModule } from '../common/queue/queue.module';
+import { StorageModule } from '../common/storage/storage.module';
 import { DatabaseModule } from '../database/database.module';
 import { GlobalExceptionFilter } from '../common/errors/global-exception.filter';
 import { EnvelopeInterceptor } from '../common/http/envelope.interceptor';
@@ -21,6 +23,8 @@ import { JwtAuthGuard } from '../modules/auth/jwt-auth.guard';
     DatabaseModule,
     // Producers only: the HTTP app enqueues, the worker process consumes (D-011).
     QueueModule,
+    StorageModule,
+    MailModule,
     HealthModule,
     MetricsModule,
     AuthModule,

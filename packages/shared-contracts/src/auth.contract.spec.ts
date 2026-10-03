@@ -1,4 +1,10 @@
-import { AuthSessionSchema, LoginRequestSchema, RegisterRequestSchema, VerifyEmailRequestSchema } from './auth.contract.js';
+import {
+  AuthSessionSchema,
+  LoginRequestSchema,
+  RegisterRequestSchema,
+  ResendVerificationRequestSchema,
+  VerifyEmailRequestSchema,
+} from './auth.contract.js';
 
 describe('LoginRequestSchema', () => {
   it('should normalise the email and default rememberMe', () => {
@@ -93,6 +99,13 @@ describe('RegisterRequestSchema', () => {
 
   it('should accept an international phone number', () => {
     expect(RegisterRequestSchema.parse({ ...valid, phone: '+970 59 123 4567' }).phone).toBe('+970 59 123 4567');
+  });
+});
+
+describe('ResendVerificationRequestSchema', () => {
+  it('should normalise the email and reject junk', () => {
+    expect(ResendVerificationRequestSchema.parse({ email: ' A@B.Test ' })).toEqual({ email: 'a@b.test' });
+    expect(ResendVerificationRequestSchema.safeParse({ email: 'nope' }).success).toBe(false);
   });
 });
 
