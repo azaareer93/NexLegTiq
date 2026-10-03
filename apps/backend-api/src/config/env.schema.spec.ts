@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { inspect, parseEnv as parseDotenv } from 'node:util';
 
 import { AppConfig } from './app-config';
-import { REQUIRED_TEST_ENV, testEnv } from './env.fixture';
+import { integrationEnv, REQUIRED_TEST_ENV, testEnv } from './env.fixture';
 import { ENV_KEYS, parseEnv } from './env.schema';
 
 describe('parseEnv', () => {
@@ -146,6 +146,7 @@ describe('parseEnv', () => {
     ['S3_ACCESS_KEY_ID', 'ci-only-access-key'],
     ['TRUST_PROXY_HOPS', '0'],
     ['TRUST_PROXY_HOPS', undefined],
+    ['BULL_BOARD_ENABLED', 'true'],
   ])('should reject %s=%s in production (plaintext transport or dev credential)', (key, value) => {
     expect(() => parseEnv(testEnv({ NODE_ENV: 'production', [key]: value }))).toThrow(new RegExp(key));
     expect(() => parseEnv(testEnv({ NODE_ENV: 'development', [key]: value }))).not.toThrow();
@@ -167,6 +168,25 @@ describe('parseEnv', () => {
     expect(() => parseEnv(testEnv({ SMTP_USER: 'mailer' }))).toThrow(/SMTP_PASSWORD/);
     expect(() => parseEnv(testEnv({ SMTP_PASSWORD: 'pw' }))).toThrow(/SMTP_PASSWORD/);
     expect(() => parseEnv(testEnv({ SMTP_USER: 'mailer', SMTP_PASSWORD: 'pw' }))).not.toThrow();
+  });
+});
+
+describe('integrationEnv', () => {
+  it('should use the real database and Redis from the environment, falling back to the local Redis', () => {
+    const saved = { db: process.env['DATABASE_URL'], redis: process.env['REDIS_URL'] };
+    try {
+      process.env['DATABASE_URL'] = 'postgresql://it:it@127.0.0.1:5434/it';
+      delete process.env['REDIS_URL'];
+      expect(integrationEnv({ CORS_ORIGINS: 'http://x.test' })).toMatchObject({
+        DATABASE_URL: 'postgresql://it:it@127.0.0.1:5434/it',
+        REDIS_URL: 'redis://127.0.0.1:6379',
+        NODE_ENV: 'test',
+        METRICS_ENABLED: 'false',
+        CORS_ORIGINS: 'http://x.test',
+      });
+    } finally {
+      Object.assign(process.env, { DATABASE_URL: saved.db, ...(saved.redis ? { REDIS_URL: saved.redis } : {}) });
+    }
   });
 });
 

@@ -75,6 +75,8 @@ const EnvObject = z.object({
   // AUTH-010 after 7 unverified days, and reclaiming abandoned unverified signups (D-083). Off until verification emails
   // and resend are delivered: with no way to receive the link, enforcing it would lock out every new office.
   EMAIL_VERIFICATION_ENFORCED: z.stringbool().default(false),
+  // Bull Board at /admin/queues (D-084). Unauthenticated Express middleware: local debugging only, refused in production.
+  BULL_BOARD_ENABLED: z.stringbool().default(false),
 });
 
 /** Every variable the backend reads; `.env.example` must document each of them (asserted in env.schema.spec.ts). */
@@ -101,6 +103,7 @@ export const EnvSchema = EnvObject.refine((env) => !(env.NODE_ENV === 'productio
       // With 0 behind a proxy every client shares the proxy's IP: one attacker would lock out or throttle everyone.
       fail('TRUST_PROXY_HOPS', 'must be set to the number of reverse proxies (>= 1) in production');
     }
+    if (env.BULL_BOARD_ENABLED) fail('BULL_BOARD_ENABLED', 'must be false in production until platform-admin auth guards it');
     if (env.SMTP_REQUIRE_TLS === false && !env.SMTP_SECURE) {
       fail('SMTP_REQUIRE_TLS', 'must not be false in production unless SMTP_SECURE is true');
     }

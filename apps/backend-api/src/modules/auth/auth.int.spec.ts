@@ -11,7 +11,7 @@ import request from 'supertest';
 import { configureApp } from '../../app/configure-app';
 import { AppModule } from '../../app/app.module';
 import { RequirePermissions } from '../../common/rbac/permissions.decorator';
-import { testEnv } from '../../config/env.fixture';
+import { integrationEnv } from '../../config/env.fixture';
 import { PrismaService } from '../../database/prisma.service';
 import { bearerFor } from './auth.test-helper';
 import { REFRESH_COOKIE } from './refresh-token';
@@ -90,7 +90,7 @@ describe('auth (HTTP + PostgreSQL)', () => {
   beforeAll(async () => {
     // Real database from the environment; every other required variable from the test fixture (TRUST_PROXY_HOPS=1, so
     // X-Forwarded-For sets the client IP).
-    Object.assign(process.env, testEnv({ DATABASE_URL: process.env['DATABASE_URL'], NODE_ENV: 'test', CORS_ORIGINS: ORIGIN, METRICS_ENABLED: 'false' }));
+    Object.assign(process.env, integrationEnv({ CORS_ORIGINS: ORIGIN }));
     // (metrics off: two app instances in this file would both bind the metrics port)
     app = await createApp({ throttle: false });
     prisma = app.get(PrismaService);
