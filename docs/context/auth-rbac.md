@@ -15,7 +15,8 @@ Client portal uses a separate realm: audience `portal`, secret `JWT_PORTAL_SECRE
 ## Flows
 - **Signup** (W1 + onboarding): office + OFFICE_MANAGER user + Free/Trial subscription + default settings +
   ToS acceptance, in one transaction; email verification link (must verify within 7 days to keep access). Plan, legal
-  versions, auto-login, 410 for bad links and AUTH-010: D-083.
+  versions, auto-login, 410 for bad links and AUTH-010: D-083. The link is created and emailed by the worker; resend via
+  `POST /auth/resend-verification` (always 202): D-085.
 - **Login**: rate-limited per IP (login 5/min, refresh/logout 30/min) + lockout (D-053, details D-082). Inactive user → 403 `AUTH-006`.
   Response: `{accessToken, expiresIn: 900, user{id, fullName, email, role, officeId, officeName, uiLanguage, permissions[],
   emailVerified, verifyBy}}` (D-083).

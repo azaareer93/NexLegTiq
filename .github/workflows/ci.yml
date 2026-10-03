@@ -35,7 +35,8 @@ jobs:
       NODE_ENV: test
       DATABASE_URL: postgresql://nexlegtiq:test@localhost:5432/nexlegtiq_test
       REDIS_URL: redis://localhost:6379
-      # Required by env.schema.ts; no CI job talks to storage/mail/ClamAV yet, so no service containers for them.
+      # Required by env.schema.ts. Integration tests use the storage and mail containers started below at fixed
+      # 127.0.0.1 addresses (integrationEnv); nothing talks to ClamAV yet.
       S3_ENDPOINT: http://localhost:9000
       S3_REGION: us-east-1
       S3_BUCKET: nexlegtiq-documents-ci
@@ -60,6 +61,19 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - uses: nrwl/nx-set-shas@v4
       - run: pnpm nx affected -t lint typecheck --parallel=3
+      # Same images and credentials as docker/compose.dev.yml. Started here, not as services: RustFS needs its data
+      # directory as a command argument, which service containers cannot pass.
+      - name: Start object storage and mail for integration tests
+        if: ${{ hashFiles('apps/backend-api/prisma/schema.prisma') != '' }}
+        run: |
+          docker run -d --name s3 -p 127.0.0.1:9000:9000 -e RUSTFS_ADDRESS=0.0.0.0:9000 \
+            -e RUSTFS_ACCESS_KEY=nexlegtiq -e RUSTFS_SECRET_KEY=nexlegtiq-dev-only rustfs/rustfs:1.0.0 /data
+          docker run -d --name mailpit -p 127.0.0.1:1025:1025 -p 127.0.0.1:8025:8025 axllent/mailpit:v1.31.3
+          for attempt in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:9000/health >/dev/null && curl -fsS http://127.0.0.1:8025/api/v1/info >/dev/null && exit 0
+            sleep 2
+          done
+          echo 'storage or mail container did not become ready' && exit 1
       - run: pnpm nx run backend-api:prisma-deploy
         if: ${{ hashFiles('apps/backend-api/prisma/schema.prisma') != '' }}
       - run: pnpm nx run backend-api:integration

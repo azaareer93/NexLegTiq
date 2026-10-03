@@ -49,7 +49,7 @@ src/
                      filters (global exception → envelope), pipes (zod), decorators (@CurrentUser, @RequirePermissions,
                      @RequireAnyPermission, @Public), middleware (request-id), exceptions (AppException family)
   infra/             prisma (client + tenant $extends), redis, cache (CacheKeys), queue, storage (S3-compatible),
-                     mail (Resend), crypto (AES-GCM), clamav
+                     mail (SMTP or Resend; templates AR/EN — D-085, code in src/common/{storage,mail}), crypto (AES-GCM), clamav
   modules/
     auth  users  offices  subscriptions  clients  cases (legal files, parties, team, timeline)  courts
     sessions (+ reminders)  documents (+ folders, versions, ocr)  tasks  billing  search  ai  notifications

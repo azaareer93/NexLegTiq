@@ -444,3 +444,30 @@ Lua scripts that in-memory fakes do not, so the ticket's "in-memory switch" is n
 `DATABASE_URL`/`REDIS_URL`, queue tests use a random `BULLMQ_PREFIX`, `drainQueue()` waits until a queue has no pending work,
 and unit tests that build the app without Redis replace `QueueModule` with `QueueStubModule`. Why: tenant context can't be
 forged or forgotten by producers, jobs can't leak across offices, and a Redis outage degrades instead of crashing.
+
+**D-085 — Storage and email adapters; verification links are created by the worker** · Accepted (owner chose the token flow; MVP-35, 2026-10-03)
+→ **Storage** (`src/common/storage`, AWS SDK v3, S3-compatible): `StorageService.keyFor(...segments)` builds
+`{officeId}/…` from the request/job context (segments `[A-Za-z0-9._-]` only, no `..` or `/`), and `put` (streamed, multipart),
+`getStream`, `head`, `delete` (idempotent) and `presignedGetUrl` (300 s default, D-013; `filename` → RFC 6266/5987
+`Content-Disposition`, so Arabic names survive) all refuse a key outside the current office (`TenantViolationError`). Failures:
+STO-001 upload, STO-002 download/lookup/link, STO-003 delete; a missing object is RES-001 (`head` → null). `S3_SSE`
+(`AES256` | `none`, default `none`) sets the SSE header on uploads: AWS S3 takes AES256; RustFS rejects the header and R2
+encrypts at rest on its own. A `storage` readiness check runs HeadBucket. **Email** (`src/common/mail`): `MailService.send(to,
+template, locale, vars)` enqueues `email/send-email`; the worker renders and delivers. Templates (`verify-email`, `invite`,
+`password-reset`, AR/EN) are Handlebars kept in code (no assets to bundle; strict variables; HTML escaped, subject and text not),
+inside one layout with `lang`/`dir`, alignment from the direction (email clients ignore logical CSS), an Arabic-first font stack
+and footer links to `{OFFICE_APP_URL}/legal/terms|privacy`. `EMAIL_PROVIDER=smtp|resend` (default smtp; `RESEND_API_KEY`
+required for resend, redacted in logs): nodemailer with the D-078 TLS rules, or the Resend HTTP API (no SDK); any provider
+failure is EXT-001 and is retried by the email queue policy. `OFFICE_APP_URL` (https in production) is the base of every link.
+**One `EmailProcessor`** consumes the `email` queue (BullMQ gives every job of a queue to its workers, so one processor per
+queue); it lives in `src/worker/` because it joins mail delivery with auth's link creation. **Verification links (amends
+D-083):** signup and `POST /auth/resend-verification` (`{email}`, public, 3/min per IP, always 202 so it never reveals an
+account) enqueue `send-verification-email {userId}` only; the worker, in the user's office, ends earlier unused links, stores
+the SHA-256 of a new 7-day token and emails the raw link in the user's language — no secret ever sits in Redis or on Bull
+Board, and a retried job just issues another link. Resend only sends to an unverified, active user of an active office;
+signup no longer creates the link itself. Password-reset and invitation emails will follow the same pattern.
+`EMAIL_VERIFICATION_ENFORCED` stays off by default: turn it on per environment once its mail delivery is configured. **Tests:**
+`integrationEnv()` targets the dev stack's RustFS and Mailpit at fixed 127.0.0.1 addresses (Nx loads the developer's `.env`,
+and `localhost` is ::1 on Windows); CI starts the same containers in a step (RustFS needs a command argument services cannot
+pass). **Amends D-078:** CI now runs storage and mail containers. Why: provider-agnostic storage and email with the tenant
+prefix enforced in one place, and no token ever stored outside the database's hash.
