@@ -1,0 +1,27 @@
+{
+  "appName": "NexLegTiq",
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "create": "Create",
+    "edit": "Edit",
+    "delete": "Delete",
+    "close": "Close",
+    "back": "Back",
+    "confirm": "Confirm",
+    "search": "Search",
+    "retry": "Try again"
+  },
+  "language": {
+    "label": "Language",
+    "ar": "العربية",
+    "en": "English"
+  },
+  "states": {
+    "loading": "Loading…",
+    "empty": "Nothing here yet",
+    "error": "Something went wrong"
+  },
+  "fileCount_one": "{{count}} case",
+  "fileCount_other": "{{count}} cases"
+}

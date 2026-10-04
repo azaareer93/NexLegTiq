@@ -21,7 +21,7 @@ describe('module boundaries', () => {
   }, 60_000);
 
   it.each([
-    ['shared-types importing shared-i18n', 'packages/shared-types/src/fixture.ts', '@nexlegtiq/shared-i18n'],
+    ['shared-i18n importing shared-utils', 'packages/shared-i18n/src/fixture.ts', '@nexlegtiq/shared-utils'],
     ['shared-utils importing shared-contracts', 'packages/shared-utils/src/fixture.ts', '@nexlegtiq/shared-contracts'],
     ['shared-ui importing shared-api-client', 'packages/shared-ui/src/fixture.ts', '@nexlegtiq/shared-api-client'],
     ['backend-api importing shared-ui', 'apps/backend-api/src/fixture.ts', '@nexlegtiq/shared-ui'],

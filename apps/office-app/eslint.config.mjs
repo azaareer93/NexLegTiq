@@ -1,9 +1,11 @@
 import nx from "@nx/eslint-plugin";
 import baseConfig from "../../eslint.config.mjs";
+import { noLiteralString } from "../../packages/shared-config/eslint/no-literal-string.mjs";
 
 export default [
     ...nx.configs["flat/react"],
     ...baseConfig,
+    ...noLiteralString,
     {
         files: [
             "**/*.ts",

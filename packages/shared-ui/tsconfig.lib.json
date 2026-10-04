@@ -56,6 +56,9 @@
     },
     {
       "path": "../shared-types/tsconfig.lib.json"
+    },
+    {
+      "path": "../shared-i18n/tsconfig.lib.json"
     }
   ]
 }

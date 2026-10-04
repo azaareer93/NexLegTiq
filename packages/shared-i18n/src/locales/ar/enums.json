@@ -1,0 +1,38 @@
+{
+  "jurisdiction": {
+    "PALESTINE": "فلسطين",
+    "JORDAN": "الأردن",
+    "EGYPT": "مصر",
+    "SAUDI_ARABIA": "المملكة العربية السعودية",
+    "UAE": "الإمارات العربية المتحدة",
+    "KUWAIT": "الكويت",
+    "QATAR": "قطر",
+    "OMAN": "عُمان",
+    "BAHRAIN": "البحرين",
+    "LEBANON": "لبنان",
+    "IRAQ": "العراق",
+    "MOROCCO": "المغرب",
+    "USA": "الولايات المتحدة الأمريكية",
+    "UK": "المملكة المتحدة",
+    "OTHER": "أخرى"
+  },
+  "accountType": {
+    "SOLO": "محامٍ مستقل",
+    "FIRM": "مكتب محاماة",
+    "CORPORATE": "دائرة قانونية في شركة"
+  },
+  "officeLanguage": {
+    "AR": "العربية",
+    "EN": "الإنجليزية",
+    "BILINGUAL": "ثنائي اللغة"
+  },
+  "role": {
+    "OFFICE_MANAGER": "مدير المكتب",
+    "SENIOR_LAWYER": "المحامي الأول",
+    "LAWYER": "المحامي",
+    "PARALEGAL": "مساعد قانوني",
+    "ADMIN": "موظف إداري",
+    "TRAINEE": "محامٍ متدرب",
+    "EXTERNAL_COLLABORATOR": "متعاون خارجي"
+  }
+}
