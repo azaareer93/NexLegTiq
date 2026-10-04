@@ -8,5 +8,15 @@
     "scope:shared",
     "layer:i18n"
   ],
-  "targets": {}
+  "targets": {
+    "test": {
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/packages/shared-contracts/src/**/*.ts",
+        "{workspaceRoot}/apps/backend-api/src/modules/**/*.ts",
+        "{workspaceRoot}/docs/context/glossary.md"
+      ]
+    }
+  }
 }

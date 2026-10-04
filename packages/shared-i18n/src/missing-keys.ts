@@ -1,6 +1,8 @@
 import type { TranslationTree } from './resources.js';
 
-const PLURAL_SUFFIX = /_(zero|one|two|few|many|other)$/;
+// Suffixes are reserved for plurals: a key such as `step_two` is read as a plural form of `step`.
+const ALL_PLURAL_FORMS = ['zero', 'one', 'two', 'few', 'many', 'other'] as const;
+const PLURAL_SUFFIX = new RegExp(`_(${ALL_PLURAL_FORMS.join('|')})$`);
 
 type Resources = Readonly<Record<string, Readonly<Record<string, TranslationTree>>>>;
 
@@ -20,7 +22,9 @@ export function findMissingKeys(resources: Resources): string[] {
         problems.push(`${locale}: missing ${key}`);
         continue;
       }
-      if (keys.has(key)) continue;
+      // A plural set must be complete even beside a plain key: `t(key, { count })` would otherwise show the plain text.
+      const isPlural = ALL_PLURAL_FORMS.some((form) => keys.has(`${key}_${form}`));
+      if (!isPlural) continue;
       const missing = forms.filter((form) => !keys.has(`${key}_${form}`));
       if (missing.length > 0) problems.push(`${locale}: ${key} lacks plural forms ${missing.join(', ')}`);
     }

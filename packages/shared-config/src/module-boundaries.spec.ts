@@ -34,6 +34,8 @@ describe('module boundaries', () => {
 
   it.each([
     ['office-app importing @nestjs/common', 'apps/office-app/src/fixture.ts', '@nestjs/common'],
+    ['shared-ui importing @prisma/client', 'packages/shared-ui/src/fixture.ts', '@prisma/client'],
+    ['shared-i18n importing @nestjs/common', 'packages/shared-i18n/src/fixture.ts', '@nestjs/common'],
     ['backend-api importing react', 'apps/backend-api/src/fixture.ts', 'react'],
   ])('should fail lint for %s (banned external import)', async (_case, filePath, target) => {
     const errors = await boundaryErrors(filePath, `import * as banned from '${target}';

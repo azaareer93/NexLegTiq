@@ -9,7 +9,7 @@ import dayjs from 'dayjs';
 // Registers dayjs's Arabic names (months, weekdays, ص/م). Digits stay Western: Arabic-Indic digits need the
 // preParsePostFormat plugin, which is not loaded (frontend.md: Western digits by default).
 import 'dayjs/locale/ar';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { I18nextProvider } from 'react-i18next';
 
@@ -35,28 +35,33 @@ export interface LanguageProviderProps {
 
 /**
  * Applies one language everywhere at once: `<html lang dir>` (so AntD portals, modals and popovers follow), i18next,
- * AntD's `ConfigProvider` (direction and component texts) and dayjs. Order of choice: the user's language, then the last
- * language picked on this device, then Arabic.
+ * AntD's `ConfigProvider` (direction and component texts) and dayjs — before the browser paints, so nobody sees a frame in
+ * the wrong direction. Order of choice: the user's language, then the last language picked on this device, then Arabic.
+ * Only an explicit pick is remembered on the device: a signed-in user's language never becomes the next person's default
+ * on a shared office computer. Signing out keeps the language on screen until the page reloads.
  */
 export function LanguageProvider({ userLocale, onLocaleChange, children }: LanguageProviderProps): React.JSX.Element {
   const [locale, setLocaleState] = useState<Locale>(() => userLocale ?? readStoredLocale() ?? DEFAULT_LOCALE);
   const [i18n] = useState(() => createI18n(locale));
 
-  useEffect(() => {
+  // A new server language (sign-in, profile refetch) is adopted in the same render, not one paint later.
+  const [seenUserLocale, setSeenUserLocale] = useState(userLocale);
+  if (userLocale !== seenUserLocale) {
+    setSeenUserLocale(userLocale);
     if (userLocale) setLocaleState(userLocale);
-  }, [userLocale]);
+  }
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.documentElement.lang = locale;
     document.documentElement.dir = textDirectionOf(locale);
     dayjs.locale(locale);
     void i18n.changeLanguage(locale);
-    storeLocale(locale);
   }, [i18n, locale]);
 
   const setLocale = useCallback(
     (next: Locale) => {
       setLocaleState(next);
+      storeLocale(next);
       onLocaleChange?.(next);
     },
     [onLocaleChange],

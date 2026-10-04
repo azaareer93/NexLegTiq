@@ -22,7 +22,7 @@
   "VAL-007": "Please fill in the required fields.",
   "RES-001": "We couldn't find what you're looking for.",
   "RES-002": "This already exists.",
-  "RES-003": "Someone else changed this in the meantime. Reload and try again.",
+  "RES-003": "Another user changed this a moment ago. Reload and try again.",
   "RES-004": "This link or item is no longer available.",
   "BIZ-001": "The office must keep at least one office manager.",
   "BIZ-002": "This case is already closed.",

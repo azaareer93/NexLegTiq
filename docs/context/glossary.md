@@ -34,6 +34,8 @@ Use these exact Arabic terms in i18n files and AI prompts. Add new terms here fi
 | Office manager | مدير المكتب | `OFFICE_MANAGER` |
 | Paralegal | مساعد قانوني | `PARALEGAL` |
 | Trainee | محامٍ متدرب | `TRAINEE` |
+| Administrative staff | موظف إداري | `ADMIN` |
+| External collaborator | متعاون خارجي | `EXTERNAL_COLLABORATOR` |
 | Retainer | دفعة مقدمة / أتعاب مقدمة | `RETAINER` |
 | Invoice | فاتورة | `Invoice` |
 | Time entry | تسجيل وقت | `TimeEntry` |

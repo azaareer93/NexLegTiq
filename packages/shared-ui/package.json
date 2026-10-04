@@ -19,7 +19,11 @@
     "@nexlegtiq/shared-utils": "workspace:*"
   },
   "peerDependencies": {
+    "antd": "^6.6.5",
+    "dayjs": "^1.11.23",
+    "i18next": "^26.4.2",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.7",
+    "react-i18next": "^17.0.15"
   }
 }

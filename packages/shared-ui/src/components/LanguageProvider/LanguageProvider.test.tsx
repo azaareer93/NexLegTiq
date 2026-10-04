@@ -1,6 +1,7 @@
 import { act, render, screen } from '@testing-library/react';
-import { Button } from 'antd';
+import { Button, Empty } from 'antd';
 import dayjs from 'dayjs';
+import { StrictMode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { LANGUAGE_STORAGE_KEY, LanguageProvider, useLanguage } from './LanguageProvider';
@@ -15,11 +16,13 @@ function Probe(): React.JSX.Element {
       <Button data-testid="switch" onClick={() => setLocale(locale === 'ar' ? 'en' : 'ar')}>
         {t('common.language.label')}
       </Button>
+      <Empty />
     </>
   );
 }
 
 const html = document.documentElement;
+const text = (testId: string) => screen.getByTestId(testId).textContent;
 
 describe('LanguageProvider', () => {
   beforeEach(() => {
@@ -28,20 +31,26 @@ describe('LanguageProvider', () => {
     html.removeAttribute('lang');
   });
 
-  it('should start in Arabic, right to left, everywhere', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    dayjs.locale('en');
+  });
+
+  it('should start in Arabic, right to left, everywhere: page, i18next, AntD and dayjs', () => {
     render(
       <LanguageProvider>
         <Probe />
       </LanguageProvider>,
     );
-    expect(screen.getByTestId('text').textContent).toBe('المدعي');
+    expect(text('text')).toBe('المدعي');
     expect(html.getAttribute('dir')).toBe('rtl');
     expect(html.getAttribute('lang')).toBe('ar');
     expect(screen.getByTestId('switch').className).toContain('ant-btn-rtl');
-    expect(dayjs().locale()).toBe('ar');
+    expect(screen.getAllByText('لا توجد بيانات').length).toBeGreaterThan(0);
+    expect(dayjs('2026-01-15').format('MMMM D')).toBe('يناير 15');
   });
 
-  it('should switch to English, left to right, remember it on this device and report the choice', () => {
+  it('should switch to English, left to right, remember the pick on this device and report it', () => {
     const onLocaleChange = vi.fn();
     render(
       <LanguageProvider onLocaleChange={onLocaleChange}>
@@ -50,32 +59,32 @@ describe('LanguageProvider', () => {
     );
     act(() => screen.getByTestId('switch').click());
 
-    expect(screen.getByTestId('text').textContent).toBe('Plaintiff');
+    expect(text('text')).toBe('Plaintiff');
     expect(html.getAttribute('dir')).toBe('ltr');
     expect(html.getAttribute('lang')).toBe('en');
     expect(screen.getByTestId('switch').className).not.toContain('ant-btn-rtl');
-    expect(dayjs().locale()).toBe('en');
+    expect(screen.getAllByText('No data').length).toBeGreaterThan(0);
+    expect(dayjs('2026-01-15').format('MMMM')).toBe('January');
     expect(window.localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe('en');
     expect(onLocaleChange).toHaveBeenCalledWith('en');
   });
 
   it('should prefer the user language, then the device choice, then Arabic', () => {
     window.localStorage.setItem(LANGUAGE_STORAGE_KEY, 'en');
-    const { rerender, unmount } = render(
+    const { unmount } = render(
       <LanguageProvider>
         <Probe />
       </LanguageProvider>,
     );
-    expect(screen.getByTestId('locale').textContent).toBe('en');
+    expect(text('locale')).toBe('en');
+    unmount();
 
-    // Signing in brings the user's own language.
-    rerender(
+    render(
       <LanguageProvider userLocale="ar">
         <Probe />
       </LanguageProvider>,
-    );
-    expect(screen.getByTestId('locale').textContent).toBe('ar');
-    unmount();
+    ).unmount();
+    expect(html.getAttribute('lang')).toBe('ar');
 
     window.localStorage.setItem(LANGUAGE_STORAGE_KEY, 'fr');
     render(
@@ -83,14 +92,48 @@ describe('LanguageProvider', () => {
         <Probe />
       </LanguageProvider>,
     );
-    expect(screen.getByTestId('locale').textContent).toBe('ar');
+    expect(text('locale')).toBe('ar');
+  });
+
+  it('should follow the signed-in user without saving their language on the device, and keep it after sign-out', () => {
+    const onLocaleChange = vi.fn();
+    const tree = (userLocale: 'ar' | 'en' | null) => (
+      <LanguageProvider userLocale={userLocale} onLocaleChange={onLocaleChange}>
+        <Probe />
+      </LanguageProvider>
+    );
+    const { rerender } = render(tree(null));
+    expect(text('locale')).toBe('ar');
+
+    rerender(tree('en'));
+    expect(text('locale')).toBe('en');
+    expect(text('text')).toBe('Plaintiff');
+    expect(html.getAttribute('dir')).toBe('ltr');
+
+    rerender(tree(null));
+    expect(text('locale')).toBe('en');
+    expect(window.localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBeNull();
+    expect(onLocaleChange).not.toHaveBeenCalled();
+  });
+
+  it('should behave the same under StrictMode', () => {
+    render(
+      <StrictMode>
+        <LanguageProvider userLocale="en">
+          <Probe />
+        </LanguageProvider>
+      </StrictMode>,
+    );
+    expect(text('text')).toBe('Plaintiff');
+    expect(html.getAttribute('dir')).toBe('ltr');
+    expect(html.getAttribute('lang')).toBe('en');
   });
 
   it('should still work when the browser blocks storage', () => {
-    const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
       throw new Error('blocked');
     });
-    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new Error('blocked');
     });
     render(
@@ -98,9 +141,9 @@ describe('LanguageProvider', () => {
         <Probe />
       </LanguageProvider>,
     );
-    expect(screen.getByTestId('locale').textContent).toBe('ar');
-    getItem.mockRestore();
-    setItem.mockRestore();
+    expect(text('locale')).toBe('ar');
+    act(() => screen.getByTestId('switch').click());
+    expect(text('locale')).toBe('en');
   });
 
   it('should refuse useLanguage outside the provider', () => {
