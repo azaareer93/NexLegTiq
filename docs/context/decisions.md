@@ -511,3 +511,29 @@ access token allows slow guessing for its 15 minutes.
 emails will follow the same pattern" is done here (invitations remain); a reset also verifies the email (D-083).
 Why: no account enumeration through answers or
 timing, a stolen session dies with a reset, and a password change does not sign the user out of the device they used.
+
+**D-087 — i18n infrastructure and Ant Design 6** · Accepted (owner chose AntD 6; MVP-44, 2026-10-05)
+→ **AntD 6** (not 5 as CLAUDE.md said): the current major supports React 19 natively, while AntD 5 needs a compatibility
+shim; no UI existed yet. `i18next` 26, `react-i18next` 17, `dayjs` 1.11 and `antd` 6 are root dependencies like `react`.
+**Resources** live in `packages/shared-i18n/src/locales/{ar,en}/<namespace>.json`, namespaces `common`, `auth`, `errors`
+(every `ERROR_CODES` entry), `enums` (`enums.<enumName>.<VALUE>` for every shared-types enum: jurisdiction, accountType,
+officeLanguage, role), `legal` (the glossary) and `validation` (every message key shared-contracts and the API send); new
+features add their own namespace. They are bundled (no HTTP backend: small files, and no screen ever renders raw keys while
+loading). **Keys are written with their namespace first** (`errors.AUTH-001`, `legal.plaintiff`, `common.actions.save`):
+`nsSeparator` is `.`, which i18next applies only when the first segment is a known namespace, so the documented
+`errors.<CODE>` / `enums.<Enum>.<VALUE>` forms work as written. **Typed keys** come from the English JSON through
+i18next's `CustomTypeOptions` (all namespaces declared as the typed default, `common` first) — no generator to run or
+forget; an unknown key fails `typecheck`. **Parity check:** `findMissingKeys` reports a key present in one locale only and a
+plural key missing a form its locale needs (`Intl.PluralRules`: Arabic zero/one/two/few/many/other, English one/other);
+it runs over the real resources in the `shared-i18n` test target, which is the CI check (no separate script). The same
+target checks that every error code, enum value, glossary term and contract validation key has a translation.
+**`LanguageProvider` + `useLanguage()`** (shared-ui) replace `DirectionRoot`: they set `<html lang dir>` (AntD portals
+follow), the i18next language, AntD `ConfigProvider` direction and locale (`ar_EG` / `en_US`) and the dayjs locale
+together. The language is the signed-in user's `uiLanguage` (prop `userLocale`), else the last choice on this device
+(`localStorage` `nlq.locale`, a convenience only; unavailable storage is ignored), else Arabic. Saving a choice to the
+user's profile is the `onLocaleChange` callback — wired when `PATCH users/me` and the API client exist. dayjs's Arabic
+locale gives Western digits because its `preParsePostFormat` plugin is not loaded; Arabic-Indic digits as a user setting
+come with the formatting utilities. **Lint:** `i18next/no-literal-string` (mode `jsx-only`: JSX text and attribute
+values; technical attributes such as `data-testid`, `className`, `href` allowed) on `apps/*/src/**/*.tsx`, tests excluded,
+from `packages/shared-config/eslint/no-literal-string.mjs`. Why: one source of strings for three apps, missing
+translations caught at build time, and direction switched in one place.

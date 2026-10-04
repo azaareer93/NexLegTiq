@@ -2,7 +2,7 @@
 
 > Source: "Complete UI/UX Experience", "Ant Design for NexLegTiq", "Arabic Localization Guide", Onboarding Flow.
 
-## Theme (AntD 5 tokens — `packages/shared-ui/src/theme.ts`)
+## Theme (AntD 6 tokens — `packages/shared-ui/src/theme.ts`)
 colorPrimary `#1a3c6e` (hover `#2a5a9c`, bg `#e6edf5`) · success `#2e7d32` · warning `#ed6c02` · error `#d32f2f` · info `#0288d1`
 colorBgBase `#ffffff` · colorBgContainer `#f8f9fa` · colorTextBase `#1a2332` · colorTextSecondary `#5a6a7e` · colorBorder `#d9e1ec`
 fontSize 14 · headings 28/24/20/18/16 · borderRadius 8 (LG 12, SM 4) · controlHeight 40 (LG 48, SM 32)
@@ -13,7 +13,8 @@ record), documents/PDF `Amiri`. Arabic: +1px size, line-height 1.8. Dark mode: t
 ## i18n & RTL rules (non-negotiable)
 - i18next + react-i18next; namespaces per feature; **no hard-coded user-facing strings** (lint: `i18next/no-literal-string`
   in `apps/*/src`). Arabic is MSA (fusha), formal. Legal glossary in `glossary.md` — always use it.
-- `<html lang dir>` + AntD `ConfigProvider direction/locale` + dayjs locale switch together (LanguageProvider).
+- `<html lang dir>` + AntD `ConfigProvider direction/locale` + dayjs locale switch together (`LanguageProvider` /
+  `useLanguage` in shared-ui; keys `<namespace>.<key>` from `@nexlegtiq/shared-i18n`, typed, AR/EN parity checked in CI: D-087).
 - CSS logical properties only (`margin-inline-start`, `padding-inline-end`, `inset-inline-start`, `text-align: start`);
   stylelint rule bans physical `left/right` props. Directional icons mirrored in RTL.
 - Numbers, emails, URLs, file numbers, phone numbers render LTR inside RTL (`<bdi>` / `dir="ltr"` + `unicode-bidi: isolate`).

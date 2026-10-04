@@ -14,7 +14,7 @@ Launch market: Palestine. Solo-founder project: prefer simple, low-ops, well-tes
 - Finish with `/review` then `/ship` (PR + Jira transition + comment). Record durable learnings with `/remember`.
 
 ## Repo map (target — scaffolded by the Foundation epic)
-- `apps/office-app` (React 19 + Vite + AntD 5, :4200) · `apps/client-portal` (:4202) · `apps/admin-panel` (:4201)
+- `apps/office-app` (React 19 + Vite + AntD 6, :4200) · `apps/client-portal` (:4202) · `apps/admin-panel` (:4201)
 - `apps/backend-api` (NestJS 11 + Prisma 7 + PG17/pgvector + Redis/BullMQ, :3000, `/api/v1`, Swagger `/api/docs`; worker entry `src/worker.ts`)
 - `packages/shared-{types,utils,contracts,api-client,ui,i18n,config}` — scope `@nexlegtiq/*`, Nx module boundaries enforced.
 - `docs/context/` knowledge base · `docs/runbooks/` · `.claude/` agents, skills, commands, hooks.
