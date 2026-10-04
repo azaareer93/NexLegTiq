@@ -156,7 +156,7 @@ describe('JwtAuthGuard', () => {
     const { run, request, findFirst } = setup({ role: 'SENIOR_LAWYER', isActive: true, ...verified, office: { isActive: true } });
     await expect(run(`Bearer ${sign({ role: 'TRAINEE' })}`)).resolves.toBe(true);
     expect(findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: USER, officeId: OFFICE } }));
-    expect(request.user).toEqual({ userId: USER, officeId: OFFICE, role: 'SENIOR_LAWYER', realm: 'OFFICE' });
+    expect(request.user).toEqual({ userId: USER, officeId: OFFICE, role: 'SENIOR_LAWYER', realm: 'OFFICE', sessionId: 'family' });
   });
 
   it.each([

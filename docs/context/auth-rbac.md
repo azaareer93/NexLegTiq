@@ -23,6 +23,7 @@ Client portal uses a separate realm: audience `portal`, secret `JWT_PORTAL_SECRE
 - **Refresh**: `POST /auth/refresh` (cookie) → new pair. FE: single-flight refresh on 401, queue concurrent requests, retry once.
 - **Logout**: revoke current family, clear cookie, FE clears stores + `queryClient.clear()`.
 - **Password reset**: `forgot-password` always 200 (anti-enumeration); token 1h, single use; success revokes all sessions.
+  Change password (`users/me/password`) ends every other session. Details: D-086.
 - **Password policy**: ≥ 10 chars, upper+lower+digit (special optional), not in breached/common list, not equal to email.
   Argon2id (m=19 MiB, t=2, p=1), D-082.
 - **Invite** (W2): OM invites → email with link (token 7 days) → accept: set name/password/phone → user created with role.

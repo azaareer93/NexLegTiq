@@ -57,6 +57,7 @@ export class JwtAuthGuard implements CanActivate {
       officeId: claims.officeId as OfficeId,
       role: user.role,
       realm: 'OFFICE',
+      ...(typeof claims.sid === 'string' ? { sessionId: claims.sid } : {}),
     };
     return true;
   }

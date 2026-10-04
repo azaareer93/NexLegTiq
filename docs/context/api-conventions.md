@@ -38,15 +38,15 @@ HTTP status per code and framework-error mapping: D-075. A `ZodError` thrown by 
 Request ids: D-076.
 
 ## Rate limits (Redis, per ip+user)
-default 100/min · `/auth/login|register|forgot-password` 5/min · `/auth/verify-email` 10/min · `/auth/resend-verification` 3/min · `/auth/refresh` 30/min ·
+default 100/min · `/auth/login|register|forgot-password|reset-password` and `users/me/password` 5/min · `/auth/verify-email` 10/min · `/auth/resend-verification` 3/min · `/auth/refresh` 30/min ·
 uploads 20/min ·
 `/ai/*` 20/min (plus plan quota) · search 60/min. Headers `X-RateLimit-Limit|Remaining|Reset`, `Retry-After`.
 
 ## Endpoint map (MVP)
 **auth**: POST `auth/register` (office signup, 201 + session like login) · POST `auth/login` · POST `auth/refresh` · POST `auth/logout` ·
-POST `auth/forgot-password` · POST `auth/reset-password` · POST `auth/verify-email` (204; 410 RES-004 for an invalid/used/expired link) · POST `auth/resend-verification` (always 202, D-085) · POST `auth/accept-invite` ·
+POST `auth/forgot-password` (always 200) · POST `auth/reset-password` (204; 410 RES-004 for an invalid/used/expired link, D-086) · POST `auth/verify-email` (204; 410 RES-004 for an invalid/used/expired link) · POST `auth/resend-verification` (always 202, D-085) · POST `auth/accept-invite` ·
 GET `auth/invites/:token` (preview)
-**users**: GET/PATCH `users/me` · POST `users/me/password` · GET `users` (office team) · POST `users/invite` ·
+**users**: GET/PATCH `users/me` · POST `users/me/password` (204; wrong current password → 400 VAL-001, D-086) · GET `users` (office team) · POST `users/invite` ·
 GET `users/invitations` · DELETE `users/invitations/:id` · PATCH `users/:id/role` · POST `users/:id/deactivate` (with reassignment) ·
 POST `users/:id/reactivate`
 **offices**: GET `offices/me` · PATCH `offices/me` · GET/PATCH `offices/me/settings` · GET `offices/me/subscription` ·

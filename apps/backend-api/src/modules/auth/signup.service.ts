@@ -16,7 +16,7 @@ import { isVerificationOverdue } from './email-verification';
 import { PasswordHasher } from './password-hasher';
 import { SignupRepository } from './signup.repository';
 import type { ExistingAccount } from './signup.repository';
-import { VerificationMailer } from './verification-mailer';
+import { AccountMailer } from './account-mailer';
 
 /** D-005/D-006/D-083: Palestine gets the 6-month freemium plan; elsewhere a 30-day trial sized by account type. */
 const GLOBAL_TRIAL_PLAN: Record<AccountType, string> = {
@@ -44,7 +44,7 @@ export class SignupService {
     private readonly auth: AuthService,
     private readonly passwords: PasswordHasher,
     private readonly signups: SignupRepository,
-    private readonly mailer: VerificationMailer,
+    private readonly mailer: AccountMailer,
     private readonly config: AppConfig,
     private readonly logger: PinoLogger,
   ) {
@@ -72,7 +72,7 @@ export class SignupService {
       this.prisma.db.$transaction((tx) => this.auth.openSession(tx, user, { rememberMe: false, now, client })),
     );
     // The worker creates the link and sends it (D-085); a failure here is logged, never turns signup into an error.
-    await this.mailer.send({ userId: user.id, officeId: user.officeId }, client);
+    await this.mailer.sendVerification({ userId: user.id, officeId: user.officeId }, client);
     return this.auth.issue(user, opened);
   }
 
@@ -83,7 +83,8 @@ export class SignupService {
   async resendVerification(body: ResendVerificationRequest, client: ClientInfo): Promise<void> {
     const account = await this.signups.findAccount(body.email);
     if (account && account.emailVerifiedAt === null && account.isActive && account.officeActive) {
-      await this.mailer.send({ userId: account.id, officeId: account.officeId }, client);
+      // Not awaited: an existing account must not answer measurably slower than an unknown email (enumeration).
+      void this.mailer.sendVerification({ userId: account.id, officeId: account.officeId }, client);
     }
   }
 

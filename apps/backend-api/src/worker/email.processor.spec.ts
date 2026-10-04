@@ -11,6 +11,7 @@ import { AppConfig } from '../config/app-config';
 import { testEnv } from '../config/env.fixture';
 import { parseEnv } from '../config/env.schema';
 import type { PrismaService } from '../database/prisma.service';
+import type { PasswordResetLinks } from '../modules/auth/password-reset-links';
 import type { VerificationLinks } from '../modules/auth/verification-links';
 import { EmailProcessor, SKIPPED_NOTHING_TO_SEND } from './email.processor';
 
@@ -21,6 +22,7 @@ const APP = 'https://app.test';
 function setup(issued: object | null = { to: 'a@b.test', locale: 'AR', vars: { name: 'عمر', link: `${APP}/verify-email?token=t`, days: 7 } }) {
   const send = jest.fn().mockResolvedValue(undefined);
   const issue = jest.fn().mockResolvedValue(issued);
+  const issueReset = jest.fn().mockResolvedValue({ to: 'r@b.test', locale: 'EN', vars: { name: 'Omar', link: `${APP}/reset-password?token=t`, minutes: 60 } });
   const prisma = { db: { office: { findFirst: jest.fn().mockResolvedValue({ isActive: true }) } } } as unknown as PrismaService;
   const logger = { setContext: jest.fn(), warn: jest.fn(), error: jest.fn() } as unknown as PinoLogger;
   const config = new AppConfig(parseEnv(testEnv({ NODE_ENV: 'development', OFFICE_APP_URL: `${APP}/` })));
@@ -30,11 +32,12 @@ function setup(issued: object | null = { to: 'a@b.test', locale: 'AR', vars: { n
     logger,
     { send } as unknown as MailTransport,
     { issue } as unknown as VerificationLinks,
+    { issue: issueReset } as unknown as PasswordResetLinks,
     config,
   );
   const job = (name: string, data: object, attemptsMade = 0) =>
     ({ id: '7', name, queueName: 'email', attemptsMade, data: { officeId: OFFICE, requestId: null, ...data } }) as Job<never>;
-  return { processor, send, issue, job };
+  return { processor, send, issue, issueReset, job };
 }
 
 const reset = { to: 'c@d.test', template: 'password-reset', locale: 'EN', vars: { name: 'Omar', link: `${APP}/reset`, minutes: 60 } };
@@ -48,6 +51,24 @@ describe('EmailProcessor', () => {
     expect(to).toBe('a@b.test');
     expect(mail.html).toContain('dir="rtl"');
     expect(options).toEqual({ signal: expect.any(AbortSignal), idempotencyKey: '7-1' });
+  });
+
+  it('should issue a password-reset link in the worker and email it, one message per attempt', async () => {
+    const { processor, send, issueReset, job } = setup();
+    await expect(processor.process(job('send-password-reset', { userId: USER }))).resolves.toEqual({ sent: 'password-reset' });
+    expect(issueReset).toHaveBeenCalledWith(USER, expect.any(Date), { retry: false });
+    const [to, mail, options] = send.mock.calls[0] ?? [];
+    expect(to).toBe('r@b.test');
+    expect(mail.subject).toBe('Reset your NexLegTiq password');
+    expect(mail.text).toContain('60 minutes');
+    expect(options).toEqual({ signal: expect.any(AbortSignal), idempotencyKey: '7-0' });
+
+    await processor.process(job('send-password-reset', { userId: USER }, 2));
+    expect(issueReset).toHaveBeenLastCalledWith(USER, expect.any(Date), { retry: true });
+    expect(send.mock.calls[1]?.[2]).toEqual({ signal: expect.any(AbortSignal), idempotencyKey: '7-2' });
+
+    issueReset.mockResolvedValueOnce(null);
+    await expect(processor.process(job('send-password-reset', { userId: USER }))).resolves.toEqual(SKIPPED_NOTHING_TO_SEND);
   });
 
   it('should send nothing when there is no link to send (verified, deactivated, or rate-limited)', async () => {

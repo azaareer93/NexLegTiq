@@ -15,8 +15,9 @@ import { TenantProcessor } from '../common/queue/tenant-processor';
 import { TenantRunner } from '../common/tenancy/tenant-runner';
 import { AppConfig } from '../config/app-config';
 import { PrismaService } from '../database/prisma.service';
+import { SEND_PASSWORD_RESET_JOB, SEND_VERIFICATION_EMAIL_JOB } from '../modules/auth/account-mailer';
+import { PasswordResetLinks } from '../modules/auth/password-reset-links';
 import { VerificationLinks } from '../modules/auth/verification-links';
-import { SEND_VERIFICATION_EMAIL_JOB } from '../modules/auth/verification-mailer';
 
 const locale = z.enum(['AR', 'EN']);
 /** One variant per template, so each email's variables are checked before rendering (D-085). */
@@ -25,7 +26,7 @@ const SendEmailSchema = z.discriminatedUnion('template', [
   z.object({ to: z.email(), template: z.literal('invite'), locale, vars: MAIL_TEMPLATE_SCHEMAS.invite }),
   z.object({ to: z.email(), template: z.literal('password-reset'), locale, vars: MAIL_TEMPLATE_SCHEMAS['password-reset'] }),
 ]);
-/** `send-email` (any template, rendered here) or `send-verification-email` (the link is created here). */
+/** `send-email` (any template, rendered here), or `send-verification-email` / `send-password-reset` (the link is created here). */
 const EmailJobSchema = z.union([SendEmailSchema, z.object({ userId: z.uuid() })]);
 type EmailJob = z.infer<typeof EmailJobSchema>;
 
@@ -48,6 +49,7 @@ export class EmailProcessor extends TenantProcessor<EmailJob> {
     logger: PinoLogger,
     private readonly transport: MailTransport,
     private readonly links: VerificationLinks,
+    private readonly resetLinks: PasswordResetLinks,
     private readonly config: AppConfig,
   ) {
     super(tenant, prisma, logger);
@@ -61,6 +63,12 @@ export class EmailProcessor extends TenantProcessor<EmailJob> {
       // Each attempt issues its own link, so each attempt is its own message for de-duplication.
       await this.deliver(email.to, 'verify-email', email.locale, email.vars, { signal, idempotencyKey: `${job.id}-${job.attemptsMade}` });
       return { sent: 'verify-email' };
+    }
+    if (job.name === SEND_PASSWORD_RESET_JOB && 'userId' in data) {
+      const email = await this.resetLinks.issue(data.userId, new Date(), { retry: job.attemptsMade > 0 });
+      if (!email) return SKIPPED_NOTHING_TO_SEND;
+      await this.deliver(email.to, 'password-reset', email.locale, email.vars, { signal, idempotencyKey: `${job.id}-${job.attemptsMade}` });
+      return { sent: 'password-reset' };
     }
     if (job.name === SEND_EMAIL_JOB && 'template' in data) {
       await this.deliver(data.to, data.template, data.locale, data.vars as MailTemplates[typeof data.template], {

@@ -17,8 +17,9 @@ import { TenantRunner } from '../common/tenancy/tenant-runner';
 import { integrationEnv } from '../config/env.fixture';
 import { DatabaseModule } from '../database/database.module';
 import { PrismaService } from '../database/prisma.service';
+import { SEND_PASSWORD_RESET_JOB, SEND_VERIFICATION_EMAIL_JOB } from '../modules/auth/account-mailer';
+import { PasswordResetLinks } from '../modules/auth/password-reset-links';
 import { VerificationLinks } from '../modules/auth/verification-links';
-import { SEND_VERIFICATION_EMAIL_JOB } from '../modules/auth/verification-mailer';
 import { EmailProcessor } from './email.processor';
 
 const MAILPIT = process.env['MAILPIT_URL'] ?? 'http://127.0.0.1:8025';
@@ -45,7 +46,7 @@ async function receivedBy(to: string): Promise<MailpitMessage> {
 /** Like WorkerModule: the email processor with real Redis, PostgreSQL and SMTP (Mailpit). */
 @Module({
   imports: [CoreModule, DatabaseModule, QueueModule, MailModule],
-  providers: [EmailProcessor, VerificationLinks],
+  providers: [EmailProcessor, VerificationLinks, PasswordResetLinks],
 })
 class EmailTestModule {}
 
@@ -70,6 +71,7 @@ describe('email worker (Redis + PostgreSQL + Mailpit)', () => {
       // unscoped: test cleanup.
       const raw = app.get(PrismaService).unscoped();
       await raw.emailVerificationToken.deleteMany({ where: { officeId } });
+      await raw.passwordResetToken.deleteMany({ where: { officeId } });
       await raw.user.deleteMany({ where: { officeId } });
       await raw.office.delete({ where: { id: officeId } });
       await app.close();
@@ -120,6 +122,22 @@ describe('email worker (Redis + PostgreSQL + Mailpit)', () => {
     // unscoped: test assertion.
     const stored = await app.get(PrismaService).unscoped().emailVerificationToken.findFirstOrThrow({ where: { userId: user.id } });
     expect(Math.round((stored.expiresAt.getTime() - before) / 86_400_000)).toBe(7);
+  });
+
+  it('should issue a one-hour password-reset link in the worker and send it in Arabic (D-086)', async () => {
+    const user = await createUser('AR');
+    const before = Date.now();
+    await inOffice(() => app.get(QueueProducer).enqueue(QUEUE.EMAIL, SEND_PASSWORD_RESET_JOB, { userId: user.id }));
+    await drainQueue(queue());
+
+    const mail = await receivedBy(user.email);
+    expect(mail.HTML).toContain('dir="rtl"');
+    const link = /https:\/\/app\.example\.test\/reset-password\?token=([A-Za-z0-9_-]{43})/.exec(mail.Text);
+    expect(link).not.toBeNull();
+    // unscoped: test assertion.
+    const stored = await app.get(PrismaService).unscoped().passwordResetToken.findFirstOrThrow({ where: { userId: user.id, usedAt: null } });
+    expect(stored.tokenHash).toBe(hashOpaqueToken(link?.[1] ?? ''));
+    expect(Math.round((stored.expiresAt.getTime() - before) / 60_000)).toBe(60);
   });
 
   it('should send nothing for an already verified user', async () => {

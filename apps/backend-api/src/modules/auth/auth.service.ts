@@ -123,6 +123,7 @@ export class AuthService {
       if (expiresAt <= now) throw new AppException('AUTH-004', 'Refresh token expired');
       const token = newOpaqueToken();
       const rotated = await this.prisma.db.$transaction(async (tx) => {
+        await this.refreshTokens.lockUser(tx, user);
         // Conditional claim: of two concurrent refreshes with the same token, only one can win.
         if (!(await this.refreshTokens.claim(tx, existing.id))) return false;
         const next = await this.refreshTokens.create(tx, this.newTokenRow(user, existing.familyId, token, expiresAt, client));

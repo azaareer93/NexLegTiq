@@ -16,7 +16,7 @@ import type { PasswordHasher } from './password-hasher';
 import { LEGAL_VERSIONS, SignupRepository } from './signup.repository';
 import type { ExistingAccount, NewOfficeAccount } from './signup.repository';
 import { SignupService, signupPlanCode } from './signup.service';
-import { VerificationMailer } from './verification-mailer';
+import { AccountMailer } from './account-mailer';
 
 const DAY = 86_400_000;
 const OFFICE = '01920000-0000-7000-8000-00000000000a';
@@ -92,8 +92,8 @@ describe('SignupService', () => {
       openSession: jest.fn().mockResolvedValue({ familyId: 'f', refreshToken: 'r', refreshExpiresAt: new Date() }),
       issue: jest.fn().mockResolvedValue(issued),
     };
-    const mailer = { send: jest.fn().mockResolvedValue(undefined) };
-    const send = mailer.send;
+    const mailer = { sendVerification: jest.fn().mockResolvedValue(undefined) };
+    const send = mailer.sendVerification;
     const passwords = { hash: jest.fn().mockResolvedValue('$argon2id$hash') } as unknown as PasswordHasher;
     const config = new AppConfig(parseEnv(testEnv({ EMAIL_VERIFICATION_ENFORCED: String(options.enforced ?? true) })));
     const service = new SignupService(
@@ -102,7 +102,7 @@ describe('SignupService', () => {
       auth as unknown as AuthService,
       passwords,
       signups as unknown as SignupRepository,
-      mailer as unknown as VerificationMailer,
+      mailer as unknown as AccountMailer,
       config,
       logger(),
     );

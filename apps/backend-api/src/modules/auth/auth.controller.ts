@@ -26,6 +26,7 @@ import { Public } from '../../common/auth/public.decorator';
 import { AppException } from '../../common/errors/app.exception';
 import { AuthService } from './auth.service';
 import type { IssuedSession } from './auth.service';
+import { clientFromRequest } from './client-info';
 import type { ClientInfo } from './client-info';
 import { assertCookieRequestOrigin } from './csrf';
 import { REFRESH_COOKIE, refreshCookieOptions } from './refresh-token';
@@ -139,11 +140,6 @@ export class AuthController {
   }
 
   private client(req: Request): ClientInfo {
-    return {
-      // Behind the proxy chain configured by TRUST_PROXY_HOPS (D-053 lockout and audit use the real client address).
-      ip: req.ip ?? '0.0.0.0',
-      userAgent: req.get('user-agent') ?? null,
-      requestId: this.cls.isActive() ? this.cls.getId() : null,
-    };
+    return clientFromRequest(req, this.cls.isActive() ? this.cls.getId() : null);
   }
 }
