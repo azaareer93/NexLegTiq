@@ -34,5 +34,11 @@
     "ADMIN": "موظف إداري",
     "TRAINEE": "محامٍ متدرب",
     "EXTERNAL_COLLABORATOR": "متعاون خارجي"
+  },
+  "priority": {
+    "LOW": "منخفضة",
+    "MEDIUM": "متوسطة",
+    "HIGH": "عالية",
+    "URGENT": "عاجلة"
   }
 }

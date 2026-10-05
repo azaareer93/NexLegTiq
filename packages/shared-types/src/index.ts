@@ -15,6 +15,8 @@ export { isLocale, SUPPORTED_LOCALES } from './locale.js';
 export { ACCOUNT_TYPES, JURISDICTIONS, OFFICE_LANGUAGES } from './office.js';
 export type { AccountType, Jurisdiction, OfficeLanguage } from './office.js';
 export type { Locale } from './locale.js';
+export { PRIORITIES } from './priority.js';
+export type { Priority } from './priority.js';
 export {
   conditionFor,
   hasAllPermissions,

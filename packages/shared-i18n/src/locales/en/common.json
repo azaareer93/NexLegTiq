@@ -20,8 +20,13 @@
   "states": {
     "loading": "Loading…",
     "empty": "Nothing here yet",
-    "error": "Something went wrong"
+    "error": "Something went wrong",
+    "reference": "Reference:"
   },
   "fileCount_one": "{{count}} case",
-  "fileCount_other": "{{count}} cases"
+  "fileCount_other": "{{count}} cases",
+  "ai": {
+    "title": "AI-generated content",
+    "disclaimer": "This was produced by AI and may contain mistakes. Check it before you rely on it."
+  }
 }
