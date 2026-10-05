@@ -33,6 +33,7 @@ afterAll(() => server.close());
 
 function setup(token: string | null = null) {
   const store = { token };
+  const onAuthFailure = vi.fn();
   const client = createApiClient({
     baseURL: ORIGIN,
     realm: 'office',
@@ -40,13 +41,27 @@ function setup(token: string | null = null) {
     setToken: (next) => {
       store.token = next;
     },
-    onAuthFailure: vi.fn(),
+    onAuthFailure,
   });
-  return { auth: authApi(client), users: usersApi(client), store };
+  return { auth: authApi(client), users: usersApi(client), store, onAuthFailure };
 }
 
+const registration = {
+  fullName: 'Layla Haddad',
+  email: 'layla@example.test',
+  password: 'Testtesttest1',
+  officeName: 'Haddad Law',
+  accountType: 'FIRM',
+  currency: 'ILS',
+  acceptTerms: true,
+  acceptPrivacy: true,
+} as const;
+
 describe('authApi', () => {
-  it.each(['login', 'register'] as const)('should %s, store the access token and return the typed session', async (call) => {
+  it.each([
+    ['login', { email: 'layla@example.test', password: 'Testtesttest1' }],
+    ['register', registration],
+  ] as const)('should %s, keep the access token in the client and return the session without it', async (call, input) => {
     let body: unknown;
     server.use(
       http.post(url(`auth/${call}`), async ({ request }) => {
@@ -55,18 +70,49 @@ describe('authApi', () => {
       }),
     );
     const { auth, store } = setup();
-    const input = { email: 'layla@example.test', password: 'Testtesttest1' };
-    const result = call === 'login' ? await auth.login(input) : await auth.register(input as never);
+    const result = call === 'login' ? await auth.login(input) : await auth.register(input as typeof registration);
     expect(result.user.role).toBe('OFFICE_MANAGER');
+    expect(result).not.toHaveProperty('accessToken');
     expect(store.token).toBe('access-1');
     expect(body).toEqual(input);
+  });
+
+  it('should reject a session that breaks the contract without storing its token', async () => {
+    server.use(http.post(url('auth/login'), () => ok({ accessToken: 'access-1' })));
+    const { auth, store } = setup();
+    await expect(auth.login({ email: 'layla@example.test', password: 'Testtesttest1' })).rejects.toMatchObject({ code: 'SYS-001' });
+    expect(store.token).toBeNull();
+  });
+
+  it('should pass a refused login through and store nothing', async () => {
+    server.use(http.post(url('auth/login'), () => HttpResponse.json({ success: false, error: { code: 'AUTH-007', message: 'Locked' }, meta }, { status: 423 })));
+    const { auth, store, onAuthFailure } = setup();
+    await expect(auth.login({ email: 'layla@example.test', password: 'Testtesttest1' })).rejects.toMatchObject({ code: 'AUTH-007', status: 423 });
+    expect(store.token).toBeNull();
+    expect(onAuthFailure).not.toHaveBeenCalled();
   });
 
   it('should restore the session from the refresh cookie', async () => {
     server.use(http.post(url('auth/refresh'), () => ok({ ...session, accessToken: 'access-2' })));
     const { auth, store } = setup();
-    await expect(auth.refresh()).resolves.toMatchObject({ accessToken: 'access-2', user: { officeName: 'Haddad Law' } });
+    const restored = await auth.refresh();
+    expect(restored).toMatchObject({ user: { officeName: 'Haddad Law' } });
+    expect(restored).not.toHaveProperty('accessToken');
     expect(store.token).toBe('access-2');
+  });
+
+  it('should reject without onAuthFailure when there is no session to restore (public pages stay put)', async () => {
+    server.use(http.post(url('auth/refresh'), () => HttpResponse.json({ success: false, error: { code: 'AUTH-005', message: 'No session' }, meta }, { status: 401 })));
+    const { auth, onAuthFailure } = setup();
+    await expect(auth.refresh()).rejects.toMatchObject({ code: 'AUTH-005' });
+    expect(onAuthFailure).not.toHaveBeenCalled();
+  });
+
+  it('should turn a restored session that breaks the contract into SYS-001 and drop its token', async () => {
+    server.use(http.post(url('auth/refresh'), () => ok({ accessToken: 'access-2' })));
+    const { auth, store } = setup();
+    await expect(auth.refresh()).rejects.toMatchObject({ code: 'SYS-001' });
+    expect(store.token).toBeNull();
   });
 
   it('should clear the token on logout, also when the server cannot be reached', async () => {

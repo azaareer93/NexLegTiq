@@ -3,3 +3,4 @@ export { createApiClient, IDEMPOTENCY_HEADER, idempotencyHeaders, REQUEST_TIMEOU
 export type { ApiClient, ApiClientConfig, ApiRequest, Realm } from './api-client.js';
 export { API_BASE_PATH, buildApiUrl } from './api-url.js';
 export { authApi, usersApi } from './resources.js';
+export type { ClientSession } from './resources.js';

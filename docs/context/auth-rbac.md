@@ -20,7 +20,9 @@ Client portal uses a separate realm: audience `portal`, secret `JWT_PORTAL_SECRE
 - **Login**: rate-limited per IP (login 5/min, refresh/logout 30/min) + lockout (D-053, details D-082). Inactive user → 403 `AUTH-006`.
   Response: `{accessToken, expiresIn: 900, user{id, fullName, email, role, officeId, officeName, uiLanguage, permissions[],
   emailVerified, verifyBy}}` (D-083).
-- **Refresh**: `POST /auth/refresh` (cookie) → new pair. FE: single-flight refresh on 401, queue concurrent requests, retry once.
+- **Refresh**: `POST /auth/refresh` (cookie) → new pair. FE (`shared-api-client`, D-089): refresh on 401 `AUTH-002`, one per tab and
+  serialised across tabs (Web Locks), concurrent requests wait for it, retry once; login/logout take the same lock; only a
+  refusal ends the session (`onAuthFailure`).
 - **Logout**: revoke current family, clear cookie, FE clears stores + `queryClient.clear()`.
 - **Password reset**: `forgot-password` always 200 (anti-enumeration); token 1h, single use; success revokes all sessions.
   Change password (`users/me/password`) ends every other session. Details: D-086.
