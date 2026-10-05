@@ -21,7 +21,7 @@ describe('module boundaries', () => {
   }, 60_000);
 
   it.each([
-    ['shared-types importing shared-i18n', 'packages/shared-types/src/fixture.ts', '@nexlegtiq/shared-i18n'],
+    ['shared-i18n importing shared-utils', 'packages/shared-i18n/src/fixture.ts', '@nexlegtiq/shared-utils'],
     ['shared-utils importing shared-contracts', 'packages/shared-utils/src/fixture.ts', '@nexlegtiq/shared-contracts'],
     ['shared-ui importing shared-api-client', 'packages/shared-ui/src/fixture.ts', '@nexlegtiq/shared-api-client'],
     ['backend-api importing shared-ui', 'apps/backend-api/src/fixture.ts', '@nexlegtiq/shared-ui'],
@@ -34,6 +34,8 @@ describe('module boundaries', () => {
 
   it.each([
     ['office-app importing @nestjs/common', 'apps/office-app/src/fixture.ts', '@nestjs/common'],
+    ['shared-ui importing @prisma/client', 'packages/shared-ui/src/fixture.ts', '@prisma/client'],
+    ['shared-i18n importing @nestjs/common', 'packages/shared-i18n/src/fixture.ts', '@nestjs/common'],
     ['backend-api importing react', 'apps/backend-api/src/fixture.ts', 'react'],
   ])('should fail lint for %s (banned external import)', async (_case, filePath, target) => {
     const errors = await boundaryErrors(filePath, `import * as banned from '${target}';

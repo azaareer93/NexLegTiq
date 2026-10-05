@@ -1,0 +1,38 @@
+{
+  "jurisdiction": {
+    "PALESTINE": "Palestine",
+    "JORDAN": "Jordan",
+    "EGYPT": "Egypt",
+    "SAUDI_ARABIA": "Saudi Arabia",
+    "UAE": "United Arab Emirates",
+    "KUWAIT": "Kuwait",
+    "QATAR": "Qatar",
+    "OMAN": "Oman",
+    "BAHRAIN": "Bahrain",
+    "LEBANON": "Lebanon",
+    "IRAQ": "Iraq",
+    "MOROCCO": "Morocco",
+    "USA": "United States",
+    "UK": "United Kingdom",
+    "OTHER": "Other"
+  },
+  "accountType": {
+    "SOLO": "Solo practitioner",
+    "FIRM": "Law firm",
+    "CORPORATE": "Corporate legal department"
+  },
+  "officeLanguage": {
+    "AR": "Arabic",
+    "EN": "English",
+    "BILINGUAL": "Bilingual"
+  },
+  "role": {
+    "OFFICE_MANAGER": "Office manager",
+    "SENIOR_LAWYER": "Senior lawyer",
+    "LAWYER": "Lawyer",
+    "PARALEGAL": "Paralegal",
+    "ADMIN": "Administrative staff",
+    "TRAINEE": "Trainee lawyer",
+    "EXTERNAL_COLLABORATOR": "External collaborator"
+  }
+}

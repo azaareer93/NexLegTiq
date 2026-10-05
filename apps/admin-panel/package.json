@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "dependencies": {
+    "@nexlegtiq/shared-i18n": "workspace:*",
     "@nexlegtiq/shared-types": "workspace:*",
     "@nexlegtiq/shared-ui": "workspace:*"
   }

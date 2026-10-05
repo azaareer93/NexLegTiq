@@ -1,0 +1,21 @@
+{
+  "required": "This field is required.",
+  "tooShort": "This is too short.",
+  "tooLong": "This is too long.",
+  "email": "Enter a valid email address.",
+  "phone": "Enter a valid phone number.",
+  "currency": "Choose a valid currency.",
+  "invalidCharacters": "This contains characters that are not allowed.",
+  "invalidToken": "This link is not valid.",
+  "mustAcceptTerms": "You must accept the Terms of Service.",
+  "mustAcceptPrivacy": "You must accept the Privacy Policy.",
+  "password": {
+    "tooShort": "Use at least 10 characters.",
+    "weak": "Use upper- and lower-case letters and at least one digit.",
+    "common": "This password is too common. Choose another one.",
+    "sameAsEmail": "The password must not be your email address.",
+    "mismatch": "The passwords do not match.",
+    "unchanged": "Choose a password different from the current one.",
+    "currentWrong": "The current password is incorrect."
+  }
+}

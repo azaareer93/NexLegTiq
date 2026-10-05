@@ -511,3 +511,40 @@ access token allows slow guessing for its 15 minutes.
 emails will follow the same pattern" is done here (invitations remain); a reset also verifies the email (D-083).
 Why: no account enumeration through answers or
 timing, a stolen session dies with a reset, and a password change does not sign the user out of the device they used.
+
+**D-087 — i18n infrastructure and Ant Design 6** · Accepted (owner chose AntD 6; MVP-44, 2026-10-05)
+→ **AntD 6** (not 5 as CLAUDE.md said): the current major supports React 19 natively, while AntD 5 needs a compatibility
+shim; no UI existed yet. `i18next` 26, `react-i18next` 17, `dayjs` 1.11 and `antd` 6 are root dependencies like `react`.
+**Resources** live in `packages/shared-i18n/src/locales/{ar,en}/<namespace>.json`, namespaces `common`, `auth`, `errors`
+(every `ERROR_CODES` entry), `enums` (`enums.<enumName>.<VALUE>` for every shared-types enum: jurisdiction, accountType,
+officeLanguage, role — a test fails when shared-types exports a new value list without labels; permission labels come with
+the roles screen), `legal` (the glossary) and `validation` (every message key shared-contracts and the API send); new
+features add their own namespace. They are bundled (no HTTP backend: small files, and no screen ever renders raw keys while
+loading), imported with `with { type: 'json' }` (Vite and Vitest handle it; shared-i18n is never built, D-074).
+`fallbackLng` is Arabic (unreachable while parity holds). **Keys are written with their namespace first** (`errors.AUTH-001`, `legal.plaintiff`, `common.actions.save`):
+`nsSeparator` is `.`, which i18next applies only when the first segment is a known namespace, so the documented
+`errors.<CODE>` / `enums.<Enum>.<VALUE>` forms work as written. **Typed keys** come from the English JSON through
+i18next's `CustomTypeOptions` (all namespaces declared as the typed default, `common` first) — no generator to run or
+forget; an unknown key fails `typecheck`. **Parity check:** `findMissingKeys` reports a key present in one locale only and a
+plural key missing a form its locale needs (`Intl.PluralRules`: Arabic zero/one/two/few/many/other, English one/other);
+it runs over the real resources in the `shared-i18n` test target, which is the CI check (no separate script); the
+target's Nx inputs include shared-contracts, the backend modules and `glossary.md`, so `nx affected` reruns it when they
+change. Key suffixes `_zero|_one|_two|_few|_many|_other` are reserved for plurals. The same
+target checks that every error code, enum value, glossary term and contract validation key has a translation.
+**`LanguageProvider` + `useLanguage()`** (shared-ui) replace `DirectionRoot`: they set `<html lang dir>` (AntD portals
+follow), the i18next language, AntD `ConfigProvider` direction and locale (`ar_EG` / `en_US`) and the dayjs locale
+together, in a layout effect (no frame painted in the wrong direction); a new `userLocale` is adopted in the same render. The language is the signed-in user's `uiLanguage` (prop `userLocale`), else the last choice on this device
+(`localStorage` `nlq.locale`, a convenience only; unavailable storage is ignored), else Arabic. Only an explicit pick
+is stored, never the signed-in user's language (a shared office computer must not inherit it); signing out keeps the
+language on screen until reload. Saving a choice to the
+user's profile is the `onLocaleChange` callback — wired when `PATCH users/me` and the API client exist. dayjs's Arabic
+locale gives Western digits because its `preParsePostFormat` plugin is not loaded; Arabic-Indic digits as a user setting
+come with the formatting utilities. **Lint** (`packages/shared-config/eslint/no-literal-string.mjs`, apps and shared-ui, `src/**/*.tsx`, tests excluded,
+itself tested): `i18next/no-literal-string` on JSX text and a list of user-facing attributes (`title`, `placeholder`,
+`alt`, `aria-label`, `label`, `tooltip`, `okText`…; technical props stay free), and `react/no-danger`. **Not caught:**
+strings in objects and calls (`columns={[{ title: '…' }]}`, `message.error('…')`) — reviews check those. **XSS:** i18next
+does not escape (`escapeValue: false`, React does), so `t()` output is never used as HTML and `<Trans>` values are plain
+text; rich text goes through `sanitize-html` (D-054). Server packages (`@nestjs/*`, `@prisma/*`, `@aws-sdk/*`…) are now also
+banned in the `layer:ui` and `layer:i18n` packages, which ship in the SPA bundles.
+Why: one source of strings for three apps, missing
+translations caught at build time, and direction switched in one place.

@@ -86,7 +86,7 @@ Events: `document.processed`, `document.summary.ready`, `session.scheduled`, `se
 `task.assigned`, `task.updated`, `notification`, `ai.job.completed|failed`.
 
 ## Frontend (office-app, client-portal, admin-panel)
-React 19, Vite 8, **React Router 8** (data router: `createBrowserRouter` + `RouterProvider`, D-010), AntD 5 (`ConfigProvider` with theme tokens, `direction`, `locale`), `@ant-design/icons`,
+React 19, Vite 8, **React Router 8** (data router: `createBrowserRouter` + `RouterProvider`, D-010), AntD 6 (D-087; `ConfigProvider` with theme tokens, `direction`, `locale`), `@ant-design/icons`,
 `@ant-design/pro-components` (tables/forms where helpful), TanStack Query 5, Zustand (auth/session/ui stores),
 axios via `shared-api-client`, i18next + react-i18next, dayjs (with `ar` locale), `@dnd-kit`, Vitest + Testing Library,
 Storybook (+ RTL toggle) for shared-ui. See `frontend.md`.

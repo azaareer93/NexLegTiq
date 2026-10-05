@@ -1,0 +1,31 @@
+{
+  "appName": "NexLegTiq",
+  "actions": {
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "create": "إنشاء",
+    "edit": "تعديل",
+    "delete": "حذف",
+    "close": "إغلاق",
+    "back": "رجوع",
+    "confirm": "تأكيد",
+    "search": "بحث",
+    "retry": "إعادة المحاولة"
+  },
+  "language": {
+    "label": "اللغة",
+    "ar": "العربية",
+    "en": "English"
+  },
+  "states": {
+    "loading": "جارٍ التحميل…",
+    "empty": "لا توجد عناصر بعد",
+    "error": "حدث خطأ ما"
+  },
+  "fileCount_zero": "لا توجد ملفات",
+  "fileCount_one": "ملف واحد",
+  "fileCount_two": "ملفان",
+  "fileCount_few": "{{count}} ملفات",
+  "fileCount_many": "{{count}} ملفًا",
+  "fileCount_other": "{{count}} ملف"
+}

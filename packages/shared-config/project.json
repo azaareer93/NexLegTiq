@@ -15,7 +15,10 @@
         "^production",
         "{workspaceRoot}/eslint.config.mjs",
         "{workspaceRoot}/apps/*/project.json",
-        "{workspaceRoot}/packages/*/project.json"
+        "{workspaceRoot}/packages/*/project.json",
+        "{workspaceRoot}/apps/*/eslint.config.mjs",
+        "{workspaceRoot}/packages/*/eslint.config.mjs",
+        "{workspaceRoot}/packages/shared-config/eslint/*.mjs"
       ]
     }
   }

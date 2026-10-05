@@ -6,7 +6,7 @@ paths:
   - "packages/shared-ui/**"
   - "packages/shared-i18n/**"
 ---
-# Frontend rules (React 19 + AntD 5)
+# Frontend rules (React 19 + AntD 6)
 
 - Feature folders: `src/features/<feature>/{api,components,hooks,pages,routes.tsx,index.ts}`; pages lazy-loaded per route.
 - Server state only via TanStack Query hooks built on `@nexlegtiq/shared-api-client` (query keys from a `keys.ts` factory per feature).

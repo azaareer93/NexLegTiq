@@ -1,4 +1,10 @@
-/** i18next namespaces. Resources for `ar` and `en` arrive with the i18n infrastructure story (MVP-44). */
-export const I18N_NAMESPACES = ['common'] as const;
+/**
+ * i18next namespaces, one JSON file per locale in `src/locales/{ar,en}/<namespace>.json`. Keys are written with the
+ * namespace as their first segment (`errors.AUTH-001`, `enums.role.LAWYER`, `common.actions.save`): `nsSeparator` is `.`
+ * too, and i18next treats the first segment as the namespace only when it is one of these.
+ */
+export const I18N_NAMESPACES = ['common', 'auth', 'errors', 'enums', 'legal', 'validation'] as const;
 
 export type I18nNamespace = (typeof I18N_NAMESPACES)[number];
+
+export const DEFAULT_NAMESPACE = 'common' satisfies I18nNamespace;
