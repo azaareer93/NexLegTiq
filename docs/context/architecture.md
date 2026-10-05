@@ -89,7 +89,7 @@ Events: `document.processed`, `document.summary.ready`, `session.scheduled`, `se
 React 19, Vite 8, **React Router 8** (data router: `createBrowserRouter` + `RouterProvider`, D-010), AntD 6 (D-087; `ConfigProvider` with theme tokens, `direction`, `locale`), `@ant-design/icons`,
 `@ant-design/pro-components` (tables/forms where helpful), TanStack Query 5, Zustand (auth/session/ui stores),
 axios via `shared-api-client`, i18next + react-i18next, dayjs (with `ar` locale), `@dnd-kit`, Vitest + Testing Library,
-Storybook (+ RTL toggle) for shared-ui. See `frontend.md`.
+Storybook 10 for shared-ui (Language toolbar AR/EN, a11y addon; stories also run as Vitest tests with axe, D-088). See `frontend.md`.
 
 ## Data
 PostgreSQL 17 + extensions `pgvector`, `pg_trgm`, `unaccent`, `citext`. Prisma schema at

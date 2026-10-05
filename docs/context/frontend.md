@@ -2,9 +2,9 @@
 
 > Source: "Complete UI/UX Experience", "Ant Design for NexLegTiq", "Arabic Localization Guide", Onboarding Flow.
 
-## Theme (AntD 6 tokens — `packages/shared-ui/src/theme.ts`)
+## Theme (AntD 6 tokens — `nexTheme()` in `packages/shared-ui/src/theme/theme.ts`)
 colorPrimary `#1a3c6e` (hover `#2a5a9c`, bg `#e6edf5`) · success `#2e7d32` · warning `#ed6c02` · error `#d32f2f` · info `#0288d1`
-colorBgBase `#ffffff` · colorBgContainer `#f8f9fa` · colorTextBase `#1a2332` · colorTextSecondary `#5a6a7e` · colorBorder `#d9e1ec`
+colorBgBase `#ffffff` · page background (AntD `colorBgLayout`) `#f8f9fa`, inputs/cards stay white · colorTextBase `#1a2332` · colorTextSecondary `#5a6a7e` · colorBorder `#d9e1ec`
 fontSize 14 · headings 28/24/20/18/16 · borderRadius 8 (LG 12, SM 4) · controlHeight 40 (LG 48, SM 32)
 boxShadow `0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04)` · boxShadowSecondary `0 4px 12px rgba(0,0,0,.08)`
 Fonts (self-hosted, D-088): EN `Inter`; AR UI `IBM Plex Sans Arabic` (Inter first in the stack, so Latin and digits match);

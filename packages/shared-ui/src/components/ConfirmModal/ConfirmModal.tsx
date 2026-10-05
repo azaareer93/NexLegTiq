@@ -42,6 +42,10 @@ export function ConfirmModal({
       okButtonProps={{ danger, 'data-testid': 'confirm-ok' }}
       cancelButtonProps={{ 'data-testid': 'confirm-cancel' }}
       confirmLoading={loading}
+      // While the action runs, the modal cannot be dismissed (that would call onCancel mid-action).
+      closable={!loading}
+      mask={{ closable: !loading }}
+      keyboard={!loading}
       destroyOnHidden
     >
       {children}

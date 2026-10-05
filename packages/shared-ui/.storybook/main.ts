@@ -9,8 +9,10 @@ const config: StorybookConfig = {
   addons: [getAbsolutePath('@storybook/addon-a11y')],
   framework: {
     name: getAbsolutePath('@storybook/react-vite'),
-    options: { builder: { viteConfigPath: 'vite.config.mts' } },
+    options: {},
   },
+  // No usage data leaves the machine (D-077: no unreviewed traffic).
+  core: { disableTelemetry: true },
 };
 
 // pnpm keeps packages out of the hoisted root: Storybook needs their real location.

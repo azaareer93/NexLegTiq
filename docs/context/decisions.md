@@ -556,7 +556,10 @@ look the same in both languages and Arabic falls through to Plex. Fonts are **se
 (only Plex's Arabic subset, weights 400–700; Inter variable): the apps' Vite build copies the woff2 files into their own
 assets, so no font CDN is contacted at runtime. **Theme:** `nexTheme(locale)` in `packages/shared-ui/src/theme` holds the
 frontend.md tokens (colours, radii, shadows, control heights, heading sizes) and, in Arabic, the Plex stack, 15px and
-line-height 1.8; CSS variables use the `nlq` prefix. **`NexProvider`** (the root of all three apps) = `LanguageProvider`
+line-height 1.8. frontend.md's grey "container" colour is applied as AntD's page background (`colorBgLayout`); `colorBgContainer`
+(inputs, cards, tables, default buttons) stays white. AntD emits its tokens as CSS variables with the `nlq` prefix
+(`--nlq-color-primary`…), which custom CSS uses instead of literal values. A test keeps text/primary colours at WCAG AA contrast.
+The runtime packages shared-ui uses (`antd`, icons, fonts, i18n) are its peer dependencies and root dependencies of the apps. **`NexProvider`** (the root of all three apps) = `LanguageProvider`
 (D-087) + AntD `ConfigProvider` with the theme of the current language + AntD `App` (so `message`, `notification` and
 `modal` follow theme and direction). **Components** (shared-ui): `PageHeader`, `StatusTag` (tone + icon + text, never
 colour alone) and `PriorityTag` (new shared-types `PRIORITIES` = LOW|MEDIUM|HIGH|URGENT, labels `enums.priority.*`),
@@ -565,8 +568,12 @@ colour alone) and `PriorityTag` (new shared-types `PRIORITIES` = LOW|MEDIUM|HIGH
 `DirectionalIcon` (mirrored in RTL from the AntD direction), `ConfirmModal` (controlled, translated buttons, `danger`) and
 `AiDisclaimer`; their texts are `common.*` keys. Case/task status tags come with those features. **Storybook 10**
 (`@storybook/react-vite`, Nx plugin targets `storybook`/`build-storybook`) with a Language toolbar (Arabic RTL / English
-LTR, every story wrapped in `NexProvider`) and the a11y addon (violations fail the story). **Deviation from the ticket:**
+LTR, every story wrapped in `NexProvider`) and the a11y addon (violations fail the story). Storybook telemetry is off (D-077); `storybook dev` is a local tool only and `storybook-static` is never deployed.
+**Deviation from the ticket:**
 instead of the browser-based Storybook test-runner, `src/stories.test.tsx` turns every story into a Vitest test, rendered in
 both languages and checked with axe-core in jsdom (colour contrast is left to the Storybook a11y panel, as jsdom has no
-layout) — no Playwright browsers in CI. Stories hold sample data and are excluded from `i18next/no-literal-string`.
+layout) — no Playwright browsers in CI. The test composes stories with the real `.storybook/preview.tsx` (its decorator and toolbar) and fails when an
+exported component has no story. Stories hold sample data and are excluded from `i18next/no-literal-string`.
+`PageHeader` renders the page's `<h1>` (size of heading 3). The AI disclaimer says the output may be wrong, is not legal
+advice and must be verified by a lawyer (D-057) — wording to be confirmed by the owner.
 Why: a consistent, accessible, RTL-correct base for three apps, with checks that run in the normal test target.

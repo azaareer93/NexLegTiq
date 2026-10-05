@@ -15,7 +15,9 @@ paths:
 - Map API `error.code` → `t('errors.<CODE>')`; show field errors from `error.details`.
 - **No literal user-facing strings**: `t('feature.key')`; add keys to both `ar` and `en`; use `docs/context/glossary.md` terms.
 - **RTL**: CSS logical properties only; icons that imply direction flip in RTL; wrap numbers/emails/file numbers in `<bdi>`/`dir="ltr"`.
-- Theme tokens only (from `shared-ui/theme`), no hard-coded colors/spacing. Status/priority tags use shared components.
+- Every app root is `<NexProvider>` (shared-ui). Theme tokens only (AntD tokens from `nexTheme`, D-088), no hard-coded colors/spacing.
+  Use the shared components: `PageHeader`, `StatusTag`/`PriorityTag`, `EmptyState`/`ErrorState`/`LoadingSkeleton`, `ConfirmModal`,
+  `Ltr`/`Bdi`, `DirectionalIcon`, `AiDisclaimer`.
 - Permissions: gate UI with `useCan('create:case')` from shared permissions; the server remains the authority.
 - Accessibility: labelled inputs, keyboard-reachable actions, `data-testid` on interactive elements used by E2E.
 - AI output always rendered with `<AiDisclaimer />`.

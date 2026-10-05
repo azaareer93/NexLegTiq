@@ -41,16 +41,18 @@ export interface ErrorStateProps {
 
 /** A failed load or action: what went wrong, a reference for support and a retry. */
 export function ErrorState({ code, requestId, onRetry }: ErrorStateProps): React.JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  // A code this app version does not know yet (newer API) gets the generic message, never a raw key.
+  const known = code !== undefined && i18n.exists(`errors.${code}`);
   return (
     <div role="alert">
       <Result
         status="warning"
-        title={code ? t(`errors.${code}`) : t('common.states.error')}
+        title={known ? t(`errors.${code}`) : t('common.states.error')}
         subTitle={
           requestId ? (
             <>
-              {t('common.states.reference')} <Ltr>{requestId}</Ltr>
+              {t('common.states.reference')}: <Ltr>{requestId}</Ltr>
             </>
           ) : null
         }

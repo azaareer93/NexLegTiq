@@ -37,8 +37,8 @@ describe('frontend text lint rules (D-087)', () => {
     expect(await ruleErrors('src/x.tsx', code)).not.toContain('i18next/no-literal-string');
   });
 
-  it('should not apply to tests', async () => {
-    expect(await ruleErrors('src/x.test.tsx', component('<p>Hello</p>'))).not.toContain('i18next/no-literal-string');
+  it.each(['src/x.test.tsx', 'src/x.stories.tsx'])('should not apply to tests and stories (%s)', async (file) => {
+    expect(await ruleErrors(file, component('<p>Hello</p>'))).not.toContain('i18next/no-literal-string');
   });
 
   it('should reject raw HTML', async () => {

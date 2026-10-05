@@ -1,5 +1,5 @@
 import { ArrowLeftOutlined } from '@ant-design/icons';
-import { Button, Flex, Typography } from 'antd';
+import { Button, Flex, theme, Typography } from 'antd';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -12,11 +12,14 @@ export interface PageHeaderProps {
   readonly extra?: ReactNode;
   /** Shows a back button pointing the reading direction's "back". */
   readonly onBack?: () => void;
+  /** Heading level; default 1 (the page's main heading). The size stays the same. */
+  readonly level?: 1 | 2 | 3;
 }
 
 /** The title row of a page: optional back button, title and subtitle, actions. */
-export function PageHeader({ title, subtitle, extra, onBack }: PageHeaderProps): React.JSX.Element {
+export function PageHeader({ title, subtitle, extra, onBack, level = 1 }: PageHeaderProps): React.JSX.Element {
   const { t } = useTranslation();
+  const { token } = theme.useToken();
   return (
     <Flex component="header" align="center" gap={16} wrap style={{ marginBlockEnd: 24 }}>
       {onBack ? (
@@ -29,7 +32,7 @@ export function PageHeader({ title, subtitle, extra, onBack }: PageHeaderProps):
         />
       ) : null}
       <Flex vertical style={{ flex: '1 1 auto', minInlineSize: 0 }}>
-        <Typography.Title level={3} style={{ marginBlock: 0 }}>
+        <Typography.Title level={level} style={{ marginBlock: 0, fontSize: token.fontSizeHeading3 }}>
           {title}
         </Typography.Title>
         {subtitle ? <Typography.Text type="secondary">{subtitle}</Typography.Text> : null}

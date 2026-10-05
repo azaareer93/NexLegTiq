@@ -16,4 +16,4 @@ export { EmptyState, ErrorState, LoadingSkeleton } from './components/States/Sta
 export type { EmptyStateProps, ErrorStateProps, LoadingSkeletonProps } from './components/States/States';
 export { PriorityTag, StatusTag } from './components/StatusTag/StatusTag';
 export type { StatusTagProps, StatusTone } from './components/StatusTag/StatusTag';
-export { BRAND, FONT_FAMILY, nexTheme } from './theme';
+export { nexTheme } from './theme';
