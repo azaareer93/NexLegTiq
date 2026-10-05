@@ -577,3 +577,25 @@ exported component has no story. Stories hold sample data and are excluded from 
 `PageHeader` renders the page's `<h1>` (size of heading 3). The AI disclaimer says the output may be wrong, is not legal
 advice and must be verified by a lawyer (D-057) — wording to be confirmed by the owner.
 Why: a consistent, accessible, RTL-correct base for three apps, with checks that run in the normal test target.
+
+**D-089 — Shared API client details** · Accepted (MVP-36, 2026-10-05)
+MVP-36 left error mapping, refresh failure handling and the response checks open. → `createApiClient({ baseURL, realm,
+getToken, setToken, onAuthFailure })` in `shared-api-client` (axios, 30 s timeout, `withCredentials`, `X-Requested-With:
+XMLHttpRequest` on every request because the cookie endpoints require it, D-055). `request(req, schema)` unwraps the
+envelope and **parses `data` with the contract's response schema** (a mismatch is `ApiError` SYS-001, never bad data in
+the UI); `request(req)` without a schema is for 204/acknowledgement endpoints. Every failure is an `ApiError{code,
+message, details, status, requestId}`: the server's envelope as sent; an unknown code → SYS-001 (like `ErrorState`);
+no response (offline, timeout) → **SYS-002 with status 0**; a non-envelope answer (proxy/CDN page) → SYS-002 for
+502–504, else SYS-001; cancellations pass through untouched for TanStack Query. **Refresh:** a 401 `AUTH-002` triggers one
+refresh per tab (concurrent requests join it) and each request is retried once; a request sent with a token another
+refresh has already replaced just retries. Refreshes are **serialised across tabs with the Web Locks API**
+(`nlq-refresh-<realm>`), which D-082 requires (two tabs rotating the same cookie would look like reuse and end the
+session). Only a refusal (401/403: AUTH-004/005/006/010, CSRF) clears the token and calls `onAuthFailure` once; offline or a
+5xx keeps the session so the user can retry. Realm refresh paths: `auth/refresh`, `portal/auth/refresh`,
+`admin/auth/refresh`. The access token is only held through `getToken`/`setToken` (D-050); a test fails if the package
+touches web storage or cookies. **Resources:** `authApi(client)` (register, login, refresh, logout, verify-email,
+resend-verification, forgot/reset-password; session calls store the token, logout clears it even offline) and
+`usersApi(client)` (`changePassword`; `users/me` and team endpoints join with their backend story). `idempotencyHeaders(key?)`
+gives the `Idempotency-Key` header: create the key once per user action and reuse it on retries. Tests use MSW 3 (Node);
+server packages are banned in `layer:api-client` like in the UI layers. Why: the three SPAs handle sessions, errors and
+contracts identically, and a session survives a flaky network.

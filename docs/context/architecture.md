@@ -20,7 +20,7 @@ packages/
   shared-types/      branded ids, enums (UPPER_SNAKE), envelope types — no runtime deps
   shared-utils/      pure helpers (dates, money w/ decimal.js, Arabic normalization, file numbers)
   shared-contracts/  Zod schemas per resource: CreateXSchema, UpdateXSchema, XResponseSchema, XQuerySchema
-  shared-api-client/ typed axios client (auth refresh single-flight, envelope unwrap, 30s timeout)
+  shared-api-client/ typed axios client (auth refresh single-flight across tabs, envelope unwrap, ApiError, 30s timeout; D-089)
   shared-ui/         AntD wrappers, theme tokens, layout shell, RTL helpers, i18n provider
   shared-i18n/       translation resources (ar, en) + glossary keys
   shared-config/     eslint, tsconfig, prettier, vite presets
