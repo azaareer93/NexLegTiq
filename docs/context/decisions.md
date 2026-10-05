@@ -577,3 +577,35 @@ exported component has no story. Stories hold sample data and are excluded from 
 `PageHeader` renders the page's `<h1>` (size of heading 3). The AI disclaimer says the output may be wrong, is not legal
 advice and must be verified by a lawyer (D-057) — wording to be confirmed by the owner.
 Why: a consistent, accessible, RTL-correct base for three apps, with checks that run in the normal test target.
+
+**D-089 — Shared API client details** · Accepted (MVP-36, 2026-10-05)
+MVP-36 left error mapping, refresh failure handling and the response checks open. → `createApiClient({ baseURL, realm,
+getToken, setToken, onAuthFailure })` in `shared-api-client` (axios, 30 s timeout, `withCredentials`, `X-Requested-With:
+XMLHttpRequest` on every request because the cookie endpoints require it, D-055; `allowAbsoluteUrls: false`, so a `path`
+can never send the bearer token to another host). `request(req, schema)` unwraps the envelope and **parses `data` with
+the contract's response schema** (a mismatch is `ApiError` SYS-001 whose message names paths and issue codes, never
+values); `request(req)` without a schema is for 204/acknowledgement endpoints. Every failure is an `ApiError{code,
+message, details, status, requestId}`: the server's envelope as sent; an unknown code → SYS-001 (like `ErrorState`);
+no response (offline, timeout) → **SYS-002 with status 0**; a non-envelope answer (proxy/CDN page) → SYS-002 for
+502–504, else SYS-001; cancellations pass through untouched for TanStack Query (never log them: the axios error carries
+the request headers). **Refresh:** only a 401 `AUTH-002` refreshes (AUTH-003 and the rest pass through): one refresh per
+tab, concurrent requests join it, each request is retried once (a second AUTH-002 goes to the caller); a request sent with
+a token another refresh has already replaced just retries, and one whose session ended meanwhile fails as it is.
+Refreshes are **serialised across tabs with the Web Locks API** (`nlq-refresh-<realm>`), which D-082 requires (two tabs
+rotating the same cookie would look like reuse and end the session); a tab that waited for the lock rotates once more,
+which is harmless. **Login, register and logout** go through `sessionRequest`: after any refresh of the tab and under the
+same lock, never refreshed — otherwise a logout racing a rotation in another tab would revoke nothing and leave a live
+cookie behind, or a rotation could overwrite a fresh login's cookie. Only a **refusal** (401, or 403 AUTH-006/010) clears the
+token; offline, a 5xx or a 403 AUTH-100 (CSRF misconfiguration; the server keeps the cookie) keep the session so the user
+can retry. `onAuthFailure` fires once, and only when a request lost its session mid-use: restoring the session at app start
+(`authApi.refresh`) just rejects, so public pages (reset-password and verify-email links) are not sent to sign-in. Realm
+refresh paths `portal/auth/refresh` and `admin/auth/refresh` are **provisional** until those realms exist (their cookie
+paths must match). The access token is only held through `getToken`/`setToken` (D-050): sessions returned to the app
+(`ClientSession`) leave it out, and a test fails if the package touches web storage or cookies. **Resources:**
+`authApi(client)` (register, login, refresh, logout, verify-email, resend-verification, forgot/reset-password; logout clears
+the token even offline) and `usersApi(client)` (`changePassword`; `users/me` and team endpoints join with their backend
+story). `idempotencyHeaders(key)` takes the key the caller created once per user action (`crypto.randomUUID()`, which
+needs a secure context) and reuses on retries. **Deployment:** the SPAs and the API must be on the same site (subdomains of
+one registrable domain), or the `SameSite=Lax` refresh cookie is not sent. Tests use MSW 3 (Node; vitest's optional
+`msw ^2` peer is unused); axios is `^1.20` (1.20 fixes high-severity advisories in 1.13–1.19). Server packages are banned in `layer:api-client` like in the UI layers.
+Why: the three SPAs handle sessions, errors and contracts identically, and a session survives a flaky network.
