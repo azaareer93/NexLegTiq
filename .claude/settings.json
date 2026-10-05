@@ -20,6 +20,7 @@
       "Bash(git push -u origin:*)",
       "Bash(gh pr:*)",
       "Bash(gh run:*)",
+      "Bash(git rev-parse *)",
       "Bash(node .claude/hooks/:*)",
       "mcp__atlassian__getJiraIssue",
       "mcp__atlassian__searchJiraIssuesUsingJql",
@@ -29,18 +30,19 @@
       "mcp__notion__notion-search",
       "mcp__claude-flow__memory_search",
       "mcp__claude-flow__memory_retrieve",
-      "mcp__claude-flow__memory_list"
-    ],
-    "ask": [
+      "mcp__claude-flow__memory_list",
       "mcp__atlassian__createJiraIssue",
       "mcp__atlassian__editJiraIssue",
       "mcp__notion__notion-update-page",
       "mcp__notion__notion-create-pages",
       "Bash(gh pr merge:*)"
     ],
+    "ask": [
+      "Read(./.env*)",
+      "Edit(./.env.example)"
+    ],
     "deny": [
-      "Read(./.env)",
-      "Read(./.env.*.local)",
+      "Edit(./.env)",
       "Read(./.env.production)",
       "Read(./.env.staging)",
       "Read(./**/secrets/**)",
