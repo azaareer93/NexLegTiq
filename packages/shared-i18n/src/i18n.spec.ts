@@ -12,7 +12,13 @@ const REPO = new URL('../../../', import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, REPO), 'utf8');
 
 /** shared-types value lists and their `enums.<name>` key. */
-const ENUM_LABELS = { JURISDICTIONS: 'jurisdiction', ACCOUNT_TYPES: 'accountType', OFFICE_LANGUAGES: 'officeLanguage', ROLES: 'role' } as const;
+const ENUM_LABELS = {
+  JURISDICTIONS: 'jurisdiction',
+  ACCOUNT_TYPES: 'accountType',
+  OFFICE_LANGUAGES: 'officeLanguage',
+  ROLES: 'role',
+  PRIORITIES: 'priority',
+} as const;
 /** Value lists translated elsewhere (`errors.*`, `common.language.*`), or not shown to users yet (permissions, D-087). */
 const LABELLED_ELSEWHERE = ['ERROR_CODES', 'SUPPORTED_LOCALES', 'PERMISSIONS'];
 

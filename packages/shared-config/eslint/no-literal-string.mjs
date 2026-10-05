@@ -23,14 +23,16 @@ const USER_FACING_ATTRIBUTES = [
 
 /**
  * Frontend text rules for the apps and shared-ui (frontend.md, D-087), spread into their eslint.config.mjs (paths are
- * relative to the project): JSX text and user-facing attributes must come from `t()`, and nothing is rendered as raw HTML
+ * relative to the project; tests and stories excluded): JSX text and user-facing attributes must come from `t()`, and
+ * nothing is rendered as raw HTML
  * (`dangerouslySetInnerHTML` would turn interpolated user data into markup; i18next does not escape, React does).
  * **Not caught:** strings inside objects and calls (`columns={[{ title: '…' }]}`, `message.error('…')`) — reviews check those.
  */
 export const noLiteralString = [
   {
     files: ['src/**/*.tsx'],
-    ignores: ['src/**/*.{spec,test}.tsx'],
+    // Tests and Storybook stories hold sample data, not product copy.
+    ignores: ['src/**/*.{spec,test,stories}.tsx'],
     plugins: i18next.configs['flat/recommended'].plugins,
     rules: {
       'i18next/no-literal-string': ['error', { mode: 'jsx-only', 'jsx-attributes': { include: USER_FACING_ATTRIBUTES } }],

@@ -15,5 +15,7 @@ description: Arabic/English localization and RTL rules for NexLegTiq UI and emai
 5. **Icons**: arrows/chevrons/back/undo mirror in RTL (`<DirectionalIcon>`); checkmarks, play, logos don't.
 6. **Formatting**: `formatDate(d, locale, tz)` (dd/MM/yyyy default), `formatMoney(amount, currency, locale)` via Intl; digits Western by default,
    Arabic-Indic if user pref; times with ص/م in Arabic.
-7. **Emails/PDFs**: templates per locale (`templates/<name>.<locale>.hbs`), `dir` on root, Arabic fonts embedded (Noto Naskh / Amiri).
-8. **Verify**: Storybook RTL toggle, `renderWithProviders(…, { locale: 'ar' })` test, Cypress journey in `ar`; screenshot both in the PR.
+7. **Emails/PDFs**: templates per locale (`templates/<name>.<locale>.hbs`), `dir` on root, Arabic font embedded (Amiri).
+   The UI uses IBM Plex Sans Arabic, self-hosted by shared-ui (D-088).
+8. **Verify**: Storybook Language toolbar (Arabic RTL / English LTR) and a11y panel; render tests inside `<NexProvider userLocale="ar">`
+   (stories are also run as tests in both languages with axe); Cypress journey in `ar`; screenshot both in the PR.

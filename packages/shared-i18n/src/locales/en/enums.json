@@ -34,5 +34,11 @@
     "ADMIN": "Administrative staff",
     "TRAINEE": "Trainee lawyer",
     "EXTERNAL_COLLABORATOR": "External collaborator"
+  },
+  "priority": {
+    "LOW": "Low",
+    "MEDIUM": "Medium",
+    "HIGH": "High",
+    "URGENT": "Urgent"
   }
 }
