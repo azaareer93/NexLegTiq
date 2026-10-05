@@ -6,6 +6,7 @@ import { cleanup, render } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import type { JsonBodyType } from 'msw';
 import { setupServer } from 'msw/node';
+import { StrictMode } from 'react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 
 import { AppRoot } from '../app/app-root';
@@ -55,16 +56,25 @@ export function signedOut(): void {
   useSession.setState({ status: 'anonymous', user: null, accessToken: null });
 }
 
-/** The whole app (providers + routes) at `path`, in `locale` for a signed-out visitor. */
-export function renderApp(path: string, locale: Locale = 'en'): { router: ReturnType<typeof createMemoryRouter> } {
+/** The whole app (providers + routes) at `path`, in `locale` for a signed-out visitor; `strict` as in `main.tsx`. */
+export function renderApp(path: string, locale: Locale = 'en', { strict = false } = {}): { router: ReturnType<typeof createMemoryRouter> } {
   localStorage.setItem(LANGUAGE_STORAGE_KEY, locale);
   const router = createMemoryRouter(routes, { initialEntries: [path] });
-  render(
+  const app = (
     <AppRoot>
       <RouterProvider router={router} />
-    </AppRoot>,
+    </AppRoot>
   );
+  render(strict ? <StrictMode>{app}</StrictMode> : app);
   return { router };
+}
+
+/** Messages this tab sends to the other tabs (collected on a second channel, as another tab would see them). */
+export function listenToOtherTabs(): { messages: unknown[]; close: () => void } {
+  const channel = new BroadcastChannel('nlq-session');
+  const messages: unknown[] = [];
+  channel.onmessage = ({ data }: MessageEvent<unknown>) => messages.push(data);
+  return { messages, close: () => channel.close() };
 }
 
 export { http };

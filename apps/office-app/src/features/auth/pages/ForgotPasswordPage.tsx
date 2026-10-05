@@ -1,12 +1,13 @@
 import { ForgotPasswordRequestSchema } from '@nexlegtiq/shared-contracts';
 import type { ForgotPasswordRequest } from '@nexlegtiq/shared-contracts';
 import { useMutation } from '@tanstack/react-query';
-import { Alert, Button, Flex, Form, Input, Result } from 'antd';
+import { Button, Flex, Form, Input, Result } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 
 import { AuthLayout } from '../components/AuthLayout';
-import { errorText, parseForm, useMessage, zodRule } from '../forms';
+import { FormError } from '../components/FormError';
+import { parseForm, useMessage, zodRule } from '../forms';
 import { auth } from '../session';
 
 /** Always the same answer, whether or not the email has an account (D-086). */
@@ -38,7 +39,7 @@ export function ForgotPasswordPage(): React.JSX.Element {
   return (
     <AuthLayout title={t('auth.forgotPassword.title')} subtitle={t('auth.forgotPassword.subtitle')}>
       <Flex vertical gap={16}>
-        {request.isError ? <Alert type="error" showIcon title={errorText(request.error, message)} role="alert" /> : null}
+        <FormError error={request.error} />
         <Form form={form} noValidate layout="vertical" requiredMark={false} onFinish={submit} disabled={request.isPending}>
           <Form.Item name="email" label={t('auth.fields.email')} rules={zodRule(ForgotPasswordRequestSchema.shape.email, message)}>
             <Input type="email" autoComplete="email" dir="ltr" autoFocus data-testid="forgot-email" />

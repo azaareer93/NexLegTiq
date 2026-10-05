@@ -6,7 +6,8 @@ import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 
 import { AuthLayout } from '../components/AuthLayout';
-import { applyServerErrors, errorText, isFieldError, parseForm, safeNext, useMessage, zodRule } from '../forms';
+import { FormError } from '../components/FormError';
+import { applyServerErrors, parseForm, safeNext, useMessage, zodRule } from '../forms';
 import { auth, broadcast, startSession } from '../session';
 
 /** Fields the API's VAL-001 details are shown on. */
@@ -25,6 +26,8 @@ export function LoginPage(): React.JSX.Element {
   const reason = params.get('reason');
 
   const login = useMutation({
+    // Never keep the password in the mutation cache after the page is gone.
+    gcTime: 0,
     mutationFn: (body: LoginRequest) => auth.login(body),
     onSuccess: (session) => {
       startSession(session);
@@ -45,13 +48,13 @@ export function LoginPage(): React.JSX.Element {
         {isNotice(reason) && !login.isError ? (
           <Alert type={reason === 'passwordReset' ? 'success' : 'info'} showIcon title={t(`auth.notice.${reason}`)} data-testid="login-notice" />
         ) : null}
-        {login.isError && !isFieldError(login.error, FIELDS) ? <Alert type="error" showIcon title={errorText(login.error, message)} data-testid="login-error" role="alert" /> : null}
+        <FormError error={login.error} fields={FIELDS} testId="login-error" />
         <Form form={form} noValidate layout="vertical" requiredMark={false} onFinish={submit} initialValues={{ rememberMe: false }} disabled={login.isPending}>
           <Form.Item name="email" label={t('auth.fields.email')} rules={zodRule(LoginRequestSchema.shape.email, message)}>
             <Input type="email" autoComplete="username" dir="ltr" autoFocus data-testid="login-email" />
           </Form.Item>
           <Form.Item name="password" label={t('auth.fields.password')} rules={zodRule(LoginRequestSchema.shape.password, message)}>
-            <Input.Password autoComplete="current-password" data-testid="login-password" />
+            <Input.Password autoComplete="current-password" dir="ltr" data-testid="login-password" />
           </Form.Item>
           <Flex justify="space-between" align="center" style={{ marginBlockEnd: 24 }}>
             <Form.Item name="rememberMe" valuePropName="checked" noStyle>

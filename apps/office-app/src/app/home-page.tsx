@@ -1,5 +1,5 @@
 import { Button, Flex, Typography } from 'antd';
-import { Trans, useTranslation } from 'react-i18next';
+import { useTranslation } from 'react-i18next';
 
 import { signOut, useSession } from '../features/auth';
 import { APP_NAME } from './app-name';
@@ -14,7 +14,8 @@ export function HomePage(): React.JSX.Element {
         {/* The product name is a brand, not translated. */}
         <Typography.Title level={1}>{APP_NAME}</Typography.Title>
         <Typography.Text>
-          <Trans i18nKey="auth.home.welcome" values={{ name: user?.fullName ?? '' }} components={{ name: <bdi /> }} />
+          {/* The name is a child, never interpolated into markup, and isolated: it may be Arabic or Latin. */}
+          {t('auth.home.welcome')} <bdi>{user?.fullName}</bdi>
         </Typography.Text>
         <Button onClick={() => void signOut()} data-testid="sign-out">
           {t('auth.logout')}

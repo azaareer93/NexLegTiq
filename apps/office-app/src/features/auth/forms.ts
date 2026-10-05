@@ -51,17 +51,12 @@ export function parseForm<S extends z.ZodType>(
   return null;
 }
 
-/**
- * Puts the API's field errors (VAL-001 `details`) on the form fields it has. Returns true when every detail found a
- * field; otherwise the caller shows the error message.
- */
-export function applyServerErrors(form: FormInstance, error: unknown, fields: readonly string[], message: (key: string) => string): boolean {
-  if (!(error instanceof ApiError) || error.details.length === 0) {
-    return false;
+/** Puts the API's field errors (VAL-001 `details`) on the form fields it has; `isFieldError` tells if that was all. */
+export function applyServerErrors(form: FormInstance, error: unknown, fields: readonly string[], message: (key: string) => string): void {
+  if (error instanceof ApiError) {
+    const onFields = error.details.filter((detail) => fields.includes(detail.field));
+    form.setFields(onFields.map((detail) => ({ name: detail.field, errors: [message(detail.message)] })));
   }
-  const onFields = error.details.filter((detail) => fields.includes(detail.field));
-  form.setFields(onFields.map((detail) => ({ name: detail.field, errors: [message(detail.message)] })));
-  return onFields.length === error.details.length;
 }
 
 /** True when the failure is fully explained by field errors on the form (no banner needed). */
@@ -69,12 +64,19 @@ export function isFieldError(error: unknown, fields: readonly string[]): boolean
   return error instanceof ApiError && error.details.length > 0 && error.details.every((detail) => fields.includes(detail.field));
 }
 
-/** The translated text of any failure: `errors.<CODE>` for API errors, the generic message otherwise. */
-export function errorText(error: unknown, message: (key: string) => string): string {
-  return message(error instanceof ApiError ? `errors.${error.code}` : 'common.states.error');
-}
-
-/** Only same-app paths: `next=//evil.test` or `next=https://…` would turn sign-in into an open redirect. */
+/**
+ * Only same-app paths: `next=//evil.test`, `https://…` or `/%09/evil.test` (browsers drop tabs and newlines from URLs)
+ * would turn sign-in into an open redirect. Parsed like the browser does, then checked for the same origin.
+ */
 export function safeNext(next: string | null): string {
-  return next && /^\/(?![/\\])/.test(next) ? next : '/';
+  // eslint-disable-next-line no-control-regex -- control characters are exactly what must be refused.
+  if (!next || !/^\/(?![/\\])/.test(next) || /[\u0000-\u001f\u007f]/.test(next)) {
+    return '/';
+  }
+  try {
+    const url = new URL(next, window.location.origin);
+    return url.origin === window.location.origin ? url.pathname + url.search + url.hash : '/';
+  } catch {
+    return '/';
+  }
 }

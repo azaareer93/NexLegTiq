@@ -32,8 +32,9 @@ export function AuthLayout({ title, subtitle, children }: AuthLayoutProps): Reac
               value={locale}
               onChange={(value) => isLocale(value) && setLocale(value)}
               options={[
-                { value: 'ar', label: t('common.language.ar') },
-                { value: 'en', label: t('common.language.en') },
+                // Each name in its own language, so a screen reader reads "English" with an English voice in the Arabic UI.
+                { value: 'ar', label: <span lang="ar">{t('common.language.ar')}</span> },
+                { value: 'en', label: <span lang="en">{t('common.language.en')}</span> },
               ]}
             />
           </Flex>

@@ -2,13 +2,14 @@ import { ApiError } from '@nexlegtiq/shared-api-client';
 import { NewPasswordSchema, ResetPasswordRequestSchema } from '@nexlegtiq/shared-contracts';
 import type { ResetPasswordRequest } from '@nexlegtiq/shared-contracts';
 import { useMutation } from '@tanstack/react-query';
-import { Alert, Button, Flex, Form, Input, Result } from 'antd';
+import { Button, Flex, Form, Input, Result } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router';
 
 import { AuthLayout } from '../components/AuthLayout';
-import { applyServerErrors, errorText, isFieldError, parseForm, useMessage, zodRule } from '../forms';
-import { auth } from '../session';
+import { FormError } from '../components/FormError';
+import { applyServerErrors, parseForm, useMessage, zodRule } from '../forms';
+import { auth, broadcast, endSession, useSession } from '../session';
 import { useLinkToken } from '../use-link-token';
 
 /** Fields the API's VAL-001 details are shown on. */
@@ -23,9 +24,17 @@ export function ResetPasswordPage(): React.JSX.Element {
   const [form] = Form.useForm();
 
   const reset = useMutation({
+    // Never keep the new password in the mutation cache after the page is gone.
+    gcTime: 0,
     mutationFn: (body: ResetPasswordRequest) => auth.resetPassword(body),
-    // Every session of the user has ended (D-086): sign in again with the new password.
-    onSuccess: () => void navigate('/login?reason=passwordReset', { replace: true }),
+    // Every session of the user has ended (D-086), this tab's and the others' included: sign in again.
+    onSuccess: () => {
+      if (useSession.getState().status === 'authenticated') {
+        endSession(null);
+        broadcast({ type: 'signedOut', reason: 'signedOut' });
+      }
+      void navigate('/login?reason=passwordReset', { replace: true });
+    },
     onError: (error) => applyServerErrors(form, error, FIELDS, message),
   });
 
@@ -56,13 +65,13 @@ export function ResetPasswordPage(): React.JSX.Element {
   return (
     <AuthLayout title={t('auth.resetPassword.title')}>
       <Flex vertical gap={16}>
-        {reset.isError && !isFieldError(reset.error, FIELDS) ? <Alert type="error" showIcon title={errorText(reset.error, message)} role="alert" /> : null}
+        <FormError error={reset.error} fields={FIELDS} />
         <Form form={form} noValidate layout="vertical" requiredMark={false} onFinish={submit} disabled={reset.isPending}>
           <Form.Item name="newPassword" label={t('auth.fields.newPassword')} extra={t('auth.passwordHint')} rules={zodRule(NewPasswordSchema, message)}>
-            <Input.Password autoComplete="new-password" autoFocus data-testid="reset-new-password" />
+            <Input.Password autoComplete="new-password" dir="ltr" autoFocus data-testid="reset-new-password" />
           </Form.Item>
           <Form.Item name="confirmPassword" label={t('auth.fields.confirmPassword')}>
-            <Input.Password autoComplete="new-password" data-testid="reset-confirm-password" />
+            <Input.Password autoComplete="new-password" dir="ltr" data-testid="reset-confirm-password" />
           </Form.Item>
           <Button type="primary" htmlType="submit" block loading={reset.isPending} data-testid="reset-submit">
             {t('auth.resetPassword.submit')}

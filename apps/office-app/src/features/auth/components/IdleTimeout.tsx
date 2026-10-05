@@ -2,7 +2,7 @@ import { Button, Modal } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { broadcast, onRemoteActivity, signOut, useSession } from '../session';
+import { broadcast, onRemoteActivity, recordActivity, signOut, useSession } from '../session';
 
 /** The warning shows during the last minute (MVP-42). */
 export const IDLE_WARNING_MS = 60_000;
@@ -19,6 +19,7 @@ export function IdleTimeout(): React.JSX.Element | null {
   const idleMs = useSession((state) => state.idleMinutes) * 60_000;
   const lastActivity = useRef(Date.now());
   const lastBroadcast = useRef(0);
+  const warning = useRef(false);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
 
   useEffect(() => {
@@ -26,11 +27,14 @@ export function IdleTimeout(): React.JSX.Element | null {
       lastActivity.current = Math.max(lastActivity.current, at);
     };
     const onLocalActivity = () => {
+      // While the warning is open only its buttons count: moving towards "Sign out" must not close it.
+      if (warning.current) return;
       const now = Date.now();
       touch(now);
       if (now - lastBroadcast.current >= BROADCAST_EVERY_MS) {
         lastBroadcast.current = now;
         broadcast({ type: 'activity', at: now });
+        recordActivity(now);
       }
     };
     ACTIVITY_EVENTS.forEach((event) => window.addEventListener(event, onLocalActivity, { passive: true }));
@@ -43,7 +47,8 @@ export function IdleTimeout(): React.JSX.Element | null {
         window.clearInterval(tick);
         void signOut('idle');
       } else {
-        setSecondsLeft(left <= IDLE_WARNING_MS ? Math.ceil(left / 1000) : null);
+        warning.current = left <= IDLE_WARNING_MS;
+        setSecondsLeft(warning.current ? Math.ceil(left / 1000) : null);
       }
     }, 1000);
 
@@ -56,7 +61,9 @@ export function IdleTimeout(): React.JSX.Element | null {
 
   const stay = () => {
     lastActivity.current = Date.now();
+    warning.current = false;
     broadcast({ type: 'activity', at: lastActivity.current });
+    recordActivity(lastActivity.current);
     setSecondsLeft(null);
   };
 
@@ -76,7 +83,8 @@ export function IdleTimeout(): React.JSX.Element | null {
         </Button>,
       ]}
     >
-      <p aria-live="polite" data-testid="idle-countdown">
+      {/* Read once when the dialog opens; a live region would re-announce every second. */}
+      <p data-testid="idle-countdown">
         {t('auth.idle.countdown', { count: secondsLeft ?? 0 })}
       </p>
     </Modal>

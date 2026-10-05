@@ -38,7 +38,8 @@ export function configureApp(app: NestExpressApplication): void {
     origin: [...config.corsOrigins],
     // Refresh-token cookie (D-050); CSRF defence for cookie endpoints lives with auth (D-055).
     credentials: true,
-    exposedHeaders: [REQUEST_ID_HEADER],
+    // Retry-After lets the SPA say how long to wait after a 429 (MVP-42).
+    exposedHeaders: [REQUEST_ID_HEADER, 'Retry-After'],
   });
   app.use(compression());
   // JSON-only API: no urlencoded parser (avoids qs nested-object parsing).
