@@ -7,8 +7,8 @@ colorPrimary `#1a3c6e` (hover `#2a5a9c`, bg `#e6edf5`) · success `#2e7d32` · w
 colorBgBase `#ffffff` · colorBgContainer `#f8f9fa` · colorTextBase `#1a2332` · colorTextSecondary `#5a6a7e` · colorBorder `#d9e1ec`
 fontSize 14 · headings 28/24/20/18/16 · borderRadius 8 (LG 12, SM 4) · controlHeight 40 (LG 48, SM 32)
 boxShadow `0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04)` · boxShadowSecondary `0 4px 12px rgba(0,0,0,.08)`
-Fonts: EN `Inter`; AR `Noto Naskh Arabic` (UI may use `Cairo`/`IBM Plex Sans Arabic` — choose one in Sprint 1 and
-record), documents/PDF `Amiri`. Arabic: +1px size, line-height 1.8. Dark mode: token algorithm switch, Phase 2.
+Fonts (self-hosted, D-088): EN `Inter`; AR UI `IBM Plex Sans Arabic` (Inter first in the stack, so Latin and digits match);
+documents/PDF `Amiri`. Theme: `nexTheme(locale)` via `NexProvider` (shared-ui). Arabic: +1px size, line-height 1.8. Dark mode: token algorithm switch, Phase 2.
 
 ## i18n & RTL rules (non-negotiable)
 - i18next + react-i18next; namespaces per feature; **no hard-coded user-facing strings** (lint: `i18next/no-literal-string`
