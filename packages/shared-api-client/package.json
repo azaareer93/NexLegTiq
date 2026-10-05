@@ -13,5 +13,10 @@
     },
     "./package.json": "./package.json"
   },
-  "dependencies": {}
+  "dependencies": {
+    "@nexlegtiq/shared-contracts": "workspace:*",
+    "@nexlegtiq/shared-types": "workspace:*",
+    "axios": "^1.18.1",
+    "zod": "^4.6.5"
+  }
 }

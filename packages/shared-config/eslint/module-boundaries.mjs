@@ -10,7 +10,7 @@
  *
  * Tags live in each project's project.json. Verified by src/module-boundaries.spec.ts.
  */
-// Server code and credentials-bearing clients never reach a public SPA bundle (apps and the shared UI/i18n packages).
+// Server code and credentials-bearing clients never reach a public SPA bundle (apps and the shared UI/i18n/API-client packages).
 const SERVER_PACKAGES = ['@nestjs/*', '@prisma/*', 'prisma', 'bullmq', 'ioredis', 'pg', '@aws-sdk/*', 'nodemailer'];
 
 export const depConstraints = [
@@ -24,6 +24,7 @@ export const depConstraints = [
   {
     sourceTag: 'layer:api-client',
     onlyDependOnLibsWithTags: ['layer:types', 'layer:utils', 'layer:contracts'],
+    bannedExternalImports: SERVER_PACKAGES,
   },
   { sourceTag: 'layer:i18n', onlyDependOnLibsWithTags: ['layer:types'], bannedExternalImports: SERVER_PACKAGES },
   {
