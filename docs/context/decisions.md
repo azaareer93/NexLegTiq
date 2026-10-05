@@ -607,5 +607,5 @@ the token even offline) and `usersApi(client)` (`changePassword`; `users/me` and
 story). `idempotencyHeaders(key)` takes the key the caller created once per user action (`crypto.randomUUID()`, which
 needs a secure context) and reuses on retries. **Deployment:** the SPAs and the API must be on the same site (subdomains of
 one registrable domain), or the `SameSite=Lax` refresh cookie is not sent. Tests use MSW 3 (Node; vitest's optional
-`msw ^2` peer is unused); axios is `^1.18`. Server packages are banned in `layer:api-client` like in the UI layers.
+`msw ^2` peer is unused); axios is `^1.20` (1.20 fixes high-severity advisories in 1.13–1.19). Server packages are banned in `layer:api-client` like in the UI layers.
 Why: the three SPAs handle sessions, errors and contracts identically, and a session survives a flaky network.

@@ -59,7 +59,7 @@
     "@vitest/coverage-v8": "~4.1.0",
     "@vitest/ui": "~4.1.0",
     "axe-core": "^4.13.0",
-    "axios": "^1.18.1",
+    "axios": "^1.20.0",
     "eslint": "^9.8.0",
     "eslint-config-prettier": "^10.0.0",
     "eslint-plugin-i18next": "^6.1.5",
