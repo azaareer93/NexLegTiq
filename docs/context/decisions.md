@@ -640,3 +640,22 @@ AntD's grid. **Deviations:** the Cypress login journey moves to the E2E story (M
 every interactive element has a `data-testid` for it. The signed-in home is a placeholder with a sign-out button, and the
 "confirm your email" banner comes with the app shell (MVP-45). Why: one session model for every page and tab, no token
 outside memory, and sign-in errors explained in the user's language.
+Review additions (same PR): **Start-up** distinguishes a refusal (401, AUTH-006/010 → signed out) from an unreachable API
+(offline, 5xx, 429 → `status: error`, protected pages show `ErrorState` with a retry; the cookie may be valid). **Idle across
+page loads:** the last activity time (`nlq.lastActivity`, a timestamp, not secret) is kept in localStorage while signed in and
+removed at sign-out; a restore older than the idle timeout signs out (server revoke) with the inactivity notice instead of
+resuming — closing the tab no longer resets the timer on a shared computer. While the warning is open only its buttons count
+(moving towards "sign out" no longer closes it), and the countdown is not a live region. **Tabs:** `signedOut` carries its
+reason; messages are shape-checked and an activity time is capped at "now" (a forged or future time cannot switch the
+timeout off); `signedIn` makes every tab re-check its session, and a different user in the cookie clears the previous user's
+cache first. A **password reset while signed in** ends this tab's session and the others' (D-086 already revoked them on the
+server). **Verify-email:** a failure other than 410 (offline, 5xx, 429) offers "try again" with the token kept in memory —
+the address bar no longer has it — and the signed-in session is not patched (the link may be another account's). **`next`**
+is parsed with `URL` against the app origin and refused with control characters (`/%09/evil.test`). **Signup:** after a 5xx
+or RES-002 the banner offers sign-in (D-083: the office may exist), the office language follows the AR | EN switch until
+picked, and currencies show their localized name with the code isolated. **Retry-After:** `ApiError.retryAfter` (seconds,
+amends D-089) and the API's CORS `exposedHeaders` now include `Retry-After`, so the banner says how long to wait (plural
+forms in Arabic). Login, signup and reset mutations use `gcTime: 0` (no password left in the mutation cache); password
+inputs are `dir="ltr"` (the policy is Latin letters and digits); a production build fails without an `https://`
+`VITE_API_URL`. **Open, owner's call:** enforcing the idle timeout on the server too (refuse a refresh after inactivity),
+or a browser-session cookie when "remember me" is off — both change D-082.
