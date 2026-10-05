@@ -3,8 +3,11 @@
   "version": "0.0.1",
   "private": true,
   "dependencies": {
+    "@nexlegtiq/shared-api-client": "workspace:*",
+    "@nexlegtiq/shared-contracts": "workspace:*",
     "@nexlegtiq/shared-i18n": "workspace:*",
     "@nexlegtiq/shared-types": "workspace:*",
-    "@nexlegtiq/shared-ui": "workspace:*"
+    "@nexlegtiq/shared-ui": "workspace:*",
+    "zod": "^4.6.5"
   }
 }

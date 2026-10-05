@@ -26,13 +26,14 @@ export default defineConfig(() => ({
     watch: false,
     globals: true,
     environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
     include: ['{src,tests}/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
     reporters: ['default'],
     coverage: {
       reportsDirectory: './test-output/vitest/coverage',
       provider: 'v8' as const,
       include: ['src/**/*.{ts,tsx}'],
-      exclude: ['src/**/*.{spec,test}.{ts,tsx}', 'src/**/index.ts', 'src/main.tsx', 'src/app/router.ts'],
+      exclude: ['src/**/*.{spec,test}.{ts,tsx}', 'src/test/**', 'src/**/index.ts', 'src/main.tsx', 'src/app/router.ts'],
       // D-071 quality gate (enforced when run with --coverage, as CI does)
       thresholds: { lines: 70, branches: 70, functions: 70, statements: 70 },
     }
