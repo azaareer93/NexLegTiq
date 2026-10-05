@@ -29,7 +29,8 @@ Documents, Reports (OM/SL/A), Team (OM), Settings (OM). Quick actions: + File, +
 Breakpoints: ≥1200 full; 768–1199 icon sider; <768 bottom nav, single column (mobile web only).
 
 ## Screens (MVP)
-- **Auth**: login (EN|AR toggle), forgot/reset password, accept invite, verify email, signup → onboarding wizard.
+- **Auth**: login (EN|AR toggle), forgot/reset password, accept invite, verify email, signup → onboarding wizard. Session store,
+  guards (`RequireAuth`, `GuestOnly`, `RequirePermission`), cross-tab sign-out and the idle timeout: D-090.
 - **Onboarding** (8 steps, skippable, "Step n of 8"): account → office setup (jurisdiction default PALESTINE, language, currency) →
   invite team → welcome tour → first case → first hearing → first document → done checklist.
 - **Dashboard** (role-aware): KPI cards — my open cases (Δ week), today's hearings, overdue tasks, unpaid invoices (sum, overdue),

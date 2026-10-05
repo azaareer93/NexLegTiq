@@ -609,3 +609,34 @@ needs a secure context) and reuses on retries. **Deployment:** the SPAs and the 
 one registrable domain), or the `SameSite=Lax` refresh cookie is not sent. Tests use MSW 3 (Node; vitest's optional
 `msw ^2` peer is unused); axios is `^1.20` (1.20 fixes high-severity advisories in 1.13–1.19). Server packages are banned in `layer:api-client` like in the UI layers.
 Why: the three SPAs handle sessions, errors and contracts identically, and a session survives a flaky network.
+
+**D-090 — Office-app sign-in, session and idle timeout** · Accepted (MVP-42, 2026-10-06)
+MVP-42 left the session plumbing, the idle-timeout source and the E2E journey open. → **Libraries:** TanStack Query 5 and
+Zustand 5 (the stack architecture.md lists) join as root dependencies. **Session** (`apps/office-app/src/features/auth`): a
+Zustand store `{status: loading|authenticated|anonymous, user, accessToken, idleMinutes, signOutReason}` in memory only
+(D-050; the API client reads the token from it, React Query never sees it). `restoreSession()` runs once per page load from
+`main.tsx` (not an effect, which StrictMode runs twice); guards show a loading state until it answers. `RequireAuth` sends an
+anonymous visitor to `/login?next=<path>&reason=<why>` and `GuestOnly` sends a signed-in one on; **`next` must be a same-app
+path** (`/…`, not `//…`, `/\…` or a URL), or it is ignored — no open redirect. `RequirePermission` shows the AUTH-100 message
+(UI only, D-051). Signing out (button, idle timeout, a session lost mid-use via `onAuthFailure`) clears the store and
+`queryClient.clear()`. **Other tabs** follow through a `BroadcastChannel('nlq-session')`: `signedOut` ends their session,
+`signedIn` makes an anonymous tab restore its own (no token ever travels), `activity` feeds the idle timer. **Idle timeout:**
+default **30 min** (D-053) until the office setting is readable (office settings API, MVP-48 sets `idleMinutes`); a warning
+modal with a countdown during the last minute ("stay signed in" / "sign out"); counted from the last pointer, key, wheel,
+touch or mouse activity in any tab, by timestamps (a sleeping laptop is judged correctly); it then signs out on the server
+and shows "signed out after inactivity". **Pages** (lazy routes): `/login` (remember me, AR | EN switch, forgot link,
+notices for idle/expired/signed-out/password-reset), `/signup` (register contract; defaults PALESTINE, ILS, FIRM, office
+language = current UI language; Terms/Privacy links to `/legal/terms|privacy`, which the app must still serve, D-085),
+`/forgot-password` (same answer for every email), `/reset-password` and `/verify-email` (work signed in or not). The link
+token is read once and **removed from the address bar**, and `index.html` sets `<meta name="referrer" content="no-referrer">`
+(D-086); the verify call is sent once per page (single-use link). A used/expired link (410 RES-004) offers a new one; a
+verified signed-in user is updated in place. **Forms:** AntD `Form noValidate` (the browser's own validation would block
+the submit with an untranslated popup) + `zodRule(fieldSchema)` = a `required` rule when the contract rejects "empty" and a
+validator with the contract's `validation.*` message, then the whole contract on submit (cross-field rules); API `VAL-001`
+details go on their fields, every other error is `errors.<CODE>` in a banner (AUTH-001, 423 AUTH-007, 429 RATE-001…; the
+`Retry-After` seconds are not shown, `ApiError` carries no headers). **Tests:** Vitest + MSW 3 flows, both languages, axe on
+the login and signup pages (colour contrast and landmarks excluded, as in D-088); `src/test/setup.ts` stubs `matchMedia` for
+AntD's grid. **Deviations:** the Cypress login journey moves to the E2E story (MVP-115), which creates the Cypress project;
+every interactive element has a `data-testid` for it. The signed-in home is a placeholder with a sign-out button, and the
+"confirm your email" banner comes with the app shell (MVP-45). Why: one session model for every page and tab, no token
+outside memory, and sign-in errors explained in the user's language.
