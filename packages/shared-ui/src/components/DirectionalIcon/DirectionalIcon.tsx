@@ -11,8 +11,15 @@ export interface DirectionalIconProps extends IconProps {
 }
 
 /** Renders the icon mirrored in right-to-left layouts, so "back" and "next" point the right way in Arabic. */
-export function DirectionalIcon({ icon: Icon, style, ...props }: DirectionalIconProps): React.JSX.Element {
+export function DirectionalIcon({
+  icon: Icon,
+  style,
+  ...props
+}: DirectionalIconProps): React.JSX.Element {
   const { direction } = useContext(ConfigProvider.ConfigContext);
-  const mirrored = direction === 'rtl' ? { ...style, transform: `${style?.transform ?? ''} scaleX(-1)`.trim() } : style;
+  const mirrored =
+    direction === 'rtl'
+      ? { ...style, transform: `${style?.transform ?? ''} scaleX(-1)`.trim() }
+      : style;
   return <Icon {...props} style={mirrored} />;
 }

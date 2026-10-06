@@ -10,19 +10,28 @@ import { PrismaService } from './prisma.service';
 function setup(): { prisma: PrismaService; registry: ReadinessRegistry } {
   const logger = { setContext: jest.fn(), warn: jest.fn() } as unknown as PinoLogger;
   const registry = new ReadinessRegistry(logger);
-  const prisma = new PrismaService(new AppConfig(parseEnv(testEnv())), registry, ClsServiceManager.getClsService());
+  const prisma = new PrismaService(
+    new AppConfig(parseEnv(testEnv())),
+    registry,
+    ClsServiceManager.getClsService(),
+  );
   return { prisma, registry };
 }
 
 describe('PrismaService', () => {
   it('should register a db readiness check that pings the database', async () => {
     const { prisma, registry } = setup();
-    const ping = jest.spyOn(prisma.unscoped(), '$queryRaw').mockResolvedValue([{ '?column?': 1 }] as never);
+    const ping = jest
+      .spyOn(prisma.unscoped(), '$queryRaw')
+      .mockResolvedValue([{ '?column?': 1 }] as never);
 
     prisma.onModuleInit();
 
     expect(registry.names()).toEqual(['db']);
-    await expect(registry.run()).resolves.toMatchObject({ status: 'ok', checks: { db: { status: 'up' } } });
+    await expect(registry.run()).resolves.toMatchObject({
+      status: 'ok',
+      checks: { db: { status: 'up' } },
+    });
     expect(ping).toHaveBeenCalledTimes(1);
   });
 
@@ -32,7 +41,10 @@ describe('PrismaService', () => {
 
     prisma.onModuleInit();
 
-    await expect(registry.run()).resolves.toMatchObject({ status: 'error', checks: { db: { status: 'down' } } });
+    await expect(registry.run()).resolves.toMatchObject({
+      status: 'error',
+      checks: { db: { status: 'down' } },
+    });
   });
 
   it('should disconnect on shutdown', async () => {
@@ -47,7 +59,9 @@ describe('PrismaService', () => {
   it('should expose a tenant-scoped client that refuses tenant queries without an office', async () => {
     const { prisma } = setup();
 
-    await expect(prisma.db.user.findMany()).rejects.toThrow('No officeId in the request context for User.findMany');
+    await expect(prisma.db.user.findMany()).rejects.toThrow(
+      'No officeId in the request context for User.findMany',
+    );
   });
 
   it('should keep global models read-only and reject Unsafe raw SQL on the scoped client', async () => {

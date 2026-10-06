@@ -49,7 +49,10 @@ export const NewPasswordSchema = z
   .string()
   .min(PASSWORD_MIN_LENGTH, 'validation.password.tooShort')
   .max(256, 'validation.tooLong')
-  .refine((value) => /[a-z]/.test(value) && /[A-Z]/.test(value) && /\d/.test(value), 'validation.password.weak')
+  .refine(
+    (value) => /[a-z]/.test(value) && /[A-Z]/.test(value) && /\d/.test(value),
+    'validation.password.weak',
+  )
   .refine((value) => !COMMON_PASSWORDS.has(value.toLowerCase()), 'validation.password.common');
 
 /** False when the password is the email (or its local part), ignoring case. */

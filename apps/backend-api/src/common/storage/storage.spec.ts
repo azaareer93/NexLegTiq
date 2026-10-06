@@ -18,19 +18,29 @@ jest.mock('@aws-sdk/s3-request-presigner', () => ({ getSignedUrl: jest.fn() }));
 const OFFICE = '01920000-0000-7000-8000-00000000000a';
 const KEY = `${OFFICE}/file-1/doc.txt`;
 const cls = ClsServiceManager.getClsService<RequestContext>();
-const inOffice = <T>(work: () => Promise<T>) => new TenantRunner(cls).run({ officeId: OFFICE as never }, work);
+const inOffice = <T>(work: () => Promise<T>) =>
+  new TenantRunner(cls).run({ officeId: OFFICE as never }, work);
 const UploadMock = Upload as unknown as jest.Mock;
 const signMock = getSignedUrl as jest.Mock;
 
-function setup(send: jest.Mock = jest.fn().mockResolvedValue({ Body: 'stream' }), env: Record<string, string> = {}) {
+function setup(
+  send: jest.Mock = jest.fn().mockResolvedValue({ Body: 'stream' }),
+  env: Record<string, string> = {},
+) {
   const register = jest.fn();
-  const service = new StorageService(new AppConfig(parseEnv(testEnv(env))), cls, { register } as unknown as ReadinessRegistry);
+  const service = new StorageService(new AppConfig(parseEnv(testEnv(env))), cls, {
+    register,
+  } as unknown as ReadinessRegistry);
   Object.assign(service, { client: { send, destroy: jest.fn() } });
   return { service, send, register };
 }
 
 const s3Error = (name: string, status: number) =>
-  new S3ServiceException({ name, $fault: status >= 500 ? 'server' : 'client', $metadata: { httpStatusCode: status } });
+  new S3ServiceException({
+    name,
+    $fault: status >= 500 ? 'server' : 'client',
+    $metadata: { httpStatusCode: status },
+  });
 
 beforeEach(() => {
   UploadMock.mockReset().mockImplementation(() => ({ done: jest.fn().mockResolvedValue({}) }));
@@ -42,7 +52,8 @@ describe('StorageService (unit)', () => {
     const { service } = setup();
     await inOffice(async () => {
       expect(service.keyFor('file-1', 'doc-2', 'a1b2.pdf')).toBe(`${OFFICE}/file-1/doc-2/a1b2.pdf`);
-      for (const bad of [['..'], ['.'], ['a/b'], ['ملف.pdf'], ['']]) expect(() => service.keyFor(...bad)).toThrow(TenantViolationError);
+      for (const bad of [['..'], ['.'], ['a/b'], ['ملف.pdf'], ['']])
+        expect(() => service.keyFor(...bad)).toThrow(TenantViolationError);
       expect(() => service.keyFor()).toThrow(TenantViolationError);
     });
     expect(() => service.keyFor('x')).toThrow(TenantContextMissingError);
@@ -54,23 +65,36 @@ describe('StorageService (unit)', () => {
     ['an empty segment', `${OFFICE}//doc.txt`],
     ['the office prefix alone', OFFICE],
     ['a prefix look-alike', `${OFFICE}x/doc.txt`],
-  ])('should refuse a key of %s in every operation, even one read back from the database', async (_label, key) => {
-    const { service, send } = setup();
-    await inOffice(async () => {
-      await expect(service.put(key, Buffer.from('x'), { contentType: 'text/plain' })).rejects.toBeInstanceOf(TenantViolationError);
-      await expect(service.getStream(key)).rejects.toBeInstanceOf(TenantViolationError);
-      await expect(service.head(key)).rejects.toBeInstanceOf(TenantViolationError);
-      await expect(service.delete(key)).rejects.toBeInstanceOf(TenantViolationError);
-      await expect(service.presignedGetUrl(key)).rejects.toBeInstanceOf(TenantViolationError);
-    });
-    expect(send).not.toHaveBeenCalled();
-    expect(UploadMock).not.toHaveBeenCalled();
-  });
+  ])(
+    'should refuse a key of %s in every operation, even one read back from the database',
+    async (_label, key) => {
+      const { service, send } = setup();
+      await inOffice(async () => {
+        await expect(
+          service.put(key, Buffer.from('x'), { contentType: 'text/plain' }),
+        ).rejects.toBeInstanceOf(TenantViolationError);
+        await expect(service.getStream(key)).rejects.toBeInstanceOf(TenantViolationError);
+        await expect(service.head(key)).rejects.toBeInstanceOf(TenantViolationError);
+        await expect(service.delete(key)).rejects.toBeInstanceOf(TenantViolationError);
+        await expect(service.presignedGetUrl(key)).rejects.toBeInstanceOf(TenantViolationError);
+      });
+      expect(send).not.toHaveBeenCalled();
+      expect(UploadMock).not.toHaveBeenCalled();
+    },
+  );
 
   it('should request server-side encryption on upload only when S3_SSE=AES256', async () => {
     await inOffice(async () => {
-      await setup(undefined, { S3_SSE: 'AES256' }).service.put(KEY, Buffer.from('x'), { contentType: 'text/plain', contentLength: 1 });
-      expect(UploadMock.mock.calls[0]?.[0].params).toMatchObject({ Key: KEY, ContentType: 'text/plain', ContentLength: 1, ServerSideEncryption: 'AES256' });
+      await setup(undefined, { S3_SSE: 'AES256' }).service.put(KEY, Buffer.from('x'), {
+        contentType: 'text/plain',
+        contentLength: 1,
+      });
+      expect(UploadMock.mock.calls[0]?.[0].params).toMatchObject({
+        Key: KEY,
+        ContentType: 'text/plain',
+        ContentLength: 1,
+        ServerSideEncryption: 'AES256',
+      });
 
       await setup().service.put(KEY, Buffer.from('x'), { contentType: 'text/plain' });
       expect(UploadMock.mock.calls[1]?.[0].params).not.toHaveProperty('ServerSideEncryption');
@@ -79,10 +103,14 @@ describe('StorageService (unit)', () => {
 
   it('should map storage failures to STO codes and a missing object to RES-001 / null', async () => {
     await inOffice(async () => {
-      UploadMock.mockImplementation(() => ({ done: jest.fn().mockRejectedValue(s3Error('InternalError', 500)) }));
+      UploadMock.mockImplementation(() => ({
+        done: jest.fn().mockRejectedValue(s3Error('InternalError', 500)),
+      }));
       signMock.mockRejectedValue(new Error('no credentials'));
       const failing = setup(jest.fn().mockRejectedValue(s3Error('InternalError', 500))).service;
-      await expect(failing.put(KEY, Buffer.from('x'), { contentType: 'text/plain' })).rejects.toMatchObject({ code: 'STO-001' });
+      await expect(
+        failing.put(KEY, Buffer.from('x'), { contentType: 'text/plain' }),
+      ).rejects.toMatchObject({ code: 'STO-001' });
       await expect(failing.getStream(KEY)).rejects.toMatchObject({ code: 'STO-002' });
       await expect(failing.head(KEY)).rejects.toMatchObject({ code: 'STO-002' });
       await expect(failing.presignedGetUrl(KEY)).rejects.toMatchObject({ code: 'STO-002' });
@@ -92,7 +120,9 @@ describe('StorageService (unit)', () => {
       await expect(missing.getStream(KEY)).rejects.toMatchObject({ code: 'RES-001' });
       await expect(missing.head(KEY)).resolves.toBeNull();
 
-      await expect(setup(jest.fn().mockResolvedValue({})).service.getStream(KEY)).rejects.toMatchObject({ code: 'STO-002' });
+      await expect(
+        setup(jest.fn().mockResolvedValue({})).service.getStream(KEY),
+      ).rejects.toMatchObject({ code: 'STO-002' });
     });
   });
 
@@ -100,19 +130,31 @@ describe('StorageService (unit)', () => {
     const { service } = setup();
     await inOffice(async () => {
       await service.presignedGetUrl(KEY);
-      await service.presignedGetUrl(KEY, { expiresIn: 7 * 86_400, filename: 'عقد.pdf', contentType: 'application/pdf' });
+      await service.presignedGetUrl(KEY, {
+        expiresIn: 7 * 86_400,
+        filename: 'عقد.pdf',
+        contentType: 'application/pdf',
+      });
       await service.presignedGetUrl(KEY, { expiresIn: 0 });
     });
     const [first, second, third] = signMock.mock.calls;
     expect(first?.[2]).toEqual({ expiresIn: 300 });
-    expect(first?.[1].input.ResponseContentDisposition).toBe('attachment; filename="doc.txt"; filename*=UTF-8\'\'doc.txt');
+    expect(first?.[1].input.ResponseContentDisposition).toBe(
+      'attachment; filename="doc.txt"; filename*=UTF-8\'\'doc.txt',
+    );
     expect(second?.[2]).toEqual({ expiresIn: MAX_URL_TTL_SECONDS });
-    expect(second?.[1].input).toMatchObject({ ResponseContentType: 'application/pdf', ResponseContentDisposition: expect.stringContaining('attachment;') });
+    expect(second?.[1].input).toMatchObject({
+      ResponseContentType: 'application/pdf',
+      ResponseContentDisposition: expect.stringContaining('attachment;'),
+    });
     expect(third?.[2]).toEqual({ expiresIn: 1 });
   });
 
   it('should register a storage readiness check (HeadBucket) that fails when storage does', async () => {
-    const send = jest.fn().mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    const send = jest
+      .fn()
+      .mockResolvedValueOnce({})
+      .mockRejectedValueOnce(new Error('ECONNREFUSED'));
     const { service, register } = setup(send);
     service.onModuleInit();
     const [name, check] = register.mock.calls[0] ?? [];
@@ -129,6 +171,8 @@ describe('contentDisposition', () => {
     expect(contentDisposition('عقد "نهائي".pdf')).toBe(
       `attachment; filename="___ _______.pdf"; filename*=UTF-8''${encodeURIComponent('عقد "نهائي".pdf')}`,
     );
-    expect(contentDisposition("it's (final)*.pdf")).toBe(`attachment; filename="it's (final)*.pdf"; filename*=UTF-8''it%27s%20%28final%29%2A.pdf`);
+    expect(contentDisposition("it's (final)*.pdf")).toBe(
+      `attachment; filename="it's (final)*.pdf"; filename*=UTF-8''it%27s%20%28final%29%2A.pdf`,
+    );
   });
 });

@@ -5,7 +5,9 @@ import { parseEnv } from './env.schema';
 
 @Global()
 @Module({
-  providers: [{ provide: AppConfig, useFactory: (): AppConfig => new AppConfig(parseEnv(process.env)) }],
+  providers: [
+    { provide: AppConfig, useFactory: (): AppConfig => new AppConfig(parseEnv(process.env)) },
+  ],
   exports: [AppConfig],
 })
 export class ConfigModule {}

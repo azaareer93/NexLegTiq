@@ -43,7 +43,8 @@ export class MetricsServer implements OnApplicationBootstrap, OnApplicationShutd
         return;
       }
       this.metrics.render().then(
-        (body) => res.writeHead(200, { 'content-type': this.metrics.registry.contentType }).end(body),
+        (body) =>
+          res.writeHead(200, { 'content-type': this.metrics.registry.contentType }).end(body),
         () => res.writeHead(500).end(),
       );
     });
@@ -58,6 +59,8 @@ export class MetricsServer implements OnApplicationBootstrap, OnApplicationShutd
     const server = this.server;
     this.server = undefined;
     if (!server) return Promise.resolve();
-    return new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    return new Promise((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    );
   }
 }

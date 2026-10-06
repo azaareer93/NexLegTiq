@@ -33,7 +33,9 @@ export class ApiError extends Error {
 
 function isErrorEnvelope(body: unknown): body is ApiErrorResponse {
   const error = (body as Partial<ApiErrorResponse> | null)?.error;
-  return (body as { success?: unknown } | null)?.success === false && typeof error?.code === 'string';
+  return (
+    (body as { success?: unknown } | null)?.success === false && typeof error?.code === 'string'
+  );
 }
 
 /** Normalises anything a request can throw. Cancellations pass through untouched (TanStack Query ignores them). */
@@ -50,7 +52,8 @@ export function toApiError(error: unknown): unknown {
   // Only the delta-seconds form; an HTTP-date is not worth parsing for a hint.
   const retryHeader = Number(response.headers['retry-after']);
   // A day at most: a hostile or broken header must not tell the user to wait for years.
-  const retryAfter = Number.isInteger(retryHeader) && retryHeader > 0 ? Math.min(retryHeader, 86_400) : undefined;
+  const retryAfter =
+    Number.isInteger(retryHeader) && retryHeader > 0 ? Math.min(retryHeader, 86_400) : undefined;
   const body: unknown = response.data;
   if (isErrorEnvelope(body)) {
     const { code, message, details } = body.error;
@@ -66,5 +69,12 @@ export function toApiError(error: unknown): unknown {
   }
   // Not our envelope: a proxy or CDN answered (502/503/504 while the API restarts, an HTML error page…).
   const code = response.status >= 502 && response.status <= 504 ? 'SYS-002' : 'SYS-001';
-  return new ApiError(code, error.message, response.status, [], typeof headerId === 'string' ? headerId : undefined, retryAfter);
+  return new ApiError(
+    code,
+    error.message,
+    response.status,
+    [],
+    typeof headerId === 'string' ? headerId : undefined,
+    retryAfter,
+  );
 }

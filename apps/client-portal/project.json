@@ -3,9 +3,6 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "apps/client-portal/src",
   "projectType": "application",
-  "tags": [
-    "type:app",
-    "scope:frontend"
-  ],
+  "tags": ["type:app", "scope:frontend"],
   "targets": {}
 }

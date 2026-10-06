@@ -33,7 +33,8 @@ const RELATION_FILTERS = [...LIST_FILTERS, 'is', 'isNot'];
 /** The only relation writes allowed into a global model: pointing a foreign key at an existing row. */
 const GLOBAL_RELATION_WRITES = new Set(['connect', 'disconnect']);
 
-const isObject = (value: unknown): value is Json => typeof value === 'object' && value !== null && !Array.isArray(value);
+const isObject = (value: unknown): value is Json =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
 
 export function requireOfficeId(officeId: string | undefined, target: string): string {
   if (!officeId) throw new TenantContextMissingError(target);
@@ -50,25 +51,43 @@ export function requireOfficeId(officeId: string | undefined, target: string): s
  * Relation filters, orderBy and include/select/_count that reach tenant rows through a global model are scoped too.
  * Unknown operations fail closed.
  */
-export function scopeArgs(model: string, operation: string, args: unknown, ctx: ScopeContext): Json {
+export function scopeArgs(
+  model: string,
+  operation: string,
+  args: unknown,
+  ctx: ScopeContext,
+): Json {
   const scoped: Json = isObject(args) ? { ...args } : {};
   const target = `${model}.${operation}`;
   if (ctx.tenantModels.has(model)) scopeTenantModel(model, operation, scoped, ctx, target);
   else if (model === OFFICE) scopeOffice(operation, scoped, ctx, target);
   else if (!READS.has(operation)) {
-    throw new TenantViolationError(`${target}: global models are read-only on the scoped client; use PrismaService.unscoped()`);
+    throw new TenantViolationError(
+      `${target}: global models are read-only on the scoped client; use PrismaService.unscoped()`,
+    );
   }
   scopeShape(model, scoped, ctx);
   return scoped;
 }
 
-function scopeTenantModel(model: string, operation: string, scoped: Json, ctx: ScopeContext, target: string): void {
+function scopeTenantModel(
+  model: string,
+  operation: string,
+  scoped: Json,
+  ctx: ScopeContext,
+  target: string,
+): void {
   const officeId = requireOfficeId(ctx.officeId(), target);
   if (CREATES.has(operation)) {
     scoped['data'] = mapRows(scoped['data'], target, (row) => createRow(model, row, officeId, ctx));
     return;
   }
-  if (!READS.has(operation) && !UPDATES.has(operation) && !DELETES.has(operation) && operation !== 'upsert') {
+  if (
+    !READS.has(operation) &&
+    !UPDATES.has(operation) &&
+    !DELETES.has(operation) &&
+    operation !== 'upsert'
+  ) {
     throw new TenantViolationError(`${target}: operation not supported by the tenant extension`);
   }
   scoped['where'] = withField(scoped['where'], 'officeId', officeId, target);
@@ -81,9 +100,16 @@ function scopeTenantModel(model: string, operation: string, scoped: Json, ctx: S
 
 function scopeOffice(operation: string, scoped: Json, ctx: ScopeContext, target: string): void {
   if (!READS.has(operation) && !UPDATES.has(operation)) {
-    throw new TenantViolationError(`${target} is not allowed on the scoped client; use PrismaService.unscoped()`);
+    throw new TenantViolationError(
+      `${target} is not allowed on the scoped client; use PrismaService.unscoped()`,
+    );
   }
-  scoped['where'] = withField(scoped['where'], 'id', requireOfficeId(ctx.officeId(), target), target);
+  scoped['where'] = withField(
+    scoped['where'],
+    'id',
+    requireOfficeId(ctx.officeId(), target),
+    target,
+  );
   if (UPDATES.has(operation)) rejectRelationWrites(OFFICE, scoped['data'], ctx);
 }
 
@@ -99,7 +125,8 @@ function withField(where: unknown, field: string, value: string, target: string)
 
 function mapRows(data: unknown, target: string, fn: (row: Json) => Json): unknown {
   const toRow = (row: unknown): Json => {
-    if (!isObject(row)) throw new TenantViolationError(`${target}: every data row must be an object`);
+    if (!isObject(row))
+      throw new TenantViolationError(`${target}: every data row must be an object`);
     return fn(row);
   };
   return Array.isArray(data) ? data.map(toRow) : toRow(data);
@@ -137,7 +164,9 @@ function rejectRelationWrites(model: string, data: unknown, ctx: ScopeContext): 
       );
     }
     if (!isObject(value) || Object.keys(value).some((op) => !GLOBAL_RELATION_WRITES.has(op))) {
-      throw new TenantViolationError(`${model}.${field}: only connect/disconnect into global ${related} on the scoped client`);
+      throw new TenantViolationError(
+        `${model}.${field}: only connect/disconnect into global ${related} on the scoped client`,
+      );
     }
   }
 }
@@ -161,19 +190,29 @@ function scopeWhere(model: string, where: unknown, ctx: ScopeContext): unknown {
   for (const [key, value] of Object.entries(where)) {
     const related = relations?.get(key);
     if (key === 'AND' || key === 'OR' || key === 'NOT') scoped[key] = scopeWhere(model, value, ctx);
-    else scoped[key] = related === undefined ? value : scopeRelationFilter(model, key, related, value, ctx);
+    else
+      scoped[key] =
+        related === undefined ? value : scopeRelationFilter(model, key, related, value, ctx);
   }
   return scoped;
 }
 
-function scopeRelationFilter(model: string, field: string, related: string, filter: unknown, ctx: ScopeContext): unknown {
+function scopeRelationFilter(
+  model: string,
+  field: string,
+  related: string,
+  filter: unknown,
+  ctx: ScopeContext,
+): unknown {
   if (!isObject(filter)) return filter; // e.g. `{ plan: null }`
   const leaks = leaksAcrossOffices(model, related, ctx);
   const target = `${model}.${field}`;
   if (!RELATION_FILTERS.some((op) => op in filter)) {
     // To-one shorthand: `{ user: { email } }` filters the related row directly.
     const inner = scopeWhere(related, filter, ctx);
-    return leaks ? withField(inner, 'officeId', requireOfficeId(ctx.officeId(), target), target) : inner;
+    return leaks
+      ? withField(inner, 'officeId', requireOfficeId(ctx.officeId(), target), target)
+      : inner;
   }
   const scoped: Json = { ...filter };
   for (const op of RELATION_FILTERS) {
@@ -185,7 +224,10 @@ function scopeRelationFilter(model: string, field: string, related: string, filt
     }
     const officeId = requireOfficeId(ctx.officeId(), target);
     // `every` must only judge the current office's rows: rows of other offices pass vacuously.
-    scoped[op] = op === 'every' ? { OR: [{ NOT: { officeId } }, inner ?? {}] } : withField(inner, 'officeId', officeId, target);
+    scoped[op] =
+      op === 'every'
+        ? { OR: [{ NOT: { officeId } }, inner ?? {}] }
+        : withField(inner, 'officeId', officeId, target);
   }
   return scoped;
 }
@@ -198,7 +240,9 @@ function assertOrderByScoped(model: string, orderBy: unknown, ctx: ScopeContext)
       const related = ctx.relations.get(model)?.get(field);
       if (related === undefined) continue;
       if (leaksAcrossOffices(model, related, ctx)) {
-        throw new TenantViolationError(`${model}.orderBy.${field}: ordering by ${related} would count every office`);
+        throw new TenantViolationError(
+          `${model}.orderBy.${field}: ordering by ${related} would count every office`,
+        );
       }
       assertOrderByScoped(related, value, ctx);
     }
@@ -219,7 +263,12 @@ function scopeFields(model: string, fields: Json, ctx: ScopeContext): Json {
     scopeShape(related, nested, ctx);
     if (leaksAcrossOffices(model, related, ctx)) {
       const target = `${model}.${field}`;
-      nested['where'] = withField(nested['where'], 'officeId', requireOfficeId(ctx.officeId(), target), target);
+      nested['where'] = withField(
+        nested['where'],
+        'officeId',
+        requireOfficeId(ctx.officeId(), target),
+        target,
+      );
     }
     scoped[field] = Object.keys(nested).length > 0 ? nested : true;
   }
@@ -230,7 +279,8 @@ function scopeCount(model: string, value: unknown, ctx: ScopeContext): unknown {
   if (value === false || value === undefined) return value;
   const relations = ctx.relations.get(model) ?? new Map<string, string>();
   let select: Json;
-  if (value === true) select = Object.fromEntries([...relations.keys()].map((field) => [field, true]));
+  if (value === true)
+    select = Object.fromEntries([...relations.keys()].map((field) => [field, true]));
   else if (isObject(value) && isObject(value['select'])) select = { ...value['select'] };
   else return value;
 
@@ -240,7 +290,9 @@ function scopeCount(model: string, value: unknown, ctx: ScopeContext): unknown {
     const where = scopeWhere(related, isObject(current) ? current['where'] : undefined, ctx);
     if (leaksAcrossOffices(model, related, ctx)) {
       const target = `${model}._count.${field}`;
-      select[field] = { where: withField(where, 'officeId', requireOfficeId(ctx.officeId(), target), target) };
+      select[field] = {
+        where: withField(where, 'officeId', requireOfficeId(ctx.officeId(), target), target),
+      };
     } else if (where !== undefined) {
       select[field] = { where };
     }
@@ -273,9 +325,13 @@ export function assertRawQueryScoped(
   const { text, values } = rawParts(args);
   const lowered = text.toLowerCase();
   if (lowered.includes('u&"')) {
-    throw new TenantViolationError(`${operation}: Unicode-escaped identifiers are not allowed on the scoped client`);
+    throw new TenantViolationError(
+      `${operation}: Unicode-escaped identifiers are not allowed on the scoped client`,
+    );
   }
-  const touched = tenantTables.filter((table) => new RegExp(`(^|[^a-z0-9_])${table}($|[^a-z0-9_])`).test(lowered));
+  const touched = tenantTables.filter((table) =>
+    new RegExp(`(^|[^a-z0-9_])${table}($|[^a-z0-9_])`).test(lowered),
+  );
   if (touched.length === 0) return;
   const target = `${operation} on ${touched.join(', ')}`;
   const current = requireOfficeId(officeId(), target);
@@ -287,7 +343,10 @@ export function assertRawQueryScoped(
 function rawParts(args: unknown): { text: string; values: unknown[] } {
   // Prisma.sql / tagged template → { strings, values }; the extension may also see [strings, ...values].
   if (isObject(args) && Array.isArray(args['strings'])) {
-    return { text: (args['strings'] as string[]).join('?'), values: Array.isArray(args['values']) ? args['values'] : [] };
+    return {
+      text: (args['strings'] as string[]).join('?'),
+      values: Array.isArray(args['values']) ? args['values'] : [],
+    };
   }
   if (Array.isArray(args)) {
     const [strings, ...values] = args as [unknown, ...unknown[]];

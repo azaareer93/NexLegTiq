@@ -40,19 +40,33 @@ describe('PermissionsGuard denial audit (real PostgreSQL)', () => {
     guard.canActivate({
       getHandler: () => ProbeController.prototype.manageUsers,
       getClass: () => ProbeController,
-      switchToHttp: () => ({ getRequest: () => ({ user: principal, method: 'GET', ip: '127.0.0.1', headers: {} }) }),
+      switchToHttp: () => ({
+        getRequest: () => ({ user: principal, method: 'GET', ip: '127.0.0.1', headers: {} }),
+      }),
     } as unknown as ExecutionContext);
 
   beforeAll(async () => {
-    const config = new AppConfig(parseEnv(testEnv({ DATABASE_URL: process.env['DATABASE_URL'], NODE_ENV: 'test' })));
-    prisma = new PrismaService(config, new ReadinessRegistry({ setContext: () => undefined } as unknown as PinoLogger), cls);
+    const config = new AppConfig(
+      parseEnv(testEnv({ DATABASE_URL: process.env['DATABASE_URL'], NODE_ENV: 'test' })),
+    );
+    prisma = new PrismaService(
+      config,
+      new ReadinessRegistry({ setContext: () => undefined } as unknown as PinoLogger),
+      cls,
+    );
     const logger = { setContext: jest.fn(), warn } as unknown as PinoLogger;
     guard = new PermissionsGuard(new Reflector(), prisma, new TenantRunner(cls), cls, logger);
     const raw = prisma.unscoped();
     for (const name of ['Audit office A', 'Audit office B']) {
       const office = await raw.office.create({ data: { name } });
       const user = await raw.user.create({
-        data: { officeId: office.id, fullName: 'Trainee', email: `audit-${office.id}@example.test`, passwordHash: '!', role: 'TRAINEE' },
+        data: {
+          officeId: office.id,
+          fullName: 'Trainee',
+          email: `audit-${office.id}@example.test`,
+          passwordHash: '!',
+          role: 'TRAINEE',
+        },
       });
       offices.push({ officeId: office.id, userId: user.id });
     }
@@ -80,7 +94,9 @@ describe('PermissionsGuard denial audit (real PostgreSQL)', () => {
     await expect(deny(principal)).rejects.toBeInstanceOf(PermissionDeniedException);
     expect(warn).not.toHaveBeenCalled();
 
-    const rows = await prisma.unscoped().auditLog.findMany({ where: { officeId: { in: [a.officeId, b.officeId] } } });
+    const rows = await prisma
+      .unscoped()
+      .auditLog.findMany({ where: { officeId: { in: [a.officeId, b.officeId] } } });
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       officeId: a.officeId,
@@ -88,17 +104,31 @@ describe('PermissionsGuard denial audit (real PostgreSQL)', () => {
       action: 'PERMISSION_DENIED',
       entityType: 'Route',
       ipAddress: '127.0.0.1',
-      newValues: expect.objectContaining({ mode: 'ALL', required: ['manage:users'], role: 'TRAINEE' }),
+      newValues: expect.objectContaining({
+        mode: 'ALL',
+        required: ['manage:users'],
+        role: 'TRAINEE',
+      }),
     });
   });
 
   it('should still answer 403 when the principal user belongs to another office (FK refuses the audit row)', async () => {
     const [a, b] = offices as [(typeof offices)[0], (typeof offices)[0]];
     warn.mockClear();
-    const forged: AuthPrincipal = { userId: b.userId as UserId, officeId: a.officeId as OfficeId, role: 'TRAINEE', realm: 'OFFICE' };
+    const forged: AuthPrincipal = {
+      userId: b.userId as UserId,
+      officeId: a.officeId as OfficeId,
+      role: 'TRAINEE',
+      realm: 'OFFICE',
+    };
 
     await expect(deny(forged)).rejects.toBeInstanceOf(PermissionDeniedException);
-    expect(warn).toHaveBeenCalledWith(expect.objectContaining({ err: expect.anything() }), 'Could not audit a permission denial');
-    await expect(prisma.unscoped().auditLog.count({ where: { userId: b.userId } })).resolves.toBe(0);
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.anything() }),
+      'Could not audit a permission denial',
+    );
+    await expect(prisma.unscoped().auditLog.count({ where: { userId: b.userId } })).resolves.toBe(
+      0,
+    );
   });
 });

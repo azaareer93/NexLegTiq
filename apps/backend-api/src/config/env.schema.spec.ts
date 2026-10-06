@@ -21,7 +21,11 @@ describe('parseEnv', () => {
       METRICS_PORT: 9464,
       TRUST_PROXY_HOPS: 1,
     });
-    expect(env.CORS_ORIGINS).toEqual(['http://localhost:4200', 'http://localhost:4201', 'http://localhost:4202']);
+    expect(env.CORS_ORIGINS).toEqual([
+      'http://localhost:4200',
+      'http://localhost:4201',
+      'http://localhost:4202',
+    ]);
   });
 
   it('should coerce numbers, booleans and comma-separated origins', () => {
@@ -52,8 +56,12 @@ describe('parseEnv', () => {
   });
 
   it('should reject LOG_PRETTY in production but allow it elsewhere', () => {
-    expect(() => parseEnv(testEnv({ NODE_ENV: 'production', LOG_PRETTY: 'true' }))).toThrow(/LOG_PRETTY/);
-    expect(parseEnv(testEnv({ NODE_ENV: 'development', LOG_PRETTY: 'true' })).LOG_PRETTY).toBe(true);
+    expect(() => parseEnv(testEnv({ NODE_ENV: 'production', LOG_PRETTY: 'true' }))).toThrow(
+      /LOG_PRETTY/,
+    );
+    expect(parseEnv(testEnv({ NODE_ENV: 'development', LOG_PRETTY: 'true' })).LOG_PRETTY).toBe(
+      true,
+    );
   });
 
   it('should enable Swagger by default outside production', () => {
@@ -63,7 +71,9 @@ describe('parseEnv', () => {
 
   it('should disable Swagger by default in production but honour an explicit flag', () => {
     expect(parseEnv(testEnv({ NODE_ENV: 'production' })).SWAGGER_ENABLED).toBe(false);
-    expect(parseEnv(testEnv({ NODE_ENV: 'production', SWAGGER_ENABLED: 'true' })).SWAGGER_ENABLED).toBe(true);
+    expect(
+      parseEnv(testEnv({ NODE_ENV: 'production', SWAGGER_ENABLED: 'true' })).SWAGGER_ENABLED,
+    ).toBe(true);
   });
 
   it('should ignore unknown variables', () => {
@@ -98,7 +108,9 @@ describe('parseEnv', () => {
     ['MAIL_FROM', 'not-an-email'],
     ['CLAMAV_PORT', 'clam'],
   ])('should throw naming %s when it is %s', (key, value) => {
-    expect(() => parseEnv(testEnv({ [key]: value }))).toThrow(new RegExp(`Invalid environment:[\\s\\S]*${key}`));
+    expect(() => parseEnv(testEnv({ [key]: value }))).toThrow(
+      new RegExp(`Invalid environment:[\\s\\S]*${key}`),
+    );
   });
 
   it('should fail fast listing every missing backing-service variable', () => {
@@ -110,7 +122,9 @@ describe('parseEnv', () => {
     }
 
     // TRUST_PROXY_HOPS and OFFICE_APP_URL are only constrained in production, after the shape (fixture defaults to production).
-    for (const key of Object.keys(REQUIRED_TEST_ENV).filter((name) => !['TRUST_PROXY_HOPS', 'OFFICE_APP_URL'].includes(name))) {
+    for (const key of Object.keys(REQUIRED_TEST_ENV).filter(
+      (name) => !['TRUST_PROXY_HOPS', 'OFFICE_APP_URL'].includes(name),
+    )) {
       expect(message).toContain(key);
     }
   });
@@ -150,13 +164,17 @@ describe('parseEnv', () => {
     ['OFFICE_APP_URL', 'http://app.nexlegtiq.test'],
     ['RESEND_API_KEY', 'ci-only-resend-key'],
   ])('should reject %s=%s in production (plaintext transport or dev credential)', (key, value) => {
-    expect(() => parseEnv(testEnv({ NODE_ENV: 'production', [key]: value }))).toThrow(new RegExp(key));
+    expect(() => parseEnv(testEnv({ NODE_ENV: 'production', [key]: value }))).toThrow(
+      new RegExp(key),
+    );
     expect(() => parseEnv(testEnv({ NODE_ENV: 'development', [key]: value }))).not.toThrow();
   });
 
   it('should require RESEND_API_KEY when EMAIL_PROVIDER=resend', () => {
     expect(() => parseEnv(testEnv({ EMAIL_PROVIDER: 'resend' }))).toThrow(/RESEND_API_KEY/);
-    expect(parseEnv(testEnv({ EMAIL_PROVIDER: 'resend', RESEND_API_KEY: 're_live_key' })).EMAIL_PROVIDER).toBe('resend');
+    expect(
+      parseEnv(testEnv({ EMAIL_PROVIDER: 'resend', RESEND_API_KEY: 're_live_key' })).EMAIL_PROVIDER,
+    ).toBe('resend');
     expect(() => parseEnv(testEnv({ EMAIL_PROVIDER: 'sendgrid' }))).toThrow(/EMAIL_PROVIDER/);
   });
 
@@ -202,7 +220,10 @@ describe('integrationEnv', () => {
       });
     } finally {
       // Assigning undefined to process.env would store the string "undefined".
-      for (const [key, value] of [['DATABASE_URL', saved.db], ['REDIS_URL', saved.redis]] as const) {
+      for (const [key, value] of [
+        ['DATABASE_URL', saved.db],
+        ['REDIS_URL', saved.redis],
+      ] as const) {
         if (value === undefined) delete process.env[key];
         else process.env[key] = value;
       }
@@ -256,7 +277,9 @@ describe('AppConfig', () => {
 
   it('should expose SMTP auth only when credentials are configured', () => {
     const anonymous = new AppConfig(parseEnv(testEnv({ SMTP_PORT: '1025' })));
-    const authenticated = new AppConfig(parseEnv(testEnv({ SMTP_USER: 'mailer', SMTP_PASSWORD: 'pw' })));
+    const authenticated = new AppConfig(
+      parseEnv(testEnv({ SMTP_USER: 'mailer', SMTP_PASSWORD: 'pw' })),
+    );
 
     expect(anonymous.mail).toEqual({
       host: 'localhost',

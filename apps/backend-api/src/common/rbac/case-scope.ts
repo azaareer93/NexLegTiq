@@ -3,7 +3,8 @@ import type { Permission, UserId } from '@nexlegtiq/shared-types';
 import { PermissionDeniedException } from '../errors/app.exception';
 
 /** How much of the office's case data a caller may see (D-051): everything, or only files assigned to them. */
-export type CaseScope = { readonly kind: 'ALL' } | { readonly kind: 'ASSIGNED'; readonly userId: UserId };
+export type CaseScope =
+  { readonly kind: 'ALL' } | { readonly kind: 'ASSIGNED'; readonly userId: UserId };
 
 /**
  * Narrows a `@RequireAnyPermission('view:all:cases', 'view:assigned:cases')` route by the permission actually held.
@@ -23,7 +24,11 @@ export function caseScope(permissions: readonly Permission[], userId: UserId): C
  */
 export function assignedFilesWhere(userId: UserId): Record<string, unknown> {
   return {
-    OR: [{ responsibleLawyerId: userId }, { responsibleParalegalId: userId }, { teamMembers: { some: { userId } } }],
+    OR: [
+      { responsibleLawyerId: userId },
+      { responsibleParalegalId: userId },
+      { teamMembers: { some: { userId } } },
+    ],
   };
 }
 

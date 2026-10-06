@@ -14,10 +14,19 @@ const SHORTCUT = IS_MAC ? '⌘ K' : 'Ctrl K';
  * Arabic layout too.
  */
 export const isSearchShortcut = (event: KeyboardEvent): boolean =>
-  (event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && !event.repeat && !event.isComposing && event.code === 'KeyK';
+  (event.ctrlKey || event.metaKey) &&
+  !event.shiftKey &&
+  !event.altKey &&
+  !event.repeat &&
+  !event.isComposing &&
+  event.code === 'KeyK';
 
 /** The global search entry (header button and shortcut). A placeholder until the search feature fills it. */
-export function SearchOverlay({ compact = false }: { readonly compact?: boolean }): React.JSX.Element {
+export function SearchOverlay({
+  compact = false,
+}: {
+  readonly compact?: boolean;
+}): React.JSX.Element {
   const { t } = useTranslation();
   const { token } = theme.useToken();
   const [open, setOpen] = useState(false);
@@ -51,8 +60,20 @@ export function SearchOverlay({ compact = false }: { readonly compact?: boolean 
           </Flex>
         )}
       </Button>
-      <Modal open={open} onCancel={() => setOpen(false)} footer={null} title={t('shell.search.open')} destroyOnHidden>
-        <Input autoFocus prefix={<SearchOutlined />} placeholder={t('shell.search.placeholder')} aria-label={t('shell.search.open')} data-testid="search-input" />
+      <Modal
+        open={open}
+        onCancel={() => setOpen(false)}
+        footer={null}
+        title={t('shell.search.open')}
+        destroyOnHidden
+      >
+        <Input
+          autoFocus
+          prefix={<SearchOutlined />}
+          placeholder={t('shell.search.placeholder')}
+          aria-label={t('shell.search.open')}
+          data-testid="search-input"
+        />
         <EmptyState description={t('shell.search.comingSoon')} />
       </Modal>
     </>

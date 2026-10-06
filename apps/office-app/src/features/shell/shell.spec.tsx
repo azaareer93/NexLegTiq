@@ -9,7 +9,19 @@ import type { RouteObject } from 'react-router';
 
 import { AppRoot } from '../../app/app-root';
 import { routes } from '../../app/routes';
-import { api, fail, http, ok, renderApp, resizeTo, server, setupTestServer, setViewport, signedIn, signOutFromMenu } from '../../test/render-app';
+import {
+  api,
+  fail,
+  http,
+  ok,
+  renderApp,
+  resizeTo,
+  server,
+  setupTestServer,
+  setViewport,
+  signedIn,
+  signOutFromMenu,
+} from '../../test/render-app';
 import { useSession } from '../auth/session';
 import { initialsOf } from './components/ProfileMenu';
 import { isSearchShortcut } from './components/SearchOverlay';
@@ -26,12 +38,23 @@ const menuKeys = () =>
     .filter((id): id is string => id?.startsWith('nav-') === true)
     .map((id) => id.slice('nav-'.length));
 /** Menu entries are links: open one as a user would. */
-const openNav = (key: string) => fireEvent.click(within(screen.getByTestId(`nav-${key}`)).getByRole('link'));
+const openNav = (key: string) =>
+  fireEvent.click(within(screen.getByTestId(`nav-${key}`)).getByRole('link'));
 const dashboard = () => screen.findByTestId('page-dashboard');
 
 /** The menu each role sees (D-091). */
 const EXPECTED: Record<Role, string[]> = {
-  OFFICE_MANAGER: ['dashboard', 'cases', 'clients', 'calendar', 'tasks', 'documents', 'reports', 'team', 'settings'],
+  OFFICE_MANAGER: [
+    'dashboard',
+    'cases',
+    'clients',
+    'calendar',
+    'tasks',
+    'documents',
+    'reports',
+    'team',
+    'settings',
+  ],
   SENIOR_LAWYER: ['dashboard', 'cases', 'clients', 'calendar', 'tasks', 'documents', 'reports'],
   LAWYER: ['dashboard', 'cases', 'clients', 'calendar', 'tasks', 'documents'],
   PARALEGAL: ['dashboard', 'cases', 'clients', 'calendar', 'tasks', 'documents'],
@@ -73,7 +96,9 @@ describe('menu', () => {
     asRole('OFFICE_MANAGER');
     const { router } = renderApp('/');
     await dashboard();
-    expect(within(screen.getByTestId('nav-team')).getByRole('link').getAttribute('href')).toBe('/team');
+    expect(within(screen.getByTestId('nav-team')).getByRole('link').getAttribute('href')).toBe(
+      '/team',
+    );
     openNav('team');
     expect(await screen.findByTestId('page-team')).toBeTruthy();
     expect(router.state.location.pathname).toBe('/team');
@@ -97,14 +122,17 @@ describe('menu', () => {
     ['/settings', 'SENIOR_LAWYER'],
     ['/reports', 'TRAINEE'],
     ['/clients', 'EXTERNAL_COLLABORATOR'],
-  ] as const)('should show the 403 page, inside the shell, when %s is opened by a %s', async (path, role) => {
-    setViewport(1280);
-    asRole(role);
-    renderApp(path);
-    const forbidden = await screen.findByTestId('page-forbidden');
-    expect(screen.getByTestId('app-shell').contains(forbidden)).toBe(true);
-    expect(screen.queryByTestId(`page-${path.slice(1)}`)).toBeNull();
-  });
+  ] as const)(
+    'should show the 403 page, inside the shell, when %s is opened by a %s',
+    async (path, role) => {
+      setViewport(1280);
+      asRole(role);
+      renderApp(path);
+      const forbidden = await screen.findByTestId('page-forbidden');
+      expect(screen.getByTestId('app-shell').contains(forbidden)).toBe(true);
+      expect(screen.queryByTestId(`page-${path.slice(1)}`)).toBeNull();
+    },
+  );
 
   it('should show the 404 page for an unknown address, inside the shell, with nothing selected and a way home', async () => {
     setViewport(1280);
@@ -117,15 +145,18 @@ describe('menu', () => {
     expect(await dashboard()).toBeTruthy();
   });
 
-  it.each(['/settings', '/no-such-page'])('should send a signed-out visitor of %s to sign-in first', async (path) => {
-    useSession.setState({ status: 'anonymous' });
-    const { router } = renderApp(path);
-    expect(await screen.findByTestId('login-submit')).toBeTruthy();
-    expect(new URLSearchParams(router.state.location.search).get('next')).toBe(path);
-    expect(screen.queryByTestId('page-not-found')).toBeNull();
-  });
+  it.each(['/settings', '/no-such-page'])(
+    'should send a signed-out visitor of %s to sign-in first',
+    async (path) => {
+      useSession.setState({ status: 'anonymous' });
+      const { router } = renderApp(path);
+      expect(await screen.findByTestId('login-submit')).toBeTruthy();
+      expect(new URLSearchParams(router.state.location.search).get('next')).toBe(path);
+      expect(screen.queryByTestId('page-not-found')).toBeNull();
+    },
+  );
 
-  it('should open the account page by address for any role (it is the user\'s own)', async () => {
+  it("should open the account page by address for any role (it is the user's own)", async () => {
     asRole('TRAINEE');
     renderApp('/profile');
     expect((await screen.findByTestId('page-profile')).textContent).toContain('My account');
@@ -140,7 +171,10 @@ describe('navigation states and errors', () => {
     const withExtra = (route: RouteObject): RouteObject => {
       const pages = route.children?.[0];
       if (route.element !== undefined && pages?.errorElement !== undefined) {
-        return { ...route, children: [{ ...pages, children: [...extra, ...(pages.children ?? [])] } as RouteObject] } as RouteObject;
+        return {
+          ...route,
+          children: [{ ...pages, children: [...extra, ...(pages.children ?? [])] } as RouteObject],
+        } as RouteObject;
       }
       return { ...route, children: route.children?.map(withExtra) } as RouteObject;
     };
@@ -160,7 +194,15 @@ describe('navigation states and errors', () => {
     });
     asRole('LAWYER');
     const router = renderWithExtraPages(
-      [{ path: 'slow', lazy: async () => (await loaded, { Component: () => <p data-testid="page-slow">slow</p> }) }],
+      [
+        {
+          path: 'slow',
+          lazy: async () => (
+            await loaded,
+            { Component: () => <p data-testid="page-slow">slow</p> }
+          ),
+        },
+      ],
       '/',
     );
     await dashboard();
@@ -172,7 +214,11 @@ describe('navigation states and errors', () => {
   });
 
   it.each([
-    ['a code chunk that failed to load', new TypeError('Failed to fetch dynamically imported module: /assets/x.js'), 'page-load-failed'],
+    [
+      'a code chunk that failed to load',
+      new TypeError('Failed to fetch dynamically imported module: /assets/x.js'),
+      'page-load-failed',
+    ],
     ['a bug', new Error('boom'), 'page-error'],
   ])('should show %s inside the shell, without its message', async (_case, error, testId) => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -199,7 +245,9 @@ describe('navigation states and errors', () => {
       asRole('LAWYER');
       renderApp('/', 'en');
       await dashboard();
-      expect(screen.getByTestId('app-shell').contains(screen.getByTestId('offline-banner'))).toBe(true);
+      expect(screen.getByTestId('app-shell').contains(screen.getByTestId('offline-banner'))).toBe(
+        true,
+      );
     } finally {
       Reflect.deleteProperty(navigator, 'onLine');
     }
@@ -211,7 +259,17 @@ describe('navigation states and errors', () => {
     vi.stubGlobal('location', { ...window.location, reload });
     try {
       asRole('LAWYER');
-      renderWithExtraPages([{ path: 'broken', loader: () => { throw new Error('boom'); } }], '/broken');
+      renderWithExtraPages(
+        [
+          {
+            path: 'broken',
+            loader: () => {
+              throw new Error('boom');
+            },
+          },
+        ],
+        '/broken',
+      );
       const page = await screen.findByTestId('page-error');
       expect(within(page).getByTestId('go-home')).toBeTruthy();
       fireEvent.click(within(page).getByTestId('page-error-retry'));
@@ -225,7 +283,17 @@ describe('navigation states and errors', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     asRole('LAWYER');
     const failure = new ApiError('SYS-001', 'db down', 500, [], 'req-12345678');
-    renderWithExtraPages([{ path: 'broken', loader: () => { throw failure; } }], '/broken');
+    renderWithExtraPages(
+      [
+        {
+          path: 'broken',
+          loader: () => {
+            throw failure;
+          },
+        },
+      ],
+      '/broken',
+    );
     const page = await screen.findByTestId('page-error');
     expect(page.textContent).toContain('req-12345678');
     expect(page.textContent).not.toContain('db down');
@@ -325,7 +393,9 @@ describe('breakpoints', () => {
     expect(screen.queryByTestId('app-sider')).toBeNull();
     fireEvent.click(screen.getByTestId('bottom-more'));
     resizeTo(1000);
-    await waitFor(() => expect(screen.getByTestId('app-sider').getAttribute('data-collapsed')).toBe('true'));
+    await waitFor(() =>
+      expect(screen.getByTestId('app-sider').getAttribute('data-collapsed')).toBe('true'),
+    );
     resizeTo(390);
     await screen.findByTestId('bottom-nav');
     // The drawer opened before growing does not come back by itself.
@@ -339,8 +409,16 @@ describe('breakpoints', () => {
     await dashboard();
     const bottom = screen.getByTestId('bottom-nav');
     expect(
-      [...bottom.querySelectorAll('[data-testid^="bottom-"]')].map((element) => element.getAttribute('data-testid')),
-    ).toEqual(['bottom-dashboard', 'bottom-cases', 'bottom-calendar', 'bottom-tasks', 'bottom-more']);
+      [...bottom.querySelectorAll('[data-testid^="bottom-"]')].map((element) =>
+        element.getAttribute('data-testid'),
+      ),
+    ).toEqual([
+      'bottom-dashboard',
+      'bottom-cases',
+      'bottom-calendar',
+      'bottom-tasks',
+      'bottom-more',
+    ]);
     expect(screen.getByTestId('bottom-dashboard').getAttribute('aria-current')).toBe('page');
     expect(screen.getByTestId('bottom-dashboard').textContent).toBe('Home');
     expect(screen.queryByTestId('office-name')).toBeNull();
@@ -359,15 +437,18 @@ describe('breakpoints', () => {
     expect(screen.getByTestId('bottom-nav').querySelector('[aria-current="page"]')).toBeNull();
   });
 
-  it.each(['TRAINEE', 'LAWYER'] as const)('should keep the phone menu to what a %s may open', async (role) => {
-    setViewport(390);
-    asRole(role);
-    renderApp('/');
-    await dashboard();
-    fireEvent.click(screen.getByTestId('bottom-more'));
-    await screen.findByTestId('nav-cases');
-    expect(menuKeys()).toEqual(EXPECTED[role]);
-  });
+  it.each(['TRAINEE', 'LAWYER'] as const)(
+    'should keep the phone menu to what a %s may open',
+    async (role) => {
+      setViewport(390);
+      asRole(role);
+      renderApp('/');
+      await dashboard();
+      fireEvent.click(screen.getByTestId('bottom-more'));
+      await screen.findByTestId('nav-cases');
+      expect(menuKeys()).toEqual(EXPECTED[role]);
+    },
+  );
 });
 
 describe('header', () => {
@@ -421,10 +502,16 @@ describe('header', () => {
       }
       fireEvent.click(screen.getByTestId('quick-actions'));
       await screen.findByTestId(`quick-${expected[0]}`);
-      expect(['file', 'client', 'task'].filter((key) => screen.queryByTestId(`quick-${key}`))).toEqual(expected);
+      expect(
+        ['file', 'client', 'task'].filter((key) => screen.queryByTestId(`quick-${key}`)),
+      ).toEqual(expected);
       fireEvent.click(screen.getByTestId(`quick-${expected[0]}`));
       const dialog = await screen.findByRole('dialog');
-      expect(within(dialog).getByText({ file: 'New case', client: 'New client', task: 'New task' }[expected[0] as 'file'])).toBeTruthy();
+      expect(
+        within(dialog).getByText(
+          { file: 'New case', client: 'New client', task: 'New task' }[expected[0] as 'file'],
+        ),
+      ).toBeTruthy();
       expect(within(dialog).getByText('Coming soon')).toBeTruthy();
     },
     SLOW,
@@ -469,7 +556,9 @@ describe('header', () => {
     asRole('LAWYER');
     renderApp('/');
     await dashboard();
-    expect(screen.getByTestId('profile-menu').getAttribute('aria-label')).toBe('Account menu — Layla Haddad');
+    expect(screen.getByTestId('profile-menu').getAttribute('aria-label')).toBe(
+      'Account menu — Layla Haddad',
+    );
   });
 
   it('should sign out from the account menu', async () => {
@@ -494,7 +583,9 @@ describe('email confirmation banner', () => {
     signedIn({ emailVerified: false, verifyBy: '2026-10-13T12:00:00.000Z' });
     renderApp('/');
     const banner = await screen.findByTestId('verify-banner');
-    expect(banner.textContent).toContain('Please confirm your email address by 13 October 2026 to keep your access.');
+    expect(banner.textContent).toContain(
+      'Please confirm your email address by 13 October 2026 to keep your access.',
+    );
     fireEvent.click(screen.getByTestId('verify-banner-resend'));
     expect((await screen.findByTestId('verify-banner-sent')).getAttribute('role')).toBe('status');
     expect(resent).toEqual({ email: 'layla@example.test' });
@@ -503,13 +594,17 @@ describe('email confirmation banner', () => {
   it('should give the Arabic deadline with Western digits', async () => {
     signedIn({ emailVerified: false, verifyBy: '2026-10-13T12:00:00.000Z', uiLanguage: 'AR' });
     renderApp('/');
-    expect((await screen.findByTestId('verify-banner')).textContent).toContain('قبل 13 أكتوبر 2026');
+    expect((await screen.findByTestId('verify-banner')).textContent).toContain(
+      'قبل 13 أكتوبر 2026',
+    );
   });
 
   it('should leave the deadline out when there is none', async () => {
     signedIn({ emailVerified: false, verifyBy: null });
     renderApp('/');
-    expect((await screen.findByTestId('verify-banner')).textContent).toContain('Please confirm your email address. We sent you a link when you signed up.');
+    expect((await screen.findByTestId('verify-banner')).textContent).toContain(
+      'Please confirm your email address. We sent you a link when you signed up.',
+    );
   });
 
   it('should say why a new link could not be sent, and let the user try again', async () => {
@@ -517,7 +612,9 @@ describe('email confirmation banner', () => {
     signedIn({ emailVerified: false, verifyBy: null });
     renderApp('/');
     fireEvent.click(await screen.findByTestId('verify-banner-resend'));
-    expect((await screen.findByTestId('verify-banner-error')).textContent).toBe('Too many requests. Wait a moment and try again.');
+    expect((await screen.findByTestId('verify-banner-error')).textContent).toBe(
+      'Too many requests. Wait a moment and try again.',
+    );
     expect(screen.queryByTestId('verify-banner-sent')).toBeNull();
     expect((screen.getByTestId('verify-banner-resend') as HTMLButtonElement).disabled).toBe(false);
   });
@@ -541,7 +638,9 @@ describe('right-to-left', () => {
     expect(shell.className).toContain('ant-layout-rtl');
     expect(shell.firstElementChild).toBe(screen.getByTestId('app-sider'));
     expect(screen.getByRole('menu').className).toContain('ant-menu-rtl');
-    expect(screen.getByTestId('sider-toggle').querySelector('[style*="scaleX(-1)"]')).not.toBeNull();
+    expect(
+      screen.getByTestId('sider-toggle').querySelector('[style*="scaleX(-1)"]'),
+    ).not.toBeNull();
     expect(menuKeys().map((key) => screen.getByTestId(`nav-${key}`).textContent)).toEqual([
       'لوحة المعلومات',
       'ملفاتي',
@@ -566,8 +665,15 @@ describe('right-to-left', () => {
       signedIn({ uiLanguage: locale === 'ar' ? 'AR' : 'EN', emailVerified: false });
       renderApp('/');
       await dashboard();
-      const { violations } = await axe.run(document.body, { rules: { 'color-contrast': { enabled: false } } });
-      expect(violations.map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(' ')).join(', ')}`)).toEqual([]);
+      const { violations } = await axe.run(document.body, {
+        rules: { 'color-contrast': { enabled: false } },
+      });
+      expect(
+        violations.map(
+          (violation) =>
+            `${violation.id}: ${violation.nodes.map((node) => node.target.join(' ')).join(', ')}`,
+        ),
+      ).toEqual([]);
     },
     SLOW,
   );

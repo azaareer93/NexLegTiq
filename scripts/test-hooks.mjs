@@ -3,10 +3,12 @@
 import { spawnSync } from 'node:child_process';
 
 const run = (hook, payload) =>
-  spawnSync('node', [`.claude/hooks/${hook}`], { input: JSON.stringify(payload), encoding: 'utf8' }).status;
+  spawnSync('node', [`.claude/hooks/${hook}`], { input: JSON.stringify(payload), encoding: 'utf8' })
+    .status;
 
 const bash = (command) => run('guard-bash.mjs', { tool_name: 'Bash', tool_input: { command } });
-const write = (file_path, content) => run('guard-files.mjs', { tool_name: 'Write', tool_input: { file_path, content } });
+const write = (file_path, content) =>
+  run('guard-files.mjs', { tool_name: 'Write', tool_input: { file_path, content } });
 
 // Built from parts so this file itself doesn't trip the guards when edited by an agent.
 const DB_PUSH = ['pnpm prisma db', 'push'].join(' ');
@@ -27,7 +29,11 @@ const cases = [
   ['block writing .env', write('.env', 'A=1'), 2],
   ['allow .env.example', write('.env.example', 'OPENAI_API_KEY='), 0],
   ['block OpenAI key', write('src/a.ts', `const k = '${FAKE_KEY}'`), 2],
-  ['allow local db url', write('src/a.ts', 'postgresql://nexlegtiq:dev_password@localhost:5432/nexlegtiq'), 0],
+  [
+    'allow local db url',
+    write('src/a.ts', 'postgresql://nexlegtiq:dev_password@localhost:5432/nexlegtiq'),
+    0,
+  ],
   ['allow normal code', write('src/a.ts', 'export const x = 1;'), 0],
 ];
 

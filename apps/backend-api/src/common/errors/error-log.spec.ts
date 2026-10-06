@@ -20,7 +20,9 @@ describe('loggableError', () => {
   });
 
   it('should keep our own AppException message (developer-written)', () => {
-    expect(loggableError(new BusinessRuleException('BIZ-003', 'Open tasks block close'), 422)).toEqual({
+    expect(
+      loggableError(new BusinessRuleException('BIZ-003', 'Open tasks block close'), 422),
+    ).toEqual({
       type: 'BusinessRuleException',
       message: 'Open tasks block close',
     });
@@ -28,7 +30,10 @@ describe('loggableError', () => {
 
   it('should log only name, code and model for Prisma errors (messages quote query args)', () => {
     const error = Object.assign(
-      withName(new Error('Invalid value "401234567" for nationalId'), 'PrismaClientKnownRequestError'),
+      withName(
+        new Error('Invalid value "401234567" for nationalId'),
+        'PrismaClientKnownRequestError',
+      ),
       { code: 'P2002', meta: { modelName: 'Party', target: ['officeId', 'nationalId'] } },
     );
 

@@ -3,7 +3,16 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { HttpResponse } from 'msw';
 
 import { AppRoot } from '../../app/app-root';
-import { api, http, ok, server, SESSION, setupTestServer, signedIn, USER } from '../../test/render-app';
+import {
+  api,
+  http,
+  ok,
+  server,
+  SESSION,
+  setupTestServer,
+  signedIn,
+  USER,
+} from '../../test/render-app';
 import { IdleTimeout } from './components/IdleTimeout';
 import { queryClient, useSession } from './session';
 
@@ -56,10 +65,14 @@ describe('IdleTimeout', () => {
     expect(screen.queryByTestId('idle-countdown')).toBeNull();
 
     act(() => vi.advanceTimersByTime(MINUTE + 1000));
-    expect((await screen.findByTestId('idle-countdown')).textContent).toBe('For your security, you will be signed out in 59 seconds.');
+    expect((await screen.findByTestId('idle-countdown')).textContent).toBe(
+      'For your security, you will be signed out in 59 seconds.',
+    );
 
     act(() => vi.advanceTimersByTime(MINUTE));
-    await until(() => expect(useSession.getState()).toMatchObject({ status: 'anonymous', signOutReason: 'idle' }));
+    await until(() =>
+      expect(useSession.getState()).toMatchObject({ status: 'anonymous', signOutReason: 'idle' }),
+    );
     expect(logouts()).toBe(1);
   });
 
@@ -128,7 +141,12 @@ describe('IdleTimeout', () => {
     renderIdle();
     act(() => vi.advanceTimersByTime(29 * MINUTE + 1000));
     fireEvent.click(await screen.findByTestId('idle-sign-out'));
-    await until(() => expect(useSession.getState()).toMatchObject({ status: 'anonymous', signOutReason: 'signedOut' }));
+    await until(() =>
+      expect(useSession.getState()).toMatchObject({
+        status: 'anonymous',
+        signOutReason: 'signedOut',
+      }),
+    );
   });
 });
 
@@ -137,7 +155,13 @@ describe('other tabs', () => {
     const otherTab = new BroadcastChannel('nlq-session');
     signedIn();
     otherTab.postMessage({ type: 'signedOut', reason: 'idle' });
-    await until(() => expect(useSession.getState()).toMatchObject({ status: 'anonymous', signOutReason: 'idle', accessToken: null }));
+    await until(() =>
+      expect(useSession.getState()).toMatchObject({
+        status: 'anonymous',
+        signOutReason: 'idle',
+        accessToken: null,
+      }),
+    );
     otherTab.close();
   });
 

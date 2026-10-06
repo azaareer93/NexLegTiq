@@ -90,10 +90,13 @@ const EnvObject = z.object({
 /** Every variable the backend reads; `.env.example` must document each of them (asserted in env.schema.spec.ts). */
 export const ENV_KEYS = Object.keys(EnvObject.shape);
 
-export const EnvSchema = EnvObject.refine((env) => !(env.NODE_ENV === 'production' && env.LOG_PRETTY), {
-  message: 'LOG_PRETTY must be false in production (pino-pretty is a dev dependency)',
-  path: ['LOG_PRETTY'],
-})
+export const EnvSchema = EnvObject.refine(
+  (env) => !(env.NODE_ENV === 'production' && env.LOG_PRETTY),
+  {
+    message: 'LOG_PRETTY must be false in production (pino-pretty is a dev dependency)',
+    path: ['LOG_PRETTY'],
+  },
+)
   .refine((env) => env.EMAIL_PROVIDER !== 'resend' || env.RESEND_API_KEY !== undefined, {
     message: 'RESEND_API_KEY is required when EMAIL_PROVIDER=resend',
     path: ['RESEND_API_KEY'],
@@ -105,12 +108,15 @@ export const EnvSchema = EnvObject.refine((env) => !(env.NODE_ENV === 'productio
   .superRefine((env, ctx) => {
     if (env.NODE_ENV !== 'production') return;
     // In transit TLS 1.2+ everywhere (ops-security.md, D-078). Messages never echo values: URLs carry credentials.
-    const fail = (path: string, message: string): void => void ctx.addIssue({ code: 'custom', path: [path], message });
+    const fail = (path: string, message: string): void =>
+      void ctx.addIssue({ code: 'custom', path: [path], message });
     if (!TLS_SSLMODES.has(new URL(env.DATABASE_URL).searchParams.get('sslmode') ?? '')) {
       fail('DATABASE_URL', 'must set sslmode=require, verify-ca or verify-full in production');
     }
-    if (!env.REDIS_URL.startsWith('rediss:')) fail('REDIS_URL', 'must use rediss:// (TLS) in production');
-    if (!env.S3_ENDPOINT.startsWith('https:')) fail('S3_ENDPOINT', 'must use https:// in production');
+    if (!env.REDIS_URL.startsWith('rediss:'))
+      fail('REDIS_URL', 'must use rediss:// (TLS) in production');
+    if (!env.S3_ENDPOINT.startsWith('https:'))
+      fail('S3_ENDPOINT', 'must use https:// in production');
     // AWS S3 does not encrypt unless asked (D-035, D-085); R2 and other providers encrypt at rest on their own.
     if (new URL(env.S3_ENDPOINT).hostname.endsWith('.amazonaws.com') && env.S3_SSE !== 'AES256') {
       fail('S3_SSE', 'must be AES256 when storing on AWS S3 in production');
@@ -119,8 +125,10 @@ export const EnvSchema = EnvObject.refine((env) => !(env.NODE_ENV === 'productio
       // With 0 behind a proxy every client shares the proxy's IP: one attacker would lock out or throttle everyone.
       fail('TRUST_PROXY_HOPS', 'must be set to the number of reverse proxies (>= 1) in production');
     }
-    if (!env.OFFICE_APP_URL.startsWith('https:')) fail('OFFICE_APP_URL', 'must use https:// in production (links in emails)');
-    if (env.BULL_BOARD_ENABLED) fail('BULL_BOARD_ENABLED', 'must be false in production until platform-admin auth guards it');
+    if (!env.OFFICE_APP_URL.startsWith('https:'))
+      fail('OFFICE_APP_URL', 'must use https:// in production (links in emails)');
+    if (env.BULL_BOARD_ENABLED)
+      fail('BULL_BOARD_ENABLED', 'must be false in production until platform-admin auth guards it');
     if (env.SMTP_REQUIRE_TLS === false && !env.SMTP_SECURE) {
       fail('SMTP_REQUIRE_TLS', 'must not be false in production unless SMTP_SECURE is true');
     }
@@ -133,7 +141,8 @@ export const EnvSchema = EnvObject.refine((env) => !(env.NODE_ENV === 'productio
       RESEND_API_KEY: env.RESEND_API_KEY ?? '',
     };
     for (const [key, value] of Object.entries(secrets)) {
-      if (PLACEHOLDER_SECRET.test(value)) fail(key, 'uses a documented dev/CI placeholder credential');
+      if (PLACEHOLDER_SECRET.test(value))
+        fail(key, 'uses a documented dev/CI placeholder credential');
     }
   })
   .transform((env) => ({
@@ -149,7 +158,9 @@ export type Env = z.output<typeof EnvSchema>;
 export function parseEnv(source: Record<string, string | undefined>): Env {
   const result = EnvSchema.safeParse(source);
   if (!result.success) {
-    const problems = result.error.issues.map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`);
+    const problems = result.error.issues.map(
+      (issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`,
+    );
     throw new Error(`Invalid environment:\n  ${problems.join('\n  ')}`);
   }
   return result.data;

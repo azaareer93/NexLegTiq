@@ -52,7 +52,10 @@ export class UnitOfWork {
       try {
         await task();
       } catch (error) {
-        this.logger.error({ err: error, task: label }, 'After-commit task failed (the transaction is committed)');
+        this.logger.error(
+          { err: error, task: label },
+          'After-commit task failed (the transaction is committed)',
+        );
       }
     }
     return result;

@@ -34,7 +34,10 @@ describe('ReadinessRegistry', () => {
 
     expect(report.status).toBe('error');
     expect(report.checks['redis']?.status).toBe('down');
-    expect(warn).toHaveBeenCalledWith(expect.objectContaining({ check: 'redis' }), 'Readiness check failed');
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({ check: 'redis' }),
+      'Readiness check failed',
+    );
   });
 
   it('should mark a check down when it exceeds the timeout', async () => {

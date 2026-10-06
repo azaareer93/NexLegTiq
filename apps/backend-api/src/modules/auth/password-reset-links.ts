@@ -31,12 +31,19 @@ export class PasswordResetLinks {
     private readonly config: AppConfig,
   ) {}
 
-  async issue(userId: string, now: Date, options: { retry?: boolean } = {}): Promise<PasswordResetEmail | null> {
+  async issue(
+    userId: string,
+    now: Date,
+    options: { retry?: boolean } = {},
+  ): Promise<PasswordResetEmail | null> {
     const officeId = this.cls.isActive() ? this.cls.get('officeId') : undefined;
     if (!officeId) throw new TenantContextMissingError('password reset link');
     const token = newOpaqueToken();
     const user = await this.prisma.db.$transaction(async (tx) => {
-      const found = await tx.user.findFirst({ where: { id: userId }, select: { email: true, fullName: true, uiLanguage: true, isActive: true } });
+      const found = await tx.user.findFirst({
+        where: { id: userId },
+        select: { email: true, fullName: true, uiLanguage: true, isActive: true },
+      });
       if (!found?.isActive) return null;
       const recent = await tx.passwordResetToken.findMany({
         where: { userId, createdAt: { gt: linkWindowStart(now, RESET_LINK_MINUTES * 60_000) } },
@@ -44,10 +51,25 @@ export class PasswordResetLinks {
         orderBy: { createdAt: 'desc' },
         take: MAX_LINKS_PER_WINDOW,
       });
-      if (!mayIssueLink(recent.map((link) => link.createdAt), now, options.retry ?? false)) return null;
-      await tx.passwordResetToken.updateMany({ where: { userId, usedAt: null }, data: { usedAt: now } });
+      if (
+        !mayIssueLink(
+          recent.map((link) => link.createdAt),
+          now,
+          options.retry ?? false,
+        )
+      )
+        return null;
+      await tx.passwordResetToken.updateMany({
+        where: { userId, usedAt: null },
+        data: { usedAt: now },
+      });
       await tx.passwordResetToken.create({
-        data: { officeId, userId, tokenHash: hashOpaqueToken(token), expiresAt: new Date(now.getTime() + RESET_LINK_MINUTES * 60_000) },
+        data: {
+          officeId,
+          userId,
+          tokenHash: hashOpaqueToken(token),
+          expiresAt: new Date(now.getTime() + RESET_LINK_MINUTES * 60_000),
+        },
       });
       return found;
     });
@@ -55,7 +77,11 @@ export class PasswordResetLinks {
     return {
       to: user.email,
       locale: user.uiLanguage === 'EN' ? 'EN' : 'AR',
-      vars: { name: user.fullName, link: `${this.config.mail.officeAppUrl}/reset-password?token=${token}`, minutes: RESET_LINK_MINUTES },
+      vars: {
+        name: user.fullName,
+        link: `${this.config.mail.officeAppUrl}/reset-password?token=${token}`,
+        minutes: RESET_LINK_MINUTES,
+      },
     };
   }
 }

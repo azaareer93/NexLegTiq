@@ -14,7 +14,13 @@ type Story = StoryObj<typeof meta>;
 function DeleteConfirm(): React.JSX.Element {
   const { t } = useTranslation();
   return (
-    <ConfirmModal open danger title={t('common.actions.delete')} onConfirm={() => undefined} onCancel={() => undefined}>
+    <ConfirmModal
+      open
+      danger
+      title={t('common.actions.delete')}
+      onConfirm={() => undefined}
+      onCancel={() => undefined}
+    >
       {t('legal.legalFile')}
     </ConfirmModal>
   );

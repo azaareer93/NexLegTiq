@@ -56,7 +56,17 @@ export class SignupRepository {
         office: { select: { isActive: true, _count: { select: { users: true } } } },
       },
     });
-    return user && { id: user.id, officeId: user.officeId, emailVerifiedAt: user.emailVerifiedAt, createdAt: user.createdAt, isActive: user.isActive, officeActive: user.office.isActive, officeUsers: user.office._count.users };
+    return (
+      user && {
+        id: user.id,
+        officeId: user.officeId,
+        emailVerifiedAt: user.emailVerifiedAt,
+        createdAt: user.createdAt,
+        isActive: user.isActive,
+        officeActive: user.office.isActive,
+        officeUsers: user.office._count.users,
+      }
+    );
   }
 
   /**
@@ -71,7 +81,10 @@ export class SignupRepository {
       if (input.release) await this.releaseAbandoned(tx, input.release, body.email, input);
       // findFirst, not findUniqueOrThrow: a missing or deactivated plan is a deployment fault (500), not a 404.
       const plan = await tx.plan.findFirst({ where: { code: input.planCode, isActive: true } });
-      if (!plan?.trialDays) throw new Error(`Signup plan ${input.planCode} is missing, inactive or has no trial length`);
+      if (!plan?.trialDays)
+        throw new Error(
+          `Signup plan ${input.planCode} is missing, inactive or has no trial length`,
+        );
 
       const office = await tx.office.create({
         data: {
@@ -101,7 +114,14 @@ export class SignupRepository {
       });
       const trialEndsAt = new Date(now.getTime() + plan.trialDays * DAY_MS);
       await tx.subscription.create({
-        data: { officeId, planId: plan.id, status: 'TRIALING', currentPeriodStart: now, currentPeriodEnd: trialEndsAt, trialEndsAt },
+        data: {
+          officeId,
+          planId: plan.id,
+          status: 'TRIALING',
+          currentPeriodStart: now,
+          currentPeriodEnd: trialEndsAt,
+          trialEndsAt,
+        },
       });
       await tx.legalAcceptance.createMany({
         data: (['TOS', 'PRIVACY'] as const).map((documentType) => ({
@@ -119,7 +139,12 @@ export class SignupRepository {
           entityType: 'Office',
           entityId: officeId,
           action: 'CREATE',
-          newValues: { name: office.name, accountType: office.accountType, jurisdiction: office.jurisdiction, plan: plan.code },
+          newValues: {
+            name: office.name,
+            accountType: office.accountType,
+            jurisdiction: office.jurisdiction,
+            plan: plan.code,
+          },
         },
       });
       return user;
@@ -138,11 +163,21 @@ export class SignupRepository {
    * Uses the link and verifies its user, in the link's office (scoped client inside TenantRunner). False when the link
    * was used concurrently. Only a change is audited: a link for an already verified user is used but changes nothing.
    */
-  confirmVerification(link: { id: string; officeId: string; userId: string }, now: Date, client: ClientInfo): Promise<boolean> {
+  confirmVerification(
+    link: { id: string; officeId: string; userId: string },
+    now: Date,
+    client: ClientInfo,
+  ): Promise<boolean> {
     return this.prisma.db.$transaction(async (tx) => {
-      const claimed = await tx.emailVerificationToken.updateMany({ where: { id: link.id, usedAt: null }, data: { usedAt: now } });
+      const claimed = await tx.emailVerificationToken.updateMany({
+        where: { id: link.id, usedAt: null },
+        data: { usedAt: now },
+      });
       if (claimed.count === 0) return false;
-      const verified = await tx.user.updateMany({ where: { id: link.userId, emailVerifiedAt: null }, data: { emailVerifiedAt: now } });
+      const verified = await tx.user.updateMany({
+        where: { id: link.userId, emailVerifiedAt: null },
+        data: { emailVerifiedAt: now },
+      });
       if (verified.count === 1) {
         await tx.auditLog.create({
           data: {
@@ -163,15 +198,27 @@ export class SignupRepository {
    * keep their FKs): the office is deactivated, its sessions and links end, and the user's email is renamed. The update
    * is conditional, so a verification racing with the reclaim wins and the new signup gets 409.
    */
-  private async releaseAbandoned(tx: Prisma.TransactionClient, account: { userId: string; officeId: string }, email: string, input: NewOfficeAccount) {
+  private async releaseAbandoned(
+    tx: Prisma.TransactionClient,
+    account: { userId: string; officeId: string },
+    email: string,
+    input: NewOfficeAccount,
+  ) {
     const released = await tx.user.updateMany({
       where: { id: account.userId, email, emailVerifiedAt: null },
       data: { email: `released+${account.userId}@invalid.nexlegtiq`, isActive: false },
     });
-    if (released.count === 0) throw new AppException('RES-002', 'An account with this email already exists');
+    if (released.count === 0)
+      throw new AppException('RES-002', 'An account with this email already exists');
     await tx.office.update({ where: { id: account.officeId }, data: { isActive: false } });
-    await tx.refreshToken.updateMany({ where: { officeId: account.officeId, revokedAt: null }, data: { revokedAt: input.now } });
-    await tx.emailVerificationToken.updateMany({ where: { officeId: account.officeId, usedAt: null }, data: { usedAt: input.now } });
+    await tx.refreshToken.updateMany({
+      where: { officeId: account.officeId, revokedAt: null },
+      data: { revokedAt: input.now },
+    });
+    await tx.emailVerificationToken.updateMany({
+      where: { officeId: account.officeId, usedAt: null },
+      data: { usedAt: input.now },
+    });
     await tx.auditLog.create({
       data: {
         ...auditBase(account.officeId, account.userId, input.client),
@@ -185,5 +232,11 @@ export class SignupRepository {
 }
 
 function auditBase(officeId: string, userId: string, client: ClientInfo) {
-  return { officeId, userId, ipAddress: client.ip, userAgent: truncateUserAgent(client.userAgent), requestId: client.requestId };
+  return {
+    officeId,
+    userId,
+    ipAddress: client.ip,
+    userAgent: truncateUserAgent(client.userAgent),
+    requestId: client.requestId,
+  };
 }

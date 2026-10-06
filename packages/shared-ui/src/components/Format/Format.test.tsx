@@ -13,7 +13,10 @@ afterEach(() => {
 
 const AT = '2026-10-13T21:30:00Z'; // 14 Oct 00:30 in Hebron, 13 Oct 21:30 UTC
 
-function formatIn(locale: Locale, settings: Omit<NexProviderProps, 'children' | 'userLocale'> = {}) {
+function formatIn(
+  locale: Locale,
+  settings: Omit<NexProviderProps, 'children' | 'userLocale'> = {},
+) {
   const wrapper = ({ children }: { children: ReactNode }) => (
     <NexProvider userLocale={locale} {...settings}>
       {children}

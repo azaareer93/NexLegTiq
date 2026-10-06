@@ -6,7 +6,11 @@ import { Ltr } from '../Bidi/Bidi';
 import { PriorityTag } from '../StatusTag/StatusTag';
 import { PageHeader } from './PageHeader';
 
-const meta = { title: 'Layout/PageHeader', component: PageHeader, args: { title: '' } } satisfies Meta<typeof PageHeader>;
+const meta = {
+  title: 'Layout/PageHeader',
+  component: PageHeader,
+  args: { title: '' },
+} satisfies Meta<typeof PageHeader>;
 export default meta;
 type Story = StoryObj<typeof meta>;
 

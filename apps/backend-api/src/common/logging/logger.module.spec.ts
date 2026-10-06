@@ -55,7 +55,12 @@ describe('logger', () => {
     it('should log the route template and drop query and params (tokens in links)', () => {
       const raw = { baseUrl: '/api/v1', route: { path: '/auth/invites/:token' } };
       const req = Object.defineProperty(
-        { method: 'GET', url: '/api/v1/auth/invites/tok-123?x=1', query: { x: '1' }, params: { token: 'tok-123' } },
+        {
+          method: 'GET',
+          url: '/api/v1/auth/invites/tok-123?x=1',
+          query: { x: '1' },
+          params: { token: 'tok-123' },
+        },
         'raw',
         { value: raw, enumerable: false },
       );
@@ -67,7 +72,9 @@ describe('logger', () => {
     });
 
     it('should strip the query string from unmatched URLs', () => {
-      expect(serializeRequest({ url: '/api/v1/auth/reset?token=abc123' }).url).toBe('/api/v1/auth/reset');
+      expect(serializeRequest({ url: '/api/v1/auth/reset?token=abc123' }).url).toBe(
+        '/api/v1/auth/reset',
+      );
     });
   });
 
@@ -105,7 +112,9 @@ describe('logger', () => {
 
   it('should not auto-log health probes', () => {
     const params = buildLoggerParams(new AppConfig(parseEnv(testEnv())));
-    const { ignore } = (params.pinoHttp as { autoLogging: { ignore: (req: { url?: string }) => boolean } }).autoLogging;
+    const { ignore } = (
+      params.pinoHttp as { autoLogging: { ignore: (req: { url?: string }) => boolean } }
+    ).autoLogging;
 
     expect(ignore({ url: '/health' })).toBe(true);
     expect(ignore({ url: '/health/ready' })).toBe(true);
@@ -114,8 +123,12 @@ describe('logger', () => {
   });
 
   it('should use pino-pretty only when LOG_PRETTY is on', () => {
-    const params = buildLoggerParams(new AppConfig(parseEnv(testEnv({ NODE_ENV: 'development', LOG_PRETTY: 'true' }))));
+    const params = buildLoggerParams(
+      new AppConfig(parseEnv(testEnv({ NODE_ENV: 'development', LOG_PRETTY: 'true' }))),
+    );
 
-    expect((params.pinoHttp as { transport?: { target: string } }).transport?.target).toBe('pino-pretty');
+    expect((params.pinoHttp as { transport?: { target: string } }).transport?.target).toBe(
+      'pino-pretty',
+    );
   });
 });

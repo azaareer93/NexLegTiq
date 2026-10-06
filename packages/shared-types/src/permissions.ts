@@ -95,7 +95,10 @@ const GRANTS: Readonly<Record<Permission, readonly Role[]>> = {
 /** Role → granted permissions, derived from the matrix rows above. Frozen: the security matrix is not mutable at runtime. */
 export const ROLE_PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = Object.freeze(
   Object.fromEntries(
-    ROLES.map((role) => [role, Object.freeze(PERMISSIONS.filter((permission) => GRANTS[permission].includes(role)))]),
+    ROLES.map((role) => [
+      role,
+      Object.freeze(PERMISSIONS.filter((permission) => GRANTS[permission].includes(role))),
+    ]),
   ) as Record<Role, readonly Permission[]>,
 );
 
@@ -105,7 +108,9 @@ export const ROLE_PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = O
  * responsible lawyer. An external collaborator completes only tasks assigned to them.
  */
 export type PermissionCondition = 'RESPONSIBLE_LAWYER' | 'OWN';
-export const PERMISSION_CONDITIONS: Readonly<Partial<Record<Role, Partial<Record<Permission, PermissionCondition>>>>> = {
+export const PERMISSION_CONDITIONS: Readonly<
+  Partial<Record<Role, Partial<Record<Permission, PermissionCondition>>>>
+> = {
   LAWYER: { 'close:case': 'RESPONSIBLE_LAWYER', 'reopen:case': 'RESPONSIBLE_LAWYER' },
   EXTERNAL_COLLABORATOR: { 'complete:task': 'OWN' },
 };
@@ -124,15 +129,23 @@ export function permissionsFor(role: unknown): readonly Permission[] {
 
 /** The condition the service must enforce for this role/permission, if the matrix cell is conditional. */
 export function conditionFor(role: Role, permission: Permission): PermissionCondition | undefined {
-  return isRole(role) && Object.hasOwn(PERMISSION_CONDITIONS, role) ? PERMISSION_CONDITIONS[role]?.[permission] : undefined;
+  return isRole(role) && Object.hasOwn(PERMISSION_CONDITIONS, role)
+    ? PERMISSION_CONDITIONS[role]?.[permission]
+    : undefined;
 }
 
 /** `@RequirePermissions` semantics (D-051): every permission is held. */
-export function hasAllPermissions(held: readonly Permission[], required: readonly Permission[]): boolean {
+export function hasAllPermissions(
+  held: readonly Permission[],
+  required: readonly Permission[],
+): boolean {
   return required.every((permission) => held.includes(permission));
 }
 
 /** `@RequireAnyPermission` semantics (D-051): at least one permission is held. */
-export function hasAnyPermission(held: readonly Permission[], anyOf: readonly Permission[]): boolean {
+export function hasAnyPermission(
+  held: readonly Permission[],
+  anyOf: readonly Permission[],
+): boolean {
   return anyOf.some((permission) => held.includes(permission));
 }

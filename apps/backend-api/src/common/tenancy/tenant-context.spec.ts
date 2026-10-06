@@ -17,14 +17,26 @@ function httpContext(user?: AuthPrincipal): ExecutionContext {
 
 describe('TenantInterceptor', () => {
   const interceptor = new TenantInterceptor(cls);
-  const principal: AuthPrincipal = { userId: USER, officeId: OFFICE, role: 'LAWYER', realm: 'OFFICE' };
+  const principal: AuthPrincipal = {
+    userId: USER,
+    officeId: OFFICE,
+    role: 'LAWYER',
+    realm: 'OFFICE',
+  };
 
   it('should copy the authenticated principal into CLS', async () => {
     await cls.run(async () => {
       const handler: CallHandler = { handle: () => of(cls.get('officeId')) };
 
-      await expect(lastValueFrom(interceptor.intercept(httpContext(principal), handler))).resolves.toBe(OFFICE);
-      expect(cls.get()).toMatchObject({ userId: USER, officeId: OFFICE, role: 'LAWYER', realm: 'OFFICE' });
+      await expect(
+        lastValueFrom(interceptor.intercept(httpContext(principal), handler)),
+      ).resolves.toBe(OFFICE);
+      expect(cls.get()).toMatchObject({
+        userId: USER,
+        officeId: OFFICE,
+        role: 'LAWYER',
+        realm: 'OFFICE',
+      });
       expect(cls.get('permissions')).toContain('create:case');
       expect(cls.get('permissions')).not.toContain('view:audit');
     });
@@ -32,7 +44,11 @@ describe('TenantInterceptor', () => {
 
   it('should give portal principals an office but no office role or permissions', async () => {
     await cls.run(async () => {
-      await lastValueFrom(interceptor.intercept(httpContext({ ...principal, realm: 'PORTAL' }), { handle: () => of(null) }));
+      await lastValueFrom(
+        interceptor.intercept(httpContext({ ...principal, realm: 'PORTAL' }), {
+          handle: () => of(null),
+        }),
+      );
 
       expect(cls.get('officeId')).toBe(OFFICE);
       expect(cls.get('role')).toBeUndefined();
@@ -53,11 +69,14 @@ describe('TenantRunner', () => {
   const runner = new TenantRunner(cls);
 
   it('should run work in a fresh context with the office, user and request id', async () => {
-    const seen = await runner.run({ officeId: OFFICE, userId: USER, requestId: 'req-12345678' }, async () => ({
-      officeId: cls.get('officeId'),
-      userId: cls.get('userId'),
-      requestId: cls.get(CLS_ID),
-    }));
+    const seen = await runner.run(
+      { officeId: OFFICE, userId: USER, requestId: 'req-12345678' },
+      async () => ({
+        officeId: cls.get('officeId'),
+        userId: cls.get('userId'),
+        requestId: cls.get(CLS_ID),
+      }),
+    );
 
     expect(seen).toEqual({ officeId: OFFICE, userId: USER, requestId: 'req-12345678' });
     expect(cls.isActive()).toBe(false);

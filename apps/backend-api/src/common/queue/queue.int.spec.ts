@@ -35,7 +35,13 @@ const ProbeJobSchema = z.object({ failTimes: z.number().int().optional() });
 type ProbeJob = z.infer<typeof ProbeJobSchema>;
 
 /** What the processor saw on each attempt: CLS office and request id, and the offices the scoped client can read. */
-const seen: { jobId?: string; officeId?: string; requestId?: string; attempt: number; visibleOffices: string[] }[] = [];
+const seen: {
+  jobId?: string;
+  officeId?: string;
+  requestId?: string;
+  attempt: number;
+  visibleOffices: string[];
+}[] = [];
 
 @Injectable()
 @Processor(QUEUE.NOTIFICATION, workerOptions(QUEUE.NOTIFICATION))
@@ -52,8 +58,16 @@ class ProbeProcessor extends TenantProcessor<ProbeJob> {
   }
 
   protected async handle(job: Job<ProbeJob & TenantJobData>): Promise<string> {
-    const visibleOffices = (await this.prisma.db.office.findMany({ select: { id: true } })).map((office) => office.id);
-    seen.push({ jobId: job.id, officeId: this.cls.get('officeId'), requestId: this.cls.getId(), attempt: job.attemptsMade + 1, visibleOffices });
+    const visibleOffices = (await this.prisma.db.office.findMany({ select: { id: true } })).map(
+      (office) => office.id,
+    );
+    seen.push({
+      jobId: job.id,
+      officeId: this.cls.get('officeId'),
+      requestId: this.cls.getId(),
+      attempt: job.attemptsMade + 1,
+      visibleOffices,
+    });
     if (job.attemptsMade < (job.data.failTimes ?? 0)) throw new Error('transient failure');
     return 'ok';
   }
@@ -76,11 +90,18 @@ describe('queues (Redis + PostgreSQL)', () => {
   let officeB: OfficeId;
   let suspended: OfficeId;
 
-  const inOffice = <T>(officeId: OfficeId, work: () => Promise<T>, requestId = `req-${randomUUID()}`) =>
-    app.get(TenantRunner).run({ officeId, requestId }, work);
+  const inOffice = <T>(
+    officeId: OfficeId,
+    work: () => Promise<T>,
+    requestId = `req-${randomUUID()}`,
+  ) => app.get(TenantRunner).run({ officeId, requestId }, work);
   const queue = () => getQueue(app, QUEUE.NOTIFICATION);
   const enqueue = (officeId: OfficeId, data: ProbeJob = {}, requestId?: string) =>
-    inOffice(officeId, () => app.get(QueueProducer).enqueue(QUEUE.NOTIFICATION, 'probe', data), requestId);
+    inOffice(
+      officeId,
+      () => app.get(QueueProducer).enqueue(QUEUE.NOTIFICATION, 'probe', data),
+      requestId,
+    );
 
   beforeAll(async () => {
     // A prefix of its own: this run's jobs never mix with a dev worker or another test run on the same Redis.
@@ -90,7 +111,9 @@ describe('queues (Redis + PostgreSQL)', () => {
     const raw = app.get(PrismaService).unscoped();
     officeA = (await raw.office.create({ data: { name: 'Queue test office A' } })).id as OfficeId;
     officeB = (await raw.office.create({ data: { name: 'Queue test office B' } })).id as OfficeId;
-    suspended = (await raw.office.create({ data: { name: 'Queue test office C', isActive: false } })).id as OfficeId;
+    suspended = (
+      await raw.office.create({ data: { name: 'Queue test office C', isActive: false } })
+    ).id as OfficeId;
   });
 
   beforeEach(async () => {
@@ -102,7 +125,10 @@ describe('queues (Redis + PostgreSQL)', () => {
     if (app) {
       for (const name of QUEUE_NAMES) await getQueue(app, name).obliterate({ force: true });
       // unscoped: test cleanup.
-      await app.get(PrismaService).unscoped().office.deleteMany({ where: { id: { in: [officeA, officeB, suspended] } } });
+      await app
+        .get(PrismaService)
+        .unscoped()
+        .office.deleteMany({ where: { id: { in: [officeA, officeB, suspended] } } });
       await app.close();
     }
     restoreEnv();
@@ -112,13 +138,28 @@ describe('queues (Redis + PostgreSQL)', () => {
     const jobA = await enqueue(officeA, {}, 'req-queue-000A');
     const jobB = await enqueue(officeB, {}, 'req-queue-000B');
     expect(jobA.data).toMatchObject({ officeId: officeA, requestId: 'req-queue-000A' });
-    expect(jobA.opts).toMatchObject({ attempts: QUEUE_POLICY.notification.jobs.attempts, backoff: QUEUE_POLICY.notification.jobs.backoff });
+    expect(jobA.opts).toMatchObject({
+      attempts: QUEUE_POLICY.notification.jobs.attempts,
+      backoff: QUEUE_POLICY.notification.jobs.backoff,
+    });
 
     await drainQueue(queue());
     expect(seen).toEqual(
       expect.arrayContaining([
-        { jobId: jobA.id, officeId: officeA, requestId: 'req-queue-000A', attempt: 1, visibleOffices: [officeA] },
-        { jobId: jobB.id, officeId: officeB, requestId: 'req-queue-000B', attempt: 1, visibleOffices: [officeB] },
+        {
+          jobId: jobA.id,
+          officeId: officeA,
+          requestId: 'req-queue-000A',
+          attempt: 1,
+          visibleOffices: [officeA],
+        },
+        {
+          jobId: jobB.id,
+          officeId: officeB,
+          requestId: 'req-queue-000B',
+          attempt: 1,
+          visibleOffices: [officeB],
+        },
       ]),
     );
     await expect(queue().getJobState(jobA.id ?? '')).resolves.toBe('completed');
@@ -152,7 +193,10 @@ describe('queues (Redis + PostgreSQL)', () => {
     ['without an officeId', { requestId: null }],
     ['with a malformed job field', { requestId: null, failTimes: 'many' }],
   ])('should fail a job %s at once, without retries', async (_label, data) => {
-    const job = await queue().add('probe', { ...data, ...('failTimes' in data ? { officeId: officeA } : {}) });
+    const job = await queue().add('probe', {
+      ...data,
+      ...('failTimes' in data ? { officeId: officeA } : {}),
+    });
     await drainQueue(queue());
     expect(seen).toEqual([]);
     const failed = await queue().getJob(job.id ?? '');
@@ -198,8 +242,13 @@ describe('queues (Redis + PostgreSQL)', () => {
 describe('HTTP app and queues', () => {
   async function createHttpApp(env: Record<string, string>): Promise<NestExpressApplication> {
     Object.assign(process.env, integrationEnv(env));
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule, DiscoveryModule] }).compile();
-    const created = moduleRef.createNestApplication<NestExpressApplication>({ bodyParser: false, bufferLogs: true });
+    const moduleRef = await Test.createTestingModule({
+      imports: [AppModule, DiscoveryModule],
+    }).compile();
+    const created = moduleRef.createNestApplication<NestExpressApplication>({
+      bodyParser: false,
+      bufferLogs: true,
+    });
     configureApp(created);
     await created.init();
     return created;
@@ -210,7 +259,10 @@ describe('HTTP app and queues', () => {
   it('should register no processors in the HTTP app (producers only) and hide Bull Board by default', async () => {
     const http = await createHttpApp({});
     try {
-      const processors = http.get(DiscoveryService).getProviders().filter((wrapper) => wrapper.instance instanceof WorkerHost);
+      const processors = http
+        .get(DiscoveryService)
+        .getProviders()
+        .filter((wrapper) => wrapper.instance instanceof WorkerHost);
       expect(processors).toEqual([]);
       expect(http.get(QueueProducer)).toBeInstanceOf(QueueProducer);
       await request(http.getHttpServer()).get(BULL_BOARD_PATH).expect(404);
@@ -236,14 +288,24 @@ describe('HTTP app and queues', () => {
     const http = await createHttpApp({ REDIS_URL: 'redis://127.0.0.1:1' });
     try {
       // unscoped: test setup — an office for the tenant context.
-      const office = await http.get(PrismaService).unscoped().office.create({ data: { name: 'Queue test office D' } });
+      const office = await http
+        .get(PrismaService)
+        .unscoped()
+        .office.create({ data: { name: 'Queue test office D' } });
       const started = Date.now();
       await expect(
-        http.get(TenantRunner).run({ officeId: office.id as OfficeId }, () => http.get(QueueProducer).enqueue(QUEUE.EMAIL, 'send-email', {})),
+        http
+          .get(TenantRunner)
+          .run({ officeId: office.id as OfficeId }, () =>
+            http.get(QueueProducer).enqueue(QUEUE.EMAIL, 'send-email', {}),
+          ),
       ).rejects.toThrow();
       expect(Date.now() - started).toBeLessThan(4000);
       // unscoped: test cleanup.
-      await http.get(PrismaService).unscoped().office.delete({ where: { id: office.id } });
+      await http
+        .get(PrismaService)
+        .unscoped()
+        .office.delete({ where: { id: office.id } });
     } finally {
       await http.close();
     }

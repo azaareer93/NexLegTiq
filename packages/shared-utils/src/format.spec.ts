@@ -28,27 +28,36 @@ describe('formatDate', () => {
   it.each([
     ['ar', '13 أكتوبر 2026'],
     ['en', '13 October 2026'],
-  ] as const)('should spell the month in %s, MSA month names in Arabic (D-092)', (locale, expected) => {
-    expect(formatDate(AT, { locale, style: 'long' })).toBe(expected);
-  });
+  ] as const)(
+    'should spell the month in %s, MSA month names in Arabic (D-092)',
+    (locale, expected) => {
+      expect(formatDate(AT, { locale, style: 'long' })).toBe(expected);
+    },
+  );
 
   it('should show the date in the given time zone, not the device one: late evening UTC is the next day in Hebron', () => {
     expect(formatDate('2026-10-13T21:30:00Z', { locale: 'en' })).toBe('14/10/2026');
-    expect(formatDate('2026-10-13T21:30:00Z', { locale: 'en', timeZone: 'UTC' })).toBe('13/10/2026');
+    expect(formatDate('2026-10-13T21:30:00Z', { locale: 'en', timeZone: 'UTC' })).toBe(
+      '13/10/2026',
+    );
   });
 
   it('should show a date-only value (a deadline) as written, in any zone', () => {
-    expect(formatDate('2026-10-13', { locale: 'en', timeZone: 'America/New_York' })).toBe('13/10/2026');
-    expect(formatDate('2026-10-13', { locale: 'en', timeZone: 'Asia/Hebron', style: 'long' })).toBe('13 October 2026');
+    expect(formatDate('2026-10-13', { locale: 'en', timeZone: 'America/New_York' })).toBe(
+      '13/10/2026',
+    );
+    expect(formatDate('2026-10-13', { locale: 'en', timeZone: 'Asia/Hebron', style: 'long' })).toBe(
+      '13 October 2026',
+    );
   });
 
   it('should accept a Date, an ISO string and a timestamp alike', () => {
     const date = new Date(AT);
-    expect([formatDate(date, { locale: 'en' }), formatDate(AT, { locale: 'en' }), formatDate(date.getTime(), { locale: 'en' })]).toEqual([
-      '13/10/2026',
-      '13/10/2026',
-      '13/10/2026',
-    ]);
+    expect([
+      formatDate(date, { locale: 'en' }),
+      formatDate(AT, { locale: 'en' }),
+      formatDate(date.getTime(), { locale: 'en' }),
+    ]).toEqual(['13/10/2026', '13/10/2026', '13/10/2026']);
   });
 
   it('should refuse an invalid date instead of printing "Invalid Date"', () => {
@@ -61,9 +70,12 @@ describe('formatTime and formatDateTime', () => {
     ['ar', 'latn', '3:05 م'],
     ['ar', 'arab', '٣:٠٥ م'],
     ['en', 'latn', '3:05 PM'],
-  ] as const)('should write the time in %s (%s digits), with ص/م in Arabic', (locale, digits, expected) => {
-    expect(formatTime(AT, { locale, digits })).toBe(expected);
-  });
+  ] as const)(
+    'should write the time in %s (%s digits), with ص/م in Arabic',
+    (locale, digits, expected) => {
+      expect(formatTime(AT, { locale, digits })).toBe(expected);
+    },
+  );
 
   it.each([
     ['ar', '13/10/2026 3:05 م'],
@@ -140,12 +152,22 @@ describe('formatRelative', () => {
     // Yesterday evening, 20 hours ago across midnight, is "yesterday", not "20 hours ago".
     expect(formatRelative('2026-10-12T18:00:00Z', { locale: 'en', now })).toBe('yesterday');
     // The same instants in UTC fall on other calendar days.
-    expect(formatRelative('2026-10-12T22:30:00Z', { locale: 'en', now: '2026-10-13T00:30:00Z', timeZone: 'UTC' })).toBe('yesterday');
-    expect(formatRelative('2026-10-12T22:30:00Z', { locale: 'en', now: '2026-10-13T00:30:00Z' })).toBe('2 hours ago');
+    expect(
+      formatRelative('2026-10-12T22:30:00Z', {
+        locale: 'en',
+        now: '2026-10-13T00:30:00Z',
+        timeZone: 'UTC',
+      }),
+    ).toBe('yesterday');
+    expect(
+      formatRelative('2026-10-12T22:30:00Z', { locale: 'en', now: '2026-10-13T00:30:00Z' }),
+    ).toBe('2 hours ago');
   });
 
   it('should use Arabic-Indic digits when preferred', () => {
-    expect(formatRelative(ago(3 * DAY), { locale: 'ar', now: AT, digits: 'arab' })).toBe('قبل ٣ أيام');
+    expect(formatRelative(ago(3 * DAY), { locale: 'ar', now: AT, digits: 'arab' })).toBe(
+      'قبل ٣ أيام',
+    );
   });
 
   it('should measure from the current time by default', () => {
@@ -169,7 +191,13 @@ describe('formatNumber', () => {
     ['0.125', 'en', 'latn', '0.12'],
     ['0.135', 'en', 'latn', '0.14'],
   ] as const)('should write %s in %s with %s digits as %s', (value, locale, digits, expected) => {
-    expect(formatNumber(value, { locale, digits, maximumFractionDigits: typeof value === 'string' && value.startsWith('0.1') ? 2 : 3 })).toBe(expected);
+    expect(
+      formatNumber(value, {
+        locale,
+        digits,
+        maximumFractionDigits: typeof value === 'string' && value.startsWith('0.1') ? 2 : 3,
+      }),
+    ).toBe(expected);
   });
 
   it('should allow three decimals unless told otherwise', () => {
@@ -185,7 +213,9 @@ describe('formatNumber', () => {
   });
 
   it('should keep a precision a float would lose', () => {
-    expect(formatNumber('12345678901234567.25', { locale: 'en', maximumFractionDigits: 2 })).toBe('12,345,678,901,234,567.25');
+    expect(formatNumber('12345678901234567.25', { locale: 'en', maximumFractionDigits: 2 })).toBe(
+      '12,345,678,901,234,567.25',
+    );
   });
 });
 
@@ -200,9 +230,12 @@ describe('formatMoney', () => {
     ['1000', 'AED', 'en', 'latn', `AED${NBSP}1,000.00`],
     ['1000', 'USD', 'en', 'latn', '$1,000.00'],
     ['-50', 'USD', 'ar', 'latn', `${RLM}${LRM}-50.00${NBSP}US$`],
-  ] as const)('should write %s %s in %s (%s digits)', (amount, currency, locale, digits, expected) => {
-    expect(formatMoney(amount, currency, { locale, digits })).toBe(expected);
-  });
+  ] as const)(
+    'should write %s %s in %s (%s digits)',
+    (amount, currency, locale, digits, expected) => {
+      expect(formatMoney(amount, currency, { locale, digits })).toBe(expected);
+    },
+  );
 
   it.each([
     ['0.125', '$0.12'],
@@ -213,9 +246,12 @@ describe('formatMoney', () => {
     expect(formatMoney(amount, 'USD', { locale: 'en' })).toBe(expected);
   });
 
-  it.each(['12,5', 'NaN', 'Infinity', '0x10', '1e200000000', ' 1', ''])('should refuse %j as an amount (and never hang on it)', (amount) => {
-    expect(() => formatMoney(amount, 'USD', { locale: 'en' })).toThrow(RangeError);
-  });
+  it.each(['12,5', 'NaN', 'Infinity', '0x10', '1e200000000', ' 1', ''])(
+    'should refuse %j as an amount (and never hang on it)',
+    (amount) => {
+      expect(() => formatMoney(amount, 'USD', { locale: 'en' })).toThrow(RangeError);
+    },
+  );
 
   it('should refuse an unknown currency instead of guessing its decimals', () => {
     expect(() => formatMoney('1', 'XYZ', { locale: 'en' })).toThrow(RangeError);

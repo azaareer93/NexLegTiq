@@ -39,7 +39,9 @@ const args = process.argv.slice(2);
 const dryRun = args.includes('--dry-run');
 const verbose = args.includes('--verbose');
 const exportPath = args.find((a) => a.startsWith('--export='))?.slice('--export='.length);
-const changedSince = args.find((a) => a.startsWith('--changed-since='))?.slice('--changed-since='.length);
+const changedSince = args
+  .find((a) => a.startsWith('--changed-since='))
+  ?.slice('--changed-since='.length);
 const exported = [];
 const files = args.filter((a) => !a.startsWith('--'));
 const root = process.cwd();
@@ -69,7 +71,8 @@ function binFromPkgDir(pkgDir) {
   const pkgJson = join(pkgDir, 'package.json');
   if (!existsSync(pkgJson)) return null;
   const pkg = JSON.parse(readFileSync(pkgJson, 'utf8'));
-  const rel = typeof pkg.bin === 'string' ? pkg.bin : pkg.bin?.ruflo ?? Object.values(pkg.bin ?? {})[0];
+  const rel =
+    typeof pkg.bin === 'string' ? pkg.bin : (pkg.bin?.ruflo ?? Object.values(pkg.bin ?? {})[0]);
   const bin = rel ? join(pkgDir, rel) : null;
   return bin && existsSync(bin) ? bin : null;
 }
@@ -97,12 +100,25 @@ function resolveRufloBin() {
 
   console.log('Installing ruflo@latest into .claude-flow/seed-cli (one-time, may take a minute)…');
   mkdirSync(cacheDir, { recursive: true });
-  const inst = npm(['install', '--prefix', cacheDir, 'ruflo@latest', '--no-audit', '--no-fund', '--loglevel=error'], {
-    stdio: 'inherit',
-  });
+  const inst = npm(
+    [
+      'install',
+      '--prefix',
+      cacheDir,
+      'ruflo@latest',
+      '--no-audit',
+      '--no-fund',
+      '--loglevel=error',
+    ],
+    {
+      stdio: 'inherit',
+    },
+  );
   const installed = inst.status === 0 && binFromPkgDir(join(cacheDir, 'node_modules', 'ruflo'));
   if (!installed) {
-    console.error('Could not install ruflo. Install it globally (npm i -g ruflo) or set RUFLO_BIN, then re-run.');
+    console.error(
+      'Could not install ruflo. Install it globally (npm i -g ruflo) or set RUFLO_BIN, then re-run.',
+    );
     process.exit(1);
   }
   return installed;
@@ -111,8 +127,12 @@ function resolveRufloBin() {
 // Ruflo on Windows writes with sql.js (native SQLite bridge disabled upstream, ruflo #3024) and refuses to write
 // while WAL sidecar files exist — they mean another process (usually Claude Code's claude-flow MCP server) has the
 // DB open natively, or a crashed process left them behind. Detect that up front instead of failing every entry.
-const memoryRoot = process.env.CLAUDE_FLOW_MEMORY_PATH ? resolve(process.env.CLAUDE_FLOW_MEMORY_PATH) : join(root, '.swarm');
-const sidecars = ['memory.db-wal', 'memory.db-shm'].map((f) => join(memoryRoot, f)).filter((f) => existsSync(f));
+const memoryRoot = process.env.CLAUDE_FLOW_MEMORY_PATH
+  ? resolve(process.env.CLAUDE_FLOW_MEMORY_PATH)
+  : join(root, '.swarm');
+const sidecars = ['memory.db-wal', 'memory.db-shm']
+  .map((f) => join(memoryRoot, f))
+  .filter((f) => existsSync(f));
 if (!dryRun && !exportPath && sidecars.length) {
   console.error(
     [
@@ -139,7 +159,11 @@ function rufloMcpRunning() {
   const r = isWin
     ? spawnSync(
         'powershell',
-        ['-NoProfile', '-Command', "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | ForEach-Object CommandLine"],
+        [
+          '-NoProfile',
+          '-Command',
+          'Get-CimInstance Win32_Process -Filter "Name=\'node.exe\'" | ForEach-Object CommandLine',
+        ],
         { encoding: 'utf8', windowsHide: true },
       )
     : spawnSync('ps', ['-eo', 'args'], { encoding: 'utf8' });
@@ -148,7 +172,7 @@ function rufloMcpRunning() {
 if (!dryRun && !exportPath && rufloMcpRunning()) {
   console.error(
     [
-      'A Ruflo MCP server is running (usually Claude Code\'s claude-flow server), and it owns .swarm/memory.db.',
+      "A Ruflo MCP server is running (usually Claude Code's claude-flow server), and it owns .swarm/memory.db.",
       'Either close Claude Code and re-run, or export the entries and store them from the session:',
       '  node scripts/ruflo-seed.mjs --export=<file.json> [--changed-since=<commit>] [files]',
       'then ask Claude to store each entry with memory_store (/ticket step 0 does this).',
@@ -171,7 +195,19 @@ function store(namespace, key, value) {
   }
   const r = spawnSync(
     process.execPath,
-    [rufloBin, 'memory', 'store', '--namespace', namespace, '--key', key, '--value', value, '--tags', 'nexlegtiq,seed'],
+    [
+      rufloBin,
+      'memory',
+      'store',
+      '--namespace',
+      namespace,
+      '--key',
+      key,
+      '--value',
+      value,
+      '--tags',
+      'nexlegtiq,seed',
+    ],
     { cwd: root, encoding: 'utf8', shell: false, windowsHide: true, maxBuffer: 16 * 1024 * 1024 },
   );
   const out = `${r.stdout ?? ''}${r.stderr ?? ''}`;
@@ -191,7 +227,9 @@ const track = (res) => {
   else failed++;
   // Fail fast: if nothing has succeeded after 3 attempts the problem is environmental, not per-entry.
   if (!res && ok === 0 && failed >= 3) {
-    console.error('\nStopping: the first 3 entries all failed — fix the error above and re-run (safe to repeat).');
+    console.error(
+      '\nStopping: the first 3 entries all failed — fix the error above and re-run (safe to repeat).',
+    );
     process.exit(1);
   }
 };
@@ -208,7 +246,9 @@ function entriesOf(name, raw) {
   const sections = text.split(/\n(?=## )/);
   const intro = sections.shift() ?? '';
   const title = (intro.match(/^# (.+)$/m) ?? [])[1] ?? name;
-  const entries = intro.trim() ? [{ namespace: 'nexlegtiq-spec', key: `${name}/intro`, value: intro.trim() }] : [];
+  const entries = intro.trim()
+    ? [{ namespace: 'nexlegtiq-spec', key: `${name}/intro`, value: intro.trim() }]
+    : [];
   for (const s of sections) {
     const heading = (s.match(/^## (.+)$/m) ?? [])[1] ?? 'section';
     entries.push({
@@ -223,7 +263,11 @@ function entriesOf(name, raw) {
 /** The file as it was at `ref` ('' when it did not exist there). */
 function atRef(ref, file) {
   const rel = relative(root, file).split(sep).join('/');
-  const r = spawnSync('git', ['show', `${ref}:${rel}`], { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+  const r = spawnSync('git', ['show', `${ref}:${rel}`], {
+    cwd: root,
+    encoding: 'utf8',
+    maxBuffer: 16 * 1024 * 1024,
+  });
   return r.status === 0 ? r.stdout : '';
 }
 
@@ -231,7 +275,9 @@ for (const file of targets) {
   const name = basename(file, '.md');
   let entries = entriesOf(name, readFileSync(file, 'utf8'));
   if (changedSince) {
-    const before = new Map(entriesOf(name, atRef(changedSince, file)).map((e) => [`${e.namespace}:${e.key}`, e.value]));
+    const before = new Map(
+      entriesOf(name, atRef(changedSince, file)).map((e) => [`${e.namespace}:${e.key}`, e.value]),
+    );
     entries = entries.filter((e) => before.get(`${e.namespace}:${e.key}`) !== e.value);
   }
   for (const e of entries) track(store(e.namespace, e.key, e.value));
@@ -239,9 +285,16 @@ for (const file of targets) {
 
 if (exportPath) {
   const out = resolve(exportPath);
-  const payload = { schema: 'ruflo-memory-export/v1', exportedAt: new Date().toISOString(), count: exported.length, entries: exported };
+  const payload = {
+    schema: 'ruflo-memory-export/v1',
+    exportedAt: new Date().toISOString(),
+    count: exported.length,
+    entries: exported,
+  };
   writeFileSync(out, JSON.stringify(payload, null, 2));
-  console.log(`Exported ${exported.length} entries to ${out}. Store each with the MCP tool memory_store (tags nexlegtiq, seed).`);
+  console.log(
+    `Exported ${exported.length} entries to ${out}. Store each with the MCP tool memory_store (tags nexlegtiq, seed).`,
+  );
   process.exit(0);
 }
 

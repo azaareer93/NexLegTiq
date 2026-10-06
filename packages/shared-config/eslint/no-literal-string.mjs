@@ -35,7 +35,10 @@ export const noLiteralString = [
     ignores: ['src/**/*.{spec,test,stories}.tsx'],
     plugins: i18next.configs['flat/recommended'].plugins,
     rules: {
-      'i18next/no-literal-string': ['error', { mode: 'jsx-only', 'jsx-attributes': { include: USER_FACING_ATTRIBUTES } }],
+      'i18next/no-literal-string': [
+        'error',
+        { mode: 'jsx-only', 'jsx-attributes': { include: USER_FACING_ATTRIBUTES } },
+      ],
       'react/no-danger': 'error',
     },
   },

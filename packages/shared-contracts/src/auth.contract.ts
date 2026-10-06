@@ -1,4 +1,10 @@
-import { ACCOUNT_TYPES, JURISDICTIONS, OFFICE_LANGUAGES, PERMISSIONS, ROLES } from '@nexlegtiq/shared-types';
+import {
+  ACCOUNT_TYPES,
+  JURISDICTIONS,
+  OFFICE_LANGUAGES,
+  PERMISSIONS,
+  ROLES,
+} from '@nexlegtiq/shared-types';
 import { z } from 'zod';
 
 import { NewPasswordSchema, passwordIsNotEmail } from './password.contract.js';

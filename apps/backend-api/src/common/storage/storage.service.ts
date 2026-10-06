@@ -1,6 +1,13 @@
 import type { Readable } from 'node:stream';
 
-import { DeleteObjectCommand, GetObjectCommand, HeadBucketCommand, HeadObjectCommand, S3Client, S3ServiceException } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  HeadBucketCommand,
+  HeadObjectCommand,
+  S3Client,
+  S3ServiceException,
+} from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Injectable } from '@nestjs/common';
@@ -74,13 +81,19 @@ export class StorageService implements OnModuleInit, OnModuleDestroy {
   /** `{officeId}/{segment}/…` for the current office, e.g. `keyFor(fileId, documentId, \`${uuid}.pdf\`)` (D-035). */
   keyFor(...segments: string[]): string {
     if (segments.length === 0 || !segments.every((segment) => SEGMENT.test(segment))) {
-      throw new TenantViolationError('Storage key segments must be non-empty and contain only [A-Za-z0-9._-]');
+      throw new TenantViolationError(
+        'Storage key segments must be non-empty and contain only [A-Za-z0-9._-]',
+      );
     }
     return [this.officeId(), ...segments].join('/');
   }
 
   /** Streams the body to storage (multipart for large files) with server-side encryption when configured. */
-  async put(key: string, body: Readable | Buffer, options: { contentType: string; contentLength?: number }): Promise<void> {
+  async put(
+    key: string,
+    body: Readable | Buffer,
+    options: { contentType: string; contentLength?: number },
+  ): Promise<void> {
     this.assertOwnKey(key);
     try {
       await new Upload({
@@ -116,8 +129,15 @@ export class StorageService implements OnModuleInit, OnModuleDestroy {
   async head(key: string): Promise<StoredObject | null> {
     this.assertOwnKey(key);
     try {
-      const result = await this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }));
-      return { key, size: result.ContentLength ?? 0, contentType: result.ContentType, etag: result.ETag };
+      const result = await this.client.send(
+        new HeadObjectCommand({ Bucket: this.bucket, Key: key }),
+      );
+      return {
+        key,
+        size: result.ContentLength ?? 0,
+        contentType: result.ContentType,
+        etag: result.ETag,
+      };
     } catch (error) {
       if (isNotFound(error)) return null;
       throw storageError('STO-002', 'Storage lookup failed', error);
@@ -139,13 +159,21 @@ export class StorageService implements OnModuleInit, OnModuleDestroy {
    * `attachment` — never rendered inline from the storage domain — under `filename` (Arabic names included, RFC 5987) or
    * the key's last segment; the name is never part of the key.
    */
-  async presignedGetUrl(key: string, options: { expiresIn?: number; filename?: string; contentType?: string } = {}): Promise<string> {
+  async presignedGetUrl(
+    key: string,
+    options: { expiresIn?: number; filename?: string; contentType?: string } = {},
+  ): Promise<string> {
     this.assertOwnKey(key);
-    const expiresIn = Math.min(Math.max(Math.trunc(options.expiresIn ?? DEFAULT_URL_TTL_SECONDS), 1), MAX_URL_TTL_SECONDS);
+    const expiresIn = Math.min(
+      Math.max(Math.trunc(options.expiresIn ?? DEFAULT_URL_TTL_SECONDS), 1),
+      MAX_URL_TTL_SECONDS,
+    );
     const command = new GetObjectCommand({
       Bucket: this.bucket,
       Key: key,
-      ResponseContentDisposition: contentDisposition(options.filename ?? key.slice(key.lastIndexOf('/') + 1)),
+      ResponseContentDisposition: contentDisposition(
+        options.filename ?? key.slice(key.lastIndexOf('/') + 1),
+      ),
       ...(options.contentType ? { ResponseContentType: options.contentType } : {}),
     });
     try {
@@ -163,7 +191,11 @@ export class StorageService implements OnModuleInit, OnModuleDestroy {
 
   private assertOwnKey(key: string): void {
     const [office, ...segments] = key.split('/');
-    if (office !== this.officeId() || segments.length === 0 || !segments.every((segment) => SEGMENT.test(segment))) {
+    if (
+      office !== this.officeId() ||
+      segments.length === 0 ||
+      !segments.every((segment) => SEGMENT.test(segment))
+    ) {
       throw new TenantViolationError('Storage key outside the current office');
     }
   }
@@ -175,12 +207,20 @@ export class StorageService implements OnModuleInit, OnModuleDestroy {
  */
 export function contentDisposition(filename: string): string {
   const ascii = filename.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_');
-  const encoded = encodeURIComponent(filename).replace(/['()*]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
+  const encoded = encodeURIComponent(filename).replace(
+    /['()*]/g,
+    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
 }
 
 function isNotFound(error: unknown): boolean {
-  return error instanceof S3ServiceException && (error.name === 'NoSuchKey' || error.name === 'NotFound' || error.$metadata.httpStatusCode === 404);
+  return (
+    error instanceof S3ServiceException &&
+    (error.name === 'NoSuchKey' ||
+      error.name === 'NotFound' ||
+      error.$metadata.httpStatusCode === 404)
+  );
 }
 
 function storageError(code: ErrorCode, message: string, cause: unknown): AppException {

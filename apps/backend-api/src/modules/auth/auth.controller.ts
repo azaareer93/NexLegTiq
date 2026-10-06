@@ -1,5 +1,11 @@
 import { Body, Controller, HttpCode, HttpStatus, Post, Req, Res } from '@nestjs/common';
-import { ApiAcceptedResponse, ApiCookieAuth, ApiNoContentResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiAcceptedResponse,
+  ApiCookieAuth,
+  ApiNoContentResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import {
   AuthSessionSchema,
@@ -51,7 +57,10 @@ export class AuthController {
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @Throttle({ default: { limit: 5, ttl: MINUTE_MS } })
-  @ApiOperation({ summary: 'Sign up an office and its manager; logs in like /auth/login (409 RES-002 if the email exists)' })
+  @ApiOperation({
+    summary:
+      'Sign up an office and its manager; logs in like /auth/login (409 RES-002 if the email exists)',
+  })
   @ApiZodBody(RegisterRequestSchema)
   @ApiZodResponse(201, AuthSessionSchema)
   async register(
@@ -65,17 +74,26 @@ export class AuthController {
   @Post('verify-email')
   @HttpCode(HttpStatus.NO_CONTENT)
   @Throttle({ default: { limit: 10, ttl: MINUTE_MS } })
-  @ApiOperation({ summary: 'Confirm the signup email with the token from the link (410 RES-004 if invalid, used or expired)' })
+  @ApiOperation({
+    summary:
+      'Confirm the signup email with the token from the link (410 RES-004 if invalid, used or expired)',
+  })
   @ApiZodBody(VerifyEmailRequestSchema)
   @ApiNoContentResponse({ description: 'Email verified' })
-  async verifyEmail(@Body(new ZodValidationPipe(VerifyEmailRequestSchema)) body: VerifyEmailRequest, @Req() req: Request): Promise<void> {
+  async verifyEmail(
+    @Body(new ZodValidationPipe(VerifyEmailRequestSchema)) body: VerifyEmailRequest,
+    @Req() req: Request,
+  ): Promise<void> {
     await this.signup.verifyEmail(body, this.client(req));
   }
 
   @Post('resend-verification')
   @HttpCode(HttpStatus.ACCEPTED)
   @Throttle({ default: { limit: 3, ttl: MINUTE_MS } })
-  @ApiOperation({ summary: 'Send a new email verification link; always 202, whether or not the email has an account' })
+  @ApiOperation({
+    summary:
+      'Send a new email verification link; always 202, whether or not the email has an account',
+  })
   @ApiZodBody(ResendVerificationRequestSchema)
   @ApiAcceptedResponse({ description: 'Accepted (an email is sent only to an unverified account)' })
   async resendVerification(
@@ -88,7 +106,9 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 5, ttl: MINUTE_MS } })
-  @ApiOperation({ summary: 'Sign in; returns an access token and sets the httpOnly refresh cookie' })
+  @ApiOperation({
+    summary: 'Sign in; returns an access token and sets the httpOnly refresh cookie',
+  })
   @ApiZodBody(LoginRequestSchema)
   @ApiZodResponse(200, AuthSessionSchema)
   async login(
@@ -103,9 +123,15 @@ export class AuthController {
   @ApiCookieAuth('refresh')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 30, ttl: MINUTE_MS } })
-  @ApiOperation({ summary: 'Rotate the refresh cookie and get a new access token (needs Origin + X-Requested-With)' })
+  @ApiOperation({
+    summary:
+      'Rotate the refresh cookie and get a new access token (needs Origin + X-Requested-With)',
+  })
   @ApiZodResponse(200, AuthSessionSchema)
-  async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<AuthSession> {
+  async refresh(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AuthSession> {
     assertCookieRequestOrigin(req.headers, this.config.corsOrigins);
     try {
       return this.respond(await this.auth.refresh(this.cookie(req), this.client(req)), res);
@@ -121,7 +147,10 @@ export class AuthController {
   @ApiCookieAuth('refresh')
   @HttpCode(HttpStatus.NO_CONTENT)
   @Throttle({ default: { limit: 30, ttl: MINUTE_MS } })
-  @ApiOperation({ summary: 'Revoke the session family and clear the refresh cookie (needs Origin + X-Requested-With)' })
+  @ApiOperation({
+    summary:
+      'Revoke the session family and clear the refresh cookie (needs Origin + X-Requested-With)',
+  })
   @ApiNoContentResponse({ description: 'Signed out (also when there was no live session)' })
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<void> {
     assertCookieRequestOrigin(req.headers, this.config.corsOrigins);

@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import type { RegisterRequest, ResendVerificationRequest, VerifyEmailRequest } from '@nexlegtiq/shared-contracts';
+import type {
+  RegisterRequest,
+  ResendVerificationRequest,
+  VerifyEmailRequest,
+} from '@nexlegtiq/shared-contracts';
 import type { AccountType } from '@nexlegtiq/shared-types';
 import { PinoLogger } from 'nestjs-pino';
 
@@ -25,7 +29,9 @@ const GLOBAL_TRIAL_PLAN: Record<AccountType, string> = {
   CORPORATE: 'GLOBAL_PROFESSIONAL',
 };
 
-export function signupPlanCode(body: Pick<RegisterRequest, 'jurisdiction' | 'accountType'>): string {
+export function signupPlanCode(
+  body: Pick<RegisterRequest, 'jurisdiction' | 'accountType'>,
+): string {
   return body.jurisdiction === 'PALESTINE' ? 'PS_FREE' : GLOBAL_TRIAL_PLAN[body.accountType];
 }
 
@@ -54,7 +60,8 @@ export class SignupService {
   async register(body: RegisterRequest, client: ClientInfo): Promise<IssuedSession> {
     const now = new Date();
     const existing = await this.signups.findAccount(body.email);
-    if (existing && !this.isReclaimable(existing, now)) throw new AppException('RES-002', EMAIL_TAKEN);
+    if (existing && !this.isReclaimable(existing, now))
+      throw new AppException('RES-002', EMAIL_TAKEN);
 
     const uiLanguage = body.defaultLanguage === 'EN' ? 'EN' : 'AR';
     const user = await this.signups.createOfficeAccount({
@@ -69,7 +76,9 @@ export class SignupService {
 
     // Auto-login in the new office. A failure here leaves a complete office: the client should offer /auth/login.
     const opened = await this.tenant.run(tenantContextFor(user.officeId, user.id, client), () =>
-      this.prisma.db.$transaction((tx) => this.auth.openSession(tx, user, { rememberMe: false, now, client })),
+      this.prisma.db.$transaction((tx) =>
+        this.auth.openSession(tx, user, { rememberMe: false, now, client }),
+      ),
     );
     // The worker creates the link and sends it (D-085); a failure here is logged, never turns signup into an error.
     await this.mailer.sendVerification({ userId: user.id, officeId: user.officeId }, client);
@@ -92,7 +101,8 @@ export class SignupService {
   async verifyEmail(body: VerifyEmailRequest, client: ClientInfo): Promise<void> {
     const now = new Date();
     const link = await this.signups.findVerificationLink(hashOpaqueToken(body.token));
-    if (!link || link.usedAt !== null || link.expiresAt <= now) throw new AppException('RES-004', INVALID_LINK);
+    if (!link || link.usedAt !== null || link.expiresAt <= now)
+      throw new AppException('RES-004', INVALID_LINK);
     const used = await this.tenant.run(tenantContextFor(link.officeId, link.userId, client), () =>
       this.signups.confirmVerification(link, now, client),
     );
@@ -104,6 +114,10 @@ export class SignupService {
    * is enforced (otherwise nobody could have verified), and only if that office has no other users.
    */
   private isReclaimable(existing: ExistingAccount, now: Date): boolean {
-    return this.config.auth.emailVerificationEnforced && existing.officeUsers === 1 && isVerificationOverdue(existing, now);
+    return (
+      this.config.auth.emailVerificationEnforced &&
+      existing.officeUsers === 1 &&
+      isVerificationOverdue(existing, now)
+    );
   }
 }

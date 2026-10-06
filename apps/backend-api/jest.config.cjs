@@ -1,10 +1,7 @@
-
-const { readFileSync } = require('fs')
+const { readFileSync } = require('fs');
 
 // Reading the SWC compilation config for the spec files
-const swcJestConfig = JSON.parse(
-  readFileSync(`${__dirname}/.spec.swcrc`, 'utf-8')
-);
+const swcJestConfig = JSON.parse(readFileSync(`${__dirname}/.spec.swcrc`, 'utf-8'));
 
 // Disable .swcrc look-up by SWC core because we're passing in swcJestConfig ourselves
 swcJestConfig.swcrc = false;
@@ -17,11 +14,17 @@ module.exports = {
   testPathIgnorePatterns: ['/node_modules/', '\\.int\\.spec\\.ts$'],
   testEnvironment: 'node',
   transform: {
-    '^.+\\.[tj]s$': ['@swc/jest', swcJestConfig]
+    '^.+\\.[tj]s$': ['@swc/jest', swcJestConfig],
   },
   moduleFileExtensions: ['ts', 'js', 'html'],
   coverageDirectory: 'test-output/jest/coverage',
-  collectCoverageFrom: ['src/**/*.ts', '!src/**/*.spec.ts', '!src/generated/**', '!src/main.ts', '!src/worker.ts'],
+  collectCoverageFrom: [
+    'src/**/*.ts',
+    '!src/**/*.spec.ts',
+    '!src/generated/**',
+    '!src/main.ts',
+    '!src/worker.ts',
+  ],
   // D-071 quality gate (enforced when run with --coverage, as CI does)
-  coverageThreshold: { global: { lines: 80, branches: 80, functions: 80, statements: 80 } }
+  coverageThreshold: { global: { lines: 80, branches: 80, functions: 80, statements: 80 } },
 };

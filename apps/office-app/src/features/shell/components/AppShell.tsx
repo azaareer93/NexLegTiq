@@ -43,7 +43,8 @@ export function AppShell(): React.JSX.Element {
   }
   const selected = navKeyOf(location.pathname);
   // A skeleton only while moving to another page: a page reloading its own data (filters, after a save) stays mounted.
-  const changingPage = navigation.state === 'loading' && navigation.location.pathname !== location.pathname;
+  const changingPage =
+    navigation.state === 'loading' && navigation.location.pathname !== location.pathname;
 
   const menuItems: MenuProps['items'] = items.map((item) => ({
     key: item.key,
@@ -55,7 +56,14 @@ export function AppShell(): React.JSX.Element {
     ),
     'data-testid': `nav-${item.key}`,
   }));
-  const menu = <Menu mode="inline" items={menuItems} selectedKeys={selected ? [selected] : []} style={{ borderInlineEnd: 0 }} />;
+  const menu = (
+    <Menu
+      mode="inline"
+      items={menuItems}
+      selectedKeys={selected ? [selected] : []}
+      style={{ borderInlineEnd: 0 }}
+    />
+  );
 
   return (
     <Layout style={{ minBlockSize: '100vh' }} data-testid="app-shell">
@@ -97,7 +105,12 @@ export function AppShell(): React.JSX.Element {
             zIndex: 10,
           }}
         >
-          <Flex align="center" justify="space-between" gap={token.paddingSM} style={{ blockSize: '100%' }}>
+          <Flex
+            align="center"
+            justify="space-between"
+            gap={token.paddingSM}
+            style={{ blockSize: '100%' }}
+          >
             <Flex align="baseline" gap={token.paddingXS} style={{ minInlineSize: 0 }}>
               {/* The product name is a brand, not translated; the logo replaces it once hosted. */}
               <Typography.Text strong style={{ fontSize: token.fontSizeLG }}>
@@ -122,7 +135,9 @@ export function AppShell(): React.JSX.Element {
         <Layout.Content
           style={{
             padding: token.paddingLG,
-            paddingBlockEnd: phone ? `calc(${BOTTOM_BAR_PX + token.paddingLG}px + env(safe-area-inset-bottom))` : token.paddingLG,
+            paddingBlockEnd: phone
+              ? `calc(${BOTTOM_BAR_PX + token.paddingLG}px + env(safe-area-inset-bottom))`
+              : token.paddingLG,
           }}
         >
           {changingPage ? <LoadingSkeleton /> : <Outlet />}
@@ -156,10 +171,20 @@ export function AppShell(): React.JSX.Element {
                     testId={`bottom-${item.key}`}
                   />
                 ))}
-              <BottomItem icon={<AppstoreOutlined />} label={t('shell.nav.more')} onClick={() => setDrawerOpen(true)} testId="bottom-more" />
+              <BottomItem
+                icon={<AppstoreOutlined />}
+                label={t('shell.nav.more')}
+                onClick={() => setDrawerOpen(true)}
+                testId="bottom-more"
+              />
             </Flex>
           </nav>
-          <Drawer placement="bottom" open={drawerOpen} onClose={() => setDrawerOpen(false)} title={t('shell.nav.more')}>
+          <Drawer
+            placement="bottom"
+            open={drawerOpen}
+            onClose={() => setDrawerOpen(false)}
+            title={t('shell.nav.more')}
+          >
             {menu}
           </Drawer>
         </>
@@ -179,7 +204,14 @@ interface BottomItemProps {
 }
 
 /** One bottom-bar entry: icon over a short label, sharing the width equally so five fit on a 360 px phone. */
-function BottomItem({ icon, label, to, current = false, onClick, testId }: BottomItemProps): React.JSX.Element {
+function BottomItem({
+  icon,
+  label,
+  to,
+  current = false,
+  onClick,
+  testId,
+}: BottomItemProps): React.JSX.Element {
   const { token } = theme.useToken();
   const style: React.CSSProperties = {
     flex: '1 1 0',
@@ -198,7 +230,10 @@ function BottomItem({ icon, label, to, current = false, onClick, testId }: Botto
   const content = (
     <>
       {icon}
-      <Typography.Text ellipsis style={{ fontSize: token.fontSizeSM, color: 'inherit', maxInlineSize: '100%' }}>
+      <Typography.Text
+        ellipsis
+        style={{ fontSize: token.fontSizeSM, color: 'inherit', maxInlineSize: '100%' }}
+      >
         {label}
       </Typography.Text>
     </>

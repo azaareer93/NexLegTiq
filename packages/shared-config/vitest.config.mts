@@ -19,6 +19,6 @@ export default defineConfig(() => ({
       exclude: ['src/**/*.{spec,test}.{ts,tsx}', 'src/**/index.ts'],
       // D-071 quality gate (enforced when run with --coverage, as CI does)
       thresholds: { lines: 80, branches: 80, functions: 80, statements: 80 },
-    }
+    },
   },
 }));

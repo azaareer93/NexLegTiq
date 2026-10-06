@@ -13,7 +13,10 @@ import { AppModule } from './app.module';
 import { Public } from '../common/auth/public.decorator';
 import { configureApp } from './configure-app';
 
-const CreateThingSchema = z.object({ title: z.string().min(3), amount: z.string().regex(/^\d+(\.\d{1,2})?$/) });
+const CreateThingSchema = z.object({
+  title: z.string().min(3),
+  amount: z.string().regex(/^\d+(\.\d{1,2})?$/),
+});
 
 // Public: this suite tests the envelope and error mapping, not authentication.
 @Public()
@@ -35,7 +38,9 @@ class ContractTestController {
   }
 
   @Post('things')
-  create(@Body(new ZodValidationPipe(CreateThingSchema)) body: z.output<typeof CreateThingSchema>): typeof body {
+  create(
+    @Body(new ZodValidationPipe(CreateThingSchema)) body: z.output<typeof CreateThingSchema>,
+  ): typeof body {
     return body;
   }
 
@@ -46,7 +51,9 @@ class ContractTestController {
 
   @Get('prisma-unique')
   prismaUnique(): never {
-    const error = Object.assign(new Error('Unique constraint failed on the fields: (`email`)'), { code: 'P2002' });
+    const error = Object.assign(new Error('Unique constraint failed on the fields: (`email`)'), {
+      code: 'P2002',
+    });
     Object.defineProperty(error, 'name', { value: 'PrismaClientKnownRequestError' });
     throw error;
   }
@@ -75,7 +82,10 @@ describe('HTTP contract (envelope + errors)', () => {
       .overrideModule(QueueModule)
       .useModule(QueueStubModule)
       .compile();
-    app = moduleRef.createNestApplication<NestExpressApplication>({ bodyParser: false, bufferLogs: true });
+    app = moduleRef.createNestApplication<NestExpressApplication>({
+      bodyParser: false,
+      bufferLogs: true,
+    });
     configureApp(app);
     await app.init();
   });
@@ -88,7 +98,9 @@ describe('HTTP contract (envelope + errors)', () => {
 
   describe('success envelope', () => {
     it('should wrap data with meta.timestamp and meta.requestId matching x-request-id', async () => {
-      const res = await http().get('/api/v1/__contract__/item').set('x-request-id', 'contract-test-0001');
+      const res = await http()
+        .get('/api/v1/__contract__/item')
+        .set('x-request-id', 'contract-test-0001');
 
       expect(res.status).toBe(200);
       expect(res.headers['x-request-id']).toBe('contract-test-0001');
@@ -135,13 +147,21 @@ describe('HTTP contract (envelope + errors)', () => {
       const res = await http().get('/api/v1/__contract__/page');
 
       expect(res.body.data).toEqual([1, 2]);
-      expect(res.body.meta.pagination).toEqual({ page: 1, limit: 2, total: 3, totalPages: 2, hasMore: true });
+      expect(res.body.meta.pagination).toEqual({
+        page: 1,
+        limit: 2,
+        total: 3,
+        totalPages: 2,
+        hasMore: true,
+      });
     });
   });
 
   describe('error envelope', () => {
     it('should return 400 VAL-001 with field details when the body is invalid', async () => {
-      const res = await http().post('/api/v1/__contract__/things').send({ title: 'x', amount: '1.234' });
+      const res = await http()
+        .post('/api/v1/__contract__/things')
+        .send({ title: 'x', amount: '1.234' });
 
       expect(res.status).toBe(400);
       expect(res.body).toEqual({
@@ -159,7 +179,9 @@ describe('HTTP contract (envelope + errors)', () => {
     });
 
     it('should pass a valid body through parsed', async () => {
-      const res = await http().post('/api/v1/__contract__/things').send({ title: 'Lease', amount: '10.50' });
+      const res = await http()
+        .post('/api/v1/__contract__/things')
+        .send({ title: 'Lease', amount: '10.50' });
 
       expect(res.status).toBe(201);
       expect(res.body.data).toEqual({ title: 'Lease', amount: '10.50' });
@@ -198,7 +220,10 @@ describe('HTTP contract (envelope + errors)', () => {
       const res = await http().get('/api/v1/does-not-exist?token=abc123');
 
       expect(res.status).toBe(404);
-      expect(res.body).toMatchObject({ success: false, error: { code: 'RES-001', message: 'Resource not found' } });
+      expect(res.body).toMatchObject({
+        success: false,
+        error: { code: 'RES-001', message: 'Resource not found' },
+      });
       expect(JSON.stringify(res.body)).not.toContain('abc123');
       expect(res.body.meta.requestId).toBe(res.headers['x-request-id']);
     });
@@ -219,7 +244,10 @@ describe('HTTP contract (envelope + errors)', () => {
         .send({ title: 'x'.repeat(1024 * 1024 + 1), amount: '1' });
 
       expect(res.status).toBe(413);
-      expect(res.body).toMatchObject({ success: false, error: { code: 'VAL-006', message: 'Payload too large' } });
+      expect(res.body).toMatchObject({
+        success: false,
+        error: { code: 'VAL-006', message: 'Payload too large' },
+      });
     });
   });
 });

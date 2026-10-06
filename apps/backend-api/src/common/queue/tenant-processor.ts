@@ -14,7 +14,13 @@ import { withTimeout } from './with-timeout';
 
 /** Log fields for one job attempt: worker logs have no HTTP request, so the request id comes from the payload (D-076). */
 export function jobLogFields(job: Job, requestId: string | null) {
-  return { queue: job.queueName, jobId: job.id, job: job.name, attempt: job.attemptsMade + 1, requestId };
+  return {
+    queue: job.queueName,
+    jobId: job.id,
+    job: job.name,
+    attempt: job.attemptsMade + 1,
+    requestId,
+  };
 }
 
 /** Result of a job skipped because its office was suspended after it was enqueued. */
@@ -59,21 +65,27 @@ export abstract class TenantProcessor<T extends object> extends WorkerHost {
   async process(job: Job<T & TenantJobData>): Promise<unknown> {
     const tenant = parseTenantJob(job.data);
     if (!tenant || !this.schema.safeParse(job.data).success) {
-      this.logger.error(jobLogFields(job, tenant?.requestId ?? null), 'Invalid job payload; not retried');
+      this.logger.error(
+        jobLogFields(job, tenant?.requestId ?? null),
+        'Invalid job payload; not retried',
+      );
       throw new UnrecoverableError('Invalid job payload');
     }
     const policy = QUEUE_POLICY[job.queueName as QueueName];
     if (!policy) throw new UnrecoverableError(`No queue policy for ${job.queueName}`);
     const fields = jobLogFields(job, tenant.requestId);
     try {
-      return await this.tenant.run({ officeId: tenant.officeId, ...(tenant.requestId ? { requestId: tenant.requestId } : {}) }, async () => {
-        const office = await this.prisma.db.office.findFirst({ select: { isActive: true } });
-        if (!office?.isActive) {
-          this.logger.warn(fields, 'Office is inactive; job skipped');
-          return SKIPPED_OFFICE_INACTIVE;
-        }
-        return withTimeout((signal) => this.handle(job, signal), policy.timeoutMs);
-      });
+      return await this.tenant.run(
+        { officeId: tenant.officeId, ...(tenant.requestId ? { requestId: tenant.requestId } : {}) },
+        async () => {
+          const office = await this.prisma.db.office.findFirst({ select: { isActive: true } });
+          if (!office?.isActive) {
+            this.logger.warn(fields, 'Office is inactive; job skipped');
+            return SKIPPED_OFFICE_INACTIVE;
+          }
+          return withTimeout((signal) => this.handle(job, signal), policy.timeoutMs);
+        },
+      );
     } catch (error) {
       this.logger.warn({ ...fields, err: error }, 'Job attempt failed');
       throw error;

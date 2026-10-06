@@ -20,7 +20,10 @@ export function zodIssuesToDetails(issues: readonly z.core.$ZodIssue[]): ApiErro
  *   `@Body(new ZodValidationPipe(CreateCaseSchema)) dto: CreateCaseInput`
  */
 @Injectable()
-export class ZodValidationPipe<TSchema extends z.ZodType> implements PipeTransform<unknown, z.output<TSchema>> {
+export class ZodValidationPipe<TSchema extends z.ZodType> implements PipeTransform<
+  unknown,
+  z.output<TSchema>
+> {
   constructor(private readonly schema: TSchema) {}
 
   transform(value: unknown): z.output<TSchema> {

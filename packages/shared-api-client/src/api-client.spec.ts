@@ -10,9 +10,13 @@ import { ApiError } from './api-error.js';
 const ORIGIN = 'http://api.test';
 const url = (path: string) => `${ORIGIN}/api/v1/${path}`;
 const meta = { timestamp: '2026-10-05T10:00:00.000Z', requestId: 'req-12345678' };
-const ok = (data: unknown, status = 200) => HttpResponse.json({ success: true, data, meta }, { status });
+const ok = (data: unknown, status = 200) =>
+  HttpResponse.json({ success: true, data, meta }, { status });
 const fail = (status: number, code: string, details?: unknown) =>
-  HttpResponse.json({ success: false, error: { code, message: `dev message ${code}`, details }, meta }, { status });
+  HttpResponse.json(
+    { success: false, error: { code, message: `dev message ${code}`, details }, meta },
+    { status },
+  );
 
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
@@ -29,7 +33,13 @@ function setup(realm: Realm = 'office', token: string | null = 'old-token') {
   const setToken = vi.fn((next: string | null) => {
     store.token = next;
   });
-  const client = createApiClient({ baseURL: ORIGIN, realm, getToken: () => store.token, setToken, onAuthFailure });
+  const client = createApiClient({
+    baseURL: ORIGIN,
+    realm,
+    getToken: () => store.token,
+    setToken,
+    onAuthFailure,
+  });
   return { client, store, onAuthFailure, setToken };
 }
 
@@ -77,7 +87,9 @@ describe('createApiClient', () => {
       }),
     );
     const { client } = setup('office', 'new-token');
-    await expect(client.request({ method: 'GET', path: '/things/1' }, Thing)).resolves.toEqual({ id: 1 });
+    await expect(client.request({ method: 'GET', path: '/things/1' }, Thing)).resolves.toEqual({
+      id: 1,
+    });
     expect(headers?.get('authorization')).toBe('Bearer new-token');
     expect(headers?.get('x-requested-with')).toBe('XMLHttpRequest');
   });
@@ -86,12 +98,23 @@ describe('createApiClient', () => {
     let seen: { auth: string | null; q: string | null; body: unknown } | undefined;
     server.use(
       http.post(url('things'), async ({ request }) => {
-        seen = { auth: request.headers.get('authorization'), q: new URL(request.url).searchParams.get('q'), body: await request.json() };
+        seen = {
+          auth: request.headers.get('authorization'),
+          q: new URL(request.url).searchParams.get('q'),
+          body: await request.json(),
+        };
         return new HttpResponse(null, { status: 204 });
       }),
     );
     const { client } = setup('office', null);
-    await expect(client.request({ method: 'POST', path: 'things', query: { q: 'x', skip: undefined }, body: { a: 1 } })).resolves.toBeUndefined();
+    await expect(
+      client.request({
+        method: 'POST',
+        path: 'things',
+        query: { q: 'x', skip: undefined },
+        body: { a: 1 },
+      }),
+    ).resolves.toBeUndefined();
     expect(seen).toEqual({ auth: null, q: 'x', body: { a: 1 } });
   });
 
@@ -103,13 +126,22 @@ describe('createApiClient', () => {
         return ok(null);
       }),
     );
-    await setup('office', 'new-token').client.request({ method: 'GET', path: 'https://evil.test/x' });
+    await setup('office', 'new-token').client.request({
+      method: 'GET',
+      path: 'https://evil.test/x',
+    });
     expect(new URL(target).origin).toBe(ORIGIN);
   });
 
   it('should turn an error envelope into an ApiError with code, status, details and request id', async () => {
-    server.use(http.post(url('things'), () => fail(400, 'VAL-001', [{ field: 'title', message: 'validation.required' }])));
-    const error = await rejection(setup().client.request({ method: 'POST', path: 'things', body: {} }));
+    server.use(
+      http.post(url('things'), () =>
+        fail(400, 'VAL-001', [{ field: 'title', message: 'validation.required' }]),
+      ),
+    );
+    const error = await rejection(
+      setup().client.request({ method: 'POST', path: 'things', body: {} }),
+    );
     expect(error).toMatchObject({
       code: 'VAL-001',
       status: 400,
@@ -128,7 +160,9 @@ describe('createApiClient', () => {
         ),
       ),
     );
-    expect(await rejection(setup().client.request({ method: 'GET', path: 'things' }))).toMatchObject({
+    expect(
+      await rejection(setup().client.request({ method: 'GET', path: 'things' })),
+    ).toMatchObject({
       code: 'RES-001',
       requestId: 'req-header-1',
       details: [],
@@ -138,28 +172,51 @@ describe('createApiClient', () => {
   it('should pass the Retry-After seconds of a 429 on', async () => {
     server.use(
       http.post(url('auth/login'), () =>
-        HttpResponse.json({ success: false, error: { code: 'RATE-001', message: 'Too many' }, meta }, { status: 429, headers: { 'retry-after': '42' } }),
+        HttpResponse.json(
+          { success: false, error: { code: 'RATE-001', message: 'Too many' }, meta },
+          { status: 429, headers: { 'retry-after': '42' } },
+        ),
       ),
     );
-    expect(await rejection(setup().client.request({ method: 'POST', path: 'auth/login' }))).toMatchObject({ code: 'RATE-001', retryAfter: 42 });
+    expect(
+      await rejection(setup().client.request({ method: 'POST', path: 'auth/login' })),
+    ).toMatchObject({ code: 'RATE-001', retryAfter: 42 });
   });
 
   it('should map an error code this build does not know to SYS-001', async () => {
     server.use(http.get(url('things'), () => fail(422, 'NEW-999')));
-    expect(await rejection(setup().client.request({ method: 'GET', path: 'things' }))).toMatchObject({ code: 'SYS-001', status: 422 });
+    expect(
+      await rejection(setup().client.request({ method: 'GET', path: 'things' })),
+    ).toMatchObject({ code: 'SYS-001', status: 422 });
   });
 
   it.each([
     [502, 'SYS-002'],
     [500, 'SYS-001'],
-  ])('should map a %i that is not an envelope (proxy page) to %s, keeping the request id header', async (status, code) => {
-    server.use(http.get(url('things'), () => new HttpResponse('<html>Bad gateway</html>', { status, headers: { 'x-request-id': 'req-proxy-1' } })));
-    expect(await rejection(setup().client.request({ method: 'GET', path: 'things' }))).toMatchObject({ code, status, requestId: 'req-proxy-1' });
-  });
+  ])(
+    'should map a %i that is not an envelope (proxy page) to %s, keeping the request id header',
+    async (status, code) => {
+      server.use(
+        http.get(
+          url('things'),
+          () =>
+            new HttpResponse('<html>Bad gateway</html>', {
+              status,
+              headers: { 'x-request-id': 'req-proxy-1' },
+            }),
+        ),
+      );
+      expect(
+        await rejection(setup().client.request({ method: 'GET', path: 'things' })),
+      ).toMatchObject({ code, status, requestId: 'req-proxy-1' });
+    },
+  );
 
   it('should map a network failure to SYS-002 with status 0', async () => {
     server.use(http.get(url('things'), () => HttpResponse.error()));
-    expect(await rejection(setup().client.request({ method: 'GET', path: 'things' }))).toMatchObject({ code: 'SYS-002', status: 0 });
+    expect(
+      await rejection(setup().client.request({ method: 'GET', path: 'things' })),
+    ).toMatchObject({ code: 'SYS-002', status: 0 });
   });
 
   it('should reject a 2xx body that is not an envelope, or does not match the contract', async () => {
@@ -170,16 +227,32 @@ describe('createApiClient', () => {
       http.get(url('things'), () => ok({ id: 'one' })),
     );
     const { client } = setup('office', 'new-token');
-    expect(await rejection(client.request({ method: 'GET', path: 'plain' }, Thing))).toMatchObject({ code: 'SYS-001', status: 200 });
-    expect(await rejection(client.request({ method: 'GET', path: 'plain' }))).toMatchObject({ code: 'SYS-001', status: 200 });
-    expect(await rejection(client.request({ method: 'GET', path: 'failed' }))).toMatchObject({ code: 'SYS-001', status: 200 });
-    expect(await rejection(client.request({ method: 'GET', path: 'empty' }, Thing))).toMatchObject({ code: 'SYS-001', status: 204 });
-    expect(await rejection(client.request({ method: 'GET', path: 'things' }, Thing))).toMatchObject({ code: 'SYS-001', requestId: 'req-12345678' });
+    expect(await rejection(client.request({ method: 'GET', path: 'plain' }, Thing))).toMatchObject({
+      code: 'SYS-001',
+      status: 200,
+    });
+    expect(await rejection(client.request({ method: 'GET', path: 'plain' }))).toMatchObject({
+      code: 'SYS-001',
+      status: 200,
+    });
+    expect(await rejection(client.request({ method: 'GET', path: 'failed' }))).toMatchObject({
+      code: 'SYS-001',
+      status: 200,
+    });
+    expect(await rejection(client.request({ method: 'GET', path: 'empty' }, Thing))).toMatchObject({
+      code: 'SYS-001',
+      status: 204,
+    });
+    expect(await rejection(client.request({ method: 'GET', path: 'things' }, Thing))).toMatchObject(
+      { code: 'SYS-001', requestId: 'req-12345678' },
+    );
   });
 
   it('should never put response values in a contract-mismatch message', async () => {
     server.use(http.get(url('things'), () => ok({ id: 'secret-value' })));
-    const error = await rejection(setup('office', 'new-token').client.request({ method: 'GET', path: 'things' }, Thing));
+    const error = await rejection(
+      setup('office', 'new-token').client.request({ method: 'GET', path: 'things' }, Thing),
+    );
     expect(error.message).toContain('id: invalid_type');
     expect(error.message).not.toContain('secret-value');
   });
@@ -188,7 +261,9 @@ describe('createApiClient', () => {
     server.use(http.get(url('things'), () => ok({ id: 1 })));
     const controller = new AbortController();
     controller.abort();
-    const error: unknown = await setup().client.request({ method: 'GET', path: 'things', signal: controller.signal }, Thing).catch((e: unknown) => e);
+    const error: unknown = await setup()
+      .client.request({ method: 'GET', path: 'things', signal: controller.signal }, Thing)
+      .catch((e: unknown) => e);
     expect(error).not.toBeInstanceOf(ApiError);
     expect((error as { code?: string }).code).toBe('ERR_CANCELED');
   });
@@ -200,7 +275,9 @@ describe('token refresh', () => {
     const seen: string[] = [];
     let refreshHeaders: Headers | undefined;
     // The refresh answers only once all five requests have had their 401, so every one of them must join it.
-    const allRejected = vi.waitFor(() => expect(seen.filter((auth) => auth === 'Bearer old-token')).toHaveLength(5));
+    const allRejected = vi.waitFor(() =>
+      expect(seen.filter((auth) => auth === 'Bearer old-token')).toHaveLength(5),
+    );
     server.use(
       protectedResource(seen),
       http.post(url('auth/refresh'), async ({ request }) => {
@@ -211,7 +288,9 @@ describe('token refresh', () => {
       }),
     );
     const { client, store, onAuthFailure } = setup();
-    const results = await Promise.all(Array.from({ length: 5 }, () => client.request({ method: 'GET', path: 'things' }, Thing)));
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () => client.request({ method: 'GET', path: 'things' }, Thing)),
+    );
 
     expect(results).toEqual(Array.from({ length: 5 }, () => ({ id: 1 })));
     expect(refreshes).toBe(1);
@@ -231,7 +310,9 @@ describe('token refresh', () => {
         seen.push(request.headers.get('authorization') ?? '');
         // The token is swapped while this request is on its way, as when a parallel refresh finishes first.
         store.token = 'new-token';
-        return request.headers.get('authorization') === 'Bearer new-token' ? ok({ id: 1 }) : fail(401, 'AUTH-002');
+        return request.headers.get('authorization') === 'Bearer new-token'
+          ? ok({ id: 1 })
+          : fail(401, 'AUTH-002');
       }),
       http.post(url('auth/refresh'), () => {
         refreshes += 1;
@@ -239,7 +320,9 @@ describe('token refresh', () => {
       }),
     );
     const { client, store } = setup();
-    await expect(client.request({ method: 'GET', path: 'things' }, Thing)).resolves.toEqual({ id: 1 });
+    await expect(client.request({ method: 'GET', path: 'things' }, Thing)).resolves.toEqual({
+      id: 1,
+    });
     expect(refreshes).toBe(0);
     expect(seen).toEqual(['Bearer old-token', 'Bearer new-token']);
   });
@@ -260,7 +343,9 @@ describe('token refresh', () => {
       }),
     );
     const { client, store } = setup();
-    expect(await rejection(client.request({ method: 'GET', path: 'things' }))).toMatchObject({ code: 'AUTH-002' });
+    expect(await rejection(client.request({ method: 'GET', path: 'things' }))).toMatchObject({
+      code: 'AUTH-002',
+    });
     expect({ calls, refreshes }).toEqual({ calls: 1, refreshes: 0 });
   });
 
@@ -273,7 +358,9 @@ describe('token refresh', () => {
         return ok({ accessToken: `token-${refreshes}` });
       }),
     );
-    expect(await rejection(setup().client.request({ method: 'GET', path: 'things' }))).toMatchObject({ code: 'AUTH-002' });
+    expect(
+      await rejection(setup().client.request({ method: 'GET', path: 'things' })),
+    ).toMatchObject({ code: 'AUTH-002' });
     expect(refreshes).toBe(1);
   });
 
@@ -291,7 +378,9 @@ describe('token refresh', () => {
         return ok({ accessToken: 'new-token' });
       }),
     );
-    expect(await rejection(setup().client.request({ method: 'GET', path: 'things' }))).toMatchObject({ code, status });
+    expect(
+      await rejection(setup().client.request({ method: 'GET', path: 'things' })),
+    ).toMatchObject({ code, status });
     expect(refreshes).toBe(0);
   });
 
@@ -299,21 +388,34 @@ describe('token refresh', () => {
     [401, 'AUTH-005'],
     [403, 'AUTH-006'],
     [403, 'AUTH-010'],
-  ])('should end the session when refresh is refused (%i %s): clear the token, call onAuthFailure once, reject every queued request', async (status, code) => {
-    server.use(protectedResource(), http.post(url('auth/refresh'), () => fail(status, code)));
-    const { client, store, onAuthFailure } = setup();
-    const errors = await Promise.all([1, 2, 3].map(() => rejection(client.request({ method: 'GET', path: 'things' }))));
+  ])(
+    'should end the session when refresh is refused (%i %s): clear the token, call onAuthFailure once, reject every queued request',
+    async (status, code) => {
+      server.use(
+        protectedResource(),
+        http.post(url('auth/refresh'), () => fail(status, code)),
+      );
+      const { client, store, onAuthFailure } = setup();
+      const errors = await Promise.all(
+        [1, 2, 3].map(() => rejection(client.request({ method: 'GET', path: 'things' }))),
+      );
 
-    expect(errors.map((error) => error.code)).toEqual([code, code, code]);
-    expect(store.token).toBeNull();
-    expect(onAuthFailure).toHaveBeenCalledTimes(1);
-    expect(onAuthFailure.mock.calls[0]?.[0]).toMatchObject({ code, status });
-  });
+      expect(errors.map((error) => error.code)).toEqual([code, code, code]);
+      expect(store.token).toBeNull();
+      expect(onAuthFailure).toHaveBeenCalledTimes(1);
+      expect(onAuthFailure.mock.calls[0]?.[0]).toMatchObject({ code, status });
+    },
+  );
 
   it('should keep the session when refresh is refused by the CSRF check (403 AUTH-100: the server keeps the cookie)', async () => {
-    server.use(protectedResource(), http.post(url('auth/refresh'), () => fail(403, 'AUTH-100')));
+    server.use(
+      protectedResource(),
+      http.post(url('auth/refresh'), () => fail(403, 'AUTH-100')),
+    );
     const { client, store, onAuthFailure } = setup();
-    expect(await rejection(client.request({ method: 'GET', path: 'things' }))).toMatchObject({ code: 'AUTH-100' });
+    expect(await rejection(client.request({ method: 'GET', path: 'things' }))).toMatchObject({
+      code: 'AUTH-100',
+    });
     expect(store.token).toBe('old-token');
     expect(onAuthFailure).not.toHaveBeenCalled();
   });
@@ -327,9 +429,14 @@ describe('token refresh', () => {
   });
 
   it('should keep the session when refresh fails for a temporary reason (offline, 5xx)', async () => {
-    server.use(protectedResource(), http.post(url('auth/refresh'), () => HttpResponse.error()));
+    server.use(
+      protectedResource(),
+      http.post(url('auth/refresh'), () => HttpResponse.error()),
+    );
     const { client, store, onAuthFailure } = setup();
-    expect(await rejection(client.request({ method: 'GET', path: 'things' }))).toMatchObject({ code: 'SYS-002' });
+    expect(await rejection(client.request({ method: 'GET', path: 'things' }))).toMatchObject({
+      code: 'SYS-002',
+    });
     expect(store.token).toBe('old-token');
     expect(onAuthFailure).not.toHaveBeenCalled();
   });
@@ -416,7 +523,9 @@ describe('sessionRequest', () => {
       }),
     );
     const names = stubLocks();
-    expect(await rejection(setup('admin').client.sessionRequest({ method: 'POST', path: 'auth/login' }))).toMatchObject({ code: 'AUTH-002' });
+    expect(
+      await rejection(setup('admin').client.sessionRequest({ method: 'POST', path: 'auth/login' })),
+    ).toMatchObject({ code: 'AUTH-002' });
     expect(refreshes).toBe(0);
     expect(names).toEqual(['nlq-refresh-admin']);
   });
@@ -431,7 +540,11 @@ describe('idempotencyHeaders', () => {
         return ok(null, 201);
       }),
     );
-    await setup().client.request({ method: 'POST', path: 'invoices', headers: idempotencyHeaders('action-1') });
+    await setup().client.request({
+      method: 'POST',
+      path: 'invoices',
+      headers: idempotencyHeaders('action-1'),
+    });
     expect(key).toBe('action-1');
   });
 });

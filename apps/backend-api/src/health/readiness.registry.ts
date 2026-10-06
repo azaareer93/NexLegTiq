@@ -5,7 +5,9 @@ export type ReadinessCheck = () => Promise<void>;
 
 export interface ReadinessReport {
   readonly status: 'ok' | 'error';
-  readonly checks: Readonly<Record<string, { readonly status: 'up' | 'down'; readonly durationMs: number }>>;
+  readonly checks: Readonly<
+    Record<string, { readonly status: 'up' | 'down'; readonly durationMs: number }>
+  >;
 }
 
 export const READINESS_TIMEOUT_MS = 3000;
@@ -34,7 +36,9 @@ export class ReadinessRegistry {
 
   async run(timeoutMs = READINESS_TIMEOUT_MS): Promise<ReadinessReport> {
     const entries = await Promise.all(
-      [...this.checks].map(async ([name, check]) => [name, await this.runOne(name, check, timeoutMs)] as const),
+      [...this.checks].map(
+        async ([name, check]) => [name, await this.runOne(name, check, timeoutMs)] as const,
+      ),
     );
     const checks = Object.fromEntries(entries);
     const status = entries.every(([, result]) => result.status === 'up') ? 'ok' : 'error';

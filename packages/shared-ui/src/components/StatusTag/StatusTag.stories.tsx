@@ -5,9 +5,11 @@ import { useTranslation } from 'react-i18next';
 
 import { PriorityTag, StatusTag } from './StatusTag';
 
-const meta = { title: 'Display/StatusTag', component: StatusTag, args: { tone: 'success', children: '' } } satisfies Meta<
-  typeof StatusTag
->;
+const meta = {
+  title: 'Display/StatusTag',
+  component: StatusTag,
+  args: { tone: 'success', children: '' },
+} satisfies Meta<typeof StatusTag>;
 export default meta;
 type Story = StoryObj<typeof meta>;
 

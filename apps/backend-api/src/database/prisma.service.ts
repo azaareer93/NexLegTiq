@@ -12,7 +12,11 @@ import { TENANT_MODELS } from './tenant-models';
 
 function createScopedClient(client: PrismaClient, cls: ClsService<RequestContext>) {
   return client.$extends(
-    tenantExtension({ models: runtimeModels(client), tenantModels: TENANT_MODELS, officeId: () => cls.get('officeId') }),
+    tenantExtension({
+      models: runtimeModels(client),
+      tenantModels: TENANT_MODELS,
+      officeId: () => cls.get('officeId'),
+    }),
   );
 }
 
@@ -38,7 +42,9 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     private readonly readiness: ReadinessRegistry,
     cls: ClsService<RequestContext>,
   ) {
-    this.#client = new PrismaClient({ adapter: new PrismaPg({ connectionString: config.database.url }) });
+    this.#client = new PrismaClient({
+      adapter: new PrismaPg({ connectionString: config.database.url }),
+    });
     this.db = createScopedClient(this.#client, cls);
   }
 

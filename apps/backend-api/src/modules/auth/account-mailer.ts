@@ -39,7 +39,10 @@ export class AccountMailer {
         this.queues.enqueue(QUEUE.EMAIL, job, { userId: user.userId }),
       );
     } catch (error) {
-      this.logger.error({ err: error, userId: user.userId, job }, 'Could not enqueue an account email');
+      this.logger.error(
+        { err: error, userId: user.userId, job },
+        'Could not enqueue an account email',
+      );
     }
   }
 }

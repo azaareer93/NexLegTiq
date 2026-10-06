@@ -28,7 +28,9 @@ import { redisConnectionOptions } from './redis-connection';
         prefix: config.redis.bullmqPrefix,
       }),
     }),
-    BullModule.registerQueue(...QUEUE_NAMES.map((name) => ({ name, defaultJobOptions: QUEUE_POLICY[name].jobs }))),
+    BullModule.registerQueue(
+      ...QUEUE_NAMES.map((name) => ({ name, defaultJobOptions: QUEUE_POLICY[name].jobs })),
+    ),
   ],
   providers: [QueueProducer],
   exports: [BullModule, QueueProducer],
@@ -44,7 +46,9 @@ export class QueueModule implements OnModuleInit {
       const queue = getQueue(moduleRef, name);
       // Attached as soon as the queues exist: an 'error' event without a listener crashes the process, and a Redis outage
       // must degrade (503 on /health/ready, failed enqueues) instead. ioredis reconnects on its own.
-      queue.on('error', (error: Error) => this.logger.warn({ err: error, queue: name }, 'Queue connection error'));
+      queue.on('error', (error: Error) =>
+        this.logger.warn({ err: error, queue: name }, 'Queue connection error'),
+      );
       dropErrorsAfterClose(queue);
     }
   }

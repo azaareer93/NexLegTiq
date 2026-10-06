@@ -1,12 +1,20 @@
-import { ArrowLeftOutlined, ArrowRightOutlined, CheckOutlined, RightOutlined, UndoOutlined } from '@ant-design/icons';
+import {
+  ArrowLeftOutlined,
+  ArrowRightOutlined,
+  CheckOutlined,
+  RightOutlined,
+  UndoOutlined,
+} from '@ant-design/icons';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Flex, Typography } from 'antd';
 
 import { DirectionalIcon } from './DirectionalIcon';
 
-const meta = { title: 'Text/DirectionalIcon', component: DirectionalIcon, args: { icon: ArrowLeftOutlined } } satisfies Meta<
-  typeof DirectionalIcon
->;
+const meta = {
+  title: 'Text/DirectionalIcon',
+  component: DirectionalIcon,
+  args: { icon: ArrowLeftOutlined },
+} satisfies Meta<typeof DirectionalIcon>;
 export default meta;
 type Story = StoryObj<typeof meta>;
 

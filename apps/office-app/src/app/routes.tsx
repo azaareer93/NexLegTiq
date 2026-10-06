@@ -2,7 +2,13 @@ import { LoadingSkeleton } from '@nexlegtiq/shared-ui';
 import type { RouteObject } from 'react-router';
 
 import { authRoutes, RequireAuth } from '../features/auth';
-import { AppShell, NAV_ITEMS, NotFoundPage, RequirePermission, RouteError } from '../features/shell';
+import {
+  AppShell,
+  NAV_ITEMS,
+  NotFoundPage,
+  RequirePermission,
+  RouteError,
+} from '../features/shell';
 import type { NavKey } from '../features/shell';
 
 /** A lazy placeholder page, until its feature replaces it (its own chunk: the module is only imported here). */
@@ -40,7 +46,11 @@ export const routes: RouteObject[] = [
               {
                 // Errors of a page stay inside the shell: the menu remains usable.
                 errorElement: <RouteError />,
-                children: [...menuRoutes, { path: 'profile', ...placeholder('profile') }, { path: '*', element: <NotFoundPage /> }],
+                children: [
+                  ...menuRoutes,
+                  { path: 'profile', ...placeholder('profile') },
+                  { path: '*', element: <NotFoundPage /> },
+                ],
               },
             ],
           },

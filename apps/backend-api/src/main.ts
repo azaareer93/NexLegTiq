@@ -8,7 +8,10 @@ import { API_PREFIX } from './bootstrap';
 import { AppConfig } from './config/app-config';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true, bodyParser: false });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bufferLogs: true,
+    bodyParser: false,
+  });
   configureApp(app);
   const { host, port } = app.get(AppConfig).http;
   await app.listen(port, host);

@@ -11,7 +11,11 @@ export const DEMO_MANAGER_EMAIL = 'manager@demo.nexlegtiq.test';
  */
 export async function seedDemo(prisma: PrismaClient): Promise<void> {
   await seedPlans(prisma);
-  const office = { name: 'مكتب المحاماة التجريبي', jurisdiction: 'PALESTINE', currency: 'ILS' } as const;
+  const office = {
+    name: 'مكتب المحاماة التجريبي',
+    jurisdiction: 'PALESTINE',
+    currency: 'ILS',
+  } as const;
   await prisma.office.upsert({
     where: { id: DEMO_OFFICE_ID },
     create: { id: DEMO_OFFICE_ID, ...office, settings: { create: {} } },
@@ -50,7 +54,8 @@ export async function seedDemo(prisma: PrismaClient): Promise<void> {
 async function main(): Promise<void> {
   // Fail closed: an unset NODE_ENV means production (env.schema.ts), so only explicit dev/test may seed demo data.
   const nodeEnv = process.env['NODE_ENV'];
-  if (nodeEnv !== 'development' && nodeEnv !== 'test') throw new Error('seed-demo runs only with NODE_ENV=development or test');
+  if (nodeEnv !== 'development' && nodeEnv !== 'test')
+    throw new Error('seed-demo runs only with NODE_ENV=development or test');
   const prisma = createSeedClient();
   try {
     await seedDemo(prisma);

@@ -30,14 +30,24 @@ export class VerificationLinks {
     private readonly config: AppConfig,
   ) {}
 
-  async issue(userId: string, now: Date, options: { retry?: boolean } = {}): Promise<VerificationEmail | null> {
+  async issue(
+    userId: string,
+    now: Date,
+    options: { retry?: boolean } = {},
+  ): Promise<VerificationEmail | null> {
     const officeId = this.cls.isActive() ? this.cls.get('officeId') : undefined;
     if (!officeId) throw new TenantContextMissingError('verification link');
     const token = newOpaqueToken();
     const user = await this.prisma.db.$transaction(async (tx) => {
       const found = await tx.user.findFirst({
         where: { id: userId },
-        select: { email: true, fullName: true, uiLanguage: true, emailVerifiedAt: true, isActive: true },
+        select: {
+          email: true,
+          fullName: true,
+          uiLanguage: true,
+          emailVerifiedAt: true,
+          isActive: true,
+        },
       });
       if (!found || found.emailVerifiedAt !== null || !found.isActive) return null;
       const recent = await tx.emailVerificationToken.findMany({
@@ -46,10 +56,25 @@ export class VerificationLinks {
         orderBy: { createdAt: 'desc' },
         take: MAX_LINKS_PER_WINDOW,
       });
-      if (!mayIssueLink(recent.map((link) => link.createdAt), now, options.retry ?? false)) return null;
-      await tx.emailVerificationToken.updateMany({ where: { userId, usedAt: null }, data: { usedAt: now } });
+      if (
+        !mayIssueLink(
+          recent.map((link) => link.createdAt),
+          now,
+          options.retry ?? false,
+        )
+      )
+        return null;
+      await tx.emailVerificationToken.updateMany({
+        where: { userId, usedAt: null },
+        data: { usedAt: now },
+      });
       await tx.emailVerificationToken.create({
-        data: { officeId, userId, tokenHash: hashOpaqueToken(token), expiresAt: verificationLinkExpiry(now) },
+        data: {
+          officeId,
+          userId,
+          tokenHash: hashOpaqueToken(token),
+          expiresAt: verificationLinkExpiry(now),
+        },
       });
       return found;
     });
@@ -57,7 +82,11 @@ export class VerificationLinks {
     return {
       to: user.email,
       locale: user.uiLanguage === 'EN' ? 'EN' : 'AR',
-      vars: { name: user.fullName, link: `${this.config.mail.officeAppUrl}/verify-email?token=${token}`, days: VERIFY_EMAIL_WITHIN_DAYS },
+      vars: {
+        name: user.fullName,
+        link: `${this.config.mail.officeAppUrl}/verify-email?token=${token}`,
+        days: VERIFY_EMAIL_WITHIN_DAYS,
+      },
     };
   }
 }

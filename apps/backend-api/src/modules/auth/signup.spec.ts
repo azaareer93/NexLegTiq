@@ -23,7 +23,8 @@ const OFFICE = '01920000-0000-7000-8000-00000000000a';
 const USER = '01920000-0000-7000-8000-0000000000aa';
 const client: ClientInfo = { ip: '10.0.0.1', userAgent: 'jest', requestId: 'req-12345678' };
 const cls = ClsServiceManager.getClsService<RequestContext>();
-const logger = () => ({ setContext: jest.fn(), warn: jest.fn(), error: jest.fn() }) as unknown as PinoLogger;
+const logger = () =>
+  ({ setContext: jest.fn(), warn: jest.fn(), error: jest.fn() }) as unknown as PinoLogger;
 
 const body: RegisterRequest = {
   fullName: 'Omar',
@@ -42,7 +43,9 @@ describe('email verification window (D-083)', () => {
   const createdAt = new Date('2026-10-01T00:00:00Z');
 
   it('should give an unverified account 7 days, and no deadline once verified', () => {
-    expect(verifyBy({ emailVerifiedAt: null, createdAt })?.toISOString()).toBe('2026-10-08T00:00:00.000Z');
+    expect(verifyBy({ emailVerifiedAt: null, createdAt })?.toISOString()).toBe(
+      '2026-10-08T00:00:00.000Z',
+    );
     expect(verifyBy({ emailVerifiedAt: createdAt, createdAt })).toBeNull();
     expect(verificationLinkExpiry(createdAt).toISOString()).toBe('2026-10-08T00:00:00.000Z');
   });
@@ -51,7 +54,9 @@ describe('email verification window (D-083)', () => {
     const unverified = { emailVerifiedAt: null, createdAt };
     expect(isVerificationOverdue(unverified, new Date('2026-10-07T23:59:59Z'))).toBe(false);
     expect(isVerificationOverdue(unverified, new Date('2026-10-08T00:00:00Z'))).toBe(true);
-    expect(isVerificationOverdue({ emailVerifiedAt: createdAt, createdAt }, new Date('2027-01-01'))).toBe(false);
+    expect(
+      isVerificationOverdue({ emailVerifiedAt: createdAt, createdAt }, new Date('2027-01-01')),
+    ).toBe(false);
   });
 });
 
@@ -79,7 +84,14 @@ describe('SignupService', () => {
     officeUsers: 1,
   };
 
-  function setup(options: { existing?: ExistingAccount | null; enforced?: boolean; link?: object | null; used?: boolean } = {}) {
+  function setup(
+    options: {
+      existing?: ExistingAccount | null;
+      enforced?: boolean;
+      link?: object | null;
+      used?: boolean;
+    } = {},
+  ) {
     const signups = {
       findAccount: jest.fn().mockResolvedValue(options.existing ?? null),
       createOfficeAccount: jest.fn().mockResolvedValue(user),
@@ -87,15 +99,23 @@ describe('SignupService', () => {
       confirmVerification: jest.fn().mockResolvedValue(options.used ?? true),
     };
     const tx = {};
-    const prisma = { db: { $transaction: jest.fn((work: (t: object) => unknown) => work(tx)) } } as unknown as PrismaService;
+    const prisma = {
+      db: { $transaction: jest.fn((work: (t: object) => unknown) => work(tx)) },
+    } as unknown as PrismaService;
     const auth = {
-      openSession: jest.fn().mockResolvedValue({ familyId: 'f', refreshToken: 'r', refreshExpiresAt: new Date() }),
+      openSession: jest
+        .fn()
+        .mockResolvedValue({ familyId: 'f', refreshToken: 'r', refreshExpiresAt: new Date() }),
       issue: jest.fn().mockResolvedValue(issued),
     };
     const mailer = { sendVerification: jest.fn().mockResolvedValue(undefined) };
     const send = mailer.sendVerification;
-    const passwords = { hash: jest.fn().mockResolvedValue('$argon2id$hash') } as unknown as PasswordHasher;
-    const config = new AppConfig(parseEnv(testEnv({ EMAIL_VERIFICATION_ENFORCED: String(options.enforced ?? true) })));
+    const passwords = {
+      hash: jest.fn().mockResolvedValue('$argon2id$hash'),
+    } as unknown as PasswordHasher;
+    const config = new AppConfig(
+      parseEnv(testEnv({ EMAIL_VERIFICATION_ENFORCED: String(options.enforced ?? true) })),
+    );
     const service = new SignupService(
       prisma,
       new TenantRunner(cls),
@@ -114,15 +134,27 @@ describe('SignupService', () => {
     await expect(service.register(body, client)).resolves.toBe(issued);
 
     const input = signups.createOfficeAccount.mock.calls[0][0] as NewOfficeAccount;
-    expect(input).toMatchObject({ planCode: 'PS_FREE', passwordHash: '$argon2id$hash', uiLanguage: 'EN' });
+    expect(input).toMatchObject({
+      planCode: 'PS_FREE',
+      passwordHash: '$argon2id$hash',
+      uiLanguage: 'EN',
+    });
     expect(input.release).toBeUndefined();
-    expect(auth.openSession).toHaveBeenCalledWith(tx, user, { rememberMe: false, now: input.now, client });
+    expect(auth.openSession).toHaveBeenCalledWith(tx, user, {
+      rememberMe: false,
+      now: input.now,
+      client,
+    });
     expect(send).toHaveBeenCalledWith({ userId: USER, officeId: OFFICE }, client);
   });
 
   it.each([
     ['a verified account', { ...overdueAccount, emailVerifiedAt: new Date() }, true],
-    ['an unverified account still within 7 days', { ...overdueAccount, createdAt: new Date() }, true],
+    [
+      'an unverified account still within 7 days',
+      { ...overdueAccount, createdAt: new Date() },
+      true,
+    ],
     ['an office with other users', { ...overdueAccount, officeUsers: 2 }, true],
     ['an overdue account while verification is not enforced', overdueAccount, false],
   ])('should refuse the email of %s with 409 RES-002', async (_label, existing, enforced) => {
@@ -153,19 +185,32 @@ describe('SignupService', () => {
       ['a suspended office', { ...overdueAccount, officeActive: false }],
     ])('should quietly send nothing for %s', async (_label, existing) => {
       const { service, send } = setup({ existing });
-      await expect(service.resendVerification({ email: body.email }, client)).resolves.toBeUndefined();
+      await expect(
+        service.resendVerification({ email: body.email }, client),
+      ).resolves.toBeUndefined();
       expect(send).not.toHaveBeenCalled();
     });
   });
 
   describe('verifyEmail', () => {
-    const link = (extra: object = {}) => ({ id: 'link', officeId: OFFICE, userId: USER, expiresAt: new Date(Date.now() + DAY), usedAt: null, ...extra });
+    const link = (extra: object = {}) => ({
+      id: 'link',
+      officeId: OFFICE,
+      userId: USER,
+      expiresAt: new Date(Date.now() + DAY),
+      usedAt: null,
+      ...extra,
+    });
 
     it('should confirm a valid link in its office', async () => {
       const { service, signups } = setup({ link: link() });
       await service.verifyEmail({ token: 'x'.repeat(43) }, client);
       expect(signups.findVerificationLink).toHaveBeenCalledWith(hashOpaqueToken('x'.repeat(43)));
-      expect(signups.confirmVerification).toHaveBeenCalledWith(expect.objectContaining({ id: 'link' }), expect.any(Date), client);
+      expect(signups.confirmVerification).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'link' }),
+        expect.any(Date),
+        client,
+      );
     });
 
     it.each([
@@ -176,7 +221,9 @@ describe('SignupService', () => {
       ['used concurrently', link(), false],
     ])('should answer 410 RES-004 for a link that is %s', async (_label, found, used) => {
       const { service } = setup({ link: found, used });
-      await expect(service.verifyEmail({ token: 'x'.repeat(43) }, client)).rejects.toMatchObject({ code: 'RES-004' });
+      await expect(service.verifyEmail({ token: 'x'.repeat(43) }, client)).rejects.toMatchObject({
+        code: 'RES-004',
+      });
     });
   });
 });
@@ -194,9 +241,22 @@ describe('SignupRepository', () => {
 
   function setup(options: { plan?: object | null; updated?: number; claimed?: number } = {}) {
     const tx = {
-      plan: { findFirst: jest.fn().mockResolvedValue(options.plan === undefined ? { id: 'plan', code: 'PS_FREE', trialDays: 180 } : options.plan) },
+      plan: {
+        findFirst: jest
+          .fn()
+          .mockResolvedValue(
+            options.plan === undefined
+              ? { id: 'plan', code: 'PS_FREE', trialDays: 180 }
+              : options.plan,
+          ),
+      },
       office: {
-        create: jest.fn().mockResolvedValue({ id: OFFICE, name: 'Office', accountType: 'SOLO', jurisdiction: 'PALESTINE' }),
+        create: jest.fn().mockResolvedValue({
+          id: OFFICE,
+          name: 'Office',
+          accountType: 'SOLO',
+          jurisdiction: 'PALESTINE',
+        }),
         update: jest.fn(),
       },
       officeSettings: { create: jest.fn() },
@@ -206,12 +266,18 @@ describe('SignupRepository', () => {
       },
       subscription: { create: jest.fn() },
       legalAcceptance: { createMany: jest.fn() },
-      emailVerificationToken: { create: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: options.claimed ?? 1 }) },
+      emailVerificationToken: {
+        create: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({ count: options.claimed ?? 1 }),
+      },
       refreshToken: { updateMany: jest.fn() },
       auditLog: { create: jest.fn() },
     };
     const run = jest.fn((work: (t: typeof tx) => unknown) => work(tx));
-    const prisma = { unscoped: () => ({ $transaction: run }), db: { $transaction: run } } as unknown as PrismaService;
+    const prisma = {
+      unscoped: () => ({ $transaction: run }),
+      db: { $transaction: run },
+    } as unknown as PrismaService;
     return { repository: new SignupRepository(prisma), tx };
   }
 
@@ -220,16 +286,30 @@ describe('SignupRepository', () => {
     await repository.createOfficeAccount(input);
 
     expect(tx.plan.findFirst).toHaveBeenCalledWith({ where: { code: 'PS_FREE', isActive: true } });
-    expect(tx.user.create.mock.calls[0][0].data).toMatchObject({ role: 'OFFICE_MANAGER', uiLanguage: 'EN', createdAt: now });
+    expect(tx.user.create.mock.calls[0][0].data).toMatchObject({
+      role: 'OFFICE_MANAGER',
+      uiLanguage: 'EN',
+      createdAt: now,
+    });
     const subscription = tx.subscription.create.mock.calls[0][0].data;
-    expect(subscription).toMatchObject({ officeId: OFFICE, status: 'TRIALING', currentPeriodStart: now });
+    expect(subscription).toMatchObject({
+      officeId: OFFICE,
+      status: 'TRIALING',
+      currentPeriodStart: now,
+    });
     expect(subscription.trialEndsAt.getTime() - now.getTime()).toBe(180 * DAY);
     expect(tx.legalAcceptance.createMany.mock.calls[0][0].data).toEqual([
-      expect.objectContaining({ documentType: 'TOS', version: LEGAL_VERSIONS.TOS, ipAddress: '10.0.0.1' }),
+      expect.objectContaining({
+        documentType: 'TOS',
+        version: LEGAL_VERSIONS.TOS,
+        ipAddress: '10.0.0.1',
+      }),
       expect.objectContaining({ documentType: 'PRIVACY', version: LEGAL_VERSIONS.PRIVACY }),
     ]);
     expect(tx.emailVerificationToken.create).not.toHaveBeenCalled();
-    expect(tx.auditLog.create).toHaveBeenCalledWith({ data: expect.objectContaining({ entityType: 'Office', action: 'CREATE' }) });
+    expect(tx.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ entityType: 'Office', action: 'CREATE' }),
+    });
     expect(tx.user.updateMany).not.toHaveBeenCalled();
   });
 
@@ -244,22 +324,40 @@ describe('SignupRepository', () => {
 
   it('should release an abandoned signup in the same transaction before creating the new office', async () => {
     const { repository, tx } = setup();
-    await repository.createOfficeAccount({ ...input, release: { userId: 'old-user', officeId: 'old-office' } });
+    await repository.createOfficeAccount({
+      ...input,
+      release: { userId: 'old-user', officeId: 'old-office' },
+    });
 
     expect(tx.user.updateMany).toHaveBeenCalledWith({
       where: { id: 'old-user', email: body.email, emailVerifiedAt: null },
       data: { email: 'released+old-user@invalid.nexlegtiq', isActive: false },
     });
-    expect(tx.office.update).toHaveBeenCalledWith({ where: { id: 'old-office' }, data: { isActive: false } });
-    expect(tx.refreshToken.updateMany).toHaveBeenCalledWith({ where: { officeId: 'old-office', revokedAt: null }, data: { revokedAt: now } });
+    expect(tx.office.update).toHaveBeenCalledWith({
+      where: { id: 'old-office' },
+      data: { isActive: false },
+    });
+    expect(tx.refreshToken.updateMany).toHaveBeenCalledWith({
+      where: { officeId: 'old-office', revokedAt: null },
+      data: { revokedAt: now },
+    });
     expect(tx.auditLog.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ officeId: 'old-office', action: 'SECURITY', newValues: { reason: 'ABANDONED_SIGNUP_RELEASED' } }),
+      data: expect.objectContaining({
+        officeId: 'old-office',
+        action: 'SECURITY',
+        newValues: { reason: 'ABANDONED_SIGNUP_RELEASED' },
+      }),
     });
   });
 
   it('should answer 409 RES-002 when the abandoned signup was verified in the meantime', async () => {
     const { repository, tx } = setup({ updated: 0 });
-    await expect(repository.createOfficeAccount({ ...input, release: { userId: 'old-user', officeId: 'old-office' } })).rejects.toMatchObject({
+    await expect(
+      repository.createOfficeAccount({
+        ...input,
+        release: { userId: 'old-user', officeId: 'old-office' },
+      }),
+    ).rejects.toMatchObject({
       code: 'RES-002',
     });
     expect(tx.office.create).not.toHaveBeenCalled();
@@ -271,8 +369,13 @@ describe('SignupRepository', () => {
     it('should use the link, verify the user and audit the change', async () => {
       const { repository, tx } = setup();
       await expect(repository.confirmVerification(link, now, client)).resolves.toBe(true);
-      expect(tx.user.updateMany).toHaveBeenCalledWith({ where: { id: USER, emailVerifiedAt: null }, data: { emailVerifiedAt: now } });
-      expect(tx.auditLog.create).toHaveBeenCalledWith({ data: expect.objectContaining({ action: 'UPDATE', newValues: { emailVerified: true } }) });
+      expect(tx.user.updateMany).toHaveBeenCalledWith({
+        where: { id: USER, emailVerifiedAt: null },
+        data: { emailVerifiedAt: now },
+      });
+      expect(tx.auditLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ action: 'UPDATE', newValues: { emailVerified: true } }),
+      });
     });
 
     it('should not audit when the user was already verified', async () => {

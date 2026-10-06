@@ -38,7 +38,10 @@ export function ResetPasswordPage(): React.JSX.Element {
     onError: (error) => applyToForm(form, error, FIELDS),
   });
 
-  const invalidLink = !token || (reset.error instanceof ApiError && (reset.error.code === 'RES-004' || reset.error.details.some((d) => d.field === 'token')));
+  const invalidLink =
+    !token ||
+    (reset.error instanceof ApiError &&
+      (reset.error.code === 'RES-004' || reset.error.details.some((d) => d.field === 'token')));
   if (invalidLink) {
     return (
       <AuthLayout title={t('auth.resetPassword.title')}>
@@ -66,14 +69,41 @@ export function ResetPasswordPage(): React.JSX.Element {
     <AuthLayout title={t('auth.resetPassword.title')}>
       <Flex vertical gap={16}>
         <ApiErrorAlert error={reset.error} fields={FIELDS} />
-        <Form form={form} noValidate layout="vertical" requiredMark={false} onFinish={submit} disabled={reset.isPending}>
-          <Form.Item name="newPassword" label={t('auth.fields.newPassword')} extra={t('auth.passwordHint')} rules={zodRule(NewPasswordSchema, message)}>
-            <Input.Password autoComplete="new-password" dir="ltr" autoFocus data-testid="reset-new-password" />
+        <Form
+          form={form}
+          noValidate
+          layout="vertical"
+          requiredMark={false}
+          onFinish={submit}
+          disabled={reset.isPending}
+        >
+          <Form.Item
+            name="newPassword"
+            label={t('auth.fields.newPassword')}
+            extra={t('auth.passwordHint')}
+            rules={zodRule(NewPasswordSchema, message)}
+          >
+            <Input.Password
+              autoComplete="new-password"
+              dir="ltr"
+              autoFocus
+              data-testid="reset-new-password"
+            />
           </Form.Item>
           <Form.Item name="confirmPassword" label={t('auth.fields.confirmPassword')}>
-            <Input.Password autoComplete="new-password" dir="ltr" data-testid="reset-confirm-password" />
+            <Input.Password
+              autoComplete="new-password"
+              dir="ltr"
+              data-testid="reset-confirm-password"
+            />
           </Form.Item>
-          <Button type="primary" htmlType="submit" block loading={reset.isPending} data-testid="reset-submit">
+          <Button
+            type="primary"
+            htmlType="submit"
+            block
+            loading={reset.isPending}
+            data-testid="reset-submit"
+          >
             {t('auth.resetPassword.submit')}
           </Button>
         </Form>

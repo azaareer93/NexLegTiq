@@ -37,7 +37,9 @@ export function IdleTimeout(): React.JSX.Element | null {
         recordActivity(now);
       }
     };
-    ACTIVITY_EVENTS.forEach((event) => window.addEventListener(event, onLocalActivity, { passive: true }));
+    ACTIVITY_EVENTS.forEach((event) =>
+      window.addEventListener(event, onLocalActivity, { passive: true }),
+    );
     const stopRemote = onRemoteActivity(touch);
 
     const tick = window.setInterval(() => {
@@ -84,9 +86,7 @@ export function IdleTimeout(): React.JSX.Element | null {
       ]}
     >
       {/* Read once when the dialog opens; a live region would re-announce every second. */}
-      <p data-testid="idle-countdown">
-        {t('auth.idle.countdown', { count: secondsLeft ?? 0 })}
-      </p>
+      <p data-testid="idle-countdown">{t('auth.idle.countdown', { count: secondsLeft ?? 0 })}</p>
     </Modal>
   );
 }

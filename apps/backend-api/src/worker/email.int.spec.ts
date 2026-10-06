@@ -17,7 +17,10 @@ import { TenantRunner } from '../common/tenancy/tenant-runner';
 import { integrationEnv } from '../config/env.fixture';
 import { DatabaseModule } from '../database/database.module';
 import { PrismaService } from '../database/prisma.service';
-import { SEND_PASSWORD_RESET_JOB, SEND_VERIFICATION_EMAIL_JOB } from '../modules/auth/account-mailer';
+import {
+  SEND_PASSWORD_RESET_JOB,
+  SEND_VERIFICATION_EMAIL_JOB,
+} from '../modules/auth/account-mailer';
 import { PasswordResetLinks } from '../modules/auth/password-reset-links';
 import { VerificationLinks } from '../modules/auth/verification-links';
 import { EmailProcessor } from './email.processor';
@@ -33,11 +36,14 @@ interface MailpitMessage {
 /** Waits for the message Mailpit received for `to` (the worker sends asynchronously). */
 async function receivedBy(to: string): Promise<MailpitMessage> {
   for (let attempt = 0; attempt < 50; attempt += 1) {
-    const search = (await (await fetch(`${MAILPIT}/api/v1/search?query=${encodeURIComponent(`to:"${to}"`)}`)).json()) as {
+    const search = (await (
+      await fetch(`${MAILPIT}/api/v1/search?query=${encodeURIComponent(`to:"${to}"`)}`)
+    ).json()) as {
       messages: { ID: string }[];
     };
     const id = search.messages[0]?.ID;
-    if (id) return (await (await fetch(`${MAILPIT}/api/v1/message/${id}`)).json()) as MailpitMessage;
+    if (id)
+      return (await (await fetch(`${MAILPIT}/api/v1/message/${id}`)).json()) as MailpitMessage;
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   throw new Error(`No email for ${to}`);
@@ -59,10 +65,21 @@ describe('email worker (Redis + PostgreSQL + Mailpit)', () => {
   const queue = () => getQueue(app, QUEUE.EMAIL);
 
   beforeAll(async () => {
-    Object.assign(process.env, integrationEnv({ BULLMQ_PREFIX: `it-${randomUUID().slice(0, 8)}`, OFFICE_APP_URL: 'https://app.example.test' }));
+    Object.assign(
+      process.env,
+      integrationEnv({
+        BULLMQ_PREFIX: `it-${randomUUID().slice(0, 8)}`,
+        OFFICE_APP_URL: 'https://app.example.test',
+      }),
+    );
     app = await (await Test.createTestingModule({ imports: [EmailTestModule] }).compile()).init();
     // unscoped: test setup.
-    officeId = (await app.get(PrismaService).unscoped().office.create({ data: { name: 'Email test office' } })).id as OfficeId;
+    officeId = (
+      await app
+        .get(PrismaService)
+        .unscoped()
+        .office.create({ data: { name: 'Email test office' } })
+    ).id as OfficeId;
   });
 
   afterAll(async () => {
@@ -83,59 +100,90 @@ describe('email worker (Redis + PostgreSQL + Mailpit)', () => {
   async function createUser(uiLanguage: 'AR' | 'EN') {
     const email = `mail-${randomUUID()}@example.test`;
     // unscoped: test setup.
-    const user = await app.get(PrismaService).unscoped().user.create({
-      data: { officeId, fullName: 'عمر المصري', email, passwordHash: '!', role: 'OFFICE_MANAGER', uiLanguage },
-    });
+    const user = await app
+      .get(PrismaService)
+      .unscoped()
+      .user.create({
+        data: {
+          officeId,
+          fullName: 'عمر المصري',
+          email,
+          passwordHash: '!',
+          role: 'OFFICE_MANAGER',
+          uiLanguage,
+        },
+      });
     return { id: user.id, email };
   }
 
   it('should issue a verification link in the worker and send it in Arabic, right to left', async () => {
     const user = await createUser('AR');
-    await inOffice(() => app.get(QueueProducer).enqueue(QUEUE.EMAIL, SEND_VERIFICATION_EMAIL_JOB, { userId: user.id }));
+    await inOffice(() =>
+      app.get(QueueProducer).enqueue(QUEUE.EMAIL, SEND_VERIFICATION_EMAIL_JOB, { userId: user.id }),
+    );
     await drainQueue(queue());
 
     const mail = await receivedBy(user.email);
     expect(mail.Subject).toBe('تأكيد بريدك الإلكتروني في NexLegTiq');
     expect(mail.HTML).toContain('dir="rtl"');
     expect(mail.HTML).toContain('lang="ar"');
-    const link = /https:\/\/app\.example\.test\/verify-email\?token=([A-Za-z0-9_-]{43})/.exec(mail.Text);
+    const link = /https:\/\/app\.example\.test\/verify-email\?token=([A-Za-z0-9_-]{43})/.exec(
+      mail.Text,
+    );
     expect(link).not.toBeNull();
 
     // The job carried only the user id; the stored link is the hash of the emailed token.
     const jobs = await queue().getJobs(['completed']);
     expect(JSON.stringify(jobs.map((job) => job.data))).not.toContain(link?.[1] ?? 'missing');
     // unscoped: test assertion.
-    const stored = await app.get(PrismaService).unscoped().emailVerificationToken.findFirstOrThrow({ where: { userId: user.id, usedAt: null } });
+    const stored = await app
+      .get(PrismaService)
+      .unscoped()
+      .emailVerificationToken.findFirstOrThrow({ where: { userId: user.id, usedAt: null } });
     expect(stored.tokenHash).toBe(hashOpaqueToken(link?.[1] ?? ''));
   });
 
   it('should send English users an English, left-to-right link that lasts 7 days', async () => {
     const user = await createUser('EN');
     const before = Date.now();
-    await inOffice(() => app.get(QueueProducer).enqueue(QUEUE.EMAIL, SEND_VERIFICATION_EMAIL_JOB, { userId: user.id }));
+    await inOffice(() =>
+      app.get(QueueProducer).enqueue(QUEUE.EMAIL, SEND_VERIFICATION_EMAIL_JOB, { userId: user.id }),
+    );
     await drainQueue(queue());
 
     const mail = await receivedBy(user.email);
     expect(mail.Subject).toBe('Confirm your email for NexLegTiq');
     expect(mail.HTML).toContain('dir="ltr"');
-    expect(mail.Text).toMatch(/https:\/\/app\.example\.test\/verify-email\?token=[A-Za-z0-9_-]{43}/);
+    expect(mail.Text).toMatch(
+      /https:\/\/app\.example\.test\/verify-email\?token=[A-Za-z0-9_-]{43}/,
+    );
     // unscoped: test assertion.
-    const stored = await app.get(PrismaService).unscoped().emailVerificationToken.findFirstOrThrow({ where: { userId: user.id } });
+    const stored = await app
+      .get(PrismaService)
+      .unscoped()
+      .emailVerificationToken.findFirstOrThrow({ where: { userId: user.id } });
     expect(Math.round((stored.expiresAt.getTime() - before) / 86_400_000)).toBe(7);
   });
 
   it('should issue a one-hour password-reset link in the worker and send it in Arabic (D-086)', async () => {
     const user = await createUser('AR');
     const before = Date.now();
-    await inOffice(() => app.get(QueueProducer).enqueue(QUEUE.EMAIL, SEND_PASSWORD_RESET_JOB, { userId: user.id }));
+    await inOffice(() =>
+      app.get(QueueProducer).enqueue(QUEUE.EMAIL, SEND_PASSWORD_RESET_JOB, { userId: user.id }),
+    );
     await drainQueue(queue());
 
     const mail = await receivedBy(user.email);
     expect(mail.HTML).toContain('dir="rtl"');
-    const link = /https:\/\/app\.example\.test\/reset-password\?token=([A-Za-z0-9_-]{43})/.exec(mail.Text);
+    const link = /https:\/\/app\.example\.test\/reset-password\?token=([A-Za-z0-9_-]{43})/.exec(
+      mail.Text,
+    );
     expect(link).not.toBeNull();
     // unscoped: test assertion.
-    const stored = await app.get(PrismaService).unscoped().passwordResetToken.findFirstOrThrow({ where: { userId: user.id, usedAt: null } });
+    const stored = await app
+      .get(PrismaService)
+      .unscoped()
+      .passwordResetToken.findFirstOrThrow({ where: { userId: user.id, usedAt: null } });
     expect(stored.tokenHash).toBe(hashOpaqueToken(link?.[1] ?? ''));
     expect(Math.round((stored.expiresAt.getTime() - before) / 60_000)).toBe(60);
   });
@@ -143,16 +191,28 @@ describe('email worker (Redis + PostgreSQL + Mailpit)', () => {
   it('should send nothing for an already verified user', async () => {
     const user = await createUser('EN');
     // unscoped: test setup.
-    await app.get(PrismaService).unscoped().user.update({ where: { id: user.id }, data: { emailVerifiedAt: new Date() } });
-    const job = await inOffice(() => app.get(QueueProducer).enqueue(QUEUE.EMAIL, SEND_VERIFICATION_EMAIL_JOB, { userId: user.id }));
+    await app
+      .get(PrismaService)
+      .unscoped()
+      .user.update({ where: { id: user.id }, data: { emailVerifiedAt: new Date() } });
+    const job = await inOffice(() =>
+      app.get(QueueProducer).enqueue(QUEUE.EMAIL, SEND_VERIFICATION_EMAIL_JOB, { userId: user.id }),
+    );
     await drainQueue(queue());
-    expect((await queue().getJob(job.id ?? ''))?.returnvalue).toEqual({ skipped: 'NOTHING_TO_SEND' });
+    expect((await queue().getJob(job.id ?? ''))?.returnvalue).toEqual({
+      skipped: 'NOTHING_TO_SEND',
+    });
   });
 
   it('should render and deliver a template email in English, left to right', async () => {
     const to = `invite-${randomUUID()}@example.test`;
     await inOffice(() =>
-      app.get(MailService).send(to, 'invite', 'EN', { officeName: 'Al-Masri & Partners', inviterName: 'Omar', link: 'https://app.example.test/accept', days: 7 }),
+      app.get(MailService).send(to, 'invite', 'EN', {
+        officeName: 'Al-Masri & Partners',
+        inviterName: 'Omar',
+        link: 'https://app.example.test/accept',
+        days: 7,
+      }),
     );
     await drainQueue(queue());
 

@@ -28,7 +28,12 @@ export class LoginAttemptRepository {
       select: { attemptedAt: true },
     });
     const failures = await attempts.findMany({
-      where: { email, ipAddress, success: false, attemptedAt: { gt: lastSuccess?.attemptedAt ?? horizon } },
+      where: {
+        email,
+        ipAddress,
+        success: false,
+        attemptedAt: { gt: lastSuccess?.attemptedAt ?? horizon },
+      },
       orderBy: { attemptedAt: 'desc' },
       take: LOCKOUT_MAX_FAILURES,
       select: { attemptedAt: true },

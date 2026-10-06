@@ -37,7 +37,9 @@ describe('MetricsServer', () => {
 
   it('should start on bootstrap when enabled and stop on shutdown', async () => {
     const server = createServer({ METRICS_HOST: '127.0.0.1', METRICS_PORT: '1' });
-    const start = jest.spyOn(server, 'start').mockResolvedValue({ address: '127.0.0.1', family: 'IPv4', port: 1 });
+    const start = jest
+      .spyOn(server, 'start')
+      .mockResolvedValue({ address: '127.0.0.1', family: 'IPv4', port: 1 });
     const stop = jest.spyOn(server, 'stop');
 
     await server.onApplicationBootstrap();

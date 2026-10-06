@@ -28,7 +28,12 @@ export class QueueProducer {
     private readonly cls: ClsService<RequestContext>,
   ) {}
 
-  async enqueue<T extends JobFields>(queue: QueueName, name: string, data: T, options: EnqueueOptions = {}): Promise<Job<T & TenantJobData>> {
+  async enqueue<T extends JobFields>(
+    queue: QueueName,
+    name: string,
+    data: T,
+    options: EnqueueOptions = {},
+  ): Promise<Job<T & TenantJobData>> {
     const officeId = this.cls.isActive() ? this.cls.get('officeId') : undefined;
     if (!officeId) throw new TenantContextMissingError(`enqueue ${queue}/${name}`);
     // Spread first: a caller that smuggles officeId/requestId past the types is overwritten by the context.

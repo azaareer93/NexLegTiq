@@ -16,7 +16,9 @@ export function VerifyBanner(): React.JSX.Element | null {
   if (!user || user.emailVerified) {
     return null;
   }
-  const title = user.verifyBy ? t('shell.verify.bannerWithDeadline', { date: format.date(user.verifyBy, 'long') }) : t('shell.verify.banner');
+  const title = user.verifyBy
+    ? t('shell.verify.bannerWithDeadline', { date: format.date(user.verifyBy, 'long') })
+    : t('shell.verify.banner');
   // A refusal says why (too many requests: wait), anything else gets the generic message.
   const failure =
     resend.error instanceof ApiError && i18n.exists(`errors.${resend.error.code}` as never)
@@ -36,7 +38,12 @@ export function VerifyBanner(): React.JSX.Element | null {
           </span>
         ) : (
           <Flex vertical align="end" gap={4}>
-            <Button size="small" loading={resend.isPending} onClick={() => resend.mutate(user.email)} data-testid="verify-banner-resend">
+            <Button
+              size="small"
+              loading={resend.isPending}
+              onClick={() => resend.mutate(user.email)}
+              data-testid="verify-banner-resend"
+            >
               {t('shell.verify.resend')}
             </Button>
             {resend.isError ? (

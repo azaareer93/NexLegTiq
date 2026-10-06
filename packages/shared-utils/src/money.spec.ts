@@ -1,6 +1,15 @@
 import { Decimal } from 'decimal.js';
 
-import { addMoney, compareMoney, currencyDigits, multiplyMoney, parseAmount, percentOf, roundMoney, subtractMoney } from './money.js';
+import {
+  addMoney,
+  compareMoney,
+  currencyDigits,
+  multiplyMoney,
+  parseAmount,
+  percentOf,
+  roundMoney,
+  subtractMoney,
+} from './money.js';
 
 describe('money math', () => {
   it('should add without float error (0.1 + 0.2 is 0.3)', () => {
@@ -29,7 +38,9 @@ describe('money math', () => {
   });
 
   it('should round to a currency own minor digits', () => {
-    expect([currencyDigits('ILS'), currencyDigits('JOD'), currencyDigits('JPY')]).toEqual([2, 3, 0]);
+    expect([currencyDigits('ILS'), currencyDigits('JOD'), currencyDigits('JPY')]).toEqual([
+      2, 3, 0,
+    ]);
     expect(roundMoney('1.2345', 'JOD')).toBe('1.234');
     expect(roundMoney('1.2355', 'JOD')).toBe('1.236');
     expect(roundMoney('1.5', 'JPY')).toBe('2');
@@ -41,12 +52,17 @@ describe('money math', () => {
   });
 
   it('should compare amounts', () => {
-    expect([compareMoney('1.10', '1.1'), compareMoney('2', '10'), compareMoney('10', '2')]).toEqual([0, -1, 1]);
+    expect([compareMoney('1.10', '1.1'), compareMoney('2', '10'), compareMoney('10', '2')]).toEqual(
+      [0, -1, 1],
+    );
   });
 
-  it.each(['abc', 'Infinity', 'NaN', '0x10', '0b101', '1e1000000', '1.', '.5', '+1', '1 '])('should refuse %j as an amount', (amount) => {
-    expect(() => addMoney(amount)).toThrow(RangeError);
-  });
+  it.each(['abc', 'Infinity', 'NaN', '0x10', '0b101', '1e1000000', '1.', '.5', '+1', '1 '])(
+    'should refuse %j as an amount',
+    (amount) => {
+      expect(() => addMoney(amount)).toThrow(RangeError);
+    },
+  );
 
   it('should refuse a non-finite decimal, and an unknown currency', () => {
     expect(() => addMoney(new Decimal(Infinity))).toThrow(RangeError);
@@ -103,11 +119,16 @@ describe('roundMoney (property)', () => {
     return negative && quotient !== 0n ? `-${result}` : result;
   }
 
-  it.each([0, 1, 2, 3])('should match integer half-even rounding to %i decimals on 2,000 amounts (seed %#)', (digits) => {
-    for (const amount of amounts(2_000, digits)) {
-      expect(roundMoney(amount, digits), `seed ${SEED + digits}, amount ${amount}`).toBe(referenceRound(amount, digits));
-    }
-  });
+  it.each([0, 1, 2, 3])(
+    'should match integer half-even rounding to %i decimals on 2,000 amounts (seed %#)',
+    (digits) => {
+      for (const amount of amounts(2_000, digits)) {
+        expect(roundMoney(amount, digits), `seed ${SEED + digits}, amount ${amount}`).toBe(
+          referenceRound(amount, digits),
+        );
+      }
+    },
+  );
 
   it('should be idempotent, commutative and reversible on random amounts', () => {
     const list = [...amounts(300, 2)];

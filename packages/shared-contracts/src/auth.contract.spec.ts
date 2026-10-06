@@ -46,8 +46,13 @@ describe('AuthSessionSchema', () => {
       },
     };
     expect(AuthSessionSchema.safeParse(session).success).toBe(true);
-    expect(AuthSessionSchema.safeParse({ ...session, user: { ...session.user, permissions: ['root'] } }).success).toBe(false);
-    expect(AuthSessionSchema.safeParse({ ...session, user: { ...session.user, role: 'GOD' } }).success).toBe(false);
+    expect(
+      AuthSessionSchema.safeParse({ ...session, user: { ...session.user, permissions: ['root'] } })
+        .success,
+    ).toBe(false);
+    expect(
+      AuthSessionSchema.safeParse({ ...session, user: { ...session.user, role: 'GOD' } }).success,
+    ).toBe(false);
   });
 });
 
@@ -78,7 +83,11 @@ describe('RegisterRequestSchema', () => {
     ['a short password', { password: 'Short1a' }, 'validation.password.tooShort'],
     ['a password without a digit', { password: 'NoDigitsHere' }, 'validation.password.weak'],
     ['a well-known password', { password: 'Password123' }, 'validation.password.common'],
-    ['the email as password', { email: 'Omar123456@x.test', password: 'Omar123456' }, 'validation.password.sameAsEmail'],
+    [
+      'the email as password',
+      { email: 'Omar123456@x.test', password: 'Omar123456' },
+      'validation.password.sameAsEmail',
+    ],
     ['unaccepted terms', { acceptTerms: false }, 'validation.mustAcceptTerms'],
     ['missing privacy acceptance', { acceptPrivacy: undefined }, 'validation.mustAcceptPrivacy'],
     ['a control character in a name', { fullName: 'Omar\u0000' }, 'validation.invalidCharacters'],
@@ -97,17 +106,23 @@ describe('RegisterRequestSchema', () => {
   });
 
   it('should keep zero-width non-joiners in Arabic names', () => {
-    expect(RegisterRequestSchema.parse({ ...valid, fullName: 'عمر‌المصري' }).fullName).toBe('عمر‌المصري');
+    expect(RegisterRequestSchema.parse({ ...valid, fullName: 'عمر‌المصري' }).fullName).toBe(
+      'عمر‌المصري',
+    );
   });
 
   it('should accept an international phone number', () => {
-    expect(RegisterRequestSchema.parse({ ...valid, phone: '+970 59 123 4567' }).phone).toBe('+970 59 123 4567');
+    expect(RegisterRequestSchema.parse({ ...valid, phone: '+970 59 123 4567' }).phone).toBe(
+      '+970 59 123 4567',
+    );
   });
 });
 
 describe('ResendVerificationRequestSchema', () => {
   it('should normalise the email and reject junk', () => {
-    expect(ResendVerificationRequestSchema.parse({ email: ' A@B.Test ' })).toEqual({ email: 'a@b.test' });
+    expect(ResendVerificationRequestSchema.parse({ email: ' A@B.Test ' })).toEqual({
+      email: 'a@b.test',
+    });
     expect(ResendVerificationRequestSchema.safeParse({ email: 'nope' }).success).toBe(false);
   });
 });
@@ -123,15 +138,26 @@ describe('password reset and change contracts (D-086)', () => {
   const token = 'A'.repeat(43);
 
   it('should normalise the forgot-password email', () => {
-    expect(ForgotPasswordRequestSchema.parse({ email: ' A@B.Test ' })).toEqual({ email: 'a@b.test' });
+    expect(ForgotPasswordRequestSchema.parse({ email: ' A@B.Test ' })).toEqual({
+      email: 'a@b.test',
+    });
   });
 
   it('should accept a reset with a policy-compliant password typed twice', () => {
-    expect(ResetPasswordRequestSchema.safeParse({ token, newPassword: 'New-Pass-2026x', confirmPassword: 'New-Pass-2026x' }).success).toBe(true);
+    expect(
+      ResetPasswordRequestSchema.safeParse({
+        token,
+        newPassword: 'New-Pass-2026x',
+        confirmPassword: 'New-Pass-2026x',
+      }).success,
+    ).toBe(true);
   });
 
   it.each([
-    [{ newPassword: 'New-Pass-2026x', confirmPassword: 'Testtesttest2' }, 'validation.password.mismatch'],
+    [
+      { newPassword: 'New-Pass-2026x', confirmPassword: 'Testtesttest2' },
+      'validation.password.mismatch',
+    ],
     [{ newPassword: 'short', confirmPassword: 'short' }, 'validation.password.tooShort'],
     [{ newPassword: 'Password123', confirmPassword: 'Password123' }, 'validation.password.common'],
   ])('should reject reset %j', (change, message) => {
@@ -140,9 +166,22 @@ describe('password reset and change contracts (D-086)', () => {
   });
 
   it('should require a new password that differs from the current one', () => {
-    expect(ChangePasswordRequestSchema.safeParse({ currentPassword: 'Old-Pass-2026x', newPassword: 'New-Pass-2026x' }).success).toBe(true);
-    const same = ChangePasswordRequestSchema.safeParse({ currentPassword: 'New-Pass-2026x', newPassword: 'New-Pass-2026x' });
-    expect(same.error?.issues.map((issue) => issue.message)).toContain('validation.password.unchanged');
-    expect(ChangePasswordRequestSchema.safeParse({ currentPassword: '', newPassword: 'New-Pass-2026x' }).success).toBe(false);
+    expect(
+      ChangePasswordRequestSchema.safeParse({
+        currentPassword: 'Old-Pass-2026x',
+        newPassword: 'New-Pass-2026x',
+      }).success,
+    ).toBe(true);
+    const same = ChangePasswordRequestSchema.safeParse({
+      currentPassword: 'New-Pass-2026x',
+      newPassword: 'New-Pass-2026x',
+    });
+    expect(same.error?.issues.map((issue) => issue.message)).toContain(
+      'validation.password.unchanged',
+    );
+    expect(
+      ChangePasswordRequestSchema.safeParse({ currentPassword: '', newPassword: 'New-Pass-2026x' })
+        .success,
+    ).toBe(false);
   });
 });

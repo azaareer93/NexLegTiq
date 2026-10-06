@@ -25,7 +25,9 @@ export function VerifyEmailPage(): React.JSX.Element {
   const sent = useRef(false);
 
   const verify = useMutation({ mutationFn: (value: string) => auth.verifyEmail({ token: value }) });
-  const resend = useMutation({ mutationFn: (body: ResendVerificationRequest) => auth.resendVerification(body) });
+  const resend = useMutation({
+    mutationFn: (body: ResendVerificationRequest) => auth.resendVerification(body),
+  });
   const { mutate: verifyToken } = verify;
 
   useEffect(() => {
@@ -63,7 +65,12 @@ export function VerifyEmailPage(): React.JSX.Element {
         {verify.isError ? (
           <Flex vertical gap={16}>
             <ApiErrorAlert error={verify.error} testId="verify-error" />
-            <Button type="primary" onClick={() => verifyToken(token)} loading={verify.isPending} data-testid="verify-retry">
+            <Button
+              type="primary"
+              onClick={() => verifyToken(token)}
+              loading={verify.isPending}
+              data-testid="verify-retry"
+            >
               {t('common.actions.retry')}
             </Button>
           </Flex>
@@ -81,19 +88,44 @@ export function VerifyEmailPage(): React.JSX.Element {
 
   // No token, or a used/expired/unknown link (410 RES-004): offer a new link.
   return (
-    <AuthLayout title={t('auth.verifyEmail.invalidTitle')} subtitle={t('auth.verifyEmail.invalidBody')}>
+    <AuthLayout
+      title={t('auth.verifyEmail.invalidTitle')}
+      subtitle={t('auth.verifyEmail.invalidBody')}
+    >
       <Flex vertical gap={16} data-testid="verify-invalid">
         {resend.isSuccess ? (
-          <Alert type="success" showIcon title={t('auth.verifyEmail.resentBody')} data-testid="verify-resent" />
+          <Alert
+            type="success"
+            showIcon
+            title={t('auth.verifyEmail.resentBody')}
+            data-testid="verify-resent"
+          />
         ) : (
-          <Form form={form} noValidate layout="vertical" requiredMark={false} onFinish={submit} disabled={resend.isPending}>
+          <Form
+            form={form}
+            noValidate
+            layout="vertical"
+            requiredMark={false}
+            onFinish={submit}
+            disabled={resend.isPending}
+          >
             <Flex vertical gap={16}>
               <ApiErrorAlert error={resend.error} />
-              <Form.Item name="email" label={t('auth.fields.email')} rules={zodRule(ResendVerificationRequestSchema.shape.email, message)}>
+              <Form.Item
+                name="email"
+                label={t('auth.fields.email')}
+                rules={zodRule(ResendVerificationRequestSchema.shape.email, message)}
+              >
                 <Input type="email" autoComplete="email" dir="ltr" data-testid="verify-email" />
               </Form.Item>
             </Flex>
-            <Button type="primary" htmlType="submit" block loading={resend.isPending} data-testid="verify-resend">
+            <Button
+              type="primary"
+              htmlType="submit"
+              block
+              loading={resend.isPending}
+              data-testid="verify-resend"
+            >
               {t('auth.verifyEmail.resend')}
             </Button>
           </Form>

@@ -26,13 +26,24 @@ import { withTimeout } from './with-timeout';
 const OFFICE = '01920000-0000-7000-8000-00000000000a';
 const cls = ClsServiceManager.getClsService<RequestContext>();
 const logger = () =>
-  ({ setContext: jest.fn(), warn: jest.fn(), error: jest.fn() }) as unknown as PinoLogger & { warn: jest.Mock; error: jest.Mock };
+  ({ setContext: jest.fn(), warn: jest.fn(), error: jest.fn() }) as unknown as PinoLogger & {
+    warn: jest.Mock;
+    error: jest.Mock;
+  };
 const inOffice = <T>(work: () => Promise<T>, requestId = 'req-12345678') =>
   new TenantRunner(cls).run({ officeId: OFFICE as never, requestId }, work);
 
 describe('queues (D-011, architecture.md)', () => {
   it('should define exactly the canonical queues, without a -queue suffix', () => {
-    expect([...QUEUE_NAMES].sort()).toEqual(['ai', 'batch-ingest', 'email', 'notification', 'ocr', 'reminder', 'report']);
+    expect([...QUEUE_NAMES].sort()).toEqual([
+      'ai',
+      'batch-ingest',
+      'email',
+      'notification',
+      'ocr',
+      'reminder',
+      'report',
+    ]);
   });
 
   it.each([
@@ -43,11 +54,14 @@ describe('queues (D-011, architecture.md)', () => {
     ['notification', 3, { type: 'exponential', delay: 1000 }, 30_000, 10],
     ['report', 2, { type: 'exponential', delay: 1000 }, 120_000, 2],
     ['batch-ingest', 1, undefined, 120_000, 5],
-  ] as const)('should give %s its retry, timeout and concurrency', (name, attempts, backoff, timeoutMs, concurrency) => {
-    expect(QUEUE_POLICY[name]).toMatchObject({ jobs: { attempts }, timeoutMs, concurrency });
-    expect(QUEUE_POLICY[name].jobs.backoff).toEqual(backoff);
-    expect(workerOptions(name)).toEqual({ concurrency });
-  });
+  ] as const)(
+    'should give %s its retry, timeout and concurrency',
+    (name, attempts, backoff, timeoutMs, concurrency) => {
+      expect(QUEUE_POLICY[name]).toMatchObject({ jobs: { attempts }, timeoutMs, concurrency });
+      expect(QUEUE_POLICY[name].jobs.backoff).toEqual(backoff);
+      expect(workerOptions(name)).toEqual({ concurrency });
+    },
+  );
 
   it('should keep completed jobs 7 days (max 1000) and failed jobs 30 days everywhere', () => {
     for (const name of QUEUE_NAMES) {
@@ -62,13 +76,18 @@ describe('queues (D-011, architecture.md)', () => {
 describe('QueueModule', () => {
   it('should log queue errors and drop a connection error that arrives after close instead of crashing', () => {
     const connections = QUEUE_NAMES.map(() => new EventEmitter());
-    const queues = connections.map((connection) => Object.assign(new EventEmitter(), { connection }));
+    const queues = connections.map((connection) =>
+      Object.assign(new EventEmitter(), { connection }),
+    );
     const pending = [...queues];
     const log = logger();
     new QueueModule({ get: () => pending.shift() } as never, { register: jest.fn() } as never, log);
 
     queues[0]?.emit('error', new Error('ECONNREFUSED'));
-    expect(log.warn).toHaveBeenCalledWith(expect.objectContaining({ queue: QUEUE_NAMES[0] }), 'Queue connection error');
+    expect(log.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ queue: QUEUE_NAMES[0] }),
+      'Queue connection error',
+    );
     // What BullMQ's close() leaves behind: a connection with no listeners whose failed start still emits 'error'.
     expect(() => connections[0]?.emit('error', new Error('Connection is closed.'))).not.toThrow();
     connections[1]?.on('error', () => undefined);
@@ -86,7 +105,11 @@ describe('redisConnectionOptions', () => {
       db: 2,
       tls: { servername: 'cache.example' },
     });
-    expect(redisConnectionOptions('redis://127.0.0.1')).toEqual({ host: '127.0.0.1', port: 6379, db: 0 });
+    expect(redisConnectionOptions('redis://127.0.0.1')).toEqual({
+      host: '127.0.0.1',
+      port: 6379,
+      db: 0,
+    });
     expect(redisConnectionOptions('redis://[::1]:6379/0')).toMatchObject({ host: '::1', db: 0 });
   });
 
@@ -97,17 +120,29 @@ describe('redisConnectionOptions', () => {
 
 describe('parseTenantJob', () => {
   it('should accept a payload with an office uuid and a safe request id or null', () => {
-    expect(parseTenantJob({ officeId: OFFICE, requestId: 'req-12345678', x: 1 })).toEqual({ officeId: OFFICE, requestId: 'req-12345678' });
-    expect(parseTenantJob({ officeId: OFFICE, requestId: null })).toEqual({ officeId: OFFICE, requestId: null });
+    expect(parseTenantJob({ officeId: OFFICE, requestId: 'req-12345678', x: 1 })).toEqual({
+      officeId: OFFICE,
+      requestId: 'req-12345678',
+    });
+    expect(parseTenantJob({ officeId: OFFICE, requestId: null })).toEqual({
+      officeId: OFFICE,
+      requestId: null,
+    });
   });
 
   it('should drop a request id that is not D-076-safe instead of trusting it', () => {
-    expect(parseTenantJob({ officeId: OFFICE, requestId: 'bad id\nINJECTED' })).toEqual({ officeId: OFFICE, requestId: null });
+    expect(parseTenantJob({ officeId: OFFICE, requestId: 'bad id\nINJECTED' })).toEqual({
+      officeId: OFFICE,
+      requestId: null,
+    });
   });
 
-  it.each([[{}], [{ officeId: 'nope', requestId: null }], [{ officeId: OFFICE }], [null]])('should reject %j', (data) => {
-    expect(parseTenantJob(data)).toBeNull();
-  });
+  it.each([[{}], [{ officeId: 'nope', requestId: null }], [{ officeId: OFFICE }], [null]])(
+    'should reject %j',
+    (data) => {
+      expect(parseTenantJob(data)).toBeNull();
+    },
+  );
 });
 
 describe('QueueProducer', () => {
@@ -125,19 +160,35 @@ describe('QueueProducer', () => {
     const { producer, add } = setup();
     const mail: MailJob = { to: 'a@b.test' };
     await inOffice(() => producer.enqueue(QUEUE.EMAIL, 'send-email', mail, { delay: 10 }));
-    expect(add).toHaveBeenCalledWith('send-email', { to: 'a@b.test', officeId: OFFICE, requestId: 'req-12345678' }, { delay: 10 });
+    expect(add).toHaveBeenCalledWith(
+      'send-email',
+      { to: 'a@b.test', officeId: OFFICE, requestId: 'req-12345678' },
+      { delay: 10 },
+    );
   });
 
   it('should overwrite an officeId or requestId smuggled into the payload', async () => {
     const { producer, add } = setup();
     // @ts-expect-error -- callers cannot name the tenant fields; this proves the runtime guard too.
-    await inOffice(() => producer.enqueue(QUEUE.EMAIL, 'send-email', { officeId: 'other-office', requestId: 'forged' }));
+    await inOffice(() =>
+      producer.enqueue(QUEUE.EMAIL, 'send-email', {
+        officeId: 'other-office',
+        requestId: 'forged',
+      }),
+    );
     expect(add.mock.calls[0][1]).toEqual({ officeId: OFFICE, requestId: 'req-12345678' });
   });
 
   it('should prefix a custom jobId with the office', async () => {
     const { producer, add } = setup();
-    await inOffice(() => producer.enqueue(QUEUE.REMINDER, 'send-session-reminder', {}, { jobId: 'reminder-1', delay: 5 }));
+    await inOffice(() =>
+      producer.enqueue(
+        QUEUE.REMINDER,
+        'send-session-reminder',
+        {},
+        { jobId: 'reminder-1', delay: 5 },
+      ),
+    );
     expect(add.mock.calls[0][2]).toEqual({ jobId: `${OFFICE}_reminder-1`, delay: 5 });
   });
 
@@ -157,7 +208,9 @@ describe('QueueProducer', () => {
 
   it('should refuse to enqueue outside a tenant context', async () => {
     const { producer, add } = setup();
-    await expect(producer.enqueue(QUEUE.EMAIL, 'send-email', {})).rejects.toThrow(TenantContextMissingError);
+    await expect(producer.enqueue(QUEUE.EMAIL, 'send-email', {})).rejects.toThrow(
+      TenantContextMissingError,
+    );
     expect(add).not.toHaveBeenCalled();
   });
 });
@@ -176,7 +229,8 @@ describe('TenantProcessor', () => {
       return 'done';
     }
   }
-  const job = (data: object, queueName = 'notification') => ({ id: '7', name: 'test', queueName, attemptsMade: 0, data }) as Job<never>;
+  const job = (data: object, queueName = 'notification') =>
+    ({ id: '7', name: 'test', queueName, attemptsMade: 0, data }) as Job<never>;
 
   function setup(officeActive = true) {
     const log = logger();
@@ -187,7 +241,9 @@ describe('TenantProcessor', () => {
 
   it('should run the job in its office and return the result', async () => {
     const { processor } = setup();
-    await expect(processor.process(job({ officeId: OFFICE, requestId: 'req-12345678' }))).resolves.toBe('done');
+    await expect(
+      processor.process(job({ officeId: OFFICE, requestId: 'req-12345678' })),
+    ).resolves.toBe('done');
     expect(processor.seen).toEqual([OFFICE]);
   });
 
@@ -198,26 +254,39 @@ describe('TenantProcessor', () => {
     const { processor, log } = setup();
     await expect(processor.process(job(data))).rejects.toBeInstanceOf(UnrecoverableError);
     expect(processor.seen).toEqual([]);
-    expect(log.error).toHaveBeenCalledWith(expect.objectContaining({ jobId: '7', queue: 'notification' }), expect.any(String));
+    expect(log.error).toHaveBeenCalledWith(
+      expect.objectContaining({ jobId: '7', queue: 'notification' }),
+      expect.any(String),
+    );
   });
 
   it('should fail without retries on a queue without a policy', async () => {
-    await expect(setup().processor.process(job({ officeId: OFFICE, requestId: null }, 'mystery'))).rejects.toBeInstanceOf(
-      UnrecoverableError,
-    );
+    await expect(
+      setup().processor.process(job({ officeId: OFFICE, requestId: null }, 'mystery')),
+    ).rejects.toBeInstanceOf(UnrecoverableError);
   });
 
   it('should skip the job when its office has been suspended', async () => {
     const { processor, log } = setup(false);
-    await expect(processor.process(job({ officeId: OFFICE, requestId: null }))).resolves.toEqual(SKIPPED_OFFICE_INACTIVE);
+    await expect(processor.process(job({ officeId: OFFICE, requestId: null }))).resolves.toEqual(
+      SKIPPED_OFFICE_INACTIVE,
+    );
     expect(processor.seen).toEqual([]);
-    expect(log.warn).toHaveBeenCalledWith(expect.objectContaining({ jobId: '7' }), 'Office is inactive; job skipped');
+    expect(log.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ jobId: '7' }),
+      'Office is inactive; job skipped',
+    );
   });
 
   it('should log a failed attempt with the request id and rethrow it for BullMQ to retry', async () => {
     const { processor, log } = setup();
-    await expect(processor.process(job({ officeId: OFFICE, requestId: 'req-99999999', fail: true }))).rejects.toThrow('boom');
-    expect(log.warn).toHaveBeenCalledWith(expect.objectContaining({ requestId: 'req-99999999', attempt: 1 }), 'Job attempt failed');
+    await expect(
+      processor.process(job({ officeId: OFFICE, requestId: 'req-99999999', fail: true })),
+    ).rejects.toThrow('boom');
+    expect(log.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ requestId: 'req-99999999', attempt: 1 }),
+      'Job attempt failed',
+    );
   });
 
   it('should log worker connection errors instead of crashing', () => {
@@ -280,13 +349,18 @@ describe('UnitOfWork', () => {
     });
     expect(result).toBe(42);
     expect(order).toEqual(['in-transaction', 'first', 'third']);
-    expect(log.error).toHaveBeenCalledWith(expect.objectContaining({ task: 'enqueue ocr' }), expect.any(String));
+    expect(log.error).toHaveBeenCalledWith(
+      expect.objectContaining({ task: 'enqueue ocr' }),
+      expect.any(String),
+    );
   });
 
   it('should never run after-commit tasks when the transaction rolls back', async () => {
     const { uow } = setup(true);
     const task = jest.fn();
-    await expect(uow.run(async (_tx, afterCommit) => afterCommit(task))).rejects.toThrow('rollback');
+    await expect(uow.run(async (_tx, afterCommit) => afterCommit(task))).rejects.toThrow(
+      'rollback',
+    );
     expect(task).not.toHaveBeenCalled();
   });
 
@@ -302,22 +376,34 @@ describe('UnitOfWork', () => {
 
 describe('drainQueue', () => {
   it('should resolve once nothing is pending and fail after the timeout otherwise', async () => {
-    const idleAfter = jest.fn().mockResolvedValueOnce({ waiting: 1, active: 0 }).mockResolvedValue({ waiting: 0, active: 0 });
-    await expect(drainQueue({ name: 'q', getJobCounts: idleAfter } as unknown as Queue, 1000, 1)).resolves.toBeUndefined();
+    const idleAfter = jest
+      .fn()
+      .mockResolvedValueOnce({ waiting: 1, active: 0 })
+      .mockResolvedValue({ waiting: 0, active: 0 });
+    await expect(
+      drainQueue({ name: 'q', getJobCounts: idleAfter } as unknown as Queue, 1000, 1),
+    ).resolves.toBeUndefined();
     expect(idleAfter).toHaveBeenCalledTimes(2);
 
     const busy = jest.fn().mockResolvedValue({ active: 1 });
-    await expect(drainQueue({ name: 'q', getJobCounts: busy } as unknown as Queue, 5, 1)).rejects.toThrow(/still has pending jobs/);
+    await expect(
+      drainQueue({ name: 'q', getJobCounts: busy } as unknown as Queue, 5, 1),
+    ).rejects.toThrow(/still has pending jobs/);
   });
 });
 
 describe('mountBullBoard', () => {
   it('should serve the dashboard for every queue at /admin/queues, behind helmet without CSP', () => {
     // Stand-ins the adapter accepts as BullMQ queues; real ones would open Redis connections.
-    const fake = () => Object.assign(new EventEmitter(), { name: 'q', metaValues: { version: 'bullmq:5' } });
+    const fake = () =>
+      Object.assign(new EventEmitter(), { name: 'q', metaValues: { version: 'bullmq:5' } });
     const app = { get: jest.fn(fake), use: jest.fn() };
     mountBullBoard(app as unknown as NestExpressApplication);
     expect(app.get).toHaveBeenCalledTimes(QUEUE_NAMES.length);
-    expect(app.use).toHaveBeenCalledWith(BULL_BOARD_PATH, expect.any(Function), expect.any(Function));
+    expect(app.use).toHaveBeenCalledWith(
+      BULL_BOARD_PATH,
+      expect.any(Function),
+      expect.any(Function),
+    );
   });
 });

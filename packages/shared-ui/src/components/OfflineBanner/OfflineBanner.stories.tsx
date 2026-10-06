@@ -3,7 +3,9 @@ import { useLayoutEffect } from 'react';
 
 import { OfflineBanner } from './OfflineBanner';
 
-const meta = { title: 'Feedback/Offline banner', component: OfflineBanner } satisfies Meta<typeof OfflineBanner>;
+const meta = { title: 'Feedback/Offline banner', component: OfflineBanner } satisfies Meta<
+  typeof OfflineBanner
+>;
 export default meta;
 type Story = StoryObj<typeof meta>;
 

@@ -6,7 +6,9 @@ const req = (fields: { baseUrl?: string; route?: { path?: unknown } }): RoutedRe
 
 describe('routeTemplateOf', () => {
   it('should join baseUrl and the matched route path', () => {
-    expect(routeTemplateOf(req({ baseUrl: '/api/v1', route: { path: '/cases/:id' } }))).toBe('/api/v1/cases/:id');
+    expect(routeTemplateOf(req({ baseUrl: '/api/v1', route: { path: '/cases/:id' } }))).toBe(
+      '/api/v1/cases/:id',
+    );
     expect(routeTemplateOf(req({ route: { path: '/health' } }))).toBe('/health');
   });
 
