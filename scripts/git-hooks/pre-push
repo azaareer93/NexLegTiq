@@ -1,0 +1,4 @@
+# nexlegtiq-pre-push-start
+# Typecheck and unit-test what this branch changed against develop before it reaches CI. Skip once with `git push --no-verify`.
+pnpm exec nx affected -t typecheck test --base=origin/develop --head=HEAD || exit 1
+# nexlegtiq-pre-push-end

@@ -1,0 +1,4 @@
+# nexlegtiq-pre-commit-start
+# Format and lint the staged files (lint-staged.config.mjs). Skip once with `git commit --no-verify`.
+pnpm exec lint-staged || exit 1
+# nexlegtiq-pre-commit-end
