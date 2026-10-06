@@ -8,8 +8,13 @@ export const REQUEST_ID_HEADER = 'x-request-id';
  * Every failed call rejects with an `ApiError`: the UI maps `code` → `t('errors.<CODE>')` and `details` → form fields
  * (api-conventions.md). `message` is the server's English developer message, never shown to users.
  */
+/** D-076's shape of a request id: anything else (a proxy's header, injected text) is not shown to users as a reference. */
+const SAFE_REQUEST_ID = /^[A-Za-z0-9._:-]{8,128}$/;
+
 export class ApiError extends Error {
   override readonly name = 'ApiError';
+  /** D-076 correlation id, shown to the user for support; only when it has the D-076 shape. */
+  readonly requestId?: string;
 
   constructor(
     readonly code: ErrorCode,
@@ -17,12 +22,12 @@ export class ApiError extends Error {
     /** HTTP status; 0 when no response arrived (offline, timeout, CORS). */
     readonly status: number,
     readonly details: readonly ApiErrorDetail[] = [],
-    /** D-076 correlation id, shown to the user for support. */
-    readonly requestId?: string,
+    requestId?: string,
     /** Seconds to wait before retrying, from `Retry-After` (429 RATE-001, 503). */
     readonly retryAfter?: number,
   ) {
     super(message);
+    if (requestId !== undefined && SAFE_REQUEST_ID.test(requestId)) this.requestId = requestId;
   }
 }
 
@@ -44,7 +49,8 @@ export function toApiError(error: unknown): unknown {
   const headerId = response.headers[REQUEST_ID_HEADER] as unknown;
   // Only the delta-seconds form; an HTTP-date is not worth parsing for a hint.
   const retryHeader = Number(response.headers['retry-after']);
-  const retryAfter = Number.isInteger(retryHeader) && retryHeader > 0 ? retryHeader : undefined;
+  // A day at most: a hostile or broken header must not tell the user to wait for years.
+  const retryAfter = Number.isInteger(retryHeader) && retryHeader > 0 ? Math.min(retryHeader, 86_400) : undefined;
   const body: unknown = response.data;
   if (isErrorEnvelope(body)) {
     const { code, message, details } = body.error;

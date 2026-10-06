@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import axe from 'axe-core';
 import { HttpResponse } from 'msw';
 
@@ -192,6 +192,8 @@ describe('login page', () => {
     } finally {
       Reflect.deleteProperty(navigator, 'onLine');
     }
+    act(() => void window.dispatchEvent(new Event('online')));
+    await waitFor(() => expect(screen.queryByTestId('offline-banner')).toBeNull());
   });
 
   it('should validate with the contract before calling the API', async () => {
@@ -562,11 +564,14 @@ describe('sign out and lost sessions', () => {
     );
     signedIn();
     queryClient.setQueryData(['cases'], [{ id: 1 }]);
-    const { router } = renderApp('/');
-    await ready('page-dashboard');
+    const { router } = renderApp('/tasks?view=mine');
+    await ready('page-tasks');
     await expect(apiClient.request({ method: 'GET', path: 'things' })).rejects.toMatchObject({ code: 'AUTH-005' });
     expect((await ready('login-notice')).textContent).toBe('Your session has ended. Please sign in again.');
-    expect(new URLSearchParams(router.state.location.search).get('reason')).toBe('expired');
+    const params = new URLSearchParams(router.state.location.search);
+    expect(params.get('reason')).toBe('expired');
+    // Back where the user was after signing in again.
+    expect(params.get('next')).toBe('/tasks?view=mine');
     expect(queryClient.getQueryData(['cases'])).toBeUndefined();
   });
 

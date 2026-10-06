@@ -1,10 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { App, Button, Flex, Typography } from 'antd';
-import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { ErrorState } from '../States/States';
-import { ApiErrorAlert, OfflineBanner, useApiErrorHandler } from './ApiErrors';
+import { ApiErrorAlert, useApiErrorHandler } from './ApiErrors';
 
 const meta = { title: 'Feedback/API errors', component: ApiErrorAlert, args: { error: null } } satisfies Meta<typeof ApiErrorAlert>;
 export default meta;
@@ -14,15 +13,8 @@ const REQUEST_ID = '0192f0aa-77c1-7c3e-9a51-2b3c4d5e6f70';
 
 export const UserCanFix: Story = { args: { error: { code: 'AUTH-001' } } };
 export const RateLimited: Story = { args: { error: { code: 'RATE-001', retryAfter: 30 } } };
+export const UnknownCodeWithReference: Story = { args: { error: { code: 'ZZZ-999', requestId: REQUEST_ID } } };
 export const ServerFailureWithReference: Story = { args: { error: { code: 'SYS-001', requestId: REQUEST_ID } } };
-/** The banner reads the browser's state: the story overrides it while shown, and restores it when unmounted. */
-function OfflineDemo(): React.JSX.Element {
-  useState(() => Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => false }));
-  useEffect(() => () => void Reflect.deleteProperty(navigator, 'onLine'), []);
-  return <OfflineBanner />;
-}
-
-export const Offline: Story = { render: () => <OfflineDemo /> };
 
 function Conventions(): React.JSX.Element {
   const { t } = useTranslation();

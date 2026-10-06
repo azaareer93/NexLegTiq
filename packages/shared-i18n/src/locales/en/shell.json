@@ -61,6 +61,6 @@
   "goHome": "Go to the dashboard",
   "serverError": {
     "title": "Something went wrong on this page",
-    "body": "The problem has been recorded. Try again, or go back to the home page."
+    "body": "Try again, or go to the dashboard."
   }
 }

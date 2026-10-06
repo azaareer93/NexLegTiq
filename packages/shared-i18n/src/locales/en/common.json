@@ -24,7 +24,7 @@
     "reference": "Reference",
     "retryAfter_one": "Try again in {{count}} second.",
     "retryAfter_other": "Try again in {{count}} seconds.",
-    "offline": "You're offline. Changes can't be saved until the connection is back."
+    "offline": "You are offline. Changes cannot be saved until the connection is restored."
   },
   "fileCount_one": "{{count}} case",
   "fileCount_other": "{{count}} cases",

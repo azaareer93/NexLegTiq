@@ -2,6 +2,7 @@ import { permissionsFor, ROLES } from '@nexlegtiq/shared-types';
 import type { Role } from '@nexlegtiq/shared-types';
 import { LANGUAGE_STORAGE_KEY } from '@nexlegtiq/shared-ui';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { ApiError } from '@nexlegtiq/shared-api-client';
 import axe from 'axe-core';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import type { RouteObject } from 'react-router';
@@ -204,13 +205,30 @@ describe('navigation states and errors', () => {
     }
   });
 
-  it('should offer a retry and the home page on the 500 page', async () => {
+  it('should reload from the 500 page, which also links home', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const reload = vi.fn();
+    vi.stubGlobal('location', { ...window.location, reload });
+    try {
+      asRole('LAWYER');
+      renderWithExtraPages([{ path: 'broken', loader: () => { throw new Error('boom'); } }], '/broken');
+      const page = await screen.findByTestId('page-error');
+      expect(within(page).getByTestId('go-home')).toBeTruthy();
+      fireEvent.click(within(page).getByTestId('page-error-retry'));
+      expect(reload).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('should show an API failure in a page with its message and support reference', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     asRole('LAWYER');
-    renderWithExtraPages([{ path: 'broken', loader: () => { throw new Error('boom'); } }], '/broken');
+    const failure = new ApiError('SYS-001', 'db down', 500, [], 'req-12345678');
+    renderWithExtraPages([{ path: 'broken', loader: () => { throw failure; } }], '/broken');
     const page = await screen.findByTestId('page-error');
-    expect(within(page).getByTestId('page-error-retry')).toBeTruthy();
-    expect(within(page).getByTestId('go-home')).toBeTruthy();
+    expect(page.textContent).toContain('req-12345678');
+    expect(page.textContent).not.toContain('db down');
   });
 
   it('should show a thrown 404 response as the 404 page', async () => {
