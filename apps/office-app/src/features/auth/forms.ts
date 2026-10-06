@@ -1,15 +1,6 @@
-import { ApiError } from '@nexlegtiq/shared-api-client';
 import type { FormInstance } from 'antd';
 import type { Rule } from 'antd/es/form';
-import { useTranslation } from 'react-i18next';
 import type { z } from 'zod';
-
-/** `validation.*` keys from the contracts and the API's `details`; anything unknown gets the generic message. */
-export function useMessage(): (key: string) => string {
-  const { t, i18n } = useTranslation();
-  const translate = t as unknown as (key: string) => string;
-  return (key) => translate(i18n.exists(key as never) ? key : 'common.states.error');
-}
 
 /** Contract messages are `validation.*` keys; Zod's own messages (a value of the wrong type) only arise for empty fields. */
 const keyOf = (issue: z.core.$ZodIssue): string => (issue.message.startsWith('validation.') ? issue.message : 'validation.required');
@@ -49,19 +40,6 @@ export function parseForm<S extends z.ZodType>(
   }
   form.setFields(result.error.issues.map((issue) => ({ name: issue.path.map(String), errors: [message(keyOf(issue))] })));
   return null;
-}
-
-/** Puts the API's field errors (VAL-001 `details`) on the form fields it has; `isFieldError` tells if that was all. */
-export function applyServerErrors(form: FormInstance, error: unknown, fields: readonly string[], message: (key: string) => string): void {
-  if (error instanceof ApiError) {
-    const onFields = error.details.filter((detail) => fields.includes(detail.field));
-    form.setFields(onFields.map((detail) => ({ name: detail.field, errors: [message(detail.message)] })));
-  }
-}
-
-/** True when the failure is fully explained by field errors on the form (no banner needed). */
-export function isFieldError(error: unknown, fields: readonly string[]): boolean {
-  return error instanceof ApiError && error.details.length > 0 && error.details.every((detail) => fields.includes(detail.field));
 }
 
 /**

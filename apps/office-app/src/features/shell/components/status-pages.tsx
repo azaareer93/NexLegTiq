@@ -1,5 +1,6 @@
-import { ErrorState } from '@nexlegtiq/shared-ui';
-import { Button, Result } from 'antd';
+import type { ErrorCode } from '@nexlegtiq/shared-types';
+import { ErrorState, isApiError } from '@nexlegtiq/shared-ui';
+import { Button, Flex, Result } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { isRouteErrorResponse, Link, useRouteError } from 'react-router';
 
@@ -28,7 +29,8 @@ const isChunkLoadError = (error: unknown): boolean =>
 
 /**
  * The error page of a route (`errorElement`), shown inside the shell for its pages. A thrown 404 response is the 404 page, a
- * failed code chunk offers a reload, anything else (a bug) the generic error with a retry — never the error's own text.
+ * failed code chunk offers a reload, an API failure (a loader's request) its message and support reference, anything else (a
+ * bug) the 500 page with a retry — never the error's own text.
  */
 export function RouteError(): React.JSX.Element {
   const { t } = useTranslation();
@@ -47,9 +49,27 @@ export function RouteError(): React.JSX.Element {
       />
     );
   }
+  if (isApiError(error)) {
+    return (
+      <div data-testid="page-error">
+        <ErrorState code={error.code as ErrorCode} requestId={error.requestId} onRetry={() => window.location.reload()} />
+      </div>
+    );
+  }
   return (
-    <div data-testid="page-error">
-      <ErrorState code="SYS-001" onRetry={() => window.location.reload()} />
-    </div>
+    <Result
+      status="500"
+      title={t('shell.serverError.title')}
+      subTitle={t('shell.serverError.body')}
+      extra={
+        <Flex gap={8} justify="center" wrap>
+          <Button type="primary" onClick={() => window.location.reload()} data-testid="page-error-retry">
+            {t('common.actions.retry')}
+          </Button>
+          <HomeLink />
+        </Flex>
+      }
+      data-testid="page-error"
+    />
   );
 }

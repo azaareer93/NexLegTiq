@@ -1,14 +1,14 @@
 import { ApiError } from '@nexlegtiq/shared-api-client';
 import { NewPasswordSchema, ResetPasswordRequestSchema } from '@nexlegtiq/shared-contracts';
 import type { ResetPasswordRequest } from '@nexlegtiq/shared-contracts';
+import { ApiErrorAlert, useApiErrorHandler } from '@nexlegtiq/shared-ui';
 import { useMutation } from '@tanstack/react-query';
 import { Button, Flex, Form, Input, Result } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router';
 
 import { AuthLayout } from '../components/AuthLayout';
-import { FormError } from '../components/FormError';
-import { applyServerErrors, parseForm, useMessage, zodRule } from '../forms';
+import { parseForm, zodRule } from '../forms';
 import { auth, broadcast, endSession, useSession } from '../session';
 import { useLinkToken } from '../use-link-token';
 
@@ -18,7 +18,7 @@ const FIELDS = ['newPassword', 'confirmPassword'];
 /** The page of the emailed reset link: a used, expired or unknown link is 410 RES-004 (D-086). */
 export function ResetPasswordPage(): React.JSX.Element {
   const { t } = useTranslation();
-  const message = useMessage();
+  const { translateKey: message, applyToForm } = useApiErrorHandler();
   const navigate = useNavigate();
   const token = useLinkToken();
   const [form] = Form.useForm();
@@ -35,7 +35,7 @@ export function ResetPasswordPage(): React.JSX.Element {
       }
       void navigate('/login?reason=passwordReset', { replace: true });
     },
-    onError: (error) => applyServerErrors(form, error, FIELDS, message),
+    onError: (error) => applyToForm(form, error, FIELDS),
   });
 
   const invalidLink = !token || (reset.error instanceof ApiError && (reset.error.code === 'RES-004' || reset.error.details.some((d) => d.field === 'token')));
@@ -65,7 +65,7 @@ export function ResetPasswordPage(): React.JSX.Element {
   return (
     <AuthLayout title={t('auth.resetPassword.title')}>
       <Flex vertical gap={16}>
-        <FormError error={reset.error} fields={FIELDS} />
+        <ApiErrorAlert error={reset.error} fields={FIELDS} />
         <Form form={form} noValidate layout="vertical" requiredMark={false} onFinish={submit} disabled={reset.isPending}>
           <Form.Item name="newPassword" label={t('auth.fields.newPassword')} extra={t('auth.passwordHint')} rules={zodRule(NewPasswordSchema, message)}>
             <Input.Password autoComplete="new-password" dir="ltr" autoFocus data-testid="reset-new-password" />

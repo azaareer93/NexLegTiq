@@ -59,6 +59,12 @@ Implementation, menu permissions and placeholder/403/404 pages: D-091 (`apps/off
 - **Client portal**: login, my files (status, next hearing, public timeline), shared documents, upload requested docs, invoices.
 - **Admin panel**: offices, subscriptions/plans, usage, platform audit, queue dashboard link.
 
+## Feedback and errors (D-093)
+Success of an action → short toast (`message.success`), never for page loads. Failed action without its own form → `notify(error)`
+(notification). Failed form → VAL-001 details on their fields + `ApiErrorAlert` for the rest. Failed load → `ErrorState` with retry.
+Server-side failures (SYS/DB/EXT/STO, unknown codes) show the request id as a support reference. Offline → `OfflineBanner` (shell
+and sign-in pages). Route errors: 403 / 404 / 500 pages inside the shell, chunk-load failure → reload. All via `useApiErrorHandler`.
+
 ## Keyboard shortcuts
 Ctrl/Cmd+K search · Ctrl+Alt+N new file · Ctrl+Alt+C new client · Ctrl+Alt+T new task · Ctrl+Alt+U upload ·
 Ctrl+Alt+H new hearing · Ctrl+/ help · Esc close. (Docs' Ctrl+N/Ctrl+Shift+N collide with browser shortcuts — use Alt variants.)

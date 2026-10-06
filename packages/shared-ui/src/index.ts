@@ -1,4 +1,6 @@
 export { AiDisclaimer } from './components/AiDisclaimer/AiDisclaimer';
+export { ApiErrorAlert, isApiError, isFieldError, useApiErrorHandler } from './components/ApiErrors';
+export type { ApiErrorAlertProps, ApiErrorHandler, ApiErrorLike } from './components/ApiErrors';
 export { Bdi, Ltr } from './components/Bidi/Bidi';
 export { Can, PermissionsProvider, useCan } from './components/Can';
 export type { CanProps, PermissionsProviderProps } from './components/Can';
@@ -11,6 +13,7 @@ export type { DirectionalIconProps } from './components/DirectionalIcon/Directio
 export { LANGUAGE_STORAGE_KEY, LanguageProvider, useLanguage } from './components/LanguageProvider';
 export type { LanguageContextValue, LanguageProviderProps } from './components/LanguageProvider';
 export { NexProvider } from './components/NexProvider';
+export { OfflineBanner, useOnline } from './components/OfflineBanner/OfflineBanner';
 export type { NexProviderProps } from './components/NexProvider';
 export { PageHeader } from './components/PageHeader/PageHeader';
 export type { PageHeaderProps } from './components/PageHeader/PageHeader';

@@ -12,7 +12,8 @@ paths:
 - Server state only via TanStack Query hooks built on `@nexlegtiq/shared-api-client` (query keys from a `keys.ts` factory per feature).
   Zustand only for client state (auth session, UI prefs). Never store the access token in localStorage/sessionStorage.
 - Forms: AntD `Form` + Zod schema from `shared-contracts` (via a `zodRule` adapter) — same validation as the backend.
-- Map API `error.code` → `t('errors.<CODE>')`; show field errors from `error.details`. Every failure is an `ApiError` (D-089);
+- Errors only through `useApiErrorHandler` / `ApiErrorAlert` / `ErrorState` (shared-ui, D-093): `errors.<CODE>`, field errors from
+  `error.details`, a support reference for server failures; never an error's own text. Every failure is an `ApiError` (D-089);
   restore the session with `authApi.refresh()` at app start; `onAuthFailure` clears stores + `queryClient.clear()` and goes to sign-in.
 - **No literal user-facing strings**: `t('feature.key')`; add keys to both `ar` and `en`; use `docs/context/glossary.md` terms.
 - **RTL**: CSS logical properties only; icons that imply direction flip in RTL; wrap numbers/emails/file numbers in `<bdi>`/`dir="ltr"`.

@@ -30,8 +30,9 @@ export const useCreateCase = () => {
 ```
 
 ## Forms
-AntD `Form` + `zodRule(CreateCaseSchema.shape.title, t)` adapter; server errors: `applyServerErrors(form, error)` maps
-`error.details[].field` → form fields; toast `t(\`errors.${code}\`)` otherwise.
+AntD `Form` + `zodRule(CreateCaseSchema.shape.title, translateKey)` adapter. Errors via `useApiErrorHandler()` (shared-ui, D-093):
+`applyToForm(form, error, FIELDS)` puts VAL-001 `details` on fields and `<ApiErrorAlert error fields />` explains the rest; a
+failed action without a form → `notify(error)`; a failed load → `<ErrorState code requestId onRetry />`; success → `message.success`.
 
 ## Pages
 - List pages: filters in URL search params (`useSearchParams`), server pagination, empty/loading/error states (shared components).

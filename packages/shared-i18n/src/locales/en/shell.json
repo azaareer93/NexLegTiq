@@ -58,5 +58,9 @@
     "body": "Check your connection, then reload the page.",
     "reload": "Reload"
   },
-  "goHome": "Go to the dashboard"
+  "goHome": "Go to the dashboard",
+  "serverError": {
+    "title": "Something went wrong on this page",
+    "body": "Try again, or go to the dashboard."
+  }
 }

@@ -1,5 +1,5 @@
 import { isLocale } from '@nexlegtiq/shared-types';
-import { useLanguage } from '@nexlegtiq/shared-ui';
+import { OfflineBanner, useLanguage } from '@nexlegtiq/shared-ui';
 import { Card, Flex, Layout, Segmented, Typography } from 'antd';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -18,6 +18,7 @@ export function AuthLayout({ title, subtitle, children }: AuthLayoutProps): Reac
   const { locale, setLocale } = useLanguage();
   return (
     <Layout style={{ minBlockSize: '100vh' }}>
+      <OfflineBanner />
       <Layout.Content>
         <Flex vertical align="center" justify="center" gap={16} style={{ minBlockSize: '100vh', paddingBlock: 32, paddingInline: 16 }}>
           <Flex justify="space-between" align="center" style={{ inlineSize: '100%', maxInlineSize: 440 }}>
