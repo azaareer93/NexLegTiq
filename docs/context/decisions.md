@@ -700,3 +700,30 @@ permission, so `manage:clients` doubles as "see clients" — the Clients feature
 menu follows the permissions of the last sign-in or refresh (up to 15 min stale after a role change; the server applies it at
 once, D-081). **Open, owner's call:** Arabic month names — today the MSA names (أكتوبر) as dayjs `ar` prints them; the
 Levantine names used in Palestine (تشرين الأول) would apply to every date in the app.
+
+**D-092 — Formatting dates, numbers and money; Arabic normalisation** · Accepted (owner chose MSA month names; MVP-46, 2026-10-06)
+MVP-46 left the month names, rounding, time zone and digit preference open. → **`shared-utils`** (pure, 100% covered):
+`formatDate(value, {locale, timeZone, digits, style})` writes **dd/MM/yyyy** in both languages whatever the locale's own
+pattern (`style: 'long'`: 13 أكتوبر 2026 / 13 October 2026 — English in day-month order); `formatTime` (3:05 م / 3:05 PM),
+`formatDateTime`, `formatRelative` (أمس، أول أمس، غدًا، قبل 3 أيام; Intl handles Arabic's dual and plurals; `now` is a
+parameter), `formatNumber`, `formatMoney(amount: decimal string, currency)`. **Arabic month names are MSA everywhere**
+(أكتوبر, not the Levantine تشرين الأول — owner's choice): the Intl locale is plain `ar`. **Digits** are Western by default
+and Arabic-Indic (٠-٩) as a user preference: the numbering system is always explicit (`<locale>-u-nu-latn|arab`), because
+engines disagree on Arabic's default. **Time zone:** every instant is shown in a given IANA zone, never the device's —
+the user's `timezone`, else the office's, defaulting to `Asia/Hebron` (`Office.timezone` default); DST is ICU's (Hebron 2026:
+28 March and 24 October, tested). **Money:** amounts stay decimal strings end to end (D-017); `formatMoney` formats the
+exact string (no float on the way) with the **currency's own minor digits** (ILS 2, JOD 3, JPY 0) and **half-even**
+rounding; Intl places the symbol (₪1,234.50 / ‏1,234.50 ₪, with a no-break space and bidi marks in Arabic). **Money math**
+(`addMoney`, `subtractMoney`, `multiplyMoney`, `percentOf`, `roundMoney(value, digits | currency)`, `compareMoney`) runs on
+a private decimal.js clone (precision 40, half-even); results are unrounded until `roundMoney`, so a total is rounded once.
+A property test checks `roundMoney` against an integer (BigInt) half-even implementation on 5,000 amounts.
+`normalizeArabic` mirrors `nlq_normalize_ar` (tashkeel, dagger alef, tatweel, alef/ya/ta-marbuta/hamza forms, lower-case);
+the Postgres integration test asserts both give the same result on the same fixtures. `isolateLtr`/`isolate` add Unicode
+isolates for plain-text contexts (subjects, titles, `aria-label`s) where `<Ltr>`/`<Bdi>` cannot be used; digit converters
+help parse what users type. **`shared-ui`:** `useFormat()` returns these bound to the current language and to the time zone
+and digits given to `NexProvider` (`timeZone`, `digits` props); the office app passes none yet (no user setting or office
+zone in the session until the profile and office settings exist), so Asia/Hebron and Western digits apply. ES2023 Intl
+(`roundingMode`, exact string formatting) is typed locally: the workspace compiles with the `es2022` lib. **Known
+limit:** money columns are `Decimal(14,2)` (D-017) while JOD has three minor digits — JOD amounts show a trailing 0 until
+the billing schema decides. Why: one way to show legal deadlines and fees, never off by a day or a fils.
+
