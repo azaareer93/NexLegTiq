@@ -1,3 +1,5 @@
+import { normalizeArabic } from '@nexlegtiq/shared-utils';
+
 import { createSeedClient, PLANS, seedPlans } from '../../prisma/seed';
 import { DEMO_OFFICE_ID, seedDemo } from '../../prisma/seed-demo';
 import type { PrismaClient } from '../generated/prisma/client';
@@ -82,6 +84,8 @@ describe('database (migrations + seeds, real PostgreSQL)', () => {
     const [row] = await prisma.$queryRaw<[{ value: string }]>`SELECT nlq_normalize_ar(${input}) AS value`;
 
     expect(row.value).toBe(expected);
+    // The app's normalizeArabic (search terms typed in the UI) must agree with the database function (MVP-46).
+    expect(normalizeArabic(input)).toBe(row.value);
   });
 
   it('should return NULL for NULL and be idempotent', async () => {

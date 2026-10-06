@@ -455,7 +455,7 @@ describe('email confirmation banner', () => {
     signedIn({ emailVerified: false, verifyBy: '2026-10-13T12:00:00.000Z' });
     renderApp('/');
     const banner = await screen.findByTestId('verify-banner');
-    expect(banner.textContent).toContain('Please confirm your email address by October 13, 2026 to keep your access.');
+    expect(banner.textContent).toContain('Please confirm your email address by 13 October 2026 to keep your access.');
     fireEvent.click(screen.getByTestId('verify-banner-resend'));
     expect((await screen.findByTestId('verify-banner-sent')).getAttribute('role')).toBe('status');
     expect(resent).toEqual({ email: 'layla@example.test' });

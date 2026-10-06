@@ -13,8 +13,10 @@ description: Arabic/English localization and RTL rules for NexLegTiq UI and emai
 4. **Bidi**: wrap file numbers, phone numbers, emails, URLs, amounts, and mixed-script names in `<Ltr>`/`<bdi>`; tables with numeric
    columns align `end`.
 5. **Icons**: arrows/chevrons/back/undo mirror in RTL (`<DirectionalIcon>`); checkmarks, play, logos don't.
-6. **Formatting**: `formatDate(d, locale, tz)` (dd/MM/yyyy default), `formatMoney(amount, currency, locale)` via Intl; digits Western by default,
-   Arabic-Indic if user pref; times with ص/م in Arabic.
+6. **Formatting**: `useFormat()` in components (`date`, `dateTime`, `time`, `relative`, `number`, `money`), or `formatDate(value,
+   { locale, timeZone, digits })` / `formatMoney(decimalString, currency, opts)` from `shared-utils`: dd/MM/yyyy, ص/م, MSA months,
+   Western digits unless the user prefers Arabic-Indic, money as decimal strings with half-even rounding (D-092). Formatted
+   money and long dates are already in the reading direction: `<Bdi>` at most, never `<Ltr>`.
 7. **Emails/PDFs**: templates per locale (`templates/<name>.<locale>.hbs`), `dir` on root, Arabic font embedded (Amiri).
    The UI uses IBM Plex Sans Arabic, self-hosted by shared-ui (D-088).
 8. **Verify**: Storybook Language toolbar (Arabic RTL / English LTR) and a11y panel; render tests inside `<NexProvider userLocale="ar">`

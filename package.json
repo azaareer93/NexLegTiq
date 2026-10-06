@@ -100,6 +100,7 @@
     "@tanstack/react-query": "^5.104.1",
     "antd": "^6.6.5",
     "dayjs": "^1.11.23",
+    "decimal.js": "^10.6.0",
     "i18next": "^26.4.2",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
