@@ -44,7 +44,6 @@ export function setupTestServer(): void {
     resetSession();
     localStorage.clear();
     vi.useRealTimers();
-    setViewport(1024);
   });
   afterAll(() => server.close());
 }
@@ -74,6 +73,8 @@ export function renderApp(path: string, locale: Locale = 'en', { strict = false 
 export function setViewport(width: number): void {
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
 }
+
+export { resizeTo } from './media';
 
 /** Opens the account menu and signs out (the shell's menu holds sign-out). */
 export async function signOutFromMenu(): Promise<void> {

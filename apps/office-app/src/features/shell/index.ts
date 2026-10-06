@@ -1,3 +1,5 @@
 export { AppShell } from './components/AppShell';
-export { ForbiddenPage, NotFoundPage, PlaceholderPage, RequirePermission, RouteError } from './components/pages';
+export { RequirePermission } from './components/RequirePermission';
+export { NotFoundPage, RouteError } from './components/status-pages';
 export { NAV_ITEMS } from './nav';
+export type { NavKey } from './nav';

@@ -5,31 +5,43 @@ import type { MenuProps } from 'antd';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-type QuickAction = 'file' | 'client' | 'task';
+const QUICK_ACTIONS = ['file', 'client', 'task'] as const;
+type QuickAction = (typeof QUICK_ACTIONS)[number];
+const isQuickAction = (key: string): key is QuickAction => (QUICK_ACTIONS as readonly string[]).includes(key);
 
 /** + Case, + Client, + Task for who may create them. Each opens a placeholder until its feature exists. */
 export function QuickActions({ compact = false }: { readonly compact?: boolean }): React.JSX.Element | null {
   const { t } = useTranslation();
-  const [action, setAction] = useState<QuickAction | null>(null);
-  const can = { file: useCan('create:case'), client: useCan('manage:clients'), task: useCan('create:task') };
+  const [open, setOpen] = useState(false);
+  // Kept after closing, so the title does not go blank during the close animation.
+  const [action, setAction] = useState<QuickAction>('file');
+  const can: Record<QuickAction, boolean> = { file: useCan('create:case'), client: useCan('manage:clients'), task: useCan('create:task') };
 
-  const items: MenuProps['items'] = [
-    can.file ? { key: 'file', icon: <FolderAddOutlined />, label: t('shell.quick.file'), 'data-testid': 'quick-file' } : null,
-    can.client ? { key: 'client', icon: <UserAddOutlined />, label: t('shell.quick.client'), 'data-testid': 'quick-client' } : null,
-    can.task ? { key: 'task', icon: <CheckSquareOutlined />, label: t('shell.quick.task'), 'data-testid': 'quick-task' } : null,
-  ].filter((item) => item !== null);
+  const icons: Record<QuickAction, React.JSX.Element> = { file: <FolderAddOutlined />, client: <UserAddOutlined />, task: <CheckSquareOutlined /> };
+  const items: MenuProps['items'] = QUICK_ACTIONS.filter((key) => can[key]).map((key) => ({
+    key,
+    icon: icons[key],
+    label: t(`shell.quick.${key}`),
+    'data-testid': `quick-${key}`,
+  }));
 
   if (items.length === 0) {
     return null;
   }
+  const onClick: MenuProps['onClick'] = ({ key }) => {
+    if (isQuickAction(key)) {
+      setAction(key);
+      setOpen(true);
+    }
+  };
   return (
     <>
-      <Dropdown menu={{ items, onClick: ({ key }) => setAction(key as QuickAction) }} trigger={['click']}>
-        <Button type="primary" icon={<PlusOutlined />} aria-label={t('shell.quick.label')} data-testid="quick-actions">
+      <Dropdown menu={{ items, onClick }} trigger={['click']}>
+        <Button type="primary" icon={<PlusOutlined />} aria-label={compact ? t('shell.quick.label') : undefined} data-testid="quick-actions">
           {compact ? null : t('shell.quick.label')}
         </Button>
       </Dropdown>
-      <Modal open={action !== null} onCancel={() => setAction(null)} footer={null} title={action ? t(`shell.quick.${action}`) : null} data-testid="quick-placeholder">
+      <Modal open={open} onCancel={() => setOpen(false)} footer={null} title={t(`shell.quick.${action}`)} data-testid="quick-placeholder">
         <EmptyState title={t('shell.comingSoon.title')} description={t('shell.comingSoon.body')} />
       </Modal>
     </>

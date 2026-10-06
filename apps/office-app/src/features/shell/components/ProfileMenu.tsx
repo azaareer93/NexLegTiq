@@ -1,39 +1,32 @@
-import { BellOutlined, GlobalOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons';
-import { Bdi, EmptyState, useLanguage } from '@nexlegtiq/shared-ui';
-import { Avatar, Badge, Button, Dropdown, Popover } from 'antd';
+import { GlobalOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons';
+import { Bdi, DirectionalIcon, useLanguage } from '@nexlegtiq/shared-ui';
+import { Avatar, Button, Dropdown } from 'antd';
 import type { MenuProps } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 
 import { signOut, useSession } from '../../auth';
 
-/** The bell: a slot for the notifications feature, with its empty state until then. */
-export function NotificationsBell(): React.JSX.Element {
-  const { t } = useTranslation();
-  return (
-    <Popover trigger="click" content={<EmptyState description={t('shell.notifications.empty')} />}>
-      <Badge count={0} size="small">
-        <Button type="text" icon={<BellOutlined />} aria-label={t('shell.notifications.open')} data-testid="notifications" />
-      </Badge>
-    </Popover>
-  );
-}
-
-/** Initials for the avatar: first letters of the first two words, in the name's own script. */
-const initialsOf = (name: string) =>
-  name
+/**
+ * Initials for the avatar: first letters of the first two words. Arabic letters would join into one cursive shape, so they
+ * are kept apart with a zero-width non-joiner; Latin ones are upper-cased.
+ */
+export function initialsOf(name: string): string {
+  const letters = name
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
-    .map((word) => [...word][0])
-    .join('');
+    .map((word) => [...word][0] ?? '');
+  return /^[A-Za-z]/.test(letters[0] ?? '') ? letters.join('').toLocaleUpperCase() : letters.join('‌');
+}
 
-/** The account menu: profile, language and sign-out. */
+/** The account menu: my account, language and sign-out. */
 export function ProfileMenu({ compact = false }: { readonly compact?: boolean }): React.JSX.Element {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { locale, setLocale } = useLanguage();
   const user = useSession((state) => state.user);
+  const name = user?.fullName ?? '';
 
   // The language applies at once; saving it to the profile comes with `PATCH users/me` (D-087 `onLocaleChange`).
   const items: MenuProps['items'] = [
@@ -42,13 +35,15 @@ export function ProfileMenu({ compact = false }: { readonly compact?: boolean })
       key: 'language',
       icon: <GlobalOutlined />,
       label: t('shell.profile.language'),
+      'data-testid': 'menu-language',
       children: [
         { key: 'lang-ar', label: <span lang="ar">{t('common.language.ar')}</span>, disabled: locale === 'ar', 'data-testid': 'menu-lang-ar' },
         { key: 'lang-en', label: <span lang="en">{t('common.language.en')}</span>, disabled: locale === 'en', 'data-testid': 'menu-lang-en' },
       ],
     },
     { type: 'divider' },
-    { key: 'logout', icon: <LogoutOutlined />, label: t('auth.logout'), danger: true, 'data-testid': 'sign-out' },
+    // The sign-out arrow points out of the page, so it follows the reading direction.
+    { key: 'logout', icon: <DirectionalIcon icon={LogoutOutlined} />, label: t('auth.logout'), danger: true, 'data-testid': 'sign-out' },
   ];
 
   const onClick: MenuProps['onClick'] = ({ key }) => {
@@ -59,12 +54,19 @@ export function ProfileMenu({ compact = false }: { readonly compact?: boolean })
   };
 
   return (
-    <Dropdown menu={{ items, onClick }} trigger={['click']}>
-      <Button type="text" aria-label={t('shell.profile.menu')} data-testid="profile-menu" style={{ paddingInline: 4 }}>
+    // Submenus open on click: hover is unreliable on touch screens.
+    <Dropdown menu={{ items, onClick, triggerSubMenuAction: 'click' }} trigger={['click']}>
+      <Button
+        type="text"
+        // With the name visible, the name is the label (WCAG 2.5.3); icon-only, the menu says what it is and whose it is.
+        aria-label={compact ? `${t('shell.profile.menu')} — ${name}` : undefined}
+        data-testid="profile-menu"
+        style={{ paddingInline: 4 }}
+      >
         <Avatar size="small" aria-hidden="true">
-          {initialsOf(user?.fullName ?? '')}
+          <bdi>{initialsOf(name)}</bdi>
         </Avatar>
-        {compact ? null : <Bdi>{user?.fullName}</Bdi>}
+        {compact ? null : <Bdi>{name}</Bdi>}
       </Button>
     </Dropdown>
   );

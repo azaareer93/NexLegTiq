@@ -23,7 +23,6 @@
   },
   "search": {
     "open": "Search",
-    "shortcut": "Ctrl K",
     "placeholder": "Search cases, clients, documents…",
     "comingSoon": "Search across your office is coming soon."
   },
@@ -33,7 +32,7 @@
   },
   "profile": {
     "menu": "Account menu",
-    "profile": "My profile",
+    "profile": "My account",
     "language": "Language"
   },
   "comingSoon": {
@@ -42,14 +41,13 @@
   },
   "verify": {
     "banner": "Please confirm your email address. We sent you a link when you signed up.",
-    "deadline": "Confirm it by {{date}} to keep your access.",
+    "bannerWithDeadline": "Please confirm your email address by {{date}} to keep your access. We sent you a link when you signed up.",
     "resend": "Send the link again",
     "sent": "A new link is on its way."
   },
   "notFound": {
     "title": "Page not found",
-    "body": "The page you are looking for does not exist or has moved.",
-    "home": "Go to the dashboard"
+    "body": "The page you are looking for does not exist or has moved."
   },
   "forbidden": {
     "title": "No access",
@@ -59,5 +57,6 @@
     "title": "This page could not be loaded",
     "body": "Check your connection, then reload the page.",
     "reload": "Reload"
-  }
+  },
+  "goHome": "Go to the dashboard"
 }
