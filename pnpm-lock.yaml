@@ -41,6 +41,9 @@ importers:
       dayjs:
         specifier: ^1.11.23
         version: 1.11.23
+      decimal.js:
+        specifier: ^10.6.0
+        version: 10.6.0
       i18next:
         specifier: ^26.4.2
         version: 26.4.2(typescript@6.0.3)
@@ -330,6 +333,9 @@ importers:
       '@nexlegtiq/shared-types':
         specifier: workspace:*
         version: link:../../packages/shared-types
+      '@nexlegtiq/shared-utils':
+        specifier: workspace:*
+        version: link:../../packages/shared-utils
       '@node-rs/argon2':
         specifier: ^2.2.1
         version: 2.2.1
@@ -505,6 +511,9 @@ importers:
       '@nexlegtiq/shared-types':
         specifier: workspace:*
         version: link:../shared-types
+      decimal.js:
+        specifier: ^10.6.0
+        version: 10.6.0
 
 packages:
 

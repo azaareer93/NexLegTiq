@@ -17,7 +17,7 @@ const sources = import.meta.glob<string>('./components/**/*.stories.tsx', { eage
 const AXE_OPTIONS: axe.RunOptions = { rules: { 'color-contrast': { enabled: false }, region: { enabled: false } } };
 
 /** Providers and wrappers that are shown inside every story rather than in their own. */
-const NOT_VISUAL = ['NexProvider', 'LanguageProvider', 'PermissionsProvider', 'Can'];
+const NOT_VISUAL = ['NexProvider', 'LanguageProvider', 'PermissionsProvider', 'FormatSettingsProvider', 'Can'];
 
 // Composed with the real Storybook preview (its NexProvider decorator and Language toolbar), once per language.
 const cases = SUPPORTED_LOCALES.flatMap((locale) =>

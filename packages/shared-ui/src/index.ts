@@ -4,6 +4,8 @@ export { Can, PermissionsProvider, useCan } from './components/Can';
 export type { CanProps, PermissionsProviderProps } from './components/Can';
 export { ConfirmModal } from './components/ConfirmModal/ConfirmModal';
 export type { ConfirmModalProps } from './components/ConfirmModal/ConfirmModal';
+export { FormatSettingsProvider, useFormat } from './components/Format';
+export type { FormatSettings, Formatters } from './components/Format';
 export { DirectionalIcon } from './components/DirectionalIcon/DirectionalIcon';
 export type { DirectionalIconProps } from './components/DirectionalIcon/DirectionalIcon';
 export { LANGUAGE_STORAGE_KEY, LanguageProvider, useLanguage } from './components/LanguageProvider';
