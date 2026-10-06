@@ -27,6 +27,8 @@ export default defineConfig(() => ({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
+    // Whole-app flows (lazy routes, AntD forms) take 1-3 s alone and more on a loaded CI runner.
+    testTimeout: 20_000,
     include: ['{src,tests}/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
     reporters: ['default'],
     coverage: {
