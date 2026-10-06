@@ -756,10 +756,19 @@ optional `details`, `requestId`, `retryAfter`; axios codes such as `ERR_NETWORK`
 id is shown only when the user cannot fix the failure (`SYS-`, `DB-`, `EXT-`, `STO-` or a code this build does not know) — not under
 "wrong password". **Offline:** `OfflineBanner` reads `navigator.onLine` and its events (reliable for "offline", optimistic for
 "online"), shown under the shell header and on the sign-in pages; requests still fail as SYS-002 and keep their own messages.
-**500 page:** an unexpected route error is AntD's `Result status="500"` with "try again" (reload) and "home" (AntD's MIT-licensed
-illustrations, no stock artwork). **Deviation — no session-expired modal:** when a refresh is refused the session is already gone
+**500 page:** an unexpected route error is AntD's `Result status="500"` with "try again" (reload) and "home". **Deviation:**
+the ticket's "illustrations original" is not met — the 403/404/500 pages use AntD's own MIT-licensed illustrations until custom
+artwork exists (owner's call). **Deviation — no session-expired modal:** when a refresh is refused the session is already gone
 (token, user and query cache cleared, D-090), so a modal could only add a click before the same redirect; the guard sends the user to
 sign-in with the "session expired" notice and `next` set to where they were, which meets the ticket's intent. **Toast conventions**
 live in Storybook (Feedback › API errors › Feedback conventions): success → `message.success` (new key `common.feedback.saved`); failed
 action → `notify`; failed form → fields + `ApiErrorAlert`; failed load → `ErrorState`. `auth.retryAfter_*` moved to
-`common.states.retryAfter_*`. Why: every app explains failures the same way, in the user's language, with a reference support can use.
+`common.states.retryAfter_*`. Review additions (same PR): **the API client keeps a request id only when it has the D-076 shape**
+(`ApiError` drops anything else — a proxy's header could otherwise put arbitrary text or bidi controls next to "Reference") and
+caps `Retry-After` at a day; `AI-001`/`AI-004` (provider down or failing) also show the reference; `ApiErrorLike.code` is a plain
+string and "known" means `isErrorCode` (shared-types), whose AR/EN text D-087 guarantees; the handler is memoised (stable until the
+language changes, so it can be an effect dependency) and `notify` falls back to AntD's static notification outside `App`; a route
+whose loader throws an `ApiError` shows `ErrorState` with its message and reference instead of the bare 500 page; `OfflineBanner` /
+`useOnline` live in their own component folder; the 500 text no longer claims the problem "has been recorded" (there is no
+client-side error reporting yet). Why: every app explains failures the same way, in the user's language, with a reference support
+can use.
