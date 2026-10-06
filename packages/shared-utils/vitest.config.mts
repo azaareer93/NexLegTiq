@@ -15,8 +15,8 @@ export default defineConfig(() => ({
       provider: 'v8' as const,
       include: ['src/**/*.{ts,tsx}'],
       exclude: ['src/**/*.{spec,test}.{ts,tsx}', 'src/**/index.ts'],
-      // D-071 quality gate (enforced when run with --coverage, as CI does)
-      thresholds: { lines: 80, branches: 80, functions: 80, statements: 80 },
+      // packages.md: pure utils are 100% covered (enforced when run with --coverage, as CI does)
+      thresholds: { lines: 100, branches: 100, functions: 100, statements: 100 },
     }
   },
 }));

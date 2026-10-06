@@ -22,9 +22,20 @@ export interface FormatSettings {
 
 const FormatSettingsContext = createContext<FormatSettings>({});
 
+/** A zone the runtime knows; anything else (a bad saved setting) must not break every page, so it falls back. */
+function knownZone(timeZone: string | undefined): string | undefined {
+  if (timeZone === undefined) return undefined;
+  try {
+    new Intl.DateTimeFormat('en', { timeZone });
+    return timeZone;
+  } catch {
+    return DEFAULT_TIME_ZONE;
+  }
+}
+
 /** The user's time zone and digit preference for `useFormat` (set by `NexProvider`). */
 export function FormatSettingsProvider({ timeZone, digits, children }: FormatSettings & { readonly children: ReactNode }): React.JSX.Element {
-  const value = useMemo(() => ({ timeZone, digits }), [timeZone, digits]);
+  const value = useMemo(() => ({ timeZone: knownZone(timeZone), digits }), [timeZone, digits]);
   return <FormatSettingsContext.Provider value={value}>{children}</FormatSettingsContext.Provider>;
 }
 
@@ -45,8 +56,10 @@ export interface Formatters {
 }
 
 /**
- * Formatters bound to the current language, the user's time zone and digit preference (MVP-46, D-092). The text they
- * return is plain: wrap amounts, file numbers and dates inside Arabic sentences in `<Ltr>` where they must not reorder.
+ * Formatters bound to the current language, the user's time zone and digit preference (MVP-46, D-092). They return plain
+ * text. In running text: money and long dates are already in the reading direction — wrap them in `<Bdi>` at most, never
+ * `<Ltr>` (that would put the ₪ on the wrong side and read an Arabic date backwards); `<Ltr>` is for file numbers, phones,
+ * emails and a short date next to Latin text. In plain-text contexts (titles, `aria-label`s) use `isolate`/`isolateLtr`.
  */
 export function useFormat(): Formatters {
   const { locale } = useLanguage();

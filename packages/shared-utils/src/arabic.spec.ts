@@ -1,5 +1,4 @@
 import { normalizeArabic } from './arabic.js';
-import { isolate, isolateLtr } from './bidi.js';
 
 /**
  * The same fixtures as the Postgres test of `nlq_normalize_ar` (apps/backend-api/src/database/database.int.spec.ts),
@@ -26,12 +25,5 @@ describe('normalizeArabic', () => {
     expect(normalizeArabic('هٰذا')).toBe('هذا');
     const once = normalizeArabic('إِبْرَاهِيمُ مُؤَسَّسَة');
     expect(normalizeArabic(once)).toBe(once);
-  });
-});
-
-describe('bidi isolation', () => {
-  it('should isolate left-to-right and unknown-direction text', () => {
-    expect(isolateLtr('2026-LIT-00042')).toBe('⁦2026-LIT-00042⁩');
-    expect(isolate('ليلى')).toBe('⁨ليلى⁩');
   });
 });

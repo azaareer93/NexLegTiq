@@ -333,9 +333,6 @@ importers:
       '@nexlegtiq/shared-types':
         specifier: workspace:*
         version: link:../../packages/shared-types
-      '@nexlegtiq/shared-utils':
-        specifier: workspace:*
-        version: link:../../packages/shared-utils
       '@node-rs/argon2':
         specifier: ^2.2.1
         version: 2.2.1
@@ -394,6 +391,9 @@ importers:
       '@nestjs/testing':
         specifier: ^11.0.0
         version: 11.2.6(@nestjs/common@11.2.6(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.2.6)(@nestjs/platform-express@11.2.6)
+      '@nexlegtiq/shared-utils':
+        specifier: workspace:*
+        version: link:../../packages/shared-utils
       '@types/cookie-parser':
         specifier: ^1.4.10
         version: 1.4.10(@types/express@5.0.6)

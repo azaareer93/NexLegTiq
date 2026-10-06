@@ -17,7 +17,6 @@
     "@nestjs/throttler": "^6.7.1",
     "@nexlegtiq/shared-contracts": "workspace:*",
     "@nexlegtiq/shared-types": "workspace:*",
-    "@nexlegtiq/shared-utils": "workspace:*",
     "@node-rs/argon2": "^2.2.1",
     "@prisma/adapter-pg": "7.10.0",
     "@prisma/client": "7.10.0",
@@ -39,6 +38,7 @@
   },
   "devDependencies": {
     "@nestjs/testing": "^11.0.0",
+    "@nexlegtiq/shared-utils": "workspace:*",
     "@types/cookie-parser": "^1.4.10"
   }
 }
