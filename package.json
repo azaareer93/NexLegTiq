@@ -97,6 +97,7 @@
     "@nestjs/common": "^11.0.0",
     "@nestjs/core": "^11.0.0",
     "@nestjs/platform-express": "^11.0.0",
+    "@tanstack/react-query": "^5.104.1",
     "antd": "^6.6.5",
     "dayjs": "^1.11.23",
     "i18next": "^26.4.2",
@@ -105,6 +106,7 @@
     "react-i18next": "^17.0.15",
     "react-router": "^8.4.0",
     "reflect-metadata": "^0.2.0",
-    "rxjs": "^7.8.0"
+    "rxjs": "^7.8.0",
+    "zustand": "^5.0.15"
   }
 }

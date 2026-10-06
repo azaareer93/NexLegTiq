@@ -31,7 +31,8 @@
     "src/**/*.test.jsx",
     "eslint.config.js",
     "eslint.config.cjs",
-    "eslint.config.mjs"
+    "eslint.config.mjs",
+    "src/test/**"
   ],
   "include": [
     "src/**/*.js",
@@ -48,6 +49,12 @@
     },
     {
       "path": "../../packages/shared-i18n/tsconfig.lib.json"
+    },
+    {
+      "path": "../../packages/shared-contracts/tsconfig.lib.json"
+    },
+    {
+      "path": "../../packages/shared-api-client/tsconfig.lib.json"
     },
     {
       "path": "../../packages/shared-config/tsconfig.lib.json"

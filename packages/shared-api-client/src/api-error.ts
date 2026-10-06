@@ -19,6 +19,8 @@ export class ApiError extends Error {
     readonly details: readonly ApiErrorDetail[] = [],
     /** D-076 correlation id, shown to the user for support. */
     readonly requestId?: string,
+    /** Seconds to wait before retrying, from `Retry-After` (429 RATE-001, 503). */
+    readonly retryAfter?: number,
   ) {
     super(message);
   }
@@ -40,6 +42,9 @@ export function toApiError(error: unknown): unknown {
     return new ApiError('SYS-002', error.message, 0);
   }
   const headerId = response.headers[REQUEST_ID_HEADER] as unknown;
+  // Only the delta-seconds form; an HTTP-date is not worth parsing for a hint.
+  const retryHeader = Number(response.headers['retry-after']);
+  const retryAfter = Number.isInteger(retryHeader) && retryHeader > 0 ? retryHeader : undefined;
   const body: unknown = response.data;
   if (isErrorEnvelope(body)) {
     const { code, message, details } = body.error;
@@ -50,9 +55,10 @@ export function toApiError(error: unknown): unknown {
       response.status,
       details ?? [],
       body.meta?.requestId ?? (typeof headerId === 'string' ? headerId : undefined),
+      retryAfter,
     );
   }
   // Not our envelope: a proxy or CDN answered (502/503/504 while the API restarts, an HTML error page…).
   const code = response.status >= 502 && response.status <= 504 ? 'SYS-002' : 'SYS-001';
-  return new ApiError(code, error.message, response.status, [], typeof headerId === 'string' ? headerId : undefined);
+  return new ApiError(code, error.message, response.status, [], typeof headerId === 'string' ? headerId : undefined, retryAfter);
 }

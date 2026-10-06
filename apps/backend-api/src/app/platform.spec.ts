@@ -97,6 +97,7 @@ describe('HTTP platform (health, security, docs, metrics)', () => {
       expect(res.headers['access-control-allow-origin']).toBe('http://localhost:4200');
       expect(res.headers['access-control-allow-credentials']).toBe('true');
       expect(res.headers['access-control-expose-headers']).toContain('x-request-id');
+      expect(res.headers['access-control-expose-headers']).toContain('Retry-After');
     });
 
     it('should not allow an unknown origin', async () => {

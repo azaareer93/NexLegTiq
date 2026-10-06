@@ -135,6 +135,15 @@ describe('createApiClient', () => {
     });
   });
 
+  it('should pass the Retry-After seconds of a 429 on', async () => {
+    server.use(
+      http.post(url('auth/login'), () =>
+        HttpResponse.json({ success: false, error: { code: 'RATE-001', message: 'Too many' }, meta }, { status: 429, headers: { 'retry-after': '42' } }),
+      ),
+    );
+    expect(await rejection(setup().client.request({ method: 'POST', path: 'auth/login' }))).toMatchObject({ code: 'RATE-001', retryAfter: 42 });
+  });
+
   it('should map an error code this build does not know to SYS-001', async () => {
     server.use(http.get(url('things'), () => fail(422, 'NEW-999')));
     expect(await rejection(setup().client.request({ method: 'GET', path: 'things' }))).toMatchObject({ code: 'SYS-001', status: 422 });
