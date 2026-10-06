@@ -20,6 +20,7 @@ documents/PDF `Amiri`. Theme: `nexTheme(locale)` via `NexProvider` (shared-ui). 
 - Numbers, emails, URLs, file numbers, phone numbers render LTR inside RTL (`<bdi>` / `dir="ltr"` + `unicode-bidi: isolate`).
 - Western digits by default; Arabic-Indic digits optional per user setting. Dates `dd/MM/yyyy`; times with ص/م in AR;
   MSA month names (أكتوبر). Always through `useFormat()` (shared-ui) / `shared-utils` formatters, never `toLocaleString`: D-092.
+  Money and long dates in Arabic text: `<Bdi>` at most, never `<Ltr>`; `<Ltr>` for file numbers, phones, emails.
 - No fixed widths for text (Arabic +20–30%). Test every screen in both directions (Storybook RTL toggle, Cypress both locales).
 - Default language: Arabic for PS/JO/EG offices unless office/user says otherwise.
 
