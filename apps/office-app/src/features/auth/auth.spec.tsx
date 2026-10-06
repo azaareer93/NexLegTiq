@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/react';
 import axe from 'axe-core';
 import { HttpResponse } from 'msw';
 
-import { api, fail, http, listenToOtherTabs, ok, renderApp, server, SESSION, setupTestServer, signedIn, signedOut, USER } from '../../test/render-app';
+import { api, fail, http, listenToOtherTabs, ok, renderApp, server, SESSION, setupTestServer, signedIn, signedOut, setViewport, signOutFromMenu, USER } from '../../test/render-app';
 import { safeNext } from './forms';
 import { apiClient, queryClient, restoreSession, signOut, useSession } from './session';
 
@@ -34,9 +34,10 @@ describe('app start and guards', () => {
   it('should restore the session from the refresh cookie and show the signed-in page', async () => {
     server.use(http.post(api('auth/refresh'), () => ok(SESSION)));
     await restoreSession();
+    setViewport(1280);
     renderApp('/');
-    expect(await screen.findByTestId('home-page')).toBeTruthy();
-    expect(screen.getByText('Layla Haddad').tagName).toBe('BDI');
+    expect(await screen.findByTestId('page-dashboard')).toBeTruthy();
+    expect((await screen.findByText('Layla Haddad')).tagName).toBe('BDI');
     expect(useSession.getState().accessToken).toBe('access-1');
   });
 
@@ -59,7 +60,7 @@ describe('app start and guards', () => {
     type('login-password', 'Testtesttest1');
     click('login-remember');
     click('login-submit');
-    expect(await screen.findByTestId('home-page')).toBeTruthy();
+    expect(await screen.findByTestId('page-dashboard')).toBeTruthy();
     expect(router.state.location.search).toBe('?tab=1');
     expect(body).toEqual({ email: 'layla@example.test', password: 'Testtesttest1', rememberMe: true });
   });
@@ -73,7 +74,7 @@ describe('app start and guards', () => {
 
     server.use(http.post(api('auth/refresh'), () => ok(SESSION)));
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
-    expect(await screen.findByTestId('home-page')).toBeTruthy();
+    expect(await screen.findByTestId('page-dashboard')).toBeTruthy();
   });
 
   it('should end a session left idle longer than the timeout, even after the tab was closed', async () => {
@@ -115,7 +116,7 @@ describe('app start and guards', () => {
   it('should send a signed-in user away from the sign-in page, to a safe next page', async () => {
     signedIn();
     const { router } = renderApp('/login?next=%2F%3Ftab%3D1');
-    expect(await screen.findByTestId('home-page')).toBeTruthy();
+    expect(await screen.findByTestId('page-dashboard')).toBeTruthy();
     expect(router.state.location.search).toBe('?tab=1');
   });
 
@@ -135,7 +136,7 @@ describe('app start and guards', () => {
     server.use(http.post(api('auth/login'), () => ok(SESSION)));
     const { router } = renderApp(`/login?next=${encodeURIComponent(next)}`);
     await signIn();
-    expect(await screen.findByTestId('home-page')).toBeTruthy();
+    expect(await screen.findByTestId('page-dashboard')).toBeTruthy();
     expect(router.state.location.pathname).toBe('/');
   });
 });
@@ -249,7 +250,7 @@ describe('signup page', () => {
     fill();
     accept();
     click('signup-submit');
-    expect(await screen.findByTestId('home-page')).toBeTruthy();
+    expect(await screen.findByTestId('page-dashboard')).toBeTruthy();
     expect(body).toEqual({
       fullName: 'Layla Haddad',
       email: 'layla@example.test',
@@ -279,7 +280,7 @@ describe('signup page', () => {
     fill();
     accept();
     click('signup-submit');
-    expect(await screen.findByTestId('home-page')).toBeTruthy();
+    expect(await screen.findByTestId('page-dashboard')).toBeTruthy();
     expect(body.defaultLanguage).toBe('AR');
   });
 
@@ -500,7 +501,7 @@ describe('sign out and lost sessions', () => {
     signedIn();
     queryClient.setQueryData(['cases'], [{ id: 1 }]);
     const { router } = renderApp('/');
-    click('sign-out');
+    await signOutFromMenu();
     expect(await ready('login-notice')).toBeTruthy();
     expect(loggedOut).toBe(true);
     expect(router.state.location.pathname).toBe('/login');
@@ -515,7 +516,7 @@ describe('sign out and lost sessions', () => {
     const otherTabs = listenToOtherTabs();
     signedIn();
     renderApp('/');
-    click('sign-out');
+    await signOutFromMenu();
     expect(await ready('login-submit')).toBeTruthy();
     expect(useSession.getState().accessToken).toBeNull();
     await waitFor(() => expect(otherTabs.messages).toContainEqual({ type: 'signedOut', reason: 'signedOut' }));
@@ -528,7 +529,7 @@ describe('sign out and lost sessions', () => {
     const otherTabs = listenToOtherTabs();
     renderApp('/login');
     await signIn();
-    expect(await screen.findByTestId('home-page')).toBeTruthy();
+    expect(await screen.findByTestId('page-dashboard')).toBeTruthy();
     await waitFor(() => expect(otherTabs.messages).toContainEqual({ type: 'signedIn' }));
     otherTabs.close();
   });
@@ -541,7 +542,7 @@ describe('sign out and lost sessions', () => {
     signedIn();
     queryClient.setQueryData(['cases'], [{ id: 1 }]);
     const { router } = renderApp('/');
-    await ready('home-page');
+    await ready('page-dashboard');
     await expect(apiClient.request({ method: 'GET', path: 'things' })).rejects.toMatchObject({ code: 'AUTH-005' });
     expect((await ready('login-notice')).textContent).toBe('Your session has ended. Please sign in again.');
     expect(new URLSearchParams(router.state.location.search).get('reason')).toBe('expired');
@@ -555,16 +556,16 @@ describe('sign out and lost sessions', () => {
     );
     signedIn();
     renderApp('/');
-    await ready('home-page');
+    await ready('page-dashboard');
     await expect(apiClient.request({ method: 'GET', path: 'things' })).rejects.toMatchObject({ code: 'SYS-002' });
     expect(useSession.getState().status).toBe('authenticated');
-    expect(screen.getByTestId('home-page')).toBeTruthy();
+    expect(screen.getByTestId('page-dashboard')).toBeTruthy();
   });
 
   it('should adopt the signed-in user language', async () => {
     signedIn({ uiLanguage: 'AR' });
     renderApp('/', 'en');
-    expect((await ready('sign-out')).textContent).toBe('تسجيل الخروج');
+    expect((await ready('search-open')).getAttribute('aria-label')).toBe('بحث');
     expect(document.documentElement.dir).toBe('rtl');
     expect(document.documentElement.lang).toBe('ar');
   });
