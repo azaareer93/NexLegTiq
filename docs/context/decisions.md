@@ -659,3 +659,44 @@ forms in Arabic). Login, signup and reset mutations use `gcTime: 0` (no password
 inputs are `dir="ltr"` (the policy is Latin letters and digits); a production build fails without an `https://`
 `VITE_API_URL`. **Open, owner's call:** enforcing the idle timeout on the server too (refuse a refresh after inactivity),
 or a browser-session cookie when "remember me" is off — both change D-082.
+
+**D-091 — Office-app shell, menu permissions and responsive navigation** · Accepted (MVP-45, 2026-10-06)
+MVP-45 named the menu items but not the permission behind each, nor how the breakpoints and placeholder pages work. →
+**Layout** (`apps/office-app/src/features/shell`): AntD `Layout` inside `RequireAuth`; header = product name (text until a logo
+is hosted) + office name, search button (Ctrl/Cmd+K by the physical `KeyK`, so it works on an Arabic layout; a placeholder
+overlay until search is built), quick actions, notification bell slot (empty state), account menu (profile, language,
+sign-out; the language applies at once and is saved to the profile once `PATCH users/me` exists). AntD lays the side menu
+out in the reading direction, so it sits on the right in Arabic with no extra code. **Menu permissions** (`nav.tsx`, the
+same permission guards the page): Dashboard, My cases, Calendar, Tasks, Documents → `view:assigned:cases` (every role);
+Clients → `manage:clients` (not TRAINEE or EXTERNAL_COLLABORATOR, who have no client permission); Reports → `view:reports`
+(OM/SL/A); Team → `manage:users` (OM); Settings → `manage:office` (OM). **Quick actions:** + Case (`create:case`), + Client
+(`manage:clients`), + Task (`create:task`), each a "coming soon" placeholder; the button is hidden for a role that can
+create none (TRAINEE, EXTERNAL_COLLABORATOR). frontend.md's "AI Ask" quick action waits for the AI features.
+**Breakpoints** (`Grid.useBreakpoint`): ≥1200 px full side menu with a collapse control; 768–1199 px icon-only, not
+expandable; <768 px no side menu, a bottom bar (Home, My cases, Calendar, Tasks, Menu → the whole menu in a bottom drawer)
+whose items share the width so five fit at 360 px. **Routes:** every menu item has a lazy placeholder page until its feature
+replaces it; a page behind a permission shows a **403 page** (`RequirePermission` moved from auth to shell), an unknown
+address the **404 page** inside the shell, a route whose code fails to load (stale chunk after a deploy, offline) a
+"reload" page (`errorElement`), and the first lazy load a skeleton (`HydrateFallback`); later navigations show the skeleton
+in the content area. The **email-confirmation banner** (D-083) sits under the header while unverified, with the deadline in
+the user's language and "send the link again". **Translations:** a `shell` namespace. **Tests:** the menu of all seven roles,
+the three breakpoints (a `matchMedia` stub answers width queries from `window.innerWidth`; `ResizeObserver` stubbed for
+AntD's Menu), Ctrl/Cmd+K, quick actions, 403/404, banner and sign-out, axe in both languages; the ticket's "RTL snapshot" is
+asserted on direction classes and DOM order instead (AntD's generated class hashes make snapshots churn). Checked in a
+browser at 1366, 1000 and 360 px in Arabic and English. Why: one layout for every office page, with navigation that only
+offers what the role may open.
+Review additions (same PR): the **routes are generated from `NAV_ITEMS`**, so a page always requires its menu item's
+permission (no second list to drift); the **403 page is a courtesy**, the API re-checks every call (D-051), and a route
+**loader** added later must check the permission itself (loaders run before `RequirePermission` renders). Menu and
+bottom-bar entries are **links** (open in a new tab, announced as links); the collapse control is a named button
+(`aria-expanded`); the sign-out and collapse icons mirror in Arabic. The skeleton shows only when moving to another page (a
+page refreshing its own data stays mounted). Page errors render **inside the shell** (`errorElement` on the shell's pages):
+a thrown 404 is the 404 page, a failed code chunk offers a reload, anything else the generic error with a retry — never the
+error's text. The placeholder pages are their own chunk. The shortcut ignores Shift, Alt/AltGr, auto-repeat and IME
+composition, and shows ⌘K on Apple devices. The confirmation banner is one sentence per language with the deadline in the
+user's time zone and Western digits (`<locale>-u-nu-latn`), and a failed "send again" says why. The quick-action "+ File"
+of the ticket is "+ Case" / "ملف جديد", the glossary's UI terms for `LegalFile`. **Known gaps:** there is no `view:clients`
+permission, so `manage:clients` doubles as "see clients" — the Clients feature decides whether the matrix needs one; the
+menu follows the permissions of the last sign-in or refresh (up to 15 min stale after a role change; the server applies it at
+once, D-081). **Open, owner's call:** Arabic month names — today the MSA names (أكتوبر) as dayjs `ar` prints them; the
+Levantine names used in Palestine (تشرين الأول) would apply to every date in the app.

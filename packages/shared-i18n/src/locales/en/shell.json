@@ -1,0 +1,62 @@
+{
+  "nav": {
+    "label": "Main menu",
+    "dashboard": "Dashboard",
+    "home": "Home",
+    "cases": "My cases",
+    "clients": "Clients",
+    "calendar": "Calendar",
+    "tasks": "Tasks",
+    "documents": "Documents",
+    "reports": "Reports",
+    "team": "Team",
+    "settings": "Settings",
+    "more": "Menu",
+    "collapse": "Collapse menu",
+    "expand": "Expand menu"
+  },
+  "quick": {
+    "label": "Create",
+    "file": "New case",
+    "client": "New client",
+    "task": "New task"
+  },
+  "search": {
+    "open": "Search",
+    "placeholder": "Search cases, clients, documents…",
+    "comingSoon": "Search across your office is coming soon."
+  },
+  "notifications": {
+    "open": "Notifications",
+    "empty": "No notifications yet."
+  },
+  "profile": {
+    "menu": "Account menu",
+    "profile": "My account",
+    "language": "Language"
+  },
+  "comingSoon": {
+    "title": "Coming soon",
+    "body": "This part of NexLegTiq is being built."
+  },
+  "verify": {
+    "banner": "Please confirm your email address. We sent you a link when you signed up.",
+    "bannerWithDeadline": "Please confirm your email address by {{date}} to keep your access. We sent you a link when you signed up.",
+    "resend": "Send the link again",
+    "sent": "A new link is on its way."
+  },
+  "notFound": {
+    "title": "Page not found",
+    "body": "The page you are looking for does not exist or has moved."
+  },
+  "forbidden": {
+    "title": "No access",
+    "body": "Your role does not allow you to open this page. Ask your office manager if you need it."
+  },
+  "loadFailed": {
+    "title": "This page could not be loaded",
+    "body": "Check your connection, then reload the page.",
+    "reload": "Reload"
+  },
+  "goHome": "Go to the dashboard"
+}

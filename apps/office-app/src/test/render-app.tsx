@@ -2,7 +2,7 @@ import type { AuthUser } from '@nexlegtiq/shared-contracts';
 import { permissionsFor } from '@nexlegtiq/shared-types';
 import type { Locale } from '@nexlegtiq/shared-types';
 import { LANGUAGE_STORAGE_KEY } from '@nexlegtiq/shared-ui';
-import { cleanup, render } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import type { JsonBodyType } from 'msw';
 import { setupServer } from 'msw/node';
@@ -67,6 +67,19 @@ export function renderApp(path: string, locale: Locale = 'en', { strict = false 
   );
   render(strict ? <StrictMode>{app}</StrictMode> : app);
   return { router };
+}
+
+/** The window width the next render sees (AntD breakpoints read it through the `matchMedia` stub in setup.ts). */
+export function setViewport(width: number): void {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+}
+
+export { resizeTo } from './media';
+
+/** Opens the account menu and signs out (the shell's menu holds sign-out). */
+export async function signOutFromMenu(): Promise<void> {
+  fireEvent.click(await screen.findByTestId('profile-menu'));
+  fireEvent.click(await screen.findByText(/^(Sign out|تسجيل الخروج)$/));
 }
 
 /** Messages this tab sends to the other tabs (collected on a second channel, as another tab would see them). */

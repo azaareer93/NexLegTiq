@@ -1,6 +1,4 @@
-import type { Permission } from '@nexlegtiq/shared-types';
-import { ErrorState, LoadingSkeleton, useCan } from '@nexlegtiq/shared-ui';
-import type { ReactNode } from 'react';
+import { ErrorState, LoadingSkeleton } from '@nexlegtiq/shared-ui';
 import { Navigate, Outlet, useLocation, useSearchParams } from 'react-router';
 
 import { safeNext } from '../forms';
@@ -40,18 +38,4 @@ export function GuestOnly(): React.JSX.Element {
     return <LoadingSkeleton />;
   }
   return status === 'authenticated' ? <Navigate to={safeNext(params.get('next'))} replace /> : <Outlet />;
-}
-
-export interface RequirePermissionProps {
-  readonly perform: Permission;
-  readonly children?: ReactNode;
-}
-
-/** Hides a page the role may not use (AUTH-100 message). UI only: the API checks again (D-051). */
-export function RequirePermission({ perform, children }: RequirePermissionProps): ReactNode {
-  const allowed = useCan(perform);
-  if (!allowed) {
-    return <ErrorState code="AUTH-100" />;
-  }
-  return children ?? <Outlet />;
 }

@@ -1,4 +1,3 @@
-import { permissionsFor } from '@nexlegtiq/shared-types';
 import { LANGUAGE_STORAGE_KEY } from '@nexlegtiq/shared-ui';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { HttpResponse } from 'msw';
@@ -6,7 +5,6 @@ import { HttpResponse } from 'msw';
 import { AppRoot } from '../../app/app-root';
 import { api, http, ok, server, SESSION, setupTestServer, signedIn, USER } from '../../test/render-app';
 import { IdleTimeout } from './components/IdleTimeout';
-import { RequirePermission } from './components/guards';
 import { queryClient, useSession } from './session';
 
 setupTestServer();
@@ -163,23 +161,5 @@ describe('other tabs', () => {
     await settle();
     expect(useSession.getState().status).toBe('authenticated');
     otherTab.close();
-  });
-});
-
-describe('RequirePermission', () => {
-  it.each([
-    ['TRAINEE', false],
-    ['OFFICE_MANAGER', true],
-  ] as const)('should show a %s the page only with the permission (%s)', (role, allowed) => {
-    signedIn({ role, permissions: [...permissionsFor(role)] });
-    render(
-      <AppRoot>
-        <RequirePermission perform="manage:users">
-          <p>team page</p>
-        </RequirePermission>
-      </AppRoot>,
-    );
-    expect(screen.queryByText('team page') !== null).toBe(allowed);
-    if (!allowed) expect(screen.getByRole('alert').textContent).not.toBe('');
   });
 });

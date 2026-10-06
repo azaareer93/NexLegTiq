@@ -27,6 +27,7 @@ Header: logo + office name, global search (Ctrl+K, grouped results), notificatio
 (profile, language toggle, logout). Collapsible Sider (mirrors in RTL): Dashboard, My Cases, Clients, Calendar, Tasks,
 Documents, Reports (OM/SL/A), Team (OM), Settings (OM). Quick actions: + File, + Client, + Task, AI Ask.
 Breakpoints: ≥1200 full; 768–1199 icon sider; <768 bottom nav, single column (mobile web only).
+Implementation, menu permissions and placeholder/403/404 pages: D-091 (`apps/office-app/src/features/shell`).
 
 ## Screens (MVP)
 - **Auth**: login (EN|AR toggle), forgot/reset password, accept invite, verify email, signup → onboarding wizard. Session store,

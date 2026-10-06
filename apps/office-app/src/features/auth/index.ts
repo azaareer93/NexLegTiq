@@ -1,3 +1,3 @@
-export { RequireAuth, RequirePermission } from './components/guards';
+export { RequireAuth } from './components/guards';
 export { authRoutes } from './routes';
-export { queryClient, restoreSession, signOut, useSession } from './session';
+export { auth, queryClient, restoreSession, signOut, useSession } from './session';
