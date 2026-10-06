@@ -264,6 +264,25 @@ describe('signup page', () => {
     });
   });
 
+  it('should set the office language from the AR | EN switch until the user picks one', async () => {
+    let body: { defaultLanguage?: string } = {};
+    server.use(
+      http.post(api('auth/register'), async ({ request }) => {
+        body = (await request.json()) as typeof body;
+        return ok(SESSION, 201);
+      }),
+    );
+    renderApp('/signup', 'en');
+    await ready('signup-submit');
+    fireEvent.click(screen.getByText('العربية'));
+    await waitFor(() => expect(screen.getByTestId('signup-submit').textContent).toBe('إنشاء الحساب'));
+    fill();
+    accept();
+    click('signup-submit');
+    expect(await screen.findByTestId('home-page')).toBeTruthy();
+    expect(body.defaultLanguage).toBe('AR');
+  });
+
   it('should require the Terms and Privacy boxes, in Arabic too', async () => {
     renderApp('/signup', 'ar');
     await ready('signup-submit');

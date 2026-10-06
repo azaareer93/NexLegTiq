@@ -6,7 +6,7 @@ import { useLanguage } from '@nexlegtiq/shared-ui';
 import { useMutation } from '@tanstack/react-query';
 import { Button, Checkbox, Divider, Flex, Form, Input, Select, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Link, useNavigate } from 'react-router';
 
 import { AuthLayout } from '../components/AuthLayout';
@@ -41,8 +41,10 @@ export function SignupPage(): React.JSX.Element {
   });
 
   // The office language follows the AR | EN switch until the user picks one (D-090).
+  // (`isFieldTouched` cannot tell: AntD marks a field touched on `setFieldValue` too.)
+  const languagePicked = useRef(false);
   useEffect(() => {
-    if (!form.isFieldTouched('defaultLanguage')) form.setFieldValue('defaultLanguage', locale === 'en' ? 'EN' : 'AR');
+    if (!languagePicked.current) form.setFieldValue('defaultLanguage', locale === 'en' ? 'EN' : 'AR');
   }, [form, locale]);
 
   const submit = (values: Record<string, unknown>) => {
@@ -73,6 +75,9 @@ export function SignupPage(): React.JSX.Element {
           layout="vertical"
           requiredMark={false}
           onFinish={submit}
+          onValuesChange={(changed: Record<string, unknown>) => {
+            if ('defaultLanguage' in changed) languagePicked.current = true;
+          }}
           disabled={register.isPending}
           initialValues={{
             jurisdiction: 'PALESTINE',
