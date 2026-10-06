@@ -192,6 +192,27 @@ describe('navigation states and errors', () => {
     expect(document.body.textContent).not.toContain(error.message);
   });
 
+  it('should show the offline banner inside the shell while the browser is offline', async () => {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => false });
+    try {
+      asRole('LAWYER');
+      renderApp('/', 'en');
+      await dashboard();
+      expect(screen.getByTestId('app-shell').contains(screen.getByTestId('offline-banner'))).toBe(true);
+    } finally {
+      Reflect.deleteProperty(navigator, 'onLine');
+    }
+  });
+
+  it('should offer a retry and the home page on the 500 page', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    asRole('LAWYER');
+    renderWithExtraPages([{ path: 'broken', loader: () => { throw new Error('boom'); } }], '/broken');
+    const page = await screen.findByTestId('page-error');
+    expect(within(page).getByTestId('page-error-retry')).toBeTruthy();
+    expect(within(page).getByTestId('go-home')).toBeTruthy();
+  });
+
   it('should show a thrown 404 response as the 404 page', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     asRole('LAWYER');

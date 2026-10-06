@@ -5,7 +5,8 @@ The NexLegTiq theme, app root and base components for the three apps. May depend
 
 - `NexProvider`: wrap each app once. Language and direction, the AntD theme (`nexTheme`), self-hosted fonts, AntD `App`.
 - Components: `PageHeader`, `StatusTag`/`PriorityTag`, `EmptyState`, `ErrorState`, `LoadingSkeleton`, `Ltr`/`Bdi`,
-  `DirectionalIcon`, `ConfirmModal`, `AiDisclaimer`, `Can`.
+  `DirectionalIcon`, `ConfirmModal`, `AiDisclaimer`, `Can`, `ApiErrorAlert`, `OfflineBanner`.
+- Errors: `useApiErrorHandler()` (`messageOf`, `applyToForm`, `notify`, …); conventions in Storybook › Feedback › API errors (D-093).
 - Storybook: `pnpm nx storybook shared-ui` (Language toolbar: Arabic RTL / English LTR; a11y panel).
 - Tests: `pnpm nx test shared-ui` — every story is rendered in both languages and checked with axe.
 

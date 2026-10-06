@@ -1,7 +1,7 @@
 import { ApiError } from '@nexlegtiq/shared-api-client';
 import { ResendVerificationRequestSchema } from '@nexlegtiq/shared-contracts';
 import type { ResendVerificationRequest } from '@nexlegtiq/shared-contracts';
-import { LoadingSkeleton } from '@nexlegtiq/shared-ui';
+import { ApiErrorAlert, LoadingSkeleton, useApiErrorHandler } from '@nexlegtiq/shared-ui';
 import { useMutation } from '@tanstack/react-query';
 import { Alert, Button, Flex, Form, Input, Result } from 'antd';
 import { useEffect, useRef } from 'react';
@@ -9,8 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 
 import { AuthLayout } from '../components/AuthLayout';
-import { FormError } from '../components/FormError';
-import { parseForm, useMessage, zodRule } from '../forms';
+import { parseForm, zodRule } from '../forms';
 import { auth } from '../session';
 import { useLinkToken } from '../use-link-token';
 
@@ -20,7 +19,7 @@ import { useLinkToken } from '../use-link-token';
  */
 export function VerifyEmailPage(): React.JSX.Element {
   const { t } = useTranslation();
-  const message = useMessage();
+  const { translateKey: message } = useApiErrorHandler();
   const token = useLinkToken();
   const [form] = Form.useForm();
   const sent = useRef(false);
@@ -63,7 +62,7 @@ export function VerifyEmailPage(): React.JSX.Element {
       <AuthLayout title={t('auth.verifyEmail.verifying')}>
         {verify.isError ? (
           <Flex vertical gap={16}>
-            <FormError error={verify.error} testId="verify-error" />
+            <ApiErrorAlert error={verify.error} testId="verify-error" />
             <Button type="primary" onClick={() => verifyToken(token)} loading={verify.isPending} data-testid="verify-retry">
               {t('common.actions.retry')}
             </Button>
@@ -89,7 +88,7 @@ export function VerifyEmailPage(): React.JSX.Element {
         ) : (
           <Form form={form} noValidate layout="vertical" requiredMark={false} onFinish={submit} disabled={resend.isPending}>
             <Flex vertical gap={16}>
-              <FormError error={resend.error} />
+              <ApiErrorAlert error={resend.error} />
               <Form.Item name="email" label={t('auth.fields.email')} rules={zodRule(ResendVerificationRequestSchema.shape.email, message)}>
                 <Input type="email" autoComplete="email" dir="ltr" data-testid="verify-email" />
               </Form.Item>

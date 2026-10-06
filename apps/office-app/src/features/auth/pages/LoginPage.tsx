@@ -1,13 +1,13 @@
 import { LoginRequestSchema } from '@nexlegtiq/shared-contracts';
 import type { LoginRequest } from '@nexlegtiq/shared-contracts';
+import { ApiErrorAlert, useApiErrorHandler } from '@nexlegtiq/shared-ui';
 import { useMutation } from '@tanstack/react-query';
 import { Alert, Button, Checkbox, Flex, Form, Input, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 
 import { AuthLayout } from '../components/AuthLayout';
-import { FormError } from '../components/FormError';
-import { applyServerErrors, parseForm, safeNext, useMessage, zodRule } from '../forms';
+import { parseForm, safeNext, zodRule } from '../forms';
 import { auth, broadcast, startSession } from '../session';
 
 /** Fields the API's VAL-001 details are shown on. */
@@ -19,7 +19,7 @@ const isNotice = (value: string | null): value is Notice => NOTICES.includes(val
 
 export function LoginPage(): React.JSX.Element {
   const { t } = useTranslation();
-  const message = useMessage();
+  const { translateKey: message, applyToForm } = useApiErrorHandler();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const [form] = Form.useForm();
@@ -34,7 +34,7 @@ export function LoginPage(): React.JSX.Element {
       broadcast({ type: 'signedIn' });
       void navigate(safeNext(params.get('next')), { replace: true });
     },
-    onError: (error) => applyServerErrors(form, error, FIELDS, message),
+    onError: (error) => applyToForm(form, error, FIELDS),
   });
 
   const submit = (values: unknown) => {
@@ -48,7 +48,7 @@ export function LoginPage(): React.JSX.Element {
         {isNotice(reason) && !login.isError ? (
           <Alert type={reason === 'passwordReset' ? 'success' : 'info'} showIcon title={t(`auth.notice.${reason}`)} data-testid="login-notice" />
         ) : null}
-        <FormError error={login.error} fields={FIELDS} testId="login-error" />
+        <ApiErrorAlert error={login.error} fields={FIELDS} testId="login-error" />
         <Form form={form} noValidate layout="vertical" requiredMark={false} onFinish={submit} initialValues={{ rememberMe: false }} disabled={login.isPending}>
           <Form.Item name="email" label={t('auth.fields.email')} rules={zodRule(LoginRequestSchema.shape.email, message)}>
             <Input type="email" autoComplete="username" dir="ltr" autoFocus data-testid="login-email" />

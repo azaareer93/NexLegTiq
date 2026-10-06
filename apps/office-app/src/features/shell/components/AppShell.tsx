@@ -1,5 +1,5 @@
 import { AppstoreOutlined, MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons';
-import { Bdi, DirectionalIcon, LoadingSkeleton } from '@nexlegtiq/shared-ui';
+import { Bdi, DirectionalIcon, LoadingSkeleton, OfflineBanner } from '@nexlegtiq/shared-ui';
 import { Button, Drawer, Flex, Grid, Layout, Menu, theme, Typography } from 'antd';
 import type { MenuProps } from 'antd';
 import { useState } from 'react';
@@ -117,6 +117,7 @@ export function AppShell(): React.JSX.Element {
             </Flex>
           </Flex>
         </Layout.Header>
+        <OfflineBanner />
         <VerifyBanner />
         <Layout.Content
           style={{

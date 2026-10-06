@@ -1,4 +1,6 @@
 export { AiDisclaimer } from './components/AiDisclaimer/AiDisclaimer';
+export { ApiErrorAlert, isApiError, isFieldError, OfflineBanner, useApiErrorHandler, useOnline } from './components/ApiErrors';
+export type { ApiErrorAlertProps, ApiErrorHandler, ApiErrorLike } from './components/ApiErrors';
 export { Bdi, Ltr } from './components/Bidi/Bidi';
 export { Can, PermissionsProvider, useCan } from './components/Can';
 export type { CanProps, PermissionsProviderProps } from './components/Can';

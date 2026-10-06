@@ -2,7 +2,7 @@ import { ApiError } from '@nexlegtiq/shared-api-client';
 import { RegisterRequestSchema } from '@nexlegtiq/shared-contracts';
 import type { RegisterRequest } from '@nexlegtiq/shared-contracts';
 import { ACCOUNT_TYPES, JURISDICTIONS, OFFICE_LANGUAGES } from '@nexlegtiq/shared-types';
-import { useLanguage } from '@nexlegtiq/shared-ui';
+import { ApiErrorAlert, useApiErrorHandler, useLanguage } from '@nexlegtiq/shared-ui';
 import { useMutation } from '@tanstack/react-query';
 import { Button, Checkbox, Divider, Flex, Form, Input, Select, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
@@ -10,8 +10,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { Link, useNavigate } from 'react-router';
 
 import { AuthLayout } from '../components/AuthLayout';
-import { FormError } from '../components/FormError';
-import { applyServerErrors, parseForm, useMessage, zodRule } from '../forms';
+import { parseForm, zodRule } from '../forms';
 import { auth, broadcast, startSession } from '../session';
 
 const FIELDS = ['fullName', 'email', 'password', 'officeName', 'accountType', 'jurisdiction', 'defaultLanguage', 'currency', 'phone', 'acceptTerms', 'acceptPrivacy'];
@@ -22,7 +21,7 @@ const shape = RegisterRequestSchema.shape;
 /** Office signup (D-083): creates the office and its manager, then signs the manager in. */
 export function SignupPage(): React.JSX.Element {
   const { t } = useTranslation();
-  const message = useMessage();
+  const { translateKey: message, applyToForm } = useApiErrorHandler();
   const { locale } = useLanguage();
   const currencyNames = useMemo(() => new Intl.DisplayNames(locale, { type: 'currency' }), [locale]);
   const navigate = useNavigate();
@@ -37,7 +36,7 @@ export function SignupPage(): React.JSX.Element {
       broadcast({ type: 'signedIn' });
       void navigate('/', { replace: true });
     },
-    onError: (error) => applyServerErrors(form, error, FIELDS, message),
+    onError: (error) => applyToForm(form, error, FIELDS),
   });
 
   // The office language follows the AR | EN switch until the user picks one (D-090).
@@ -56,7 +55,7 @@ export function SignupPage(): React.JSX.Element {
   return (
     <AuthLayout title={t('auth.signup.title')} subtitle={t('auth.signup.subtitle')}>
       <Flex vertical gap={16}>
-        <FormError
+        <ApiErrorAlert
           error={register.error}
           fields={FIELDS}
           testId="signup-error"

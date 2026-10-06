@@ -173,6 +173,27 @@ describe('login page', () => {
     expect((await ready('login-error')).textContent).toContain(text);
   });
 
+  it('should give a support reference when the server failed', async () => {
+    server.use(
+      http.post(api('auth/login'), () =>
+        HttpResponse.json({ success: false, error: { code: 'SYS-001', message: 'dev' }, meta: { timestamp: '', requestId: 'req-12345678' } }, { status: 500 }),
+      ),
+    );
+    renderApp('/login', 'en');
+    await signIn();
+    expect((await ready('login-error')).textContent).toContain('req-12345678');
+  });
+
+  it('should warn while offline', async () => {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => false });
+    try {
+      renderApp('/login', 'en');
+      expect(await ready('offline-banner')).toBeTruthy();
+    } finally {
+      Reflect.deleteProperty(navigator, 'onLine');
+    }
+  });
+
   it('should validate with the contract before calling the API', async () => {
     let called = false;
     server.use(
