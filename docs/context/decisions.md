@@ -685,3 +685,18 @@ AntD's Menu), Ctrl/Cmd+K, quick actions, 403/404, banner and sign-out, axe in bo
 asserted on direction classes and DOM order instead (AntD's generated class hashes make snapshots churn). Checked in a
 browser at 1366, 1000 and 360 px in Arabic and English. Why: one layout for every office page, with navigation that only
 offers what the role may open.
+Review additions (same PR): the **routes are generated from `NAV_ITEMS`**, so a page always requires its menu item's
+permission (no second list to drift); the **403 page is a courtesy**, the API re-checks every call (D-051), and a route
+**loader** added later must check the permission itself (loaders run before `RequirePermission` renders). Menu and
+bottom-bar entries are **links** (open in a new tab, announced as links); the collapse control is a named button
+(`aria-expanded`); the sign-out and collapse icons mirror in Arabic. The skeleton shows only when moving to another page (a
+page refreshing its own data stays mounted). Page errors render **inside the shell** (`errorElement` on the shell's pages):
+a thrown 404 is the 404 page, a failed code chunk offers a reload, anything else the generic error with a retry — never the
+error's text. The placeholder pages are their own chunk. The shortcut ignores Shift, Alt/AltGr, auto-repeat and IME
+composition, and shows ⌘K on Apple devices. The confirmation banner is one sentence per language with the deadline in the
+user's time zone and Western digits (`<locale>-u-nu-latn`), and a failed "send again" says why. The quick-action "+ File"
+of the ticket is "+ Case" / "ملف جديد", the glossary's UI terms for `LegalFile`. **Known gaps:** there is no `view:clients`
+permission, so `manage:clients` doubles as "see clients" — the Clients feature decides whether the matrix needs one; the
+menu follows the permissions of the last sign-in or refresh (up to 15 min stale after a role change; the server applies it at
+once, D-081). **Open, owner's call:** Arabic month names — today the MSA names (أكتوبر) as dayjs `ar` prints them; the
+Levantine names used in Palestine (تشرين الأول) would apply to every date in the app.
