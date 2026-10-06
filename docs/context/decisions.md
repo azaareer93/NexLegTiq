@@ -659,3 +659,29 @@ forms in Arabic). Login, signup and reset mutations use `gcTime: 0` (no password
 inputs are `dir="ltr"` (the policy is Latin letters and digits); a production build fails without an `https://`
 `VITE_API_URL`. **Open, owner's call:** enforcing the idle timeout on the server too (refuse a refresh after inactivity),
 or a browser-session cookie when "remember me" is off — both change D-082.
+
+**D-091 — Office-app shell, menu permissions and responsive navigation** · Accepted (MVP-45, 2026-10-06)
+MVP-45 named the menu items but not the permission behind each, nor how the breakpoints and placeholder pages work. →
+**Layout** (`apps/office-app/src/features/shell`): AntD `Layout` inside `RequireAuth`; header = product name (text until a logo
+is hosted) + office name, search button (Ctrl/Cmd+K by the physical `KeyK`, so it works on an Arabic layout; a placeholder
+overlay until search is built), quick actions, notification bell slot (empty state), account menu (profile, language,
+sign-out; the language applies at once and is saved to the profile once `PATCH users/me` exists). AntD lays the side menu
+out in the reading direction, so it sits on the right in Arabic with no extra code. **Menu permissions** (`nav.tsx`, the
+same permission guards the page): Dashboard, My cases, Calendar, Tasks, Documents → `view:assigned:cases` (every role);
+Clients → `manage:clients` (not TRAINEE or EXTERNAL_COLLABORATOR, who have no client permission); Reports → `view:reports`
+(OM/SL/A); Team → `manage:users` (OM); Settings → `manage:office` (OM). **Quick actions:** + Case (`create:case`), + Client
+(`manage:clients`), + Task (`create:task`), each a "coming soon" placeholder; the button is hidden for a role that can
+create none (TRAINEE, EXTERNAL_COLLABORATOR). frontend.md's "AI Ask" quick action waits for the AI features.
+**Breakpoints** (`Grid.useBreakpoint`): ≥1200 px full side menu with a collapse control; 768–1199 px icon-only, not
+expandable; <768 px no side menu, a bottom bar (Home, My cases, Calendar, Tasks, Menu → the whole menu in a bottom drawer)
+whose items share the width so five fit at 360 px. **Routes:** every menu item has a lazy placeholder page until its feature
+replaces it; a page behind a permission shows a **403 page** (`RequirePermission` moved from auth to shell), an unknown
+address the **404 page** inside the shell, a route whose code fails to load (stale chunk after a deploy, offline) a
+"reload" page (`errorElement`), and the first lazy load a skeleton (`HydrateFallback`); later navigations show the skeleton
+in the content area. The **email-confirmation banner** (D-083) sits under the header while unverified, with the deadline in
+the user's language and "send the link again". **Translations:** a `shell` namespace. **Tests:** the menu of all seven roles,
+the three breakpoints (a `matchMedia` stub answers width queries from `window.innerWidth`; `ResizeObserver` stubbed for
+AntD's Menu), Ctrl/Cmd+K, quick actions, 403/404, banner and sign-out, axe in both languages; the ticket's "RTL snapshot" is
+asserted on direction classes and DOM order instead (AntD's generated class hashes make snapshots churn). Checked in a
+browser at 1366, 1000 and 360 px in Arabic and English. Why: one layout for every office page, with navigation that only
+offers what the role may open.
