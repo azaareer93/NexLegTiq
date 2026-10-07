@@ -2,20 +2,20 @@ import type { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 
+import { JWT_AUDIENCE, JWT_ISSUER } from './auth.constants';
+import { bearerFor } from './auth.test-helper';
+import { assertCookieRequestOrigin } from './csrf';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { isLocked, lockedUntil } from './lockout';
+import { PasswordHasher } from './password-hasher';
+import { refreshCookieOptions, refreshExpiry, rotatedExpiry } from './refresh-token';
+import { hashOpaqueToken, newOpaqueToken } from '../../common/auth/opaque-token';
+import { Public } from '../../common/auth/public.decorator';
 import { AppException, PermissionDeniedException } from '../../common/errors/app.exception';
 import { AppConfig } from '../../config/app-config';
 import { testEnv } from '../../config/env.fixture';
 import { parseEnv } from '../../config/env.schema';
 import type { PrismaService } from '../../database/prisma.service';
-import { hashOpaqueToken, newOpaqueToken } from '../../common/auth/opaque-token';
-import { Public } from '../../common/auth/public.decorator';
-import { JWT_AUDIENCE, JWT_ISSUER } from './auth.constants';
-import { assertCookieRequestOrigin } from './csrf';
-import { bearerFor } from './auth.test-helper';
-import { JwtAuthGuard } from './jwt-auth.guard';
-import { isLocked, lockedUntil } from './lockout';
-import { PasswordHasher } from './password-hasher';
-import { refreshCookieOptions, refreshExpiry, rotatedExpiry } from './refresh-token';
 
 const SECRET = 'unit-test-only-jwt-secret-0123456789abcdef';
 const OFFICE = '01920000-0000-7000-8000-00000000000a';
@@ -45,14 +45,24 @@ describe('refresh tokens and cookie', () => {
 
   it('should keep the lifetime on rotation, capped at 90 days from the session start', () => {
     const now = new Date('2026-10-01T00:00:00Z');
-    const previous = { createdAt: new Date('2026-09-30T00:00:00Z'), expiresAt: new Date('2026-10-07T00:00:00Z') };
-    expect(rotatedExpiry(now, previous, previous.createdAt).toISOString()).toBe('2026-10-08T00:00:00.000Z');
+    const previous = {
+      createdAt: new Date('2026-09-30T00:00:00Z'),
+      expiresAt: new Date('2026-10-07T00:00:00Z'),
+    };
+    expect(rotatedExpiry(now, previous, previous.createdAt).toISOString()).toBe(
+      '2026-10-08T00:00:00.000Z',
+    );
     const started = new Date('2026-07-05T00:00:00Z');
     expect(rotatedExpiry(now, previous, started).toISOString()).toBe('2026-10-03T00:00:00.000Z');
   });
 
   it('should set an httpOnly Secure SameSite=Lax cookie scoped to /api/v1/auth (D-050)', () => {
-    expect(refreshCookieOptions()).toEqual({ httpOnly: true, secure: true, sameSite: 'lax', path: '/api/v1/auth' });
+    expect(refreshCookieOptions()).toEqual({
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      path: '/api/v1/auth',
+    });
   });
 });
 
@@ -78,7 +88,10 @@ describe('assertCookieRequestOrigin (D-055)', () => {
 
   it('should accept an allowed origin with X-Requested-With', () => {
     expect(() =>
-      assertCookieRequestOrigin({ origin: 'http://localhost:4200', 'x-requested-with': 'XMLHttpRequest' }, allowed),
+      assertCookieRequestOrigin(
+        { origin: 'http://localhost:4200', 'x-requested-with': 'XMLHttpRequest' },
+        allowed,
+      ),
     ).not.toThrow();
   });
 
@@ -112,18 +125,31 @@ describe('PasswordHasher (Argon2id)', () => {
 describe('JwtAuthGuard', () => {
   const jwt = new JwtService({ secret: SECRET });
   const sign = (claims: object, options: object = {}): string =>
-    jwt.sign({ sub: USER, officeId: OFFICE, role: 'LAWYER', sid: 'family', ...claims }, {
-      expiresIn: 900,
-      issuer: JWT_ISSUER,
-      audience: JWT_AUDIENCE,
-      ...options,
-    });
+    jwt.sign(
+      { sub: USER, officeId: OFFICE, role: 'LAWYER', sid: 'family', ...claims },
+      {
+        expiresIn: 900,
+        issuer: JWT_ISSUER,
+        audience: JWT_AUDIENCE,
+        ...options,
+      },
+    );
 
-  const verified = { emailVerifiedAt: new Date('2026-09-01T00:00:00Z'), createdAt: new Date('2026-09-01T00:00:00Z') };
-  function setup(user: unknown = { role: 'LAWYER', isActive: true, ...verified, office: { isActive: true } }) {
+  const verified = {
+    emailVerifiedAt: new Date('2026-09-01T00:00:00Z'),
+    createdAt: new Date('2026-09-01T00:00:00Z'),
+  };
+  function setup(
+    user: unknown = { role: 'LAWYER', isActive: true, ...verified, office: { isActive: true } },
+  ) {
     const findFirst = jest.fn().mockResolvedValue(user);
     const prisma = { unscoped: () => ({ user: { findFirst } }) } as unknown as PrismaService;
-    const guard = new JwtAuthGuard(new Reflector(), jwt, prisma, new AppConfig(parseEnv(testEnv({ EMAIL_VERIFICATION_ENFORCED: 'true' }))));
+    const guard = new JwtAuthGuard(
+      new Reflector(),
+      jwt,
+      prisma,
+      new AppConfig(parseEnv(testEnv({ EMAIL_VERIFICATION_ENFORCED: 'true' }))),
+    );
     const request: { headers: Record<string, string>; user?: unknown } = { headers: {} };
     const run = (authorization?: string, handler: object = () => undefined): Promise<boolean> => {
       if (authorization) request.headers['authorization'] = authorization;
@@ -149,41 +175,96 @@ describe('JwtAuthGuard', () => {
 
   it('should accept the header built by the bearerFor test helper', async () => {
     const { run } = setup();
-    await expect(run(bearerFor(jwt, { userId: USER, officeId: OFFICE, role: 'LAWYER' }).Authorization)).resolves.toBe(true);
+    await expect(
+      run(bearerFor(jwt, { userId: USER, officeId: OFFICE, role: 'LAWYER' }).Authorization),
+    ).resolves.toBe(true);
   });
 
   it('should authenticate a valid token and reload the role from the database', async () => {
-    const { run, request, findFirst } = setup({ role: 'SENIOR_LAWYER', isActive: true, ...verified, office: { isActive: true } });
+    const { run, request, findFirst } = setup({
+      role: 'SENIOR_LAWYER',
+      isActive: true,
+      ...verified,
+      office: { isActive: true },
+    });
     await expect(run(`Bearer ${sign({ role: 'TRAINEE' })}`)).resolves.toBe(true);
-    expect(findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: USER, officeId: OFFICE } }));
-    expect(request.user).toEqual({ userId: USER, officeId: OFFICE, role: 'SENIOR_LAWYER', realm: 'OFFICE', sessionId: 'family' });
+    expect(findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: USER, officeId: OFFICE } }),
+    );
+    expect(request.user).toEqual({
+      userId: USER,
+      officeId: OFFICE,
+      role: 'SENIOR_LAWYER',
+      realm: 'OFFICE',
+      sessionId: 'family',
+    });
   });
 
   it.each([
     ['no token', undefined, 'AUTH-003'],
     ['a malformed header', 'Token abc', 'AUTH-003'],
     ['an unsigned alg:none token', `Bearer ${unsigned()}`, 'AUTH-003'],
-    ['an HS512 token', `Bearer ${jwt.sign({ sub: USER, officeId: OFFICE }, { algorithm: 'HS512', issuer: JWT_ISSUER, audience: JWT_AUDIENCE })}`, 'AUTH-003'],
-    ['a forged signature', `Bearer ${new JwtService({ secret: 'x'.repeat(40) }).sign({ sub: USER }, { issuer: JWT_ISSUER, audience: JWT_AUDIENCE })}`, 'AUTH-003'],
+    [
+      'an HS512 token',
+      `Bearer ${jwt.sign({ sub: USER, officeId: OFFICE }, { algorithm: 'HS512', issuer: JWT_ISSUER, audience: JWT_AUDIENCE })}`,
+      'AUTH-003',
+    ],
+    [
+      'a forged signature',
+      `Bearer ${new JwtService({ secret: 'x'.repeat(40) }).sign({ sub: USER }, { issuer: JWT_ISSUER, audience: JWT_AUDIENCE })}`,
+      'AUTH-003',
+    ],
   ])('should answer 401 for %s', async (_label, header, code) => {
     const { run } = setup();
     await expect(run(header)).rejects.toMatchObject({ code });
   });
 
   it('should answer 401 AUTH-002 for an expired token and AUTH-003 for the wrong audience or issuer', async () => {
-    await expect(setup().run(`Bearer ${sign({}, { issuer: 'someone-else' })}`)).rejects.toMatchObject({ code: 'AUTH-003' });
-    await expect(setup().run(`Bearer ${sign({}, { expiresIn: -10 })}`)).rejects.toMatchObject({ code: 'AUTH-002' });
-    await expect(setup().run(`Bearer ${sign({}, { audience: 'portal' })}`)).rejects.toMatchObject({ code: 'AUTH-003' });
+    await expect(
+      setup().run(`Bearer ${sign({}, { issuer: 'someone-else' })}`),
+    ).rejects.toMatchObject({ code: 'AUTH-003' });
+    await expect(setup().run(`Bearer ${sign({}, { expiresIn: -10 })}`)).rejects.toMatchObject({
+      code: 'AUTH-002',
+    });
+    await expect(setup().run(`Bearer ${sign({}, { audience: 'portal' })}`)).rejects.toMatchObject({
+      code: 'AUTH-003',
+    });
   });
 
   it.each([
-    ['a user that no longer exists (or moved office)', null, 'AUTH-003', 'Invalid or missing access token'],
-    ['an inactive user', { role: 'LAWYER', isActive: false, ...verified, office: { isActive: true } }, 'AUTH-006', 'User account is inactive'],
-    ['a suspended office', { role: 'LAWYER', isActive: true, ...verified, office: { isActive: false } }, 'AUTH-006', 'Office is suspended'],
-    ['an unknown role', { role: 'GHOST', isActive: true, ...verified, office: { isActive: true } }, 'AUTH-003', 'Invalid or missing access token'],
+    [
+      'a user that no longer exists (or moved office)',
+      null,
+      'AUTH-003',
+      'Invalid or missing access token',
+    ],
+    [
+      'an inactive user',
+      { role: 'LAWYER', isActive: false, ...verified, office: { isActive: true } },
+      'AUTH-006',
+      'User account is inactive',
+    ],
+    [
+      'a suspended office',
+      { role: 'LAWYER', isActive: true, ...verified, office: { isActive: false } },
+      'AUTH-006',
+      'Office is suspended',
+    ],
+    [
+      'an unknown role',
+      { role: 'GHOST', isActive: true, ...verified, office: { isActive: true } },
+      'AUTH-003',
+      'Invalid or missing access token',
+    ],
     [
       'an email unverified 7 days after signup',
-      { role: 'LAWYER', isActive: true, emailVerifiedAt: null, createdAt: new Date(Date.now() - 8 * 86_400_000), office: { isActive: true } },
+      {
+        role: 'LAWYER',
+        isActive: true,
+        emailVerifiedAt: null,
+        createdAt: new Date(Date.now() - 8 * 86_400_000),
+        office: { isActive: true },
+      },
       'AUTH-010',
       'Email address not verified',
     ],

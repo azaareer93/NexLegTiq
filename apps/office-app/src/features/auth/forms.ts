@@ -3,7 +3,8 @@ import type { Rule } from 'antd/es/form';
 import type { z } from 'zod';
 
 /** Contract messages are `validation.*` keys; Zod's own messages (a value of the wrong type) only arise for empty fields. */
-const keyOf = (issue: z.core.$ZodIssue): string => (issue.message.startsWith('validation.') ? issue.message : 'validation.required');
+const keyOf = (issue: z.core.$ZodIssue): string =>
+  issue.message.startsWith('validation.') ? issue.message : 'validation.required';
 
 /** AntD rules from a contract field schema: the same validation and messages as the API (shared-contracts). */
 export function zodRule(schema: z.ZodType, message: (key: string) => string): Rule[] {
@@ -38,7 +39,12 @@ export function parseForm<S extends z.ZodType>(
   if (result.success) {
     return result.data;
   }
-  form.setFields(result.error.issues.map((issue) => ({ name: issue.path.map(String), errors: [message(keyOf(issue))] })));
+  form.setFields(
+    result.error.issues.map((issue) => ({
+      name: issue.path.map(String),
+      errors: [message(keyOf(issue))],
+    })),
+  );
   return null;
 }
 

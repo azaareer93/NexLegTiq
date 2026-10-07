@@ -40,8 +40,14 @@ export interface LanguageProviderProps {
  * Only an explicit pick is remembered on the device: a signed-in user's language never becomes the next person's default
  * on a shared office computer. Signing out keeps the language on screen until the page reloads.
  */
-export function LanguageProvider({ userLocale, onLocaleChange, children }: LanguageProviderProps): React.JSX.Element {
-  const [locale, setLocaleState] = useState<Locale>(() => userLocale ?? readStoredLocale() ?? DEFAULT_LOCALE);
+export function LanguageProvider({
+  userLocale,
+  onLocaleChange,
+  children,
+}: LanguageProviderProps): React.JSX.Element {
+  const [locale, setLocaleState] = useState<Locale>(
+    () => userLocale ?? readStoredLocale() ?? DEFAULT_LOCALE,
+  );
   const [i18n] = useState(() => createI18n(locale));
 
   // A new server language (sign-in, profile refetch) is adopted in the same render, not one paint later.

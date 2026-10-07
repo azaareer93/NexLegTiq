@@ -9,7 +9,11 @@ function matches(query: string): boolean {
   const width = window.innerWidth;
   const min = /min-width:\s*(\d+)px/.exec(query);
   const max = /max-width:\s*(\d+(?:\.\d+)?)px/.exec(query);
-  return (!min || width >= Number(min[1])) && (!max || width <= Number(max[1])) && (min !== null || max !== null);
+  return (
+    (!min || width >= Number(min[1])) &&
+    (!max || width <= Number(max[1])) &&
+    (min !== null || max !== null)
+  );
 }
 
 type Listener = (event: { matches: boolean; media: string }) => void;

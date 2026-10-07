@@ -5,8 +5,8 @@ import type { Job } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 import { z } from 'zod';
 
-import { SEND_EMAIL_JOB } from '../common/mail/mail.service';
 import { MailTransport } from '../common/mail/mail-transport';
+import { SEND_EMAIL_JOB } from '../common/mail/mail.service';
 import { MAIL_TEMPLATE_SCHEMAS, renderMail } from '../common/mail/templates';
 import type { MailLocale, MailTemplateName, MailTemplates } from '../common/mail/templates';
 import { QUEUE, workerOptions } from '../common/queue/queues';
@@ -15,16 +15,34 @@ import { TenantProcessor } from '../common/queue/tenant-processor';
 import { TenantRunner } from '../common/tenancy/tenant-runner';
 import { AppConfig } from '../config/app-config';
 import { PrismaService } from '../database/prisma.service';
-import { SEND_PASSWORD_RESET_JOB, SEND_VERIFICATION_EMAIL_JOB } from '../modules/auth/account-mailer';
+import {
+  SEND_PASSWORD_RESET_JOB,
+  SEND_VERIFICATION_EMAIL_JOB,
+} from '../modules/auth/account-mailer';
 import { PasswordResetLinks } from '../modules/auth/password-reset-links';
 import { VerificationLinks } from '../modules/auth/verification-links';
 
 const locale = z.enum(['AR', 'EN']);
 /** One variant per template, so each email's variables are checked before rendering (D-085). */
 const SendEmailSchema = z.discriminatedUnion('template', [
-  z.object({ to: z.email(), template: z.literal('verify-email'), locale, vars: MAIL_TEMPLATE_SCHEMAS['verify-email'] }),
-  z.object({ to: z.email(), template: z.literal('invite'), locale, vars: MAIL_TEMPLATE_SCHEMAS.invite }),
-  z.object({ to: z.email(), template: z.literal('password-reset'), locale, vars: MAIL_TEMPLATE_SCHEMAS['password-reset'] }),
+  z.object({
+    to: z.email(),
+    template: z.literal('verify-email'),
+    locale,
+    vars: MAIL_TEMPLATE_SCHEMAS['verify-email'],
+  }),
+  z.object({
+    to: z.email(),
+    template: z.literal('invite'),
+    locale,
+    vars: MAIL_TEMPLATE_SCHEMAS.invite,
+  }),
+  z.object({
+    to: z.email(),
+    template: z.literal('password-reset'),
+    locale,
+    vars: MAIL_TEMPLATE_SCHEMAS['password-reset'],
+  }),
 ]);
 /** `send-email` (any template, rendered here), or `send-verification-email` / `send-password-reset` (the link is created here). */
 const EmailJobSchema = z.union([SendEmailSchema, z.object({ userId: z.uuid() })]);
@@ -55,26 +73,45 @@ export class EmailProcessor extends TenantProcessor<EmailJob> {
     super(tenant, prisma, logger);
   }
 
-  protected async handle(job: Job<EmailJob & TenantJobData>, signal: AbortSignal): Promise<unknown> {
+  protected async handle(
+    job: Job<EmailJob & TenantJobData>,
+    signal: AbortSignal,
+  ): Promise<unknown> {
     const data = job.data;
     if (job.name === SEND_VERIFICATION_EMAIL_JOB && 'userId' in data) {
-      const email = await this.links.issue(data.userId, new Date(), { retry: job.attemptsMade > 0 });
+      const email = await this.links.issue(data.userId, new Date(), {
+        retry: job.attemptsMade > 0,
+      });
       if (!email) return SKIPPED_NOTHING_TO_SEND;
       // Each attempt issues its own link, so each attempt is its own message for de-duplication.
-      await this.deliver(email.to, 'verify-email', email.locale, email.vars, { signal, idempotencyKey: `${job.id}-${job.attemptsMade}` });
+      await this.deliver(email.to, 'verify-email', email.locale, email.vars, {
+        signal,
+        idempotencyKey: `${job.id}-${job.attemptsMade}`,
+      });
       return { sent: 'verify-email' };
     }
     if (job.name === SEND_PASSWORD_RESET_JOB && 'userId' in data) {
-      const email = await this.resetLinks.issue(data.userId, new Date(), { retry: job.attemptsMade > 0 });
+      const email = await this.resetLinks.issue(data.userId, new Date(), {
+        retry: job.attemptsMade > 0,
+      });
       if (!email) return SKIPPED_NOTHING_TO_SEND;
-      await this.deliver(email.to, 'password-reset', email.locale, email.vars, { signal, idempotencyKey: `${job.id}-${job.attemptsMade}` });
+      await this.deliver(email.to, 'password-reset', email.locale, email.vars, {
+        signal,
+        idempotencyKey: `${job.id}-${job.attemptsMade}`,
+      });
       return { sent: 'password-reset' };
     }
     if (job.name === SEND_EMAIL_JOB && 'template' in data) {
-      await this.deliver(data.to, data.template, data.locale, data.vars as MailTemplates[typeof data.template], {
-        signal,
-        idempotencyKey: `${job.id}`,
-      });
+      await this.deliver(
+        data.to,
+        data.template,
+        data.locale,
+        data.vars as MailTemplates[typeof data.template],
+        {
+          signal,
+          idempotencyKey: `${job.id}`,
+        },
+      );
       return { sent: data.template };
     }
     throw new UnrecoverableError(`Unknown email job ${job.name}`);
@@ -89,7 +126,8 @@ export class EmailProcessor extends TenantProcessor<EmailJob> {
   ) {
     const { officeAppUrl } = this.config.mail;
     // Every button in our emails leads into the office app; anything else is a bug or an injected link.
-    if (!vars.link.startsWith(`${officeAppUrl}/`)) throw new UnrecoverableError('Email link does not point to the office app');
+    if (!vars.link.startsWith(`${officeAppUrl}/`))
+      throw new UnrecoverableError('Email link does not point to the office app');
     await this.transport.send(to, renderMail(template, locale, vars, officeAppUrl), options);
   }
 }

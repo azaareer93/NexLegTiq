@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 
+import type { MailLocale, MailTemplateName, MailTemplates } from './templates';
 import { QueueProducer } from '../queue/queue-producer';
 import { QUEUE } from '../queue/queues';
-import type { MailLocale, MailTemplateName, MailTemplates } from './templates';
 
 export const SEND_EMAIL_JOB = 'send-email';
 
@@ -15,7 +15,12 @@ export const SEND_EMAIL_JOB = 'send-email';
 export class MailService {
   constructor(private readonly queues: QueueProducer) {}
 
-  async send<T extends MailTemplateName>(to: string, template: T, locale: MailLocale, vars: MailTemplates[T]): Promise<void> {
+  async send<T extends MailTemplateName>(
+    to: string,
+    template: T,
+    locale: MailLocale,
+    vars: MailTemplates[T],
+  ): Promise<void> {
     await this.queues.enqueue(QUEUE.EMAIL, SEND_EMAIL_JOB, { to, template, locale, vars });
   }
 }

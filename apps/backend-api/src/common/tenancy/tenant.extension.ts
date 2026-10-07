@@ -1,10 +1,15 @@
-import { Prisma } from '../../generated/prisma/client';
-import { assertRawQueryScoped, scopeArgs } from './tenant-scope';
+import { assertRawQueryScoped } from './tenant-raw-sql';
+import { scopeArgs } from './tenant-scope';
 import type { RelationMap, ScopeContext } from './tenant-scope';
+import { Prisma } from '../../generated/prisma/client';
 
 interface RuntimeModel {
   readonly dbName: string | null;
-  readonly fields: readonly { readonly name: string; readonly kind: string; readonly type: string }[];
+  readonly fields: readonly {
+    readonly name: string;
+    readonly kind: string;
+    readonly type: string;
+  }[];
 }
 
 /**
@@ -13,9 +18,12 @@ interface RuntimeModel {
  * (TenantExtension construction), never silently unscoped. Revisit if Prisma exposes the DMMF publicly again.
  */
 export function runtimeModels(client: object): Readonly<Record<string, RuntimeModel>> {
-  const models = (client as { _runtimeDataModel?: { models?: Record<string, RuntimeModel> } })._runtimeDataModel?.models;
+  const models = (client as { _runtimeDataModel?: { models?: Record<string, RuntimeModel> } })
+    ._runtimeDataModel?.models;
   if (!models || Object.keys(models).length === 0) {
-    throw new Error('Prisma runtime data model not found: the tenant extension cannot scope queries');
+    throw new Error(
+      'Prisma runtime data model not found: the tenant extension cannot scope queries',
+    );
   }
   return models;
 }
@@ -24,7 +32,9 @@ export function relationMap(models: Readonly<Record<string, RuntimeModel>>): Rel
   return new Map(
     Object.entries(models).map(([model, { fields }]) => [
       model,
-      new Map(fields.filter((field) => field.kind === 'object').map((field) => [field.name, field.type])),
+      new Map(
+        fields.filter((field) => field.kind === 'object').map((field) => [field.name, field.type]),
+      ),
     ]),
   );
 }
@@ -39,9 +49,14 @@ export interface TenantExtensionOptions {
 /** Prisma client extension enforcing D-018 on every model operation and raw query (rules in tenant-scope.ts). */
 export function tenantExtension({ models, tenantModels, officeId }: TenantExtensionOptions) {
   const unknown = tenantModels.filter((model) => !(model in models));
-  if (unknown.length > 0) throw new Error(`TENANT_MODELS lists unknown models: ${unknown.join(', ')}`);
+  if (unknown.length > 0)
+    throw new Error(`TENANT_MODELS lists unknown models: ${unknown.join(', ')}`);
 
-  const ctx: ScopeContext = { tenantModels: new Set(tenantModels), relations: relationMap(models), officeId };
+  const ctx: ScopeContext = {
+    tenantModels: new Set(tenantModels),
+    relations: relationMap(models),
+    officeId,
+  };
   const tenantTables = tenantModels.map((model) => models[model]?.dbName ?? model);
 
   return Prisma.defineExtension({

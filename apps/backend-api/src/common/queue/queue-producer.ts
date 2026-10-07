@@ -3,12 +3,12 @@ import { ModuleRef } from '@nestjs/core';
 import type { Job, JobsOptions } from 'bullmq';
 import { ClsService } from 'nestjs-cls';
 
-import type { RequestContext } from '../context/request-context';
-import { TenantContextMissingError } from '../tenancy/tenant.errors';
 import { getQueue } from './queues';
 import type { QueueName } from './queues';
 import type { JobFields, TenantJobData } from './tenant-job';
 import { withTimeout } from './with-timeout';
+import type { RequestContext } from '../context/request-context';
+import { TenantContextMissingError } from '../tenancy/tenant.errors';
 
 /**
  * What a producer may choose per job. Retry, backoff and retention come from the queue policy only. A `jobId` (for
@@ -28,7 +28,12 @@ export class QueueProducer {
     private readonly cls: ClsService<RequestContext>,
   ) {}
 
-  async enqueue<T extends JobFields>(queue: QueueName, name: string, data: T, options: EnqueueOptions = {}): Promise<Job<T & TenantJobData>> {
+  async enqueue<T extends JobFields>(
+    queue: QueueName,
+    name: string,
+    data: T,
+    options: EnqueueOptions = {},
+  ): Promise<Job<T & TenantJobData>> {
     const officeId = this.cls.isActive() ? this.cls.get('officeId') : undefined;
     if (!officeId) throw new TenantContextMissingError(`enqueue ${queue}/${name}`);
     // Spread first: a caller that smuggles officeId/requestId past the types is overwritten by the context.

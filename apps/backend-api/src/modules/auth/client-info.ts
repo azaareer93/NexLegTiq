@@ -18,7 +18,11 @@ export function truncateUserAgent(userAgent: string | null): string | null {
 }
 
 /** TenantRunner context for work done for a user before a request context exists (login, refresh, signup, links). */
-export function tenantContextFor(officeId: string, userId: string, client: ClientInfo): TenantRunContext {
+export function tenantContextFor(
+  officeId: string,
+  userId: string,
+  client: ClientInfo,
+): TenantRunContext {
   return {
     officeId: officeId as OfficeId,
     userId: userId as UserId,

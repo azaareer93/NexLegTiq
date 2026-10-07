@@ -3,14 +3,14 @@ import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 import { CoreModule } from '../common/core/core.module';
-import { MailModule } from '../common/mail/mail.module';
-import { QueueModule } from '../common/queue/queue.module';
-import { StorageModule } from '../common/storage/storage.module';
-import { DatabaseModule } from '../database/database.module';
 import { GlobalExceptionFilter } from '../common/errors/global-exception.filter';
 import { EnvelopeInterceptor } from '../common/http/envelope.interceptor';
+import { MailModule } from '../common/mail/mail.module';
+import { QueueModule } from '../common/queue/queue.module';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
+import { StorageModule } from '../common/storage/storage.module';
 import { TenantInterceptor } from '../common/tenancy/tenant.interceptor';
+import { DatabaseModule } from '../database/database.module';
 import { HealthModule } from '../health/health.module';
 import { MetricsModule } from '../metrics/metrics.module';
 import { AuthModule } from '../modules/auth/auth.module';

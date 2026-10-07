@@ -5,7 +5,10 @@ import { DEMO_OFFICE_ID, seedDemo } from '../../prisma/seed-demo';
 import type { PrismaClient } from '../generated/prisma/client';
 
 /** Runs `body` in a transaction that is always rolled back, so tests leave no rows behind. */
-async function inRollback(prisma: PrismaClient, body: (tx: PrismaClient) => Promise<void>): Promise<void> {
+async function inRollback(
+  prisma: PrismaClient,
+  body: (tx: PrismaClient) => Promise<void>,
+): Promise<void> {
   const rollback = new Error('rollback');
   await expect(
     prisma.$transaction(async (tx) => {
@@ -28,11 +31,19 @@ describe('database (migrations + seeds, real PostgreSQL)', () => {
 
   it('should seed plans idempotently', async () => {
     await seedPlans(prisma);
-    const first = await prisma.plan.findMany({ select: { id: true, code: true }, orderBy: { code: 'asc' } });
+    const first = await prisma.plan.findMany({
+      select: { id: true, code: true },
+      orderBy: { code: 'asc' },
+    });
     await seedPlans(prisma);
-    const second = await prisma.plan.findMany({ select: { id: true, code: true }, orderBy: { code: 'asc' } });
+    const second = await prisma.plan.findMany({
+      select: { id: true, code: true },
+      orderBy: { code: 'asc' },
+    });
 
-    expect(first.map((plan) => plan.code)).toEqual(expect.arrayContaining(PLANS.map((plan) => plan.code)));
+    expect(first.map((plan) => plan.code)).toEqual(
+      expect.arrayContaining(PLANS.map((plan) => plan.code)),
+    );
     expect(second).toEqual(first);
   });
 
@@ -62,11 +73,19 @@ describe('database (migrations + seeds, real PostgreSQL)', () => {
 
     await expect(counts()).resolves.toEqual(afterFirst);
 
-    const office = await prisma.office.findUniqueOrThrow({ where: { id: DEMO_OFFICE_ID }, include: { settings: true } });
-    expect(office.settings).toMatchObject({ courtReminderDays: [7, 3, 1], auditRetentionDays: 365 });
+    const office = await prisma.office.findUniqueOrThrow({
+      where: { id: DEMO_OFFICE_ID },
+      include: { settings: true },
+    });
+    expect(office.settings).toMatchObject({
+      courtReminderDays: [7, 3, 1],
+      auditRetentionDays: 365,
+    });
     await expect(prisma.user.count({ where: { officeId: DEMO_OFFICE_ID } })).resolves.toBe(1);
     await expect(
-      prisma.subscription.count({ where: { officeId: DEMO_OFFICE_ID, status: { in: ['TRIALING', 'ACTIVE'] } } }),
+      prisma.subscription.count({
+        where: { officeId: DEMO_OFFICE_ID, status: { in: ['TRIALING', 'ACTIVE'] } },
+      }),
     ).resolves.toBe(1);
   });
 
@@ -81,7 +100,9 @@ describe('database (migrations + seeds, real PostgreSQL)', () => {
     ['محكمة Appeal ١٢٣', 'محكمه appeal ١٢٣'], // mixed script, Arabic-Indic digits untouched
     ['', ''],
   ])('should normalise %s to %s with nlq_normalize_ar', async (input, expected) => {
-    const [row] = await prisma.$queryRaw<[{ value: string }]>`SELECT nlq_normalize_ar(${input}) AS value`;
+    const [row] = await prisma.$queryRaw<
+      [{ value: string }]
+    >`SELECT nlq_normalize_ar(${input}) AS value`;
 
     expect(row.value).toBe(expected);
     // The app's normalizeArabic (search terms typed in the UI) must agree with the database function (MVP-46).
@@ -107,7 +128,9 @@ describe('database (migrations + seeds, real PostgreSQL)', () => {
 
       await tx.subscription.create({ data: { ...base, status: 'CANCELLED' } });
       await tx.subscription.create({ data: { ...base, status: 'TRIALING' } });
-      await expect(tx.subscription.create({ data: { ...base, status: 'ACTIVE' } })).rejects.toMatchObject({
+      await expect(
+        tx.subscription.create({ data: { ...base, status: 'ACTIVE' } }),
+      ).rejects.toMatchObject({
         code: 'P2002',
       });
     });
@@ -122,7 +145,9 @@ describe('database (migrations + seeds, real PostgreSQL)', () => {
       const live = { planId: plan.id, status: 'ACTIVE', currentPeriodStart: new Date() } as const;
 
       await tx.subscription.create({ data: { ...live, officeId: a.id } });
-      await expect(tx.subscription.create({ data: { ...live, officeId: b.id } })).resolves.toBeDefined();
+      await expect(
+        tx.subscription.create({ data: { ...live, officeId: b.id } }),
+      ).resolves.toBeDefined();
     });
   });
 
@@ -131,7 +156,13 @@ describe('database (migrations + seeds, real PostgreSQL)', () => {
       const a = await tx.office.create({ data: { name: 'Office A' } });
       const b = await tx.office.create({ data: { name: 'Office B' } });
       const user = await tx.user.create({
-        data: { officeId: a.id, fullName: 'Lawyer', email: 'fk@example.test', passwordHash: '!', role: 'LAWYER' },
+        data: {
+          officeId: a.id,
+          fullName: 'Lawyer',
+          email: 'fk@example.test',
+          passwordHash: '!',
+          role: 'LAWYER',
+        },
       });
 
       await expect(
@@ -152,9 +183,17 @@ describe('database (migrations + seeds, real PostgreSQL)', () => {
     await inRollback(prisma, async (tx) => {
       const office = await tx.office.create({ data: { name: 'Audit office' } });
       const user = await tx.user.create({
-        data: { officeId: office.id, fullName: 'Actor', email: 'actor@example.test', passwordHash: '!', role: 'LAWYER' },
+        data: {
+          officeId: office.id,
+          fullName: 'Actor',
+          email: 'actor@example.test',
+          passwordHash: '!',
+          role: 'LAWYER',
+        },
       });
-      await tx.auditLog.create({ data: { officeId: office.id, userId: user.id, entityType: 'User', action: 'LOGIN' } });
+      await tx.auditLog.create({
+        data: { officeId: office.id, userId: user.id, entityType: 'User', action: 'LOGIN' },
+      });
 
       await expect(tx.user.delete({ where: { id: user.id } })).rejects.toThrow();
     });
@@ -165,7 +204,9 @@ describe('database (migrations + seeds, real PostgreSQL)', () => {
       const office = await tx.office.create({ data: { name: 'Settings boundary office' } });
 
       await expect(
-        tx.officeSettings.create({ data: { officeId: office.id, auditRetentionDays: 365, sessionIdleMinutes: 120 } }),
+        tx.officeSettings.create({
+          data: { officeId: office.id, auditRetentionDays: 365, sessionIdleMinutes: 120 },
+        }),
       ).resolves.toBeDefined();
     });
     await inRollback(prisma, async (tx) => {

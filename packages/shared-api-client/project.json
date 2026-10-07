@@ -3,10 +3,6 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "packages/shared-api-client/src",
   "projectType": "library",
-  "tags": [
-    "type:lib",
-    "scope:shared",
-    "layer:api-client"
-  ],
+  "tags": ["type:lib", "scope:shared", "layer:api-client"],
   "targets": {}
 }

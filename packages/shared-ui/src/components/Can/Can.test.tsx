@@ -11,7 +11,9 @@ const asTrainee = ({ children }: { children: ReactNode }): React.JSX.Element => 
 describe('useCan', () => {
   it('should reflect the provided permissions', () => {
     expect(renderHook(() => useCan('use:ai'), { wrapper: asTrainee }).result.current).toBe(true);
-    expect(renderHook(() => useCan('view:audit'), { wrapper: asTrainee }).result.current).toBe(false);
+    expect(renderHook(() => useCan('view:audit'), { wrapper: asTrainee }).result.current).toBe(
+      false,
+    );
   });
 
   it('should deny everything outside a provider', () => {

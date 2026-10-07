@@ -11,14 +11,20 @@ export const REFRESH_TTL_REMEMBER_DAYS = 30;
 export const SESSION_MAX_AGE_DAYS = 90;
 
 export function refreshExpiry(now: Date, rememberMe: boolean): Date {
-  return new Date(now.getTime() + (rememberMe ? REFRESH_TTL_REMEMBER_DAYS : REFRESH_TTL_DAYS) * DAY_MS);
+  return new Date(
+    now.getTime() + (rememberMe ? REFRESH_TTL_REMEMBER_DAYS : REFRESH_TTL_DAYS) * DAY_MS,
+  );
 }
 
 /**
  * Expiry of a rotated token: the same lifetime as the one it replaces, but never past the session's absolute cap
  * (counted from the family's first token), so a session that keeps refreshing still ends.
  */
-export function rotatedExpiry(now: Date, previous: { createdAt: Date; expiresAt: Date }, familyStartedAt: Date): Date {
+export function rotatedExpiry(
+  now: Date,
+  previous: { createdAt: Date; expiresAt: Date },
+  familyStartedAt: Date,
+): Date {
   const lifetime = previous.expiresAt.getTime() - previous.createdAt.getTime();
   const cap = familyStartedAt.getTime() + SESSION_MAX_AGE_DAYS * DAY_MS;
   return new Date(Math.min(now.getTime() + lifetime, cap));

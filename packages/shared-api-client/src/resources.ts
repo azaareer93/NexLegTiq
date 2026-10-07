@@ -58,18 +58,21 @@ export function authApi(client: ApiClient) {
         client.setToken(null);
       }
     },
-    verifyEmail: (body: Input<typeof VerifyEmailRequestSchema>) => client.request({ method: 'POST', path: 'auth/verify-email', body }),
+    verifyEmail: (body: Input<typeof VerifyEmailRequestSchema>) =>
+      client.request({ method: 'POST', path: 'auth/verify-email', body }),
     resendVerification: (body: Input<typeof ResendVerificationRequestSchema>) =>
       client.request({ method: 'POST', path: 'auth/resend-verification', body }),
     forgotPassword: (body: Input<typeof ForgotPasswordRequestSchema>) =>
       client.request({ method: 'POST', path: 'auth/forgot-password', body }),
-    resetPassword: (body: Input<typeof ResetPasswordRequestSchema>) => client.request({ method: 'POST', path: 'auth/reset-password', body }),
+    resetPassword: (body: Input<typeof ResetPasswordRequestSchema>) =>
+      client.request({ method: 'POST', path: 'auth/reset-password', body }),
   };
 }
 
 /** The signed-in user's own account. `GET/PATCH users/me` and the team endpoints join when the backend has them. */
 export function usersApi(client: ApiClient) {
   return {
-    changePassword: (body: Input<typeof ChangePasswordRequestSchema>) => client.request({ method: 'POST', path: 'users/me/password', body }),
+    changePassword: (body: Input<typeof ChangePasswordRequestSchema>) =>
+      client.request({ method: 'POST', path: 'users/me/password', body }),
   };
 }

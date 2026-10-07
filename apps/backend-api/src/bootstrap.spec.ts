@@ -9,19 +9,21 @@ describe('bootstrap', () => {
     });
   });
 
-
   describe('waitForShutdownSignal', () => {
-    it.each(['SIGTERM', 'SIGINT'] as const)('should resolve with %s and remove its listeners', async (signal) => {
-      // Arrange
-      const source = new EventEmitter();
-      const pending = waitForShutdownSignal(source);
+    it.each(['SIGTERM', 'SIGINT'] as const)(
+      'should resolve with %s and remove its listeners',
+      async (signal) => {
+        // Arrange
+        const source = new EventEmitter();
+        const pending = waitForShutdownSignal(source);
 
-      // Act
-      source.emit(signal);
+        // Act
+        source.emit(signal);
 
-      // Assert
-      await expect(pending).resolves.toBe(signal);
-      expect(source.listenerCount('SIGTERM') + source.listenerCount('SIGINT')).toBe(0);
-    });
+        // Assert
+        await expect(pending).resolves.toBe(signal);
+        expect(source.listenerCount('SIGTERM') + source.listenerCount('SIGINT')).toBe(0);
+      },
+    );
   });
 });

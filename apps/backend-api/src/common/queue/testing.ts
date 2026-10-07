@@ -12,12 +12,24 @@ export { getQueue } from './queues';
  */
 @Global()
 @Module({
-  providers: [{ provide: QueueProducer, useValue: { enqueue: () => Promise.reject(new Error('No queues in unit tests')) } }],
+  providers: [
+    {
+      provide: QueueProducer,
+      useValue: { enqueue: () => Promise.reject(new Error('No queues in unit tests')) },
+    },
+  ],
   exports: [QueueProducer],
 })
 export class QueueStubModule {}
 
-const PENDING_STATES = ['waiting', 'active', 'delayed', 'prioritized', 'waiting-children', 'paused'] as const;
+const PENDING_STATES = [
+  'waiting',
+  'active',
+  'delayed',
+  'prioritized',
+  'waiting-children',
+  'paused',
+] as const;
 
 /**
  * Test-only: resolves once the queue has no pending work (waiting, active, delayed or retrying jobs), so a test can assert
@@ -29,7 +41,10 @@ export async function drainQueue(queue: Queue, timeoutMs = 10_000, pollMs = 50):
   for (;;) {
     const counts = await queue.getJobCounts(...PENDING_STATES);
     if (Object.values(counts).every((count) => count === 0)) return;
-    if (Date.now() >= deadline) throw new Error(`Queue ${queue.name} still has pending jobs after ${timeoutMs} ms: ${JSON.stringify(counts)}`);
+    if (Date.now() >= deadline)
+      throw new Error(
+        `Queue ${queue.name} still has pending jobs after ${timeoutMs} ms: ${JSON.stringify(counts)}`,
+      );
     await new Promise((resolve) => setTimeout(resolve, pollMs));
   }
 }

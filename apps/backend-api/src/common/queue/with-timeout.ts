@@ -2,7 +2,10 @@
  * Runs `work` with a signal that aborts after `ms`; the call rejects at that moment whether or not `work` listens.
  * Used for job attempts (TenantProcessor) and for enqueueing while Redis may be unreachable (QueueProducer).
  */
-export async function withTimeout<T>(work: (signal: AbortSignal) => Promise<T>, ms: number): Promise<T> {
+export async function withTimeout<T>(
+  work: (signal: AbortSignal) => Promise<T>,
+  ms: number,
+): Promise<T> {
   const controller = new AbortController();
   let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<never>((_, reject) => {

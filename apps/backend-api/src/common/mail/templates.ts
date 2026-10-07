@@ -23,7 +23,8 @@ export const MAIL_TEMPLATE_NAMES = Object.keys(MAIL_TEMPLATE_SCHEMAS) as MailTem
  * 100+ يوم — and the same for minutes. Digits stay Western (frontend.md).
  */
 export function duration(value: number, unit: 'day' | 'minute', locale: MailLocale): string {
-  if (locale === 'EN') return `${value} ${unit}${new Intl.PluralRules('en').select(value) === 'one' ? '' : 's'}`;
+  if (locale === 'EN')
+    return `${value} ${unit}${new Intl.PluralRules('en').select(value) === 'one' ? '' : 's'}`;
   const forms =
     unit === 'day'
       ? { one: 'يوم واحد', two: 'يومين', few: 'أيام', many: 'يومًا', other: 'يوم' }
@@ -143,13 +144,20 @@ This link expires in {{period}}. If you did not ask for this, ignore this email;
   },
 };
 
-const PERIOD_OF: Readonly<Record<MailTemplateName, { readonly key: 'days' | 'minutes'; readonly unit: 'day' | 'minute' }>> = {
+const PERIOD_OF: Readonly<
+  Record<MailTemplateName, { readonly key: 'days' | 'minutes'; readonly unit: 'day' | 'minute' }>
+> = {
   'verify-email': { key: 'days', unit: 'day' },
   invite: { key: 'days', unit: 'day' },
   'password-reset': { key: 'minutes', unit: 'minute' },
 };
 
-const FOOTER: Readonly<Record<MailLocale, { noteHtml: string; noteText: string; terms: string; privacy: string; fallback: string }>> = {
+const FOOTER: Readonly<
+  Record<
+    MailLocale,
+    { noteHtml: string; noteText: string; terms: string; privacy: string; fallback: string }
+  >
+> = {
   AR: {
     noteHtml: 'أُرسلت هذه الرسالة من <bdi dir="ltr">NexLegTiq</bdi>.',
     noteText: 'أُرسلت هذه الرسالة من NexLegTiq',
@@ -210,14 +218,25 @@ const compile = (source: string) => hbs.compile(source, { strict: true });
 // Subjects and plain-text bodies are not HTML: escaping would turn an office named "A & B" into "A &amp; B".
 const compilePlain = (source: string) => hbs.compile(source, { strict: true, noEscape: true });
 const layout = compile(LAYOUT);
-type Compiled = { subject: HandlebarsTemplateDelegate; html: HandlebarsTemplateDelegate; text: HandlebarsTemplateDelegate };
+type Compiled = {
+  subject: HandlebarsTemplateDelegate;
+  html: HandlebarsTemplateDelegate;
+  text: HandlebarsTemplateDelegate;
+};
 const compiled = Object.fromEntries(
   MAIL_TEMPLATE_NAMES.map((template) => [
     template,
     Object.fromEntries(
       (['AR', 'EN'] as const).map((locale) => {
         const copy = COPY[template][locale];
-        return [locale, { subject: compilePlain(copy.subject), html: compile(copy.html), text: compilePlain(copy.text) }];
+        return [
+          locale,
+          {
+            subject: compilePlain(copy.subject),
+            html: compile(copy.html),
+            text: compilePlain(copy.text),
+          },
+        ];
       }),
     ),
   ]),
@@ -230,7 +249,12 @@ export interface RenderedMail {
 }
 
 /** Renders a template in a locale inside the base layout. `officeAppUrl` has no trailing slash. */
-export function renderMail<T extends MailTemplateName>(template: T, locale: MailLocale, vars: MailTemplates[T], officeAppUrl: string): RenderedMail {
+export function renderMail<T extends MailTemplateName>(
+  template: T,
+  locale: MailLocale,
+  vars: MailTemplates[T],
+  officeAppUrl: string,
+): RenderedMail {
   const parts = compiled[template][locale];
   const period = PERIOD_OF[template];
   const context = {

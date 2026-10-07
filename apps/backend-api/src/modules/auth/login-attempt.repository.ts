@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
-import { PrismaService } from '../../database/prisma.service';
 import { LOCKOUT_DURATION_MS, LOCKOUT_MAX_FAILURES } from './auth.constants';
+import { PrismaService } from '../../database/prisma.service';
 
 /**
  * LoginAttempt rows (D-053). The table is global and written before an office is known, so every access here uses
@@ -28,7 +28,12 @@ export class LoginAttemptRepository {
       select: { attemptedAt: true },
     });
     const failures = await attempts.findMany({
-      where: { email, ipAddress, success: false, attemptedAt: { gt: lastSuccess?.attemptedAt ?? horizon } },
+      where: {
+        email,
+        ipAddress,
+        success: false,
+        attemptedAt: { gt: lastSuccess?.attemptedAt ?? horizon },
+      },
       orderBy: { attemptedAt: 'desc' },
       take: LOCKOUT_MAX_FAILURES,
       select: { attemptedAt: true },

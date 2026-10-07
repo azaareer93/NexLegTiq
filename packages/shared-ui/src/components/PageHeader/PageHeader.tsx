@@ -17,7 +17,13 @@ export interface PageHeaderProps {
 }
 
 /** The title row of a page: optional back button, title and subtitle, actions. */
-export function PageHeader({ title, subtitle, extra, onBack, level = 1 }: PageHeaderProps): React.JSX.Element {
+export function PageHeader({
+  title,
+  subtitle,
+  extra,
+  onBack,
+  level = 1,
+}: PageHeaderProps): React.JSX.Element {
   const { t } = useTranslation();
   const { token } = theme.useToken();
   return (
@@ -32,7 +38,10 @@ export function PageHeader({ title, subtitle, extra, onBack, level = 1 }: PageHe
         />
       ) : null}
       <Flex vertical style={{ flex: '1 1 auto', minInlineSize: 0 }}>
-        <Typography.Title level={level} style={{ marginBlock: 0, fontSize: token.fontSizeHeading3 }}>
+        <Typography.Title
+          level={level}
+          style={{ marginBlock: 0, fontSize: token.fontSizeHeading3 }}
+        >
           {title}
         </Typography.Title>
         {subtitle ? <Typography.Text type="secondary">{subtitle}</Typography.Text> : null}

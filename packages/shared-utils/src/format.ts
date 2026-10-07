@@ -34,14 +34,20 @@ const dateTimeFormat = (locale: string, options: Intl.DateTimeFormatOptions) =>
   cached(`dt|${locale}|${JSON.stringify(options)}`, () => new Intl.DateTimeFormat(locale, options));
 
 /** `signDisplay: 'negative'` (ES2023, typed here: the workspace compiles with the es2022 lib) never prints "-0.00". */
-type NumberOptions = Omit<Intl.NumberFormatOptions, 'signDisplay'> & { readonly signDisplay: 'negative' };
+type NumberOptions = Omit<Intl.NumberFormatOptions, 'signDisplay'> & {
+  readonly signDisplay: 'negative';
+};
 const numberFormat = (locale: string, options: NumberOptions) =>
-  cached(`nf|${locale}|${JSON.stringify(options)}`, () => new Intl.NumberFormat(locale, options as unknown as Intl.NumberFormatOptions));
+  cached(
+    `nf|${locale}|${JSON.stringify(options)}`,
+    () => new Intl.NumberFormat(locale, options as unknown as Intl.NumberFormatOptions),
+  );
 /**
  * Formats an already-rounded decimal string. Engines with ES2023 Intl format the string exactly; older ones (e.g. Firefox
  * 115 ESR) convert it to a float first, which is harmless once it is rounded to its final digits.
  */
-const formatRounded = (format: Intl.NumberFormat, rounded: string): string => format.format(rounded as unknown as number);
+const formatRounded = (format: Intl.NumberFormat, rounded: string): string =>
+  format.format(rounded as unknown as number);
 
 /**
  * The Intl locale: the UI language with the digit system pinned. Plain `ar` uses MSA month names (أكتوبر) everywhere
@@ -70,7 +76,8 @@ const zoneFor = (value: DateInput, timeZone: string | undefined) =>
   typeof value === 'string' && DATE_ONLY.test(value) ? 'UTC' : (timeZone ?? DEFAULT_TIME_ZONE);
 
 /** Western digits to Arabic-Indic (U+0660–0669; other characters unchanged). */
-export const toArabicIndicDigits = (text: string): string => text.replace(/[0-9]/g, (digit) => String.fromCharCode(0x0660 + Number(digit)));
+export const toArabicIndicDigits = (text: string): string =>
+  text.replace(/[0-9]/g, (digit) => String.fromCharCode(0x0660 + Number(digit)));
 
 /**
  * What a user typed, back to Western: Arabic-Indic (U+0660) and Persian (U+06F0) digits (the low nibble is the digit), the
@@ -86,7 +93,10 @@ export const toWesternDigits = (text: string): string =>
  * `dd/MM/yyyy` in both languages (frontend.md), in `timeZone`, whatever the locale's own pattern; the digits follow the
  * preference. `style: 'long'` writes the month (13 أكتوبر 2026 / 13 October 2026).
  */
-export function formatDate(value: DateInput, options: FormatOptions & { readonly style?: 'short' | 'long' }): string {
+export function formatDate(
+  value: DateInput,
+  options: FormatOptions & { readonly style?: 'short' | 'long' },
+): string {
   const date = toDate(value);
   const timeZone = zoneFor(value, options.timeZone);
   if (options.style === 'long') {
@@ -95,7 +105,12 @@ export function formatDate(value: DateInput, options: FormatOptions & { readonly
     return dateTimeFormat(locale, { dateStyle: 'long', timeZone }).format(date);
   }
   // British English writes exactly dd/MM/yyyy with Western digits; the digit preference is applied after.
-  const text = dateTimeFormat('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone }).format(date);
+  const text = dateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    timeZone,
+  }).format(date);
   return options.digits === 'arab' ? toArabicIndicDigits(text) : text;
 }
 
@@ -115,7 +130,12 @@ export function formatDateTime(value: DateInput, options: FormatOptions): string
 
 /** Days since 1970-01-01 of the calendar date `date` falls on in `timeZone`. */
 function dayNumber(date: Date, timeZone: string): number {
-  const [year, month, day] = dateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone })
+  const [year, month, day] = dateTimeFormat('en-CA', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    timeZone,
+  })
     .format(date)
     .split('-')
     .map(Number) as [number, number, number];
@@ -128,12 +148,17 @@ function dayNumber(date: Date, timeZone: string): number {
  * after tomorrow, seen at 17:00 today, is "بعد غد" — never "tomorrow" because it is 36 hours away. Days up to 13 (deadlines
  * are counted in days), then weeks, months and years. `now` is a parameter so callers and tests control the clock.
  */
-export function formatRelative(value: DateInput, options: FormatOptions & { readonly now?: DateInput }): string {
+export function formatRelative(
+  value: DateInput,
+  options: FormatOptions & { readonly now?: DateInput },
+): string {
   const target = toDate(value);
   const now = toDate(options.now ?? Date.now());
   const timeZone = zoneFor(value, options.timeZone);
-  const format = cached(`rt|${options.locale}|${options.digits ?? 'latn'}`, () =>
-    new Intl.RelativeTimeFormat(intlLocale(options.locale, options.digits), { numeric: 'auto' }),
+  const format = cached(
+    `rt|${options.locale}|${options.digits ?? 'latn'}`,
+    () =>
+      new Intl.RelativeTimeFormat(intlLocale(options.locale, options.digits), { numeric: 'auto' }),
   );
   const days = dayNumber(target, timeZone) - dayNumber(now, timeZone);
   if (days === 0) {
@@ -152,13 +177,21 @@ export function formatRelative(value: DateInput, options: FormatOptions & { read
  * A number in the user's language and digits. A string is rounded half-even with decimal.js first, so the exact value is
  * kept and no engine float or rounding mode is involved.
  */
-export function formatNumber(value: number | string, options: FormatOptions & { readonly maximumFractionDigits?: number }): string {
+export function formatNumber(
+  value: number | string,
+  options: FormatOptions & { readonly maximumFractionDigits?: number },
+): string {
   if (typeof value === 'number' && !Number.isFinite(value)) {
     throw new RangeError('Not a finite number');
   }
   const digits = options.maximumFractionDigits ?? 3;
-  const format = numberFormat(intlLocale(options.locale, options.digits), { maximumFractionDigits: digits, signDisplay: 'negative' });
-  return typeof value === 'string' ? formatRounded(format, roundMoney(value, digits)) : format.format(value);
+  const format = numberFormat(intlLocale(options.locale, options.digits), {
+    maximumFractionDigits: digits,
+    signDisplay: 'negative',
+  });
+  return typeof value === 'string'
+    ? formatRounded(format, roundMoney(value, digits))
+    : format.format(value);
 }
 
 /**
@@ -167,6 +200,10 @@ export function formatNumber(value: number | string, options: FormatOptions & { 
  */
 export function formatMoney(amount: string, currency: string, options: FormatOptions): string {
   const rounded = roundMoney(parseAmount(amount), currency);
-  const format = numberFormat(intlLocale(options.locale, options.digits), { style: 'currency', currency, signDisplay: 'negative' });
+  const format = numberFormat(intlLocale(options.locale, options.digits), {
+    style: 'currency',
+    currency,
+    signDisplay: 'negative',
+  });
   return formatRounded(format, rounded);
 }

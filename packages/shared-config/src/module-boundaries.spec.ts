@@ -1,6 +1,9 @@
-import { ESLint } from 'eslint';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import type { ESLint } from 'eslint';
+
+import { fixtureLinter } from './fixture-eslint.js';
 
 const workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const RULE = '@nx/enforce-module-boundaries';
@@ -16,18 +19,39 @@ async function boundaryErrors(filePath: string, code: string): Promise<string[]>
 describe('module boundaries', () => {
   // Loading the flat config and the Nx project graph is slow on a cold start.
   beforeAll(async () => {
-    eslint = new ESLint({ cwd: workspaceRoot });
-    await eslint.calculateConfigForFile(resolve(workspaceRoot, 'packages/shared-types/src/index.ts'));
+    eslint = fixtureLinter(workspaceRoot);
+    await eslint.calculateConfigForFile(
+      resolve(workspaceRoot, 'packages/shared-types/src/index.ts'),
+    );
   }, 60_000);
 
   it.each([
-    ['shared-i18n importing shared-utils', 'packages/shared-i18n/src/fixture.ts', '@nexlegtiq/shared-utils'],
-    ['shared-utils importing shared-contracts', 'packages/shared-utils/src/fixture.ts', '@nexlegtiq/shared-contracts'],
-    ['shared-ui importing shared-api-client', 'packages/shared-ui/src/fixture.ts', '@nexlegtiq/shared-api-client'],
+    [
+      'shared-i18n importing shared-utils',
+      'packages/shared-i18n/src/fixture.ts',
+      '@nexlegtiq/shared-utils',
+    ],
+    [
+      'shared-utils importing shared-contracts',
+      'packages/shared-utils/src/fixture.ts',
+      '@nexlegtiq/shared-contracts',
+    ],
+    [
+      'shared-ui importing shared-api-client',
+      'packages/shared-ui/src/fixture.ts',
+      '@nexlegtiq/shared-api-client',
+    ],
     ['backend-api importing shared-ui', 'apps/backend-api/src/fixture.ts', '@nexlegtiq/shared-ui'],
-    ['backend-api importing shared-api-client', 'apps/backend-api/src/fixture.ts', '@nexlegtiq/shared-api-client'],
+    [
+      'backend-api importing shared-api-client',
+      'apps/backend-api/src/fixture.ts',
+      '@nexlegtiq/shared-api-client',
+    ],
   ])('should fail lint for %s', async (_case, filePath, target) => {
-    const errors = await boundaryErrors(filePath, `import * as forbidden from '${target}';\nexport { forbidden };\n`);
+    const errors = await boundaryErrors(
+      filePath,
+      `import * as forbidden from '${target}';\nexport { forbidden };\n`,
+    );
     // Assert the tag constraint fired (not e.g. the circular-dependency check of the same rule).
     expect(errors).toEqual([expect.stringMatching(/tagged with/)]);
   });
@@ -35,25 +59,55 @@ describe('module boundaries', () => {
   it.each([
     ['office-app importing @nestjs/common', 'apps/office-app/src/fixture.ts', '@nestjs/common'],
     ['shared-ui importing @prisma/client', 'packages/shared-ui/src/fixture.ts', '@prisma/client'],
-    ['shared-i18n importing @nestjs/common', 'packages/shared-i18n/src/fixture.ts', '@nestjs/common'],
+    [
+      'shared-i18n importing @nestjs/common',
+      'packages/shared-i18n/src/fixture.ts',
+      '@nestjs/common',
+    ],
     ['shared-api-client importing ioredis', 'packages/shared-api-client/src/fixture.ts', 'ioredis'],
     ['backend-api importing react', 'apps/backend-api/src/fixture.ts', 'react'],
   ])('should fail lint for %s (banned external import)', async (_case, filePath, target) => {
-    const errors = await boundaryErrors(filePath, `import * as banned from '${target}';
+    const errors = await boundaryErrors(
+      filePath,
+      `import * as banned from '${target}';
 export { banned };
-`);
+`,
+    );
     expect(errors).toEqual([expect.stringMatching(/not allowed to import/)]);
   });
 
   it.each([
-    ['backend-api-e2e importing shared-contracts', 'apps/backend-api-e2e/src/fixture.ts', '@nexlegtiq/shared-contracts'],
-    ['shared-utils importing shared-types', 'packages/shared-utils/src/fixture.ts', '@nexlegtiq/shared-types'],
-    ['shared-contracts importing shared-utils', 'packages/shared-contracts/src/fixture.ts', '@nexlegtiq/shared-utils'],
-    ['shared-ui importing shared-i18n', 'packages/shared-ui/src/fixture.ts', '@nexlegtiq/shared-i18n'],
-    ['backend-api importing shared-contracts', 'apps/backend-api/src/fixture.ts', '@nexlegtiq/shared-contracts'],
+    [
+      'backend-api-e2e importing shared-contracts',
+      'apps/backend-api-e2e/src/fixture.ts',
+      '@nexlegtiq/shared-contracts',
+    ],
+    [
+      'shared-utils importing shared-types',
+      'packages/shared-utils/src/fixture.ts',
+      '@nexlegtiq/shared-types',
+    ],
+    [
+      'shared-contracts importing shared-utils',
+      'packages/shared-contracts/src/fixture.ts',
+      '@nexlegtiq/shared-utils',
+    ],
+    [
+      'shared-ui importing shared-i18n',
+      'packages/shared-ui/src/fixture.ts',
+      '@nexlegtiq/shared-i18n',
+    ],
+    [
+      'backend-api importing shared-contracts',
+      'apps/backend-api/src/fixture.ts',
+      '@nexlegtiq/shared-contracts',
+    ],
     ['office-app importing shared-ui', 'apps/office-app/src/fixture.ts', '@nexlegtiq/shared-ui'],
   ])('should allow %s', async (_case, filePath, target) => {
-    const errors = await boundaryErrors(filePath, `import * as allowed from '${target}';\nexport { allowed };\n`);
+    const errors = await boundaryErrors(
+      filePath,
+      `import * as allowed from '${target}';\nexport { allowed };\n`,
+    );
     expect(errors).toEqual([]);
   });
 });

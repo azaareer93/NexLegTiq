@@ -37,5 +37,9 @@ export function GuestOnly(): React.JSX.Element {
   if (status === 'loading') {
     return <LoadingSkeleton />;
   }
-  return status === 'authenticated' ? <Navigate to={safeNext(params.get('next'))} replace /> : <Outlet />;
+  return status === 'authenticated' ? (
+    <Navigate to={safeNext(params.get('next'))} replace />
+  ) : (
+    <Outlet />
+  );
 }

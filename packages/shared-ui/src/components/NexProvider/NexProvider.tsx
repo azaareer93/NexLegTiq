@@ -18,7 +18,12 @@ export type NexProviderProps = LanguageProviderProps & FormatSettings;
  * (Arabic gets its font, +1px and line-height 1.8) and AntD's `App` context, so `message`, `notification` and `modal`
  * follow the theme and direction too.
  */
-export function NexProvider({ children, timeZone, digits, ...language }: NexProviderProps): React.JSX.Element {
+export function NexProvider({
+  children,
+  timeZone,
+  digits,
+  ...language
+}: NexProviderProps): React.JSX.Element {
   return (
     <LanguageProvider {...language}>
       <FormatSettingsProvider timeZone={timeZone} digits={digits}>

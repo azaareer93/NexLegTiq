@@ -4,9 +4,9 @@ import { UnrecoverableError } from 'bullmq';
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 
+import type { RenderedMail } from './templates';
 import { AppConfig } from '../../config/app-config';
 import { AppException } from '../errors/app.exception';
-import type { RenderedMail } from './templates';
 
 const RESEND_URL = 'https://api.resend.com/emails';
 
@@ -32,10 +32,19 @@ export class MailTransport implements OnModuleDestroy {
     const { provider, from } = this.config.mail;
     try {
       if (provider === 'resend') await this.sendWithResend(from, to, mail, options);
-      else await this.smtpTransport().sendMail({ from, to, subject: mail.subject, html: mail.html, text: mail.text });
+      else
+        await this.smtpTransport().sendMail({
+          from,
+          to,
+          subject: mail.subject,
+          html: mail.html,
+          text: mail.text,
+        });
     } catch (error) {
       if (error instanceof AppException || error instanceof UnrecoverableError) throw error;
-      throw new AppException('EXT-001', 'Email provider failed', undefined, { cause: providerFailure(error) });
+      throw new AppException('EXT-001', 'Email provider failed', undefined, {
+        cause: providerFailure(error),
+      });
     }
   }
 
@@ -60,7 +69,12 @@ export class MailTransport implements OnModuleDestroy {
     return this.smtp;
   }
 
-  private async sendWithResend(from: string, to: string, mail: RenderedMail, options: SendOptions): Promise<void> {
+  private async sendWithResend(
+    from: string,
+    to: string,
+    mail: RenderedMail,
+    options: SendOptions,
+  ): Promise<void> {
     const response = await fetch(RESEND_URL, {
       method: 'POST',
       headers: {
@@ -68,7 +82,13 @@ export class MailTransport implements OnModuleDestroy {
         'Content-Type': 'application/json',
         ...(options.idempotencyKey ? { 'Idempotency-Key': options.idempotencyKey } : {}),
       },
-      body: JSON.stringify({ from, to: [to], subject: mail.subject, html: mail.html, text: mail.text }),
+      body: JSON.stringify({
+        from,
+        to: [to],
+        subject: mail.subject,
+        html: mail.html,
+        text: mail.text,
+      }),
       ...(options.signal ? { signal: options.signal } : {}),
     });
     if (response.ok) return;
@@ -82,6 +102,10 @@ export class MailTransport implements OnModuleDestroy {
 
 /** What may be logged about a provider failure: its codes, never its message. */
 function providerFailure(error: unknown): Record<string, unknown> {
-  const { code, responseCode, name } = (error ?? {}) as { code?: unknown; responseCode?: unknown; name?: unknown };
+  const { code, responseCode, name } = (error ?? {}) as {
+    code?: unknown;
+    responseCode?: unknown;
+    name?: unknown;
+  };
   return { name, code, responseCode };
 }

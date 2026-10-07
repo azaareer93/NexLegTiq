@@ -5,12 +5,12 @@ import type { Response } from 'express';
 import { ClsService } from 'nestjs-cls';
 import { PinoLogger } from 'nestjs-pino';
 
-import type { RequestContext } from '../context/request-context';
 import { AppException } from './app.exception';
 import { DEFAULT_MESSAGE, ERROR_STATUS } from './error-catalog';
 import type { GenericErrorCode } from './error-catalog';
 import { loggableError } from './error-log';
 import { isPrismaError, mapPrismaError } from './prisma-error';
+import type { RequestContext } from '../context/request-context';
 
 interface NormalizedError {
   readonly status: number;
@@ -37,7 +37,12 @@ const HTTP_STATUS_CODE: Readonly<Partial<Record<number, GenericErrorCode>>> = {
  */
 function frameworkStatusOf(exception: unknown): number | undefined {
   if (exception instanceof HttpException) return exception.getStatus();
-  if (exception instanceof Error && 'expose' in exception && exception.expose === true && 'status' in exception) {
+  if (
+    exception instanceof Error &&
+    'expose' in exception &&
+    exception.expose === true &&
+    'status' in exception
+  ) {
     const { status } = exception;
     if (typeof status === 'number' && status >= 400 && status < 500) return status;
   }
@@ -91,16 +96,28 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     if (status !== undefined) {
       if (status >= 500) {
         const code = HTTP_STATUS_CODE[status] ?? 'SYS-001';
-        return { status, code, message: code === 'SYS-002' ? DEFAULT_MESSAGE['SYS-002'] : DEFAULT_MESSAGE['SYS-001'] };
+        return {
+          status,
+          code,
+          message: code === 'SYS-002' ? DEFAULT_MESSAGE['SYS-002'] : DEFAULT_MESSAGE['SYS-001'],
+        };
       }
       const code = HTTP_STATUS_CODE[status] ?? 'VAL-001';
       return { status, code, message: DEFAULT_MESSAGE[code] };
     }
-    return { status: HttpStatus.INTERNAL_SERVER_ERROR, code: 'SYS-001', message: DEFAULT_MESSAGE['SYS-001'] };
+    return {
+      status: HttpStatus.INTERNAL_SERVER_ERROR,
+      code: 'SYS-001',
+      message: DEFAULT_MESSAGE['SYS-001'],
+    };
   }
 
   private log(exception: unknown, error: NormalizedError): void {
-    const payload = { err: loggableError(exception, error.status), code: error.code, status: error.status };
+    const payload = {
+      err: loggableError(exception, error.status),
+      code: error.code,
+      status: error.status,
+    };
     if (error.status >= 500) this.logger.error(payload, 'Request failed');
     else this.logger.debug(payload, 'Request rejected');
   }

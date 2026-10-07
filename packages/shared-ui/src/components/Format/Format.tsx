@@ -34,7 +34,11 @@ function knownZone(timeZone: string | undefined): string | undefined {
 }
 
 /** The user's time zone and digit preference for `useFormat` (set by `NexProvider`). */
-export function FormatSettingsProvider({ timeZone, digits, children }: FormatSettings & { readonly children: ReactNode }): React.JSX.Element {
+export function FormatSettingsProvider({
+  timeZone,
+  digits,
+  children,
+}: FormatSettings & { readonly children: ReactNode }): React.JSX.Element {
   const value = useMemo(() => ({ timeZone: knownZone(timeZone), digits }), [timeZone, digits]);
   return <FormatSettingsContext.Provider value={value}>{children}</FormatSettingsContext.Provider>;
 }
@@ -71,7 +75,8 @@ export function useFormat(): Formatters {
       time: (value) => formatTime(value, options),
       dateTime: (value) => formatDateTime(value, options),
       relative: (value, now) => formatRelative(value, { ...options, now }),
-      number: (value, maximumFractionDigits) => formatNumber(value, { ...options, maximumFractionDigits }),
+      number: (value, maximumFractionDigits) =>
+        formatNumber(value, { ...options, maximumFractionDigits }),
       money: (amount, currency) => formatMoney(amount, currency, options),
     };
   }, [locale, timeZone, digits]);

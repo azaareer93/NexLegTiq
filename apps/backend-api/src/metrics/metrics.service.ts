@@ -31,7 +31,11 @@ export class MetricsService {
     const stop = this.httpDuration.startTimer();
     res.once('close', () => {
       const template = routeTemplateOf(req) ?? 'unmatched';
-      stop({ method: req.method ?? 'UNKNOWN', route: template, status_code: String(res.statusCode) });
+      stop({
+        method: req.method ?? 'UNKNOWN',
+        route: template,
+        status_code: String(res.statusCode),
+      });
     });
     next();
   };

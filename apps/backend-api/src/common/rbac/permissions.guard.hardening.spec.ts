@@ -5,12 +5,16 @@ import type { OfficeId, Role, UserId } from '@nexlegtiq/shared-types';
 import { ClsServiceManager } from 'nestjs-cls';
 import type { PinoLogger } from 'nestjs-pino';
 
+import {
+  PermissionConditionsCheckedByService,
+  RequireAnyPermission,
+  RequirePermissions,
+} from './permissions.decorator';
+import { PermissionsGuard } from './permissions.guard';
 import type { PrismaService } from '../../database/prisma.service';
 import type { AuthPrincipal, AuthRealm, RequestContext } from '../context/request-context';
 import { PermissionDeniedException } from '../errors/app.exception';
 import { TenantRunner } from '../tenancy/tenant-runner';
-import { PermissionConditionsCheckedByService, RequireAnyPermission, RequirePermissions } from './permissions.decorator';
-import { PermissionsGuard } from './permissions.guard';
 
 // Cases added by the MVP-38 review (D-081): class + method requirements, ANY denial, realms, conditional cells.
 const OFFICE = '01920000-0000-7000-8000-00000000000a' as OfficeId;
@@ -63,12 +67,19 @@ function setup() {
     guard.canActivate({
       getHandler: () => handler,
       getClass: () => controller,
-      switchToHttp: () => ({ getRequest: () => ({ user, headers: { 'user-agent': 'x'.repeat(2000) } }) }),
+      switchToHttp: () => ({
+        getRequest: () => ({ user, headers: { 'user-agent': 'x'.repeat(2000) } }),
+      }),
     } as unknown as ExecutionContext);
   return { run, create };
 }
 
-const as = (role: Role, realm: AuthRealm = 'OFFICE'): AuthPrincipal => ({ userId: USER, officeId: OFFICE, role, realm });
+const as = (role: Role, realm: AuthRealm = 'OFFICE'): AuthPrincipal => ({
+  userId: USER,
+  officeId: OFFICE,
+  role,
+  realm,
+});
 const users = UsersController.prototype;
 const cases = CasesController.prototype;
 
@@ -76,38 +87,56 @@ describe('PermissionsGuard — review hardening (D-081)', () => {
   it('should require both the class and the method requirement', async () => {
     const { run } = setup();
     await expect(run(users.mine, UsersController, as('OFFICE_MANAGER'))).resolves.toBe(true);
-    await expect(run(users.mine, UsersController, as('TRAINEE'))).rejects.toBeInstanceOf(PermissionDeniedException);
-    await expect(run(users.all, UsersController, as('SENIOR_LAWYER'))).rejects.toBeInstanceOf(PermissionDeniedException);
+    await expect(run(users.mine, UsersController, as('TRAINEE'))).rejects.toBeInstanceOf(
+      PermissionDeniedException,
+    );
+    await expect(run(users.all, UsersController, as('SENIOR_LAWYER'))).rejects.toBeInstanceOf(
+      PermissionDeniedException,
+    );
   });
 
   it('should deny ANY when no listed permission is held, and audit mode ANY', async () => {
     const { run, create } = setup();
     await expect(run(cases.overview, CasesController, as('ADMIN'))).resolves.toBe(true);
-    await expect(run(cases.overview, CasesController, as('LAWYER'))).rejects.toBeInstanceOf(PermissionDeniedException);
+    await expect(run(cases.overview, CasesController, as('LAWYER'))).rejects.toBeInstanceOf(
+      PermissionDeniedException,
+    );
     expect(create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ officeId: OFFICE, newValues: expect.objectContaining({ mode: 'ANY' }) }),
+      data: expect.objectContaining({
+        officeId: OFFICE,
+        newValues: expect.objectContaining({ mode: 'ANY' }),
+      }),
     });
   });
 
-  it.each<AuthRealm>(['PORTAL', 'PLATFORM'])('should give no office permissions to the %s realm', async (realm) => {
-    const { run, create } = setup();
-    await expect(run(cases.overview, CasesController, as('OFFICE_MANAGER', realm))).rejects.toBeInstanceOf(
-      PermissionDeniedException,
-    );
-    expect(create).not.toHaveBeenCalled();
-  });
+  it.each<AuthRealm>(['PORTAL', 'PLATFORM'])(
+    'should give no office permissions to the %s realm',
+    async (realm) => {
+      const { run, create } = setup();
+      await expect(
+        run(cases.overview, CasesController, as('OFFICE_MANAGER', realm)),
+      ).rejects.toBeInstanceOf(PermissionDeniedException);
+      expect(create).not.toHaveBeenCalled();
+    },
+  );
 
   it('should treat a conditional cell as not held unless the service declares it checks the condition', async () => {
     const { run } = setup();
-    await expect(run(cases.closeUnchecked, CasesController, as('LAWYER'))).rejects.toBeInstanceOf(PermissionDeniedException);
+    await expect(run(cases.closeUnchecked, CasesController, as('LAWYER'))).rejects.toBeInstanceOf(
+      PermissionDeniedException,
+    );
     await expect(run(cases.closeChecked, CasesController, as('LAWYER'))).resolves.toBe(true);
-    await expect(run(cases.closeUnchecked, CasesController, as('SENIOR_LAWYER'))).resolves.toBe(true);
+    await expect(run(cases.closeUnchecked, CasesController, as('SENIOR_LAWYER'))).resolves.toBe(
+      true,
+    );
   });
 
   it('should truncate the audited user agent', async () => {
     const { run, create } = setup();
     await expect(run(users.all, UsersController, as('TRAINEE'))).rejects.toThrow();
-    expect((create.mock.calls[0]?.[0] as { data: { userAgent: string } }).data.userAgent).toHaveLength(512);
+    expect(
+      (create.mock.calls[0]?.[0] as { data: { userAgent: string } }).data.userAgent,
+    ).toHaveLength(512);
   });
 
   it('should not audit allowed requests', async () => {

@@ -26,5 +26,8 @@ export function parseTenantJob(data: unknown): TenantJobData | null {
   const result = TenantJobSchema.safeParse(data);
   if (!result.success) return null;
   const { officeId, requestId } = result.data;
-  return { officeId: officeId as OfficeId, requestId: requestId !== null && SAFE_REQUEST_ID.test(requestId) ? requestId : null };
+  return {
+    officeId: officeId as OfficeId,
+    requestId: requestId !== null && SAFE_REQUEST_ID.test(requestId) ? requestId : null,
+  };
 }

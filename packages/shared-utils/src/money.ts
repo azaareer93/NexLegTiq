@@ -36,7 +36,9 @@ export function currencyDigits(currency: string): number {
     if (!CURRENCIES.has(currency)) {
       throw new RangeError(`Unknown currency: ${currency.slice(0, 10)}`);
     }
-    const fraction = new Intl.NumberFormat('en', { style: 'currency', currency }).formatToParts(1).find((part) => part.type === 'fraction');
+    const fraction = new Intl.NumberFormat('en', { style: 'currency', currency })
+      .formatToParts(1)
+      .find((part) => part.type === 'fraction');
     digits = fraction?.value.length ?? 0;
     digitsByCurrency.set(currency, digits);
   }
@@ -47,20 +49,26 @@ export const addMoney = (...amounts: readonly Amount[]): string =>
   amounts.reduce<Decimal>((sum, amount) => sum.plus(parseAmount(amount)), new Money(0)).toFixed();
 
 export const subtractMoney = (amount: Amount, ...minus: readonly Amount[]): string =>
-  minus.reduce<Decimal>((rest, value) => rest.minus(parseAmount(value)), parseAmount(amount)).toFixed();
+  minus
+    .reduce<Decimal>((rest, value) => rest.minus(parseAmount(value)), parseAmount(amount))
+    .toFixed();
 
 /** `amount × factor` (hours × rate, quantity × price), unrounded: round once, at the end, with `roundMoney`. */
-export const multiplyMoney = (amount: Amount, factor: Amount): string => parseAmount(amount).times(parseAmount(factor)).toFixed();
+export const multiplyMoney = (amount: Amount, factor: Amount): string =>
+  parseAmount(amount).times(parseAmount(factor)).toFixed();
 
 /** `percent` % of `amount` (tax, discount), unrounded. */
-export const percentOf = (amount: Amount, percent: Amount): string => parseAmount(amount).times(parseAmount(percent)).dividedBy(100).toFixed();
+export const percentOf = (amount: Amount, percent: Amount): string =>
+  parseAmount(amount).times(parseAmount(percent)).dividedBy(100).toFixed();
 
 /** Rounds half-even to `digits` decimals, or to the currency's minor digits. Never returns "-0.00". */
 export function roundMoney(amount: Amount, digitsOrCurrency: number | string = 2): string {
-  const digits = typeof digitsOrCurrency === 'string' ? currencyDigits(digitsOrCurrency) : digitsOrCurrency;
+  const digits =
+    typeof digitsOrCurrency === 'string' ? currencyDigits(digitsOrCurrency) : digitsOrCurrency;
   const rounded = parseAmount(amount).toDecimalPlaces(digits, Decimal.ROUND_HALF_EVEN);
   return (rounded.isZero() ? rounded.abs() : rounded).toFixed(digits);
 }
 
 /** Compares two amounts: -1, 0 or 1. */
-export const compareMoney = (left: Amount, right: Amount): -1 | 0 | 1 => parseAmount(left).comparedTo(parseAmount(right)) as -1 | 0 | 1;
+export const compareMoney = (left: Amount, right: Amount): -1 | 0 | 1 =>
+  parseAmount(left).comparedTo(parseAmount(right)) as -1 | 0 | 1;

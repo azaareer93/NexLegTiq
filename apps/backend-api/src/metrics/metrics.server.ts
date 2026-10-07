@@ -1,13 +1,13 @@
 import { createServer } from 'node:http';
-import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 
 import { Injectable } from '@nestjs/common';
 import type { OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 
-import { AppConfig } from '../config/app-config';
 import { MetricsService } from './metrics.service';
+import { AppConfig } from '../config/app-config';
 
 /**
  * Serves `GET /metrics` on its own port (METRICS_HOST:METRICS_PORT), separate from the public API so it is only
@@ -43,7 +43,8 @@ export class MetricsServer implements OnApplicationBootstrap, OnApplicationShutd
         return;
       }
       this.metrics.render().then(
-        (body) => res.writeHead(200, { 'content-type': this.metrics.registry.contentType }).end(body),
+        (body) =>
+          res.writeHead(200, { 'content-type': this.metrics.registry.contentType }).end(body),
         () => res.writeHead(500).end(),
       );
     });
@@ -58,6 +59,8 @@ export class MetricsServer implements OnApplicationBootstrap, OnApplicationShutd
     const server = this.server;
     this.server = undefined;
     if (!server) return Promise.resolve();
-    return new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    return new Promise((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    );
   }
 }

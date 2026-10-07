@@ -8,6 +8,8 @@ describe('buildApiUrl', () => {
   });
 
   it('should not duplicate slashes', () => {
-    expect(buildApiUrl('http://localhost:3000/', '/cases')).toBe('http://localhost:3000/api/v1/cases');
+    expect(buildApiUrl('http://localhost:3000/', '/cases')).toBe(
+      'http://localhost:3000/api/v1/cases',
+    );
   });
 });

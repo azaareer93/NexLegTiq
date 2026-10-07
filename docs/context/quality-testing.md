@@ -13,11 +13,18 @@ booleans `is/has/can/should` · REST paths plural kebab · DB tables/columns sna
 React components PascalCase in `components/<Name>/{Name.tsx, Name.test.tsx, index.ts}` · hooks `use-x.ts` exporting `useX`.
 
 ## Lint & format
-ESLint (flat config in `shared-config`): `@typescript-eslint/no-explicit-any` error, `consistent-type-imports`, `no-floating-promises`,
-`no-unsafe-*`, `import/order` (alphabetized, groups), `max-lines` 300, `complexity` 10, `max-depth` 3, `no-console`,
-`i18next/no-literal-string` (apps), `@nx/enforce-module-boundaries`, custom rule/grep: no raw Redis keys, no `$queryRawUnsafe`/`$executeRawUnsafe`.
-Prettier: singleQuote, trailingComma all, printWidth 100, semi, endOfLine lf. Stylelint: logical properties.
-Husky: pre-commit `lint-staged`; commit-msg `commitlint` (conventional); pre-push `nx affected -t typecheck test`.
+ESLint (flat config in `packages/shared-config/eslint/base.mjs`, re-exported by the root `eslint.config.mjs`; D-094):
+`@typescript-eslint/no-explicit-any`, `consistent-type-imports`, type-aware `no-floating-promises` and `no-unsafe-*` (the
+latter off in tests), `import/order` (builtin · external · local, alphabetized), `max-lines` 300 (not tests), `complexity` 10,
+`max-depth` 3, `no-console` (not `scripts/`), physical properties banned in inline `style`, `i18next/no-literal-string`
+(apps and shared-ui), `@nx/enforce-module-boundaries`. Backend (`backend-rules.mjs`): no `$queryRawUnsafe`/`$executeRawUnsafe`,
+no string cache keys outside `CacheKeys` (`nexlegtiq/no-raw-cache-key`), `// unscoped: <reason>`. All errors; `nx lint` runs
+with `--max-warnings=0`. Fixtures proving the bans: `packages/shared-config/src/lint-rules.spec.ts`.
+Prettier: singleQuote, trailingComma all, printWidth 100, semi, endOfLine lf (`pnpm format`, CI `pnpm format:check`; `*.md`
+and `*.sql` are not formatted). Stylelint: logical properties (`pnpm lint:css`, CI).
+Git hooks (installed by `pnpm install`, not husky — D-094): pre-commit `lint-staged`; commit-msg `commitlint` (conventional,
+`Refs: MVP-n` required); pre-push `nx affected -t typecheck test` since the merge-base with `origin/develop`. Root scripts and
+configs: `pnpm lint:root` (CI).
 
 ## Quality gates (CI blocks merge)
 - lint 0 errors / 0 warnings, typecheck clean, build passes.

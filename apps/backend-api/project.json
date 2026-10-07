@@ -3,15 +3,10 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "apps/backend-api/src",
   "projectType": "application",
-  "tags": [
-    "type:app",
-    "scope:backend"
-  ],
+  "tags": ["type:app", "scope:backend"],
   "targets": {
     "prune-lockfile": {
-      "dependsOn": [
-        "build"
-      ],
+      "dependsOn": ["build"],
       "cache": true,
       "executor": "@nx/js:prune-lockfile",
       "inputs": [
@@ -35,32 +30,23 @@
       }
     },
     "copy-workspace-modules": {
-      "dependsOn": [
-        "build"
-      ],
+      "dependsOn": ["build"],
       "cache": true,
-      "outputs": [
-        "{workspaceRoot}/apps/backend-api/dist/workspace_modules"
-      ],
+      "outputs": ["{workspaceRoot}/apps/backend-api/dist/workspace_modules"],
       "executor": "@nx/js:copy-workspace-modules",
       "options": {
         "buildTarget": "build"
       }
     },
     "prune": {
-      "dependsOn": [
-        "prune-lockfile",
-        "copy-workspace-modules"
-      ],
+      "dependsOn": ["prune-lockfile", "copy-workspace-modules"],
       "executor": "nx:noop"
     },
     "serve": {
       "continuous": true,
       "executor": "@nx/js:node",
       "defaultConfiguration": "development",
-      "dependsOn": [
-        "build"
-      ],
+      "dependsOn": ["build"],
       "options": {
         "buildTarget": "backend-api:build",
         "runBuildTargetDependencies": false
@@ -76,9 +62,7 @@
     },
     "serve-worker": {
       "continuous": true,
-      "dependsOn": [
-        "build"
-      ],
+      "dependsOn": ["build"],
       "executor": "nx:run-commands",
       "options": {
         "command": "node apps/backend-api/dist/worker.js"
@@ -95,14 +79,10 @@
         "{projectRoot}/prisma/schema.prisma",
         "{projectRoot}/prisma.config.ts",
         {
-          "externalDependencies": [
-            "prisma"
-          ]
+          "externalDependencies": ["prisma"]
         }
       ],
-      "outputs": [
-        "{projectRoot}/src/generated/prisma"
-      ]
+      "outputs": ["{projectRoot}/src/generated/prisma"]
     },
     "prisma-migrate": {
       "executor": "nx:run-commands",

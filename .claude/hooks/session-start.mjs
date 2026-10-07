@@ -4,7 +4,9 @@ import { execSync } from 'node:child_process';
 
 const sh = (c) => {
   try {
-    return execSync(c, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+    return execSync(c, { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim();
   } catch {
     return '';
   }

@@ -5,17 +5,20 @@ import { JwtService, TokenExpiredError } from '@nestjs/jwt';
 import { isRole } from '@nexlegtiq/shared-types';
 import type { OfficeId, UserId } from '@nexlegtiq/shared-types';
 
+import { JWT_AUDIENCE, JWT_ISSUER } from './auth.constants';
+import type { AccessTokenClaims } from './auth.constants';
+import { isVerificationOverdue } from './email-verification';
+import { IS_PUBLIC_KEY } from '../../common/auth/public.decorator';
 import type { AuthPrincipal } from '../../common/context/request-context';
 import { AppException } from '../../common/errors/app.exception';
 import { DEFAULT_MESSAGE } from '../../common/errors/error-catalog';
 import { AppConfig } from '../../config/app-config';
 import { PrismaService } from '../../database/prisma.service';
-import { IS_PUBLIC_KEY } from '../../common/auth/public.decorator';
-import { JWT_AUDIENCE, JWT_ISSUER } from './auth.constants';
-import type { AccessTokenClaims } from './auth.constants';
-import { isVerificationOverdue } from './email-verification';
 
-type AuthenticatedRequest = { headers: Record<string, string | string[] | undefined>; user?: AuthPrincipal };
+type AuthenticatedRequest = {
+  headers: Record<string, string | string[] | undefined>;
+  user?: AuthPrincipal;
+};
 
 /**
  * Global, deny-by-default authentication (auth-rbac.md: JwtAuthGuard → PermissionsGuard). Registered before
@@ -34,7 +37,13 @@ export class JwtAuthGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    if (this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [context.getHandler(), context.getClass()])) return true;
+    if (
+      this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+        context.getHandler(),
+        context.getClass(),
+      ])
+    )
+      return true;
 
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const claims = await this.verify(bearerToken(request.headers['authorization']));
@@ -43,9 +52,16 @@ export class JwtAuthGuard implements CanActivate {
     // unscoped: authentication itself; the office comes from the verified token and is matched on the row.
     const user = await this.prisma.unscoped().user.findFirst({
       where: { id: claims.sub, officeId: claims.officeId },
-      select: { role: true, isActive: true, emailVerifiedAt: true, createdAt: true, office: { select: { isActive: true } } },
+      select: {
+        role: true,
+        isActive: true,
+        emailVerifiedAt: true,
+        createdAt: true,
+        office: { select: { isActive: true } },
+      },
     });
-    if (!user || !isRole(user.role)) throw new AppException('AUTH-003', DEFAULT_MESSAGE['AUTH-003']);
+    if (!user || !isRole(user.role))
+      throw new AppException('AUTH-003', DEFAULT_MESSAGE['AUTH-003']);
     if (!user.isActive) throw new AppException('AUTH-006', 'User account is inactive');
     if (!user.office.isActive) throw new AppException('AUTH-006', 'Office is suspended');
     if (this.config.auth.emailVerificationEnforced && isVerificationOverdue(user, new Date())) {
@@ -71,7 +87,8 @@ export class JwtAuthGuard implements CanActivate {
         audience: JWT_AUDIENCE,
       });
     } catch (error) {
-      if (error instanceof TokenExpiredError) throw new AppException('AUTH-002', 'Access token expired');
+      if (error instanceof TokenExpiredError)
+        throw new AppException('AUTH-002', 'Access token expired');
       throw new AppException('AUTH-003', DEFAULT_MESSAGE['AUTH-003']);
     }
   }

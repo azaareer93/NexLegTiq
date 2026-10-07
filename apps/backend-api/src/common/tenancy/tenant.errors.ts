@@ -6,7 +6,9 @@ export class TenantContextMissingError extends Error {
   override readonly name = 'TenantContextMissingError';
 
   constructor(target: string) {
-    super(`No officeId in the request context for ${target}; wrap background work in TenantRunner.run()`);
+    super(
+      `No officeId in the request context for ${target}; wrap background work in TenantRunner.run()`,
+    );
   }
 }
 

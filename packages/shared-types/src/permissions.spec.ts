@@ -48,10 +48,20 @@ const MATRIX: Readonly<Record<Permission, string>> = {
   'manage:portal-access': '✓✓✓····',
 };
 
-const COLUMNS: readonly Role[] = ['OFFICE_MANAGER', 'SENIOR_LAWYER', 'LAWYER', 'PARALEGAL', 'ADMIN', 'TRAINEE', 'EXTERNAL_COLLABORATOR'];
+const COLUMNS: readonly Role[] = [
+  'OFFICE_MANAGER',
+  'SENIOR_LAWYER',
+  'LAWYER',
+  'PARALEGAL',
+  'ADMIN',
+  'TRAINEE',
+  'EXTERNAL_COLLABORATOR',
+];
 
 const cells = PERMISSIONS.flatMap((permission) =>
-  COLUMNS.map((role, column) => [role, permission, [...(MATRIX[permission] ?? '')][column]] as const),
+  COLUMNS.map(
+    (role, column) => [role, permission, [...(MATRIX[permission] ?? '')][column]] as const,
+  ),
 );
 
 describe('permission matrix', () => {
@@ -80,7 +90,9 @@ describe('permission helpers', () => {
     expect(hasAllPermissions(held, ['create:case', 'use:ai'])).toBe(true);
     expect(hasAllPermissions(held, ['create:case', 'view:audit'])).toBe(false);
     expect(hasAnyPermission(held, ['view:all:cases', 'view:assigned:cases'])).toBe(true);
-    expect(hasAnyPermission(permissionsFor('TRAINEE'), ['view:all:invoices', 'view:assigned:invoices'])).toBe(false);
+    expect(
+      hasAnyPermission(permissionsFor('TRAINEE'), ['view:all:invoices', 'view:assigned:invoices']),
+    ).toBe(false);
   });
 
   it('should give nothing to unknown roles, including inherited object keys', () => {

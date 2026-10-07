@@ -1,8 +1,8 @@
 import type { OfficeId, UserId } from '@nexlegtiq/shared-types';
 import { ClsServiceManager } from 'nestjs-cls';
 
-import type { RequestContext } from '../context/request-context';
 import { TenantRunner } from './tenant-runner';
+import type { RequestContext } from '../context/request-context';
 
 const cls = ClsServiceManager.getClsService<RequestContext>();
 const runner = new TenantRunner(cls);
@@ -31,7 +31,9 @@ describe('TenantRunner — isolation between runs', () => {
     // Like a PrismaPromise: nothing happens until then() is called.
     const lazy = { then: (resolve: (value: unknown) => void) => resolve(cls.get('officeId')) };
 
-    await expect(runner.run({ officeId: A }, () => lazy as unknown as Promise<unknown>)).resolves.toBe(A);
+    await expect(
+      runner.run({ officeId: A }, () => lazy as unknown as Promise<unknown>),
+    ).resolves.toBe(A);
   });
 
   it('should not inherit the caller user, role or permissions when nested in a request context', async () => {

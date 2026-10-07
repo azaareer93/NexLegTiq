@@ -11,7 +11,9 @@ type Resources = Readonly<Record<string, Readonly<Record<string, TranslationTree
  * the locale's plural rules need (Arabic: zero, one, two, few, many, other; English: one, other). Empty when consistent.
  */
 export function findMissingKeys(resources: Resources): string[] {
-  const keysByLocale = Object.fromEntries(Object.entries(resources).map(([locale, tree]) => [locale, flatten(tree)]));
+  const keysByLocale = Object.fromEntries(
+    Object.entries(resources).map(([locale, tree]) => [locale, flatten(tree)]),
+  );
   const allKeys = new Set(Object.values(keysByLocale).flatMap((keys) => [...keys].map(baseKey)));
   const problems: string[] = [];
   for (const [locale, keys] of Object.entries(keysByLocale)) {
@@ -26,7 +28,8 @@ export function findMissingKeys(resources: Resources): string[] {
       const isPlural = ALL_PLURAL_FORMS.some((form) => keys.has(`${key}_${form}`));
       if (!isPlural) continue;
       const missing = forms.filter((form) => !keys.has(`${key}_${form}`));
-      if (missing.length > 0) problems.push(`${locale}: ${key} lacks plural forms ${missing.join(', ')}`);
+      if (missing.length > 0)
+        problems.push(`${locale}: ${key} lacks plural forms ${missing.join(', ')}`);
     }
   }
   return problems;
@@ -36,7 +39,10 @@ function baseKey(key: string): string {
   return key.replace(PLURAL_SUFFIX, '');
 }
 
-function flatten(tree: Readonly<Record<string, TranslationTree | string>>, prefix = ''): Set<string> {
+function flatten(
+  tree: Readonly<Record<string, TranslationTree | string>>,
+  prefix = '',
+): Set<string> {
   const keys = new Set<string>();
   for (const [key, value] of Object.entries(tree)) {
     const path = prefix ? `${prefix}.${key}` : key;

@@ -1,16 +1,20 @@
 import { Injectable } from '@nestjs/common';
 import { passwordIsNotEmail } from '@nexlegtiq/shared-contracts';
-import type { ChangePasswordRequest, ForgotPasswordRequest, ResetPasswordRequest } from '@nexlegtiq/shared-contracts';
+import type {
+  ChangePasswordRequest,
+  ForgotPasswordRequest,
+  ResetPasswordRequest,
+} from '@nexlegtiq/shared-contracts';
 
-import { hashOpaqueToken } from '../../common/auth/opaque-token';
-import type { AuthPrincipal } from '../../common/context/request-context';
-import { AppException, ValidationException } from '../../common/errors/app.exception';
-import { TenantRunner } from '../../common/tenancy/tenant-runner';
 import { AccountMailer } from './account-mailer';
 import { tenantContextFor } from './client-info';
 import type { ClientInfo } from './client-info';
 import { PasswordHasher } from './password-hasher';
 import { PasswordRepository } from './password.repository';
+import { hashOpaqueToken } from '../../common/auth/opaque-token';
+import type { AuthPrincipal } from '../../common/context/request-context';
+import { AppException, ValidationException } from '../../common/errors/app.exception';
+import { TenantRunner } from '../../common/tenancy/tenant-runner';
 
 const INVALID_LINK = 'Reset link is invalid or has expired';
 
@@ -34,7 +38,10 @@ export class PasswordService {
   async forgotPassword(body: ForgotPasswordRequest, client: ClientInfo): Promise<void> {
     const account = await this.accounts.findAccount(body.email);
     if (account?.isActive && account.office.isActive) {
-      void this.mailer.sendPasswordReset({ userId: account.id, officeId: account.officeId }, client);
+      void this.mailer.sendPasswordReset(
+        { userId: account.id, officeId: account.officeId },
+        client,
+      );
     }
   }
 
@@ -42,10 +49,17 @@ export class PasswordService {
   async resetPassword(body: ResetPasswordRequest, client: ClientInfo): Promise<void> {
     const now = new Date();
     const link = await this.accounts.findResetLink(hashOpaqueToken(body.token));
-    const usable = link && link.usedAt === null && link.expiresAt > now && link.user.isActive && link.user.office.isActive;
+    const usable =
+      link &&
+      link.usedAt === null &&
+      link.expiresAt > now &&
+      link.user.isActive &&
+      link.user.office.isActive;
     if (!usable) throw new AppException('RES-004', INVALID_LINK);
     if (!passwordIsNotEmail(body.newPassword, link.user.email)) {
-      throw new ValidationException([{ field: 'newPassword', message: 'validation.password.sameAsEmail' }]);
+      throw new ValidationException([
+        { field: 'newPassword', message: 'validation.password.sameAsEmail' },
+      ]);
     }
     const passwordHash = await this.passwords.hash(body.newPassword);
     const used = await this.tenant.run(tenantContextFor(link.officeId, link.userId, client), () =>
@@ -58,13 +72,21 @@ export class PasswordService {
    * The signed-in user changes their password: the current one must be right (400 VAL-001 on `currentPassword`, not 401,
    * which would make the app try to refresh), and every other session ends — this one stays signed in.
    */
-  async changePassword(principal: AuthPrincipal, body: ChangePasswordRequest, client: ClientInfo): Promise<void> {
+  async changePassword(
+    principal: AuthPrincipal,
+    body: ChangePasswordRequest,
+    client: ClientInfo,
+  ): Promise<void> {
     const user = await this.accounts.findCredentials(principal.userId);
     if (!user || !(await this.passwords.verify(user.passwordHash, body.currentPassword))) {
-      throw new ValidationException([{ field: 'currentPassword', message: 'validation.password.currentWrong' }]);
+      throw new ValidationException([
+        { field: 'currentPassword', message: 'validation.password.currentWrong' },
+      ]);
     }
     if (!passwordIsNotEmail(body.newPassword, user.email)) {
-      throw new ValidationException([{ field: 'newPassword', message: 'validation.password.sameAsEmail' }]);
+      throw new ValidationException([
+        { field: 'newPassword', message: 'validation.password.sameAsEmail' },
+      ]);
     }
     const passwordHash = await this.passwords.hash(body.newPassword);
     await this.accounts.changePassword(principal, passwordHash, new Date(), client);

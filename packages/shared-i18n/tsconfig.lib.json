@@ -9,10 +9,7 @@
     "types": [],
     "resolveJsonModule": true
   },
-  "include": [
-    "src/**/*.ts",
-    "src/**/*.json"
-  ],
+  "include": ["src/**/*.ts", "src/**/*.json"],
   "references": [
     {
       "path": "../shared-types/tsconfig.lib.json"

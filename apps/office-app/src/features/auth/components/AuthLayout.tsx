@@ -20,8 +20,18 @@ export function AuthLayout({ title, subtitle, children }: AuthLayoutProps): Reac
     <Layout style={{ minBlockSize: '100vh' }}>
       <OfflineBanner />
       <Layout.Content>
-        <Flex vertical align="center" justify="center" gap={16} style={{ minBlockSize: '100vh', paddingBlock: 32, paddingInline: 16 }}>
-          <Flex justify="space-between" align="center" style={{ inlineSize: '100%', maxInlineSize: 440 }}>
+        <Flex
+          vertical
+          align="center"
+          justify="center"
+          gap={16}
+          style={{ minBlockSize: '100vh', paddingBlock: 32, paddingInline: 16 }}
+        >
+          <Flex
+            justify="space-between"
+            align="center"
+            style={{ inlineSize: '100%', maxInlineSize: 440 }}
+          >
             {/* The product name is a brand, not translated. */}
             <Typography.Text strong style={{ fontSize: 20 }}>
               {APP_NAME}

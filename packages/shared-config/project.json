@@ -3,11 +3,7 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "packages/shared-config/src",
   "projectType": "library",
-  "tags": [
-    "type:lib",
-    "scope:shared",
-    "layer:config"
-  ],
+  "tags": ["type:lib", "scope:shared", "layer:config"],
   "targets": {
     "test": {
       "inputs": [
@@ -18,7 +14,8 @@
         "{workspaceRoot}/packages/*/project.json",
         "{workspaceRoot}/apps/*/eslint.config.mjs",
         "{workspaceRoot}/packages/*/eslint.config.mjs",
-        "{workspaceRoot}/packages/shared-config/eslint/*.mjs"
+        "{workspaceRoot}/packages/shared-config/eslint/*.mjs",
+        "{workspaceRoot}/stylelint.config.mjs"
       ]
     }
   }

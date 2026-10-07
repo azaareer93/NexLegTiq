@@ -34,7 +34,10 @@ const PAGINATION_SCHEMA: SchemaObject = {
 };
 
 /** The success envelope around `data` (api-conventions.md#shape). */
-export function envelopeSchema(data: SchemaObject, options: { paginated?: boolean } = {}): SchemaObject {
+export function envelopeSchema(
+  data: SchemaObject,
+  options: { paginated?: boolean } = {},
+): SchemaObject {
   const meta: SchemaObject = options.paginated
     ? {
         ...META_SCHEMA,

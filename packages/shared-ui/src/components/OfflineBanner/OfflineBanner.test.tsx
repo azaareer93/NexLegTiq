@@ -18,18 +18,24 @@ afterEach(() => {
   cleanup();
 });
 
-const renderIn = (locale: Locale) => render(<OfflineBanner />, { wrapper: ({ children }) => <NexProvider userLocale={locale}>{children}</NexProvider> });
+const renderIn = (locale: Locale) =>
+  render(<OfflineBanner />, {
+    wrapper: ({ children }) => <NexProvider userLocale={locale}>{children}</NexProvider>,
+  });
 
 describe('OfflineBanner', () => {
   it.each([
     ['en', 'You are offline'],
     ['ar', 'لا يوجد اتصال بالإنترنت'],
-  ] as const)('should appear while offline and go when the connection is back (%s)', (locale, text) => {
-    renderIn(locale);
-    expect(screen.queryByTestId('offline-banner')).toBeNull();
-    goOffline();
-    expect(screen.getByTestId('offline-banner').textContent).toContain(text);
-    goOnline();
-    expect(screen.queryByTestId('offline-banner')).toBeNull();
-  });
+  ] as const)(
+    'should appear while offline and go when the connection is back (%s)',
+    (locale, text) => {
+      renderIn(locale);
+      expect(screen.queryByTestId('offline-banner')).toBeNull();
+      goOffline();
+      expect(screen.getByTestId('offline-banner').textContent).toContain(text);
+      goOnline();
+      expect(screen.queryByTestId('offline-banner')).toBeNull();
+    },
+  );
 });

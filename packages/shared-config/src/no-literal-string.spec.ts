@@ -1,6 +1,9 @@
-import { ESLint } from 'eslint';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import type { ESLint } from 'eslint';
+
+import { fixtureLinter } from './fixture-eslint.js';
 
 const app = resolve(dirname(fileURLToPath(import.meta.url)), '../../../apps/office-app');
 
@@ -12,11 +15,12 @@ async function ruleErrors(file: string, code: string): Promise<string[]> {
   return (result?.messages ?? []).map((message) => message.ruleId ?? message.message);
 }
 
-const component = (jsx: string) => `export function X(): React.JSX.Element {\n  return ${jsx};\n}\n`;
+const component = (jsx: string) =>
+  `export function X(): React.JSX.Element {\n  return ${jsx};\n}\n`;
 
 describe('frontend text lint rules (D-087)', () => {
   beforeAll(async () => {
-    eslint = new ESLint({ cwd: app });
+    eslint = fixtureLinter(app);
     await eslint.calculateConfigForFile(resolve(app, 'src/main.tsx'));
   }, 60_000);
 
@@ -31,17 +35,30 @@ describe('frontend text lint rules (D-087)', () => {
 
   it.each([
     ['translated text', "<p title={t('common.appName')}>{t('common.actions.save')}</p>"],
-    ['technical attributes', '<Button type="primary" htmlType="submit" data-testid="save" className="x" />'],
+    [
+      'technical attributes',
+      '<Button type="primary" htmlType="submit" data-testid="save" className="x" />',
+    ],
   ])('should accept %s', async (_case, jsx) => {
     const code = `const t = (key: string) => key;\nconst Button = (_: object) => null;\n${component(jsx)}`;
     expect(await ruleErrors('src/x.tsx', code)).not.toContain('i18next/no-literal-string');
   });
 
-  it.each(['src/x.test.tsx', 'src/x.stories.tsx'])('should not apply to tests and stories (%s)', async (file) => {
-    expect(await ruleErrors(file, component('<p>Hello</p>'))).not.toContain('i18next/no-literal-string');
-  });
+  it.each(['src/x.test.tsx', 'src/x.stories.tsx'])(
+    'should not apply to tests and stories (%s)',
+    async (file) => {
+      expect(await ruleErrors(file, component('<p>Hello</p>'))).not.toContain(
+        'i18next/no-literal-string',
+      );
+    },
+  );
 
   it('should reject raw HTML', async () => {
-    expect(await ruleErrors('src/x.tsx', component('<div dangerouslySetInnerHTML={{ __html: html }} />'))).toContain('react/no-danger');
+    expect(
+      await ruleErrors(
+        'src/x.tsx',
+        component('<div dangerouslySetInnerHTML={{ __html: html }} />'),
+      ),
+    ).toContain('react/no-danger');
   });
 });

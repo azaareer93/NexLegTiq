@@ -17,11 +17,17 @@ export function initialsOf(name: string): string {
     .filter(Boolean)
     .slice(0, 2)
     .map((word) => [...word][0] ?? '');
-  return /^[A-Za-z]/.test(letters[0] ?? '') ? letters.join('').toLocaleUpperCase() : letters.join('‌');
+  return /^[A-Za-z]/.test(letters[0] ?? '')
+    ? letters.join('').toLocaleUpperCase()
+    : letters.join('‌');
 }
 
 /** The account menu: my account, language and sign-out. */
-export function ProfileMenu({ compact = false }: { readonly compact?: boolean }): React.JSX.Element {
+export function ProfileMenu({
+  compact = false,
+}: {
+  readonly compact?: boolean;
+}): React.JSX.Element {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { locale, setLocale } = useLanguage();
@@ -30,20 +36,41 @@ export function ProfileMenu({ compact = false }: { readonly compact?: boolean })
 
   // The language applies at once; saving it to the profile comes with `PATCH users/me` (D-087 `onLocaleChange`).
   const items: MenuProps['items'] = [
-    { key: 'profile', icon: <UserOutlined />, label: t('shell.profile.profile'), 'data-testid': 'menu-profile' },
+    {
+      key: 'profile',
+      icon: <UserOutlined />,
+      label: t('shell.profile.profile'),
+      'data-testid': 'menu-profile',
+    },
     {
       key: 'language',
       icon: <GlobalOutlined />,
       label: t('shell.profile.language'),
       'data-testid': 'menu-language',
       children: [
-        { key: 'lang-ar', label: <span lang="ar">{t('common.language.ar')}</span>, disabled: locale === 'ar', 'data-testid': 'menu-lang-ar' },
-        { key: 'lang-en', label: <span lang="en">{t('common.language.en')}</span>, disabled: locale === 'en', 'data-testid': 'menu-lang-en' },
+        {
+          key: 'lang-ar',
+          label: <span lang="ar">{t('common.language.ar')}</span>,
+          disabled: locale === 'ar',
+          'data-testid': 'menu-lang-ar',
+        },
+        {
+          key: 'lang-en',
+          label: <span lang="en">{t('common.language.en')}</span>,
+          disabled: locale === 'en',
+          'data-testid': 'menu-lang-en',
+        },
       ],
     },
     { type: 'divider' },
     // The sign-out arrow points out of the page, so it follows the reading direction.
-    { key: 'logout', icon: <DirectionalIcon icon={LogoutOutlined} />, label: t('auth.logout'), danger: true, 'data-testid': 'sign-out' },
+    {
+      key: 'logout',
+      icon: <DirectionalIcon icon={LogoutOutlined} />,
+      label: t('auth.logout'),
+      danger: true,
+      'data-testid': 'sign-out',
+    },
   ];
 
   const onClick: MenuProps['onClick'] = ({ key }) => {

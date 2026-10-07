@@ -37,10 +37,7 @@
       "mcp__notion__notion-create-pages",
       "Bash(gh pr merge:*)"
     ],
-    "ask": [
-      "Read(./.env*)",
-      "Edit(./.env.example)"
-    ],
+    "ask": ["Read(./.env*)", "Edit(./.env.example)"],
     "deny": [
       "Edit(./.env)",
       "Read(./.env.production)",
@@ -74,11 +71,7 @@
     "agent-skills@addy-agent-skills": true
   },
   "enableAllProjectMcpServers": false,
-  "enabledMcpjsonServers": [
-    "atlassian",
-    "notion",
-    "claude-flow"
-  ],
+  "enabledMcpjsonServers": ["atlassian", "notion", "claude-flow"],
   "hooks": {
     "SessionStart": [
       {

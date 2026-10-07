@@ -46,15 +46,46 @@ export function LoginPage(): React.JSX.Element {
     <AuthLayout title={t('auth.login.title')} subtitle={t('auth.login.subtitle')}>
       <Flex vertical gap={16}>
         {isNotice(reason) && !login.isError ? (
-          <Alert type={reason === 'passwordReset' ? 'success' : 'info'} showIcon title={t(`auth.notice.${reason}`)} data-testid="login-notice" />
+          <Alert
+            type={reason === 'passwordReset' ? 'success' : 'info'}
+            showIcon
+            title={t(`auth.notice.${reason}`)}
+            data-testid="login-notice"
+          />
         ) : null}
         <ApiErrorAlert error={login.error} fields={FIELDS} testId="login-error" />
-        <Form form={form} noValidate layout="vertical" requiredMark={false} onFinish={submit} initialValues={{ rememberMe: false }} disabled={login.isPending}>
-          <Form.Item name="email" label={t('auth.fields.email')} rules={zodRule(LoginRequestSchema.shape.email, message)}>
-            <Input type="email" autoComplete="username" dir="ltr" autoFocus data-testid="login-email" />
+        <Form
+          form={form}
+          noValidate
+          layout="vertical"
+          requiredMark={false}
+          onFinish={submit}
+          initialValues={{ rememberMe: false }}
+          disabled={login.isPending}
+        >
+          <Form.Item
+            name="email"
+            label={t('auth.fields.email')}
+            rules={zodRule(LoginRequestSchema.shape.email, message)}
+          >
+            <Input
+              type="email"
+              autoComplete="username"
+              dir="ltr"
+              autoFocus
+              data-testid="login-email"
+            />
           </Form.Item>
-          <Form.Item name="password" label={t('auth.fields.password')} rules={zodRule(LoginRequestSchema.shape.password, message)}>
-            <Input.Password autoComplete="current-password" dir="ltr" data-testid="login-password" />
+          <Form.Item
+            name="password"
+            label={t('auth.fields.password')}
+            rules={zodRule(LoginRequestSchema.shape.password, message)}
+          >
+            <Input.Password
+              autoComplete="current-password"
+              dir="ltr"
+              data-testid="login-password"
+            />
           </Form.Item>
           <Flex justify="space-between" align="center" style={{ marginBlockEnd: 24 }}>
             <Form.Item name="rememberMe" valuePropName="checked" noStyle>
@@ -64,7 +95,13 @@ export function LoginPage(): React.JSX.Element {
               {t('auth.forgotPassword.link')}
             </Link>
           </Flex>
-          <Button type="primary" htmlType="submit" block loading={login.isPending} data-testid="login-submit">
+          <Button
+            type="primary"
+            htmlType="submit"
+            block
+            loading={login.isPending}
+            data-testid="login-submit"
+          >
             {t('auth.login.submit')}
           </Button>
         </Form>

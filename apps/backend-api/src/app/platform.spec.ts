@@ -3,15 +3,15 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 
+import { AppModule } from './app.module';
+import { configureApp } from './configure-app';
+import { Public } from '../common/auth/public.decorator';
 import { QueueModule } from '../common/queue/queue.module';
 import { QueueStubModule } from '../common/queue/testing';
 import { StorageService } from '../common/storage/storage.service';
 import { PrismaService } from '../database/prisma.service';
 import { ReadinessRegistry } from '../health/readiness.registry';
 import { MetricsService } from '../metrics/metrics.service';
-import { AppModule } from './app.module';
-import { Public } from '../common/auth/public.decorator';
-import { configureApp } from './configure-app';
 
 // Public: this suite tests the HTTP platform (headers, compression, metrics), not authentication.
 @Public()
@@ -38,7 +38,10 @@ async function createApp(): Promise<NestExpressApplication> {
     .overrideProvider(StorageService)
     .useValue({})
     .compile();
-  const app = moduleRef.createNestApplication<NestExpressApplication>({ bodyParser: false, bufferLogs: true });
+  const app = moduleRef.createNestApplication<NestExpressApplication>({
+    bodyParser: false,
+    bufferLogs: true,
+  });
   configureApp(app);
   await app.init();
   return app;
@@ -144,8 +147,13 @@ describe('HTTP platform (health, security, docs, metrics)', () => {
       expect(Object.keys(res.body.paths)).toEqual(
         expect.arrayContaining(['/health', '/health/ready', '/api/v1/__platform__/items/{id}']),
       );
-      expect(res.body.components.securitySchemes.JWT).toMatchObject({ type: 'http', scheme: 'bearer' });
-      expect(res.body.paths['/health'].get.responses['200'].content['application/json'].schema).toMatchObject({
+      expect(res.body.components.securitySchemes.JWT).toMatchObject({
+        type: 'http',
+        scheme: 'bearer',
+      });
+      expect(
+        res.body.paths['/health'].get.responses['200'].content['application/json'].schema,
+      ).toMatchObject({
         required: ['success', 'data', 'meta'],
       });
     });
@@ -170,7 +178,10 @@ describe('HTTP platform (health, security, docs, metrics)', () => {
 
     it('should count unmatched requests and preflights under a fixed label', async () => {
       await http().get('/api/v1/nope/987654');
-      await http().options('/api/v1/nope').set('origin', 'http://localhost:4200').set('access-control-request-method', 'GET');
+      await http()
+        .options('/api/v1/nope')
+        .set('origin', 'http://localhost:4200')
+        .set('access-control-request-method', 'GET');
 
       const output = await app.get(MetricsService).render();
 
@@ -188,7 +199,9 @@ describe('readiness failure', () => {
     app = await createApp();
     const registry = app.get(ReadinessRegistry);
     registry.register('db', () => Promise.resolve());
-    registry.register('redis', () => Promise.reject(new Error('ECONNREFUSED redis://:secret@internal:6379')));
+    registry.register('redis', () =>
+      Promise.reject(new Error('ECONNREFUSED redis://:secret@internal:6379')),
+    );
   });
 
   afterAll(async () => {

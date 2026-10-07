@@ -15,17 +15,34 @@ function HomeLink(): React.JSX.Element {
 
 export function NotFoundPage(): React.JSX.Element {
   const { t } = useTranslation();
-  return <Result status="404" title={t('shell.notFound.title')} subTitle={t('shell.notFound.body')} extra={<HomeLink />} data-testid="page-not-found" />;
+  return (
+    <Result
+      status="404"
+      title={t('shell.notFound.title')}
+      subTitle={t('shell.notFound.body')}
+      extra={<HomeLink />}
+      data-testid="page-not-found"
+    />
+  );
 }
 
 export function ForbiddenPage(): React.JSX.Element {
   const { t } = useTranslation();
-  return <Result status="403" title={t('shell.forbidden.title')} subTitle={t('shell.forbidden.body')} extra={<HomeLink />} data-testid="page-forbidden" />;
+  return (
+    <Result
+      status="403"
+      title={t('shell.forbidden.title')}
+      subTitle={t('shell.forbidden.body')}
+      extra={<HomeLink />}
+      data-testid="page-forbidden"
+    />
+  );
 }
 
 /** A dynamic import that failed: the chunk is gone after a deploy, or the network dropped. Reloading fetches the new one. */
 const isChunkLoadError = (error: unknown): boolean =>
-  error instanceof Error && /dynamically imported module|Importing a module script failed|Loading chunk/i.test(error.message);
+  error instanceof Error &&
+  /dynamically imported module|Importing a module script failed|Loading chunk/i.test(error.message);
 
 /**
  * The error page of a route (`errorElement`), shown inside the shell for its pages. A thrown 404 response is the 404 page, a
@@ -44,7 +61,9 @@ export function RouteError(): React.JSX.Element {
         status="warning"
         title={t('shell.loadFailed.title')}
         subTitle={t('shell.loadFailed.body')}
-        extra={<Button onClick={() => window.location.reload()}>{t('shell.loadFailed.reload')}</Button>}
+        extra={
+          <Button onClick={() => window.location.reload()}>{t('shell.loadFailed.reload')}</Button>
+        }
         data-testid="page-load-failed"
       />
     );
@@ -52,7 +71,11 @@ export function RouteError(): React.JSX.Element {
   if (isApiError(error)) {
     return (
       <div data-testid="page-error">
-        <ErrorState code={error.code as ErrorCode} requestId={error.requestId} onRetry={() => window.location.reload()} />
+        <ErrorState
+          code={error.code as ErrorCode}
+          requestId={error.requestId}
+          onRetry={() => window.location.reload()}
+        />
       </div>
     );
   }
@@ -63,7 +86,11 @@ export function RouteError(): React.JSX.Element {
       subTitle={t('shell.serverError.body')}
       extra={
         <Flex gap={8} justify="center" wrap>
-          <Button type="primary" onClick={() => window.location.reload()} data-testid="page-error-retry">
+          <Button
+            type="primary"
+            onClick={() => window.location.reload()}
+            data-testid="page-error-retry"
+          >
             {t('common.actions.retry')}
           </Button>
           <HomeLink />

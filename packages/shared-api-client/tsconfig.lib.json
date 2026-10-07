@@ -7,14 +7,9 @@
     "emitDeclarationOnly": true,
     "forceConsistentCasingInFileNames": true,
     "types": [],
-    "lib": [
-      "es2022",
-      "dom"
-    ]
+    "lib": ["es2022", "dom"]
   },
-  "include": [
-    "src/**/*.ts"
-  ],
+  "include": ["src/**/*.ts"],
   "references": [
     {
       "path": "../shared-types/tsconfig.lib.json"

@@ -13,12 +13,20 @@ import { isPrismaError, mapPrismaError } from './prisma-error';
 
 describe('AppException family', () => {
   it.each([
-    [new ValidationException([{ field: 'title', message: 'Required' }]), 'VAL-001', HttpStatus.BAD_REQUEST],
+    [
+      new ValidationException([{ field: 'title', message: 'Required' }]),
+      'VAL-001',
+      HttpStatus.BAD_REQUEST,
+    ],
     [new ResourceNotFoundException(), 'RES-001', HttpStatus.NOT_FOUND],
     [new ResourceConflictException('RES-002'), 'RES-002', HttpStatus.CONFLICT],
     [new PermissionDeniedException(), 'AUTH-100', HttpStatus.FORBIDDEN],
     [new BusinessRuleException('BIZ-004', 'Session conflict'), 'BIZ-004', HttpStatus.CONFLICT],
-    [new BusinessRuleException('BIZ-003', 'Open tasks'), 'BIZ-003', HttpStatus.UNPROCESSABLE_ENTITY],
+    [
+      new BusinessRuleException('BIZ-003', 'Open tasks'),
+      'BIZ-003',
+      HttpStatus.UNPROCESSABLE_ENTITY,
+    ],
     [new DependencyUnavailableException(), 'SYS-002', HttpStatus.SERVICE_UNAVAILABLE],
   ])('should carry code and catalog status for %s', (exception, code, status) => {
     expect(exception).toBeInstanceOf(AppException);
@@ -32,7 +40,10 @@ describe('AppException family', () => {
 });
 
 describe('Prisma error mapping', () => {
-  function prismaError(code?: string, name = 'PrismaClientKnownRequestError'): Error & { code?: string } {
+  function prismaError(
+    code?: string,
+    name = 'PrismaClientKnownRequestError',
+  ): Error & { code?: string } {
     return Object.assign(Object.defineProperty(new Error('db'), 'name', { value: name }), { code });
   }
 

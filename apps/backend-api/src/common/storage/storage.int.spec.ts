@@ -7,14 +7,14 @@ import { Test } from '@nestjs/testing';
 import type { OfficeId } from '@nexlegtiq/shared-types';
 import { ClsService } from 'nestjs-cls';
 
+import { StorageModule } from './storage.module';
+import { StorageService } from './storage.service';
 import { AppConfig } from '../../config/app-config';
 import { integrationEnv } from '../../config/env.fixture';
 import { ReadinessRegistry } from '../../health/readiness.registry';
 import { CoreModule } from '../core/core.module';
 import { TenantRunner } from '../tenancy/tenant-runner';
 import { TenantViolationError } from '../tenancy/tenant.errors';
-import { StorageModule } from './storage.module';
-import { StorageService } from './storage.service';
 
 /** MVP-35 against real S3-compatible storage (RustFS locally and in CI; D-078, D-085). */
 describe('StorageService (S3-compatible storage)', () => {
@@ -24,11 +24,14 @@ describe('StorageService (S3-compatible storage)', () => {
   const officeA = randomUUID() as OfficeId;
   const officeB = randomUUID() as OfficeId;
   const savedEnv = { ...process.env };
-  const inOffice = <T>(officeId: OfficeId, work: () => Promise<T>) => runner.run({ officeId }, work);
+  const inOffice = <T>(officeId: OfficeId, work: () => Promise<T>) =>
+    runner.run({ officeId }, work);
 
   beforeAll(async () => {
     Object.assign(process.env, integrationEnv());
-    app = await (await Test.createTestingModule({ imports: [CoreModule, StorageModule] }).compile()).init();
+    app = await (
+      await Test.createTestingModule({ imports: [CoreModule, StorageModule] }).compile()
+    ).init();
     storage = app.get(StorageService);
     runner = new TenantRunner(app.get(ClsService));
     // CI's storage container starts empty; locally the compose init job creates the bucket.
@@ -39,7 +42,9 @@ describe('StorageService (S3-compatible storage)', () => {
       forcePathStyle: true,
       credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey },
     });
-    await admin.send(new HeadBucketCommand({ Bucket: config.bucket })).catch(() => admin.send(new CreateBucketCommand({ Bucket: config.bucket })));
+    await admin
+      .send(new HeadBucketCommand({ Bucket: config.bucket }))
+      .catch(() => admin.send(new CreateBucketCommand({ Bucket: config.bucket })));
     admin.destroy();
   });
 
@@ -56,10 +61,15 @@ describe('StorageService (S3-compatible storage)', () => {
       const content = Buffer.from('مذكرة دفاع — defence brief', 'utf8');
 
       await storage.put(key, Readable.from(content), { contentType: 'text/plain; charset=utf-8' });
-      await expect(storage.head(key)).resolves.toMatchObject({ key, size: content.length, contentType: 'text/plain; charset=utf-8' });
+      await expect(storage.head(key)).resolves.toMatchObject({
+        key,
+        size: content.length,
+        contentType: 'text/plain; charset=utf-8',
+      });
 
       const chunks: Buffer[] = [];
-      for await (const chunk of await storage.getStream(key)) chunks.push(Buffer.from(chunk as Uint8Array));
+      for await (const chunk of await storage.getStream(key))
+        chunks.push(Buffer.from(chunk as Uint8Array));
       expect(Buffer.concat(chunks).toString('utf8')).toBe('مذكرة دفاع — defence brief');
 
       await storage.delete(key);
@@ -79,7 +89,9 @@ describe('StorageService (S3-compatible storage)', () => {
       const response = await fetch(url);
       expect(response.status).toBe(200);
       expect(await response.text()).toBe('%PDF-1.4 test');
-      expect(response.headers.get('content-disposition')).toContain(`filename*=UTF-8''${encodeURIComponent('عقد إيجار.pdf')}`);
+      expect(response.headers.get('content-disposition')).toContain(
+        `filename*=UTF-8''${encodeURIComponent('عقد إيجار.pdf')}`,
+      );
       await storage.delete(key);
     });
   });

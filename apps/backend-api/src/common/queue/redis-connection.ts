@@ -8,7 +8,8 @@ import type { RedisOptions } from 'bullmq';
 export function redisConnectionOptions(url: string): RedisOptions {
   const parsed = new URL(url);
   const path = parsed.pathname.replace(/^\//, '');
-  if (!/^\d*$/.test(path)) throw new Error('REDIS_URL database must be a number (redis://host:6379/0)');
+  if (!/^\d*$/.test(path))
+    throw new Error('REDIS_URL database must be a number (redis://host:6379/0)');
   // URL keeps the brackets of an IPv6 literal; ioredis wants the bare address.
   const host = parsed.hostname.replace(/^\[|\]$/g, '');
   return {

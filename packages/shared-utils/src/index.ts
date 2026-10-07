@@ -14,4 +14,12 @@ export {
   toWesternDigits,
 } from './format.js';
 export type { DigitSystem, FormatOptions } from './format.js';
-export { addMoney, compareMoney, currencyDigits, multiplyMoney, percentOf, roundMoney, subtractMoney } from './money.js';
+export {
+  addMoney,
+  compareMoney,
+  currencyDigits,
+  multiplyMoney,
+  percentOf,
+  roundMoney,
+  subtractMoney,
+} from './money.js';

@@ -24,7 +24,10 @@ export interface ApiErrorLike {
 const CODE = /^[A-Z]+-\d{3}$/;
 
 export const isApiError = (error: unknown): error is ApiErrorLike =>
-  typeof error === 'object' && error !== null && typeof (error as { code?: unknown }).code === 'string' && CODE.test((error as { code: string }).code);
+  typeof error === 'object' &&
+  error !== null &&
+  typeof (error as { code?: unknown }).code === 'string' &&
+  CODE.test((error as { code: string }).code);
 
 /** Failures the user cannot fix by changing what they did (incl. the AI provider down or failing): worth a reference for support. */
 const SUPPORT_CODE = /^(SYS|DB|EXT|STO)-|^AI-00[14]$/;
@@ -44,10 +47,13 @@ export interface ApiErrorHandler {
 
 /** True when the failure is fully explained by field errors on the form (no banner needed). */
 export const isFieldError = (error: unknown, fields: readonly string[]): boolean =>
-  isApiError(error) && !!error.details?.length && error.details.every((detail) => fields.includes(detail.field));
+  isApiError(error) &&
+  !!error.details?.length &&
+  error.details.every((detail) => fields.includes(detail.field));
 
 /** Every known code has AR and EN text (D-087 parity test), so "known" is the shared-types list. */
-const isKnown = (error: unknown): error is ApiErrorLike => isApiError(error) && isErrorCode(error.code);
+const isKnown = (error: unknown): error is ApiErrorLike =>
+  isApiError(error) && isErrorCode(error.code);
 
 function Reference({ id }: { readonly id: string }): React.JSX.Element {
   const { t } = useTranslation();
@@ -66,20 +72,27 @@ export function useApiErrorHandler(): ApiErrorHandler {
   const { t, i18n } = useTranslation();
   const app = App.useApp();
   // Outside AntD's `App` the context holds an empty object: fall back to the static API rather than throw.
-  const notification = typeof app.notification.error === 'function' ? app.notification : staticNotification;
+  const notification =
+    typeof app.notification.error === 'function' ? app.notification : staticNotification;
   const language = i18n.language;
 
   return useMemo(() => {
     // Keys built at runtime (`errors.<CODE>`, API `validation.*`) cannot be typed: each is known or checked with `i18n.exists`.
     const translate = t as unknown as (key: string, options?: Record<string, unknown>) => string;
-    const translateKey = (key: string) => translate(i18n.exists(key as never) ? key : 'common.states.error');
+    const translateKey = (key: string) =>
+      translate(i18n.exists(key as never) ? key : 'common.states.error');
     const messageOf = (error: unknown) => {
       if (!isKnown(error)) return translate('common.states.error');
-      const wait = error.retryAfter === undefined ? '' : ` ${translate('common.states.retryAfter', { count: error.retryAfter })}`;
+      const wait =
+        error.retryAfter === undefined
+          ? ''
+          : ` ${translate('common.states.retryAfter', { count: error.retryAfter })}`;
       return translate(`errors.${error.code}`) + wait;
     };
     const referenceOf = (error: unknown) =>
-      isApiError(error) && error.requestId && (!isKnown(error) || SUPPORT_CODE.test(error.code)) ? error.requestId : undefined;
+      isApiError(error) && error.requestId && (!isKnown(error) || SUPPORT_CODE.test(error.code))
+        ? error.requestId
+        : undefined;
     return {
       messageOf,
       referenceOf,
@@ -87,12 +100,21 @@ export function useApiErrorHandler(): ApiErrorHandler {
       applyToForm: (form, error, fields) => {
         if (!isApiError(error)) return false;
         const onFields = (error.details ?? []).filter((detail) => fields.includes(detail.field));
-        form.setFields(onFields.map((detail) => ({ name: detail.field, errors: [translateKey(detail.message)] })));
+        form.setFields(
+          onFields.map((detail) => ({
+            name: detail.field,
+            errors: [translateKey(detail.message)],
+          })),
+        );
         return isFieldError(error, fields);
       },
       notify: (error) => {
         const reference = referenceOf(error);
-        notification.error({ title: messageOf(error), description: reference ? <Reference id={reference} /> : undefined, role: 'alert' });
+        notification.error({
+          title: messageOf(error),
+          description: reference ? <Reference id={reference} /> : undefined,
+          role: 'alert',
+        });
       },
     };
     // `language` makes the handler follow a language switch (`t` and `i18n` keep their identity).
@@ -110,7 +132,12 @@ export interface ApiErrorAlertProps {
 }
 
 /** The banner of a failed form: the message in the user's language, and a support reference for server-side failures. */
-export function ApiErrorAlert({ error, fields = [], action, testId }: ApiErrorAlertProps): React.JSX.Element | null {
+export function ApiErrorAlert({
+  error,
+  fields = [],
+  action,
+  testId,
+}: ApiErrorAlertProps): React.JSX.Element | null {
   const { messageOf, referenceOf } = useApiErrorHandler();
   if (!error || isFieldError(error, fields)) {
     return null;

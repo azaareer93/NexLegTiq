@@ -2,10 +2,19 @@ import { LANGUAGE_STORAGE_KEY } from '@nexlegtiq/shared-ui';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { HttpResponse } from 'msw';
 
-import { AppRoot } from '../../app/app-root';
-import { api, http, ok, server, SESSION, setupTestServer, signedIn, USER } from '../../test/render-app';
 import { IdleTimeout } from './components/IdleTimeout';
 import { queryClient, useSession } from './session';
+import { AppRoot } from '../../app/app-root';
+import {
+  api,
+  http,
+  ok,
+  server,
+  SESSION,
+  setupTestServer,
+  signedIn,
+  USER,
+} from '../../test/render-app';
 
 setupTestServer();
 
@@ -52,14 +61,24 @@ describe('IdleTimeout', () => {
 
   it('should warn during the last minute, then sign out after 30 minutes without activity', async () => {
     const { logouts } = renderIdle();
-    act(() => vi.advanceTimersByTime(28 * MINUTE));
+    act(() => {
+      vi.advanceTimersByTime(28 * MINUTE);
+    });
     expect(screen.queryByTestId('idle-countdown')).toBeNull();
 
-    act(() => vi.advanceTimersByTime(MINUTE + 1000));
-    expect((await screen.findByTestId('idle-countdown')).textContent).toBe('For your security, you will be signed out in 59 seconds.');
+    act(() => {
+      vi.advanceTimersByTime(MINUTE + 1000);
+    });
+    expect((await screen.findByTestId('idle-countdown')).textContent).toBe(
+      'For your security, you will be signed out in 59 seconds.',
+    );
 
-    act(() => vi.advanceTimersByTime(MINUTE));
-    await until(() => expect(useSession.getState()).toMatchObject({ status: 'anonymous', signOutReason: 'idle' }));
+    act(() => {
+      vi.advanceTimersByTime(MINUTE);
+    });
+    await until(() =>
+      expect(useSession.getState()).toMatchObject({ status: 'anonymous', signOutReason: 'idle' }),
+    );
     expect(logouts()).toBe(1);
   });
 
@@ -71,18 +90,26 @@ describe('IdleTimeout', () => {
   ])('should count down in Arabic with the right plural form (%i)', async (seconds, text) => {
     localStorage.setItem(LANGUAGE_STORAGE_KEY, 'ar');
     renderIdle('AR');
-    act(() => vi.advanceTimersByTime(30 * MINUTE - seconds * 1000));
+    act(() => {
+      vi.advanceTimersByTime(30 * MINUTE - seconds * 1000);
+    });
     expect((await screen.findByTestId('idle-countdown')).textContent).toContain(text);
     expect(document.documentElement.dir).toBe('rtl');
   });
 
   it('should start counting again when the user stays signed in or does anything', async () => {
     const { logouts } = renderIdle();
-    act(() => vi.advanceTimersByTime(29 * MINUTE + 30_000));
+    act(() => {
+      vi.advanceTimersByTime(29 * MINUTE + 30_000);
+    });
     fireEvent.click(await screen.findByTestId('idle-stay'));
-    act(() => vi.advanceTimersByTime(28 * MINUTE));
+    act(() => {
+      vi.advanceTimersByTime(28 * MINUTE);
+    });
     fireEvent.keyDown(window, { key: 'a' });
-    act(() => vi.advanceTimersByTime(28 * MINUTE));
+    act(() => {
+      vi.advanceTimersByTime(28 * MINUTE);
+    });
     await settle();
     expect(useSession.getState().status).toBe('authenticated');
     expect(logouts()).toBe(0);
@@ -90,20 +117,28 @@ describe('IdleTimeout', () => {
 
   it('should keep the warning open while the pointer moves towards its buttons', async () => {
     renderIdle();
-    act(() => vi.advanceTimersByTime(29 * MINUTE + 10_000));
+    act(() => {
+      vi.advanceTimersByTime(29 * MINUTE + 10_000);
+    });
     await screen.findByTestId('idle-countdown');
     fireEvent.mouseMove(window);
-    act(() => vi.advanceTimersByTime(2000));
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
     expect(screen.getByTestId('idle-countdown').textContent).toContain('seconds');
   });
 
   it('should count activity in another tab of this browser, and ignore nonsense timestamps', async () => {
     const { logouts } = renderIdle();
     const otherTab = new BroadcastChannel('nlq-session');
-    act(() => vi.advanceTimersByTime(29 * MINUTE));
+    act(() => {
+      vi.advanceTimersByTime(29 * MINUTE);
+    });
     otherTab.postMessage({ type: 'activity', at: Date.now() });
     await settle();
-    act(() => vi.advanceTimersByTime(2 * MINUTE));
+    act(() => {
+      vi.advanceTimersByTime(2 * MINUTE);
+    });
     await settle();
     expect(useSession.getState().status).toBe('authenticated');
     expect(logouts()).toBe(0);
@@ -112,7 +147,9 @@ describe('IdleTimeout', () => {
     otherTab.postMessage({ type: 'activity', at: Date.now() + 365 * 24 * 60 * MINUTE });
     otherTab.postMessage({ type: 'activity', at: 'later' });
     await settle();
-    act(() => vi.advanceTimersByTime(30 * MINUTE));
+    act(() => {
+      vi.advanceTimersByTime(30 * MINUTE);
+    });
     await until(() => expect(useSession.getState().signOutReason).toBe('idle'));
     otherTab.close();
   });
@@ -120,15 +157,24 @@ describe('IdleTimeout', () => {
   it('should follow the office setting', async () => {
     renderIdle();
     act(() => useSession.setState({ idleMinutes: 15 }));
-    act(() => vi.advanceTimersByTime(15 * MINUTE + 1000));
+    act(() => {
+      vi.advanceTimersByTime(15 * MINUTE + 1000);
+    });
     await until(() => expect(useSession.getState().signOutReason).toBe('idle'));
   });
 
   it('should sign out at once from the warning', async () => {
     renderIdle();
-    act(() => vi.advanceTimersByTime(29 * MINUTE + 1000));
+    act(() => {
+      vi.advanceTimersByTime(29 * MINUTE + 1000);
+    });
     fireEvent.click(await screen.findByTestId('idle-sign-out'));
-    await until(() => expect(useSession.getState()).toMatchObject({ status: 'anonymous', signOutReason: 'signedOut' }));
+    await until(() =>
+      expect(useSession.getState()).toMatchObject({
+        status: 'anonymous',
+        signOutReason: 'signedOut',
+      }),
+    );
   });
 });
 
@@ -137,7 +183,13 @@ describe('other tabs', () => {
     const otherTab = new BroadcastChannel('nlq-session');
     signedIn();
     otherTab.postMessage({ type: 'signedOut', reason: 'idle' });
-    await until(() => expect(useSession.getState()).toMatchObject({ status: 'anonymous', signOutReason: 'idle', accessToken: null }));
+    await until(() =>
+      expect(useSession.getState()).toMatchObject({
+        status: 'anonymous',
+        signOutReason: 'idle',
+        accessToken: null,
+      }),
+    );
     otherTab.close();
   });
 

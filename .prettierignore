@@ -1,0 +1,18 @@
+# Generated, vendored or tool-owned files
+node_modules
+dist
+out-tsc
+test-output
+coverage
+storybook-static
+.nx
+.swarm
+graphify-out
+.serena
+apps/backend-api/src/generated
+pnpm-lock.yaml
+**/*.timestamp*
+# Prose is wrapped by hand (docs/context, ADRs, skills): Prettier would reflow tables and long lines.
+*.md
+# Migration SQL is reviewed as written.
+*.sql

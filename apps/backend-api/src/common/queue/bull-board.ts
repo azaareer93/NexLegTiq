@@ -17,6 +17,9 @@ export const BULL_BOARD_PATH = '/admin/queues';
 export function mountBullBoard(app: NestExpressApplication): void {
   const serverAdapter = new ExpressAdapter();
   serverAdapter.setBasePath(BULL_BOARD_PATH);
-  createBullBoard({ queues: QUEUE_NAMES.map((name) => new BullMQAdapter(getQueue(app, name))), serverAdapter });
+  createBullBoard({
+    queues: QUEUE_NAMES.map((name) => new BullMQAdapter(getQueue(app, name))),
+    serverAdapter,
+  });
   app.use(BULL_BOARD_PATH, helmet({ contentSecurityPolicy: false }), serverAdapter.getRouter());
 }

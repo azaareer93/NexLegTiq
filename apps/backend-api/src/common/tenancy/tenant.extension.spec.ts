@@ -27,6 +27,8 @@ describe('tenant extension wiring', () => {
   });
 
   it('should refuse a TENANT_MODELS entry that is not a model', () => {
-    expect(() => tenantExtension({ models, tenantModels: ['User', 'Ghost'], officeId: () => undefined })).toThrow(/Ghost/);
+    expect(() =>
+      tenantExtension({ models, tenantModels: ['User', 'Ghost'], officeId: () => undefined }),
+    ).toThrow(/Ghost/);
   });
 });

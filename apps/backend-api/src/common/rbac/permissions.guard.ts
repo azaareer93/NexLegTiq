@@ -1,11 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import type { CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { conditionFor, hasAllPermissions, hasAnyPermission, permissionsFor } from '@nexlegtiq/shared-types';
+import {
+  conditionFor,
+  hasAllPermissions,
+  hasAnyPermission,
+  permissionsFor,
+} from '@nexlegtiq/shared-types';
 import type { Permission } from '@nexlegtiq/shared-types';
 import { ClsService } from 'nestjs-cls';
 import { PinoLogger } from 'nestjs-pino';
 
+import { CONDITIONS_CHECKED_KEY, PERMISSIONS_KEY } from './permissions.decorator';
+import type { PermissionRequirement } from './permissions.decorator';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
 import type { AuthPrincipal, RequestContext } from '../context/request-context';
@@ -14,8 +21,6 @@ import { DEFAULT_MESSAGE } from '../errors/error-catalog';
 import { routeTemplateOf } from '../http/route-template';
 import type { RoutedRequest } from '../http/route-template';
 import { TenantRunner } from '../tenancy/tenant-runner';
-import { CONDITIONS_CHECKED_KEY, PERMISSIONS_KEY } from './permissions.decorator';
-import type { PermissionRequirement } from './permissions.decorator';
 
 type GuardedRequest = RoutedRequest & {
   user?: AuthPrincipal;
@@ -60,7 +65,9 @@ export class PermissionsGuard implements CanActivate {
     if (!principal) throw new AppException('AUTH-003', DEFAULT_MESSAGE['AUTH-003']);
     if (principal.realm !== 'OFFICE') throw new PermissionDeniedException();
 
-    const conditionsChecked = this.reflector.getAllAndOverride<boolean | undefined>(CONDITIONS_CHECKED_KEY, targets) === true;
+    const conditionsChecked =
+      this.reflector.getAllAndOverride<boolean | undefined>(CONDITIONS_CHECKED_KEY, targets) ===
+      true;
     const held = this.effectivePermissions(principal, conditionsChecked);
     const denied = requirements.find((requirement) =>
       requirement.mode === 'ALL'
@@ -74,13 +81,22 @@ export class PermissionsGuard implements CanActivate {
   }
 
   /** The role's permissions, minus conditional cells unless the route declares its service checks them. */
-  private effectivePermissions(principal: AuthPrincipal, conditionsChecked: boolean): readonly Permission[] {
+  private effectivePermissions(
+    principal: AuthPrincipal,
+    conditionsChecked: boolean,
+  ): readonly Permission[] {
     const permissions = permissionsFor(principal.role);
-    return conditionsChecked ? permissions : permissions.filter((permission) => !conditionFor(principal.role, permission));
+    return conditionsChecked
+      ? permissions
+      : permissions.filter((permission) => !conditionFor(principal.role, permission));
   }
 
   /** Best effort: a failed audit write is logged but never turns the 403 into a 500. */
-  private async auditDenied(principal: AuthPrincipal, requirement: PermissionRequirement, request: GuardedRequest): Promise<void> {
+  private async auditDenied(
+    principal: AuthPrincipal,
+    requirement: PermissionRequirement,
+    request: GuardedRequest,
+  ): Promise<void> {
     const requestId = this.cls.isActive() ? this.cls.getId() : undefined;
     const data: Prisma.AuditLogUncheckedCreateInput = {
       officeId: principal.officeId,
@@ -99,8 +115,9 @@ export class PermissionsGuard implements CanActivate {
       requestId: requestId ?? null,
     };
     try {
-      await this.tenant.run({ officeId: principal.officeId, userId: principal.userId, requestId }, () =>
-        this.prisma.db.auditLog.create({ data }),
+      await this.tenant.run(
+        { officeId: principal.officeId, userId: principal.userId, requestId },
+        () => this.prisma.db.auditLog.create({ data }),
       );
     } catch (error) {
       this.logger.warn({ err: error }, 'Could not audit a permission denial');

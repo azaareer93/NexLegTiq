@@ -1,0 +1,4 @@
+# nexlegtiq-commit-msg-start
+# Conventional commit message with a `Refs: MVP-<n>` footer (commitlint.config.mjs).
+pnpm exec commitlint --edit "$1" || exit 1
+# nexlegtiq-commit-msg-end

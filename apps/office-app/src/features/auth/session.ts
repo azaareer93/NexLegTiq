@@ -31,9 +31,11 @@ const INITIAL: SessionState = {
 
 export const useSession = create<SessionState>()(() => INITIAL);
 
-export const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } } });
+export const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
+});
 
-const configuredApiUrl: string | undefined = import.meta.env['VITE_API_URL'];
+const configuredApiUrl = import.meta.env['VITE_API_URL'] as string | undefined;
 if (import.meta.env.PROD && !configuredApiUrl?.startsWith('https://')) {
   throw new Error('VITE_API_URL must be set to the https:// API origin in a production build');
 }
@@ -77,8 +79,12 @@ function idleSinceLastVisit(): boolean {
  * timeout counted across tabs). No secrets travel: each tab restores its own token from the refresh cookie. Messages come
  * from same-origin scripts only, and are checked before use.
  */
-type SessionMessage = { type: 'signedIn' } | { type: 'signedOut'; reason: SignOutReason } | { type: 'activity'; at: number };
-const channel: BroadcastChannel | null = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('nlq-session');
+type SessionMessage =
+  | { type: 'signedIn' }
+  | { type: 'signedOut'; reason: SignOutReason }
+  | { type: 'activity'; at: number };
+const channel: BroadcastChannel | null =
+  typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('nlq-session');
 const activityListeners = new Set<(at: number) => void>();
 
 export function broadcast(message: SessionMessage): void {
@@ -91,18 +97,31 @@ export function onRemoteActivity(listener: (at: number) => void): () => void {
   return () => activityListeners.delete(listener);
 }
 
+type Message = Partial<Record<string, unknown>> | null;
+
+/** The activity time of a message, never in the future: a bogus timestamp must not switch the idle timeout off. */
+const activityAt = (message: Message): number | null =>
+  typeof message?.['at'] === 'number' && Number.isFinite(message['at'])
+    ? Math.min(message['at'], Date.now())
+    : null;
+
 function onMessage(data: unknown): void {
-  const message = data as Partial<Record<string, unknown>> | null;
-  if (message?.['type'] === 'activity' && typeof message['at'] === 'number' && Number.isFinite(message['at'])) {
-    // Never in the future: a bogus timestamp must not switch the idle timeout off.
-    const at = Math.min(message['at'], Date.now());
-    activityListeners.forEach((listener) => listener(at));
-  } else if (message?.['type'] === 'signedOut' && useSession.getState().status === 'authenticated') {
-    const reason = SIGN_OUT_REASONS.find((known) => known === message['reason']) ?? 'signedOut';
-    endSession(reason);
-  } else if (message?.['type'] === 'signedIn') {
-    // Another tab signed in, possibly as someone else (the refresh cookie is shared): re-check who this tab is.
-    void restoreSession();
+  const message = data as Message;
+  switch (message?.['type']) {
+    case 'activity': {
+      const at = activityAt(message);
+      if (at !== null) activityListeners.forEach((listener) => listener(at));
+      break;
+    }
+    case 'signedOut':
+      if (useSession.getState().status === 'authenticated') {
+        endSession(SIGN_OUT_REASONS.find((known) => known === message?.['reason']) ?? 'signedOut');
+      }
+      break;
+    case 'signedIn':
+      // Another tab signed in, possibly as someone else (the refresh cookie is shared): re-check who this tab is.
+      void restoreSession();
+      break;
   }
 }
 
@@ -122,7 +141,12 @@ export function startSession(session: ClientSession): void {
 
 /** Clears everything this tab knows about the session: token, user and every cached query and mutation. */
 export function endSession(reason: SignOutReason | null): void {
-  useSession.setState({ status: 'anonymous', user: null, accessToken: null, signOutReason: reason });
+  useSession.setState({
+    status: 'anonymous',
+    user: null,
+    accessToken: null,
+    signOutReason: reason,
+  });
   queryClient.clear();
   try {
     // No session, nothing to time out: the next visit must not report "signed out after inactivity".
@@ -134,7 +158,8 @@ export function endSession(reason: SignOutReason | null): void {
 
 /** The server refused the session (no cookie, expired, revoked, inactive): the user must sign in. */
 const isRefusal = (error: unknown): boolean =>
-  error instanceof ApiError && (error.status === 401 || error.code === 'AUTH-006' || error.code === 'AUTH-010');
+  error instanceof ApiError &&
+  (error.status === 401 || error.code === 'AUTH-006' || error.code === 'AUTH-010');
 
 /**
  * App start, a retry after a failed start, and another tab signing in: restore the session from the refresh cookie.

@@ -97,7 +97,9 @@ export function buildLoggerParams(config: AppConfig): Params {
       customLogLevel: (_req: IncomingMessage, res: ServerResponse, error?: Error) =>
         error || res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info',
       // Bodies are never logged: pino-http does not serialize them, and the serializers above drop error bodies.
-      ...(config.log.pretty && { transport: { target: 'pino-pretty', options: { singleLine: true } } }),
+      ...(config.log.pretty && {
+        transport: { target: 'pino-pretty', options: { singleLine: true } },
+      }),
     },
   };
 }

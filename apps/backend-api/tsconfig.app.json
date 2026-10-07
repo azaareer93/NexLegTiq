@@ -2,18 +2,14 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "out-tsc/app",
-    "types": [
-      "node"
-    ],
+    "types": ["node"],
     "rootDir": "src",
     "tsBuildInfoFile": "out-tsc/app/tsconfig.app.tsbuildinfo",
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": [
-    "src/**/*.ts"
-  ],
+  "include": ["src/**/*.ts"],
   "exclude": [
     "out-tsc",
     "dist",
@@ -25,13 +21,16 @@
   ],
   "references": [
     {
-      "path": "../../packages/shared-utils/tsconfig.lib.json"
-    },
-    {
       "path": "../../packages/shared-types/tsconfig.lib.json"
     },
     {
       "path": "../../packages/shared-contracts/tsconfig.lib.json"
+    },
+    {
+      "path": "../../packages/shared-utils/tsconfig.lib.json"
+    },
+    {
+      "path": "../../packages/shared-config/tsconfig.lib.json"
     }
   ]
 }

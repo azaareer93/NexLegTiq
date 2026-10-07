@@ -15,6 +15,14 @@ function EmptyWithAction(): React.JSX.Element {
 
 export const Empty: Story = {};
 export const EmptyWithCreateButton: Story = { render: () => <EmptyWithAction /> };
-export const ErrorWithReference: Story = { render: () => <ErrorState code="RES-001" requestId="0192f0aa-77c1-7c3e-9a51-2b3c4d5e6f70" onRetry={() => undefined} /> };
+export const ErrorWithReference: Story = {
+  render: () => (
+    <ErrorState
+      code="RES-001"
+      requestId="0192f0aa-77c1-7c3e-9a51-2b3c4d5e6f70"
+      onRetry={() => undefined}
+    />
+  ),
+};
 export const GenericError: Story = { render: () => <ErrorState onRetry={() => undefined} /> };
 export const Loading: Story = { render: () => <LoadingSkeleton rows={4} /> };

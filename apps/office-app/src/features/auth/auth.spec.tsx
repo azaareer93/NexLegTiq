@@ -2,13 +2,29 @@ import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import axe from 'axe-core';
 import { HttpResponse } from 'msw';
 
-import { api, fail, http, listenToOtherTabs, ok, renderApp, server, SESSION, setupTestServer, signedIn, signedOut, setViewport, signOutFromMenu, USER } from '../../test/render-app';
 import { safeNext } from './forms';
 import { apiClient, queryClient, restoreSession, signOut, useSession } from './session';
+import {
+  api,
+  fail,
+  http,
+  listenToOtherTabs,
+  ok,
+  renderApp,
+  server,
+  SESSION,
+  setupTestServer,
+  signedIn,
+  signedOut,
+  setViewport,
+  signOutFromMenu,
+  USER,
+} from '../../test/render-app';
 
 setupTestServer();
 
-const type = (testId: string, value: string) => fireEvent.change(screen.getByTestId(testId), { target: { value } });
+const type = (testId: string, value: string) =>
+  fireEvent.change(screen.getByTestId(testId), { target: { value } });
 const click = (testId: string) => fireEvent.click(screen.getByTestId(testId));
 /** Pages are lazy-loaded: wait until `testId` is on screen. */
 const ready = (testId: string) => screen.findByTestId(testId);
@@ -19,8 +35,15 @@ const A11Y_TIMEOUT_MS = 60_000;
 
 // jsdom has no layout, so colour contrast is checked in Storybook (D-088); landmarks belong to the app shell.
 async function expectAccessible(): Promise<void> {
-  const { violations } = await axe.run(document.body, { rules: { 'color-contrast': { enabled: false }, region: { enabled: false } } });
-  expect(violations.map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(' ')).join(', ')}`)).toEqual([]);
+  const { violations } = await axe.run(document.body, {
+    rules: { 'color-contrast': { enabled: false }, region: { enabled: false } },
+  });
+  expect(
+    violations.map(
+      (violation) =>
+        `${violation.id}: ${violation.nodes.map((node) => node.target.join(' ')).join(', ')}`,
+    ),
+  ).toEqual([]);
 }
 
 async function signIn(): Promise<void> {
@@ -62,7 +85,11 @@ describe('app start and guards', () => {
     click('login-submit');
     expect(await screen.findByTestId('page-dashboard')).toBeTruthy();
     expect(router.state.location.search).toBe('?tab=1');
-    expect(body).toEqual({ email: 'layla@example.test', password: 'Testtesttest1', rememberMe: true });
+    expect(body).toEqual({
+      email: 'layla@example.test',
+      password: 'Testtesttest1',
+      rememberMe: true,
+    });
   });
 
   it('should not take a failure to reach the API at start for "signed out", and let the user retry', async () => {
@@ -94,11 +121,16 @@ describe('app start and guards', () => {
     await restoreSession();
     expect({ refreshed, loggedOut }).toEqual({ refreshed: false, loggedOut: true });
     renderApp('/');
-    expect((await ready('login-notice')).textContent).toBe('You were signed out after a period of inactivity.');
+    expect((await ready('login-notice')).textContent).toBe(
+      'You were signed out after a period of inactivity.',
+    );
   });
 
   it('should resume a session used recently, and forget the activity time on sign-out', async () => {
-    server.use(http.post(api('auth/refresh'), () => ok(SESSION)), http.post(api('auth/logout'), noContent));
+    server.use(
+      http.post(api('auth/refresh'), () => ok(SESSION)),
+      http.post(api('auth/logout'), noContent),
+    );
     localStorage.setItem('nlq.lastActivity', String(Date.now() - 5 * 60_000));
     await restoreSession();
     expect(useSession.getState().status).toBe('authenticated');
@@ -120,25 +152,33 @@ describe('app start and guards', () => {
     expect(router.state.location.search).toBe('?tab=1');
   });
 
-  it.each(['//evil.test', 'https://evil.test', '/\\evil.test', '/\t/evil.test', '/\n/evil.test', ['javascript', 'alert(1)'].join(':'), null])(
-    'should never redirect off the app after sign-in (next=%j)',
-    (next) => {
-      expect(safeNext(next)).toBe('/');
-    },
-  );
+  it.each([
+    '//evil.test',
+    'https://evil.test',
+    '/\\evil.test',
+    '/\t/evil.test',
+    '/\n/evil.test',
+    ['javascript', 'alert(1)'].join(':'),
+    null,
+  ])('should never redirect off the app after sign-in (next=%j)', (next) => {
+    expect(safeNext(next)).toBe('/');
+  });
 
   it('should keep a same-app next path', () => {
     expect(safeNext('/cases/1?tab=documents#top')).toBe('/cases/1?tab=documents#top');
   });
 
-  it.each(['//evil.test', '/\t/evil.test'])('should land on the home page after signing in with next=%j', async (next) => {
-    signedOut();
-    server.use(http.post(api('auth/login'), () => ok(SESSION)));
-    const { router } = renderApp(`/login?next=${encodeURIComponent(next)}`);
-    await signIn();
-    expect(await screen.findByTestId('page-dashboard')).toBeTruthy();
-    expect(router.state.location.pathname).toBe('/');
-  });
+  it.each(['//evil.test', '/\t/evil.test'])(
+    'should land on the home page after signing in with next=%j',
+    async (next) => {
+      signedOut();
+      server.use(http.post(api('auth/login'), () => ok(SESSION)));
+      const { router } = renderApp(`/login?next=${encodeURIComponent(next)}`);
+      await signIn();
+      expect(await screen.findByTestId('page-dashboard')).toBeTruthy();
+      expect(router.state.location.pathname).toBe('/');
+    },
+  );
 });
 
 describe('login page', () => {
@@ -148,13 +188,16 @@ describe('login page', () => {
     [401, 'AUTH-001', 'en', 'The email or password is incorrect.'],
     [423, 'AUTH-007', 'en', 'Too many failed attempts. Try again in 15 minutes.'],
     [401, 'AUTH-001', 'ar', 'البريد الإلكتروني أو كلمة المرور غير صحيحة.'],
-  ] as const)('should show %i %s in %s as a translated message', async (status, code, locale, text) => {
-    server.use(http.post(api('auth/login'), () => fail(status, code)));
-    renderApp('/login', locale);
-    await signIn();
-    expect((await ready('login-error')).textContent).toBe(text);
-    expect(useSession.getState().status).toBe('anonymous');
-  });
+  ] as const)(
+    'should show %i %s in %s as a translated message',
+    async (status, code, locale, text) => {
+      server.use(http.post(api('auth/login'), () => fail(status, code)));
+      renderApp('/login', locale);
+      await signIn();
+      expect((await ready('login-error')).textContent).toBe(text);
+      expect(useSession.getState().status).toBe('anonymous');
+    },
+  );
 
   it.each([
     ['en', 'Try again in 42 seconds.'],
@@ -163,7 +206,11 @@ describe('login page', () => {
     server.use(
       http.post(api('auth/login'), () =>
         HttpResponse.json(
-          { success: false, error: { code: 'RATE-001', message: 'dev' }, meta: { timestamp: '', requestId: 'req-12345678' } },
+          {
+            success: false,
+            error: { code: 'RATE-001', message: 'dev' },
+            meta: { timestamp: '', requestId: 'req-12345678' },
+          },
           { status: 429, headers: { 'retry-after': '42' } },
         ),
       ),
@@ -176,7 +223,14 @@ describe('login page', () => {
   it('should give a support reference when the server failed', async () => {
     server.use(
       http.post(api('auth/login'), () =>
-        HttpResponse.json({ success: false, error: { code: 'SYS-001', message: 'dev' }, meta: { timestamp: '', requestId: 'req-12345678' } }, { status: 500 }),
+        HttpResponse.json(
+          {
+            success: false,
+            error: { code: 'SYS-001', message: 'dev' },
+            meta: { timestamp: '', requestId: 'req-12345678' },
+          },
+          { status: 500 },
+        ),
       ),
     );
     renderApp('/login', 'en');
@@ -260,33 +314,36 @@ describe('signup page', () => {
   it.each([
     ['en', 'EN'],
     ['ar', 'AR'],
-  ] as const)('should create the office (%s page, office language %s) and sign the manager in', async (locale, defaultLanguage) => {
-    let body: unknown;
-    server.use(
-      http.post(api('auth/register'), async ({ request }) => {
-        body = await request.json();
-        return ok(SESSION, 201);
-      }),
-    );
-    renderApp('/signup', locale);
-    await ready('signup-submit');
-    fill();
-    accept();
-    click('signup-submit');
-    expect(await screen.findByTestId('page-dashboard')).toBeTruthy();
-    expect(body).toEqual({
-      fullName: 'Layla Haddad',
-      email: 'layla@example.test',
-      password: 'Testtesttest1',
-      officeName: 'Haddad Law',
-      accountType: 'FIRM',
-      jurisdiction: 'PALESTINE',
-      defaultLanguage,
-      currency: 'ILS',
-      acceptTerms: true,
-      acceptPrivacy: true,
-    });
-  });
+  ] as const)(
+    'should create the office (%s page, office language %s) and sign the manager in',
+    async (locale, defaultLanguage) => {
+      let body: unknown;
+      server.use(
+        http.post(api('auth/register'), async ({ request }) => {
+          body = await request.json();
+          return ok(SESSION, 201);
+        }),
+      );
+      renderApp('/signup', locale);
+      await ready('signup-submit');
+      fill();
+      accept();
+      click('signup-submit');
+      expect(await screen.findByTestId('page-dashboard')).toBeTruthy();
+      expect(body).toEqual({
+        fullName: 'Layla Haddad',
+        email: 'layla@example.test',
+        password: 'Testtesttest1',
+        officeName: 'Haddad Law',
+        accountType: 'FIRM',
+        jurisdiction: 'PALESTINE',
+        defaultLanguage,
+        currency: 'ILS',
+        acceptTerms: true,
+        acceptPrivacy: true,
+      });
+    },
+  );
 
   it('should set the office language from the AR | EN switch until the user picks one', async () => {
     let body: { defaultLanguage?: string } = {};
@@ -299,7 +356,9 @@ describe('signup page', () => {
     renderApp('/signup', 'en');
     await ready('signup-submit');
     fireEvent.click(screen.getByText('العربية'));
-    await waitFor(() => expect(screen.getByTestId('signup-submit').textContent).toBe('إنشاء الحساب'));
+    await waitFor(() =>
+      expect(screen.getByTestId('signup-submit').textContent).toBe('إنشاء الحساب'),
+    );
     fill();
     accept();
     click('signup-submit');
@@ -326,14 +385,20 @@ describe('signup page', () => {
   });
 
   it('should put server field errors on their field, and explain a taken email', async () => {
-    server.use(http.post(api('auth/register'), () => fail(400, 'VAL-001', [{ field: 'officeName', message: 'validation.invalidCharacters' }])));
+    server.use(
+      http.post(api('auth/register'), () =>
+        fail(400, 'VAL-001', [{ field: 'officeName', message: 'validation.invalidCharacters' }]),
+      ),
+    );
     renderApp('/signup');
     await ready('signup-submit');
     fill();
     accept();
     click('signup-submit');
     const fieldError = await screen.findByText('This contains characters that are not allowed.');
-    expect(fieldError.closest('.ant-form-item')?.querySelector('[data-testid="signup-office-name"]')).not.toBeNull();
+    expect(
+      fieldError.closest('.ant-form-item')?.querySelector('[data-testid="signup-office-name"]'),
+    ).not.toBeNull();
     expect(screen.queryByTestId('signup-error')).toBeNull();
 
     server.use(http.post(api('auth/register'), () => fail(409, 'RES-002')));
@@ -349,7 +414,9 @@ describe('signup page', () => {
     fill();
     accept();
     click('signup-submit');
-    expect((await ready('signup-error-login')).textContent).toBe('Your office may already have been created. Try signing in.');
+    expect((await ready('signup-error-login')).textContent).toBe(
+      'Your office may already have been created. Try signing in.',
+    );
   });
 
   it.each(['ar', 'en'] as const)(
@@ -395,7 +462,9 @@ describe('forgot and reset password', () => {
 
     type('reset-confirm-password', 'Testtesttest1');
     click('reset-submit');
-    expect((await ready('login-notice')).textContent).toBe('Your password has been changed. Sign in with the new password.');
+    expect((await ready('login-notice')).textContent).toBe(
+      'Your password has been changed. Sign in with the new password.',
+    );
     expect(body).toEqual({ token, newPassword: 'Testtesttest1', confirmPassword: 'Testtesttest1' });
   });
 
@@ -410,18 +479,26 @@ describe('forgot and reset password', () => {
     click('reset-submit');
     expect(await ready('login-notice')).toBeTruthy();
     expect(useSession.getState()).toMatchObject({ status: 'anonymous', accessToken: null });
-    await waitFor(() => expect(otherTabs.messages).toContainEqual({ type: 'signedOut', reason: 'signedOut' }));
+    await waitFor(() =>
+      expect(otherTabs.messages).toContainEqual({ type: 'signedOut', reason: 'signedOut' }),
+    );
     otherTabs.close();
   });
 
   it('should show the API password rules on the field, and other failures in a banner', async () => {
-    server.use(http.post(api('auth/reset-password'), () => fail(400, 'VAL-001', [{ field: 'newPassword', message: 'validation.password.common' }])));
+    server.use(
+      http.post(api('auth/reset-password'), () =>
+        fail(400, 'VAL-001', [{ field: 'newPassword', message: 'validation.password.common' }]),
+      ),
+    );
     renderApp(`/reset-password?token=${'f'.repeat(43)}`);
     await ready('reset-submit');
     type('reset-new-password', 'Testtesttest1');
     type('reset-confirm-password', 'Testtesttest1');
     click('reset-submit');
-    expect(await screen.findByText('This password is too common. Choose another one.')).toBeTruthy();
+    expect(
+      await screen.findByText('This password is too common. Choose another one.'),
+    ).toBeTruthy();
     expect(screen.queryByRole('alert')).toBeNull();
 
     server.use(http.post(api('auth/reset-password'), () => fail(500, 'SYS-001')));
@@ -528,9 +605,15 @@ describe('sign out and lost sessions', () => {
     expect(await ready('login-notice')).toBeTruthy();
     expect(loggedOut).toBe(true);
     expect(router.state.location.pathname).toBe('/login');
-    expect(useSession.getState()).toMatchObject({ status: 'anonymous', user: null, accessToken: null });
+    expect(useSession.getState()).toMatchObject({
+      status: 'anonymous',
+      user: null,
+      accessToken: null,
+    });
     expect(queryClient.getQueryData(['cases'])).toBeUndefined();
-    await waitFor(() => expect(otherTabs.messages).toContainEqual({ type: 'signedOut', reason: 'signedOut' }));
+    await waitFor(() =>
+      expect(otherTabs.messages).toContainEqual({ type: 'signedOut', reason: 'signedOut' }),
+    );
     otherTabs.close();
   });
 
@@ -542,7 +625,9 @@ describe('sign out and lost sessions', () => {
     await signOutFromMenu();
     expect(await ready('login-submit')).toBeTruthy();
     expect(useSession.getState().accessToken).toBeNull();
-    await waitFor(() => expect(otherTabs.messages).toContainEqual({ type: 'signedOut', reason: 'signedOut' }));
+    await waitFor(() =>
+      expect(otherTabs.messages).toContainEqual({ type: 'signedOut', reason: 'signedOut' }),
+    );
     otherTabs.close();
   });
 
@@ -566,8 +651,12 @@ describe('sign out and lost sessions', () => {
     queryClient.setQueryData(['cases'], [{ id: 1 }]);
     const { router } = renderApp('/tasks?view=mine');
     await ready('page-tasks');
-    await expect(apiClient.request({ method: 'GET', path: 'things' })).rejects.toMatchObject({ code: 'AUTH-005' });
-    expect((await ready('login-notice')).textContent).toBe('Your session has ended. Please sign in again.');
+    await expect(apiClient.request({ method: 'GET', path: 'things' })).rejects.toMatchObject({
+      code: 'AUTH-005',
+    });
+    expect((await ready('login-notice')).textContent).toBe(
+      'Your session has ended. Please sign in again.',
+    );
     const params = new URLSearchParams(router.state.location.search);
     expect(params.get('reason')).toBe('expired');
     // Back where the user was after signing in again.
@@ -583,7 +672,9 @@ describe('sign out and lost sessions', () => {
     signedIn();
     renderApp('/');
     await ready('page-dashboard');
-    await expect(apiClient.request({ method: 'GET', path: 'things' })).rejects.toMatchObject({ code: 'SYS-002' });
+    await expect(apiClient.request({ method: 'GET', path: 'things' })).rejects.toMatchObject({
+      code: 'SYS-002',
+    });
     expect(useSession.getState().status).toBe('authenticated');
     expect(screen.getByTestId('page-dashboard')).toBeTruthy();
   });
@@ -599,7 +690,10 @@ describe('sign out and lost sessions', () => {
   it('should drop the previous user and their cached data when the cookie now belongs to someone else', async () => {
     signedIn();
     queryClient.setQueryData(['cases'], [{ id: 1 }]);
-    const other = { ...SESSION, user: { ...USER, id: '01920000-0000-7000-8000-000000000009', fullName: 'Omar Saleh' } };
+    const other = {
+      ...SESSION,
+      user: { ...USER, id: '01920000-0000-7000-8000-000000000009', fullName: 'Omar Saleh' },
+    };
     server.use(http.post(api('auth/refresh'), () => ok(other)));
     await restoreSession();
     expect(useSession.getState().user?.fullName).toBe('Omar Saleh');

@@ -15,7 +15,9 @@ export function ForgotPasswordPage(): React.JSX.Element {
   const { t } = useTranslation();
   const { translateKey: message } = useApiErrorHandler();
   const [form] = Form.useForm();
-  const request = useMutation({ mutationFn: (body: ForgotPasswordRequest) => auth.forgotPassword(body) });
+  const request = useMutation({
+    mutationFn: (body: ForgotPasswordRequest) => auth.forgotPassword(body),
+  });
 
   const submit = (values: unknown) => {
     const body = parseForm(ForgotPasswordRequestSchema, values, form, message);
@@ -31,7 +33,13 @@ export function ForgotPasswordPage(): React.JSX.Element {
   if (request.isSuccess) {
     return (
       <AuthLayout title={t('auth.forgotPassword.title')}>
-        <Result status="success" title={t('auth.forgotPassword.sentTitle')} subTitle={t('auth.forgotPassword.sentBody')} extra={backToLogin} data-testid="forgot-sent" />
+        <Result
+          status="success"
+          title={t('auth.forgotPassword.sentTitle')}
+          subTitle={t('auth.forgotPassword.sentBody')}
+          extra={backToLogin}
+          data-testid="forgot-sent"
+        />
       </AuthLayout>
     );
   }
@@ -40,11 +48,34 @@ export function ForgotPasswordPage(): React.JSX.Element {
     <AuthLayout title={t('auth.forgotPassword.title')} subtitle={t('auth.forgotPassword.subtitle')}>
       <Flex vertical gap={16}>
         <ApiErrorAlert error={request.error} />
-        <Form form={form} noValidate layout="vertical" requiredMark={false} onFinish={submit} disabled={request.isPending}>
-          <Form.Item name="email" label={t('auth.fields.email')} rules={zodRule(ForgotPasswordRequestSchema.shape.email, message)}>
-            <Input type="email" autoComplete="email" dir="ltr" autoFocus data-testid="forgot-email" />
+        <Form
+          form={form}
+          noValidate
+          layout="vertical"
+          requiredMark={false}
+          onFinish={submit}
+          disabled={request.isPending}
+        >
+          <Form.Item
+            name="email"
+            label={t('auth.fields.email')}
+            rules={zodRule(ForgotPasswordRequestSchema.shape.email, message)}
+          >
+            <Input
+              type="email"
+              autoComplete="email"
+              dir="ltr"
+              autoFocus
+              data-testid="forgot-email"
+            />
           </Form.Item>
-          <Button type="primary" htmlType="submit" block loading={request.isPending} data-testid="forgot-submit">
+          <Button
+            type="primary"
+            htmlType="submit"
+            block
+            loading={request.isPending}
+            data-testid="forgot-submit"
+          >
             {t('auth.forgotPassword.submit')}
           </Button>
         </Form>

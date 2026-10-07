@@ -21,9 +21,12 @@ afterEach(() => {
 
 const wrapperFor =
   (locale: Locale) =>
-  ({ children }: { children: ReactNode }) => <NexProvider userLocale={locale}>{children}</NexProvider>;
+  ({ children }: { children: ReactNode }) => (
+    <NexProvider userLocale={locale}>{children}</NexProvider>
+  );
 
-const handlerIn = (locale: Locale) => renderHook(() => useApiErrorHandler(), { wrapper: wrapperFor(locale) }).result.current;
+const handlerIn = (locale: Locale) =>
+  renderHook(() => useApiErrorHandler(), { wrapper: wrapperFor(locale) }).result.current;
 
 describe('isApiError', () => {
   it.each([
@@ -44,13 +47,21 @@ describe('useApiErrorHandler', () => {
     expect(en.messageOf({ code: 'AUTH-001' })).toBe(AUTH_001_EN);
     expect(en.messageOf({ code: 'ZZZ-999' })).toBe('Something went wrong');
     expect(en.messageOf(new Error('secret stack trace'))).toBe('Something went wrong');
-    expect(handlerIn('ar').messageOf({ code: 'AUTH-001' })).toBe('البريد الإلكتروني أو كلمة المرور غير صحيحة.');
+    expect(handlerIn('ar').messageOf({ code: 'AUTH-001' })).toBe(
+      'البريد الإلكتروني أو كلمة المرور غير صحيحة.',
+    );
   });
 
   it('should say how long to wait, with Arabic number agreement, only for a known code', () => {
-    expect(handlerIn('en').messageOf({ code: 'RATE-001', retryAfter: 1 })).toMatch(/Try again in 1 second\.$/);
-    expect(handlerIn('ar').messageOf({ code: 'RATE-001', retryAfter: 2 })).toMatch(/بعد ثانيتين\.$/);
-    expect(handlerIn('en').messageOf({ code: 'ZZZ-999', retryAfter: 5 })).toBe('Something went wrong');
+    expect(handlerIn('en').messageOf({ code: 'RATE-001', retryAfter: 1 })).toMatch(
+      /Try again in 1 second\.$/,
+    );
+    expect(handlerIn('ar').messageOf({ code: 'RATE-001', retryAfter: 2 })).toMatch(
+      /بعد ثانيتين\.$/,
+    );
+    expect(handlerIn('en').messageOf({ code: 'ZZZ-999', retryAfter: 5 })).toBe(
+      'Something went wrong',
+    );
   });
 
   it('should give a support reference only for failures the user cannot fix', () => {
@@ -71,14 +82,22 @@ describe('useApiErrorHandler', () => {
     expect(applyToForm(form, { code: 'VAL-001', details: [email] }, ['email'])).toBe(true);
     expect(setFields).toHaveBeenLastCalledWith(onEmail);
     // A detail for a field the form does not show: the matching one is still set, and the banner must explain the rest.
-    expect(applyToForm(form, { code: 'VAL-001', details: [email, { field: 'other', message: 'validation.required' }] }, ['email'])).toBe(false);
+    expect(
+      applyToForm(
+        form,
+        { code: 'VAL-001', details: [email, { field: 'other', message: 'validation.required' }] },
+        ['email'],
+      ),
+    ).toBe(false);
     expect(setFields).toHaveBeenLastCalledWith(onEmail);
     expect(applyToForm(form, new Error('x'), ['email'])).toBe(false);
     expect(translateKey('validation.nope')).toBe('Something went wrong');
   });
 
   it('should keep the same handler between renders', () => {
-    const { result, rerender } = renderHook(() => useApiErrorHandler(), { wrapper: wrapperFor('en') });
+    const { result, rerender } = renderHook(() => useApiErrorHandler(), {
+      wrapper: wrapperFor('en'),
+    });
     const first = result.current;
     rerender();
     expect(result.current).toBe(first);
@@ -108,14 +127,21 @@ describe('useApiErrorHandler', () => {
 describe('ApiErrorAlert', () => {
   it.each([
     ['no error', null],
-    ['an error its fields explain', { code: 'VAL-001', details: [{ field: 'email', message: 'validation.email' }] }],
+    [
+      'an error its fields explain',
+      { code: 'VAL-001', details: [{ field: 'email', message: 'validation.email' }] },
+    ],
   ])('should show nothing for %s', (_case, error) => {
-    const { container } = render(<ApiErrorAlert error={error} fields={['email']} />, { wrapper: wrapperFor('en') });
+    const { container } = render(<ApiErrorAlert error={error} fields={['email']} />, {
+      wrapper: wrapperFor('en'),
+    });
     expect(container.querySelector('[role="alert"]')).toBeNull();
   });
 
   it('should show the message and, for a server failure, the reference left to right', () => {
-    render(<ApiErrorAlert error={{ code: 'SYS-001', requestId: REQUEST_ID }} testId="alert" />, { wrapper: wrapperFor('ar') });
+    render(<ApiErrorAlert error={{ code: 'SYS-001', requestId: REQUEST_ID }} testId="alert" />, {
+      wrapper: wrapperFor('ar'),
+    });
     const alert = screen.getByTestId('alert');
     expect(alert.getAttribute('role')).toBe('alert');
     expect(alert.textContent).toContain('المرجع');
@@ -123,9 +149,16 @@ describe('ApiErrorAlert', () => {
   });
 
   it('should show the generic message and the reference for a code this build does not know, with its action', () => {
-    render(<ApiErrorAlert error={{ code: 'ZZZ-999', requestId: REQUEST_ID }} action={<button type="button">act</button>} testId="alert" />, {
-      wrapper: wrapperFor('en'),
-    });
+    render(
+      <ApiErrorAlert
+        error={{ code: 'ZZZ-999', requestId: REQUEST_ID }}
+        action={<button type="button">act</button>}
+        testId="alert"
+      />,
+      {
+        wrapper: wrapperFor('en'),
+      },
+    );
     const alert = screen.getByTestId('alert');
     expect(alert.textContent).toContain('Something went wrong');
     expect(alert.textContent).toContain(REQUEST_ID);

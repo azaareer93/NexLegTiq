@@ -5,17 +5,30 @@ import { ACCOUNT_TYPES, JURISDICTIONS, OFFICE_LANGUAGES } from '@nexlegtiq/share
 import { ApiErrorAlert, useApiErrorHandler, useLanguage } from '@nexlegtiq/shared-ui';
 import { useMutation } from '@tanstack/react-query';
 import { Button, Checkbox, Divider, Flex, Form, Input, Select, Typography } from 'antd';
-import { useTranslation } from 'react-i18next';
 import { useEffect, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router';
 
 import { AuthLayout } from '../components/AuthLayout';
 import { parseForm, zodRule } from '../forms';
 import { auth, broadcast, startSession } from '../session';
 
-const FIELDS = ['fullName', 'email', 'password', 'officeName', 'accountType', 'jurisdiction', 'defaultLanguage', 'currency', 'phone', 'acceptTerms', 'acceptPrivacy'];
+const FIELDS = [
+  'fullName',
+  'email',
+  'password',
+  'officeName',
+  'accountType',
+  'jurisdiction',
+  'defaultLanguage',
+  'currency',
+  'phone',
+  'acceptTerms',
+  'acceptPrivacy',
+];
 const CURRENCIES = Intl.supportedValuesOf('currency');
-const mayExist = (error: unknown): boolean => error instanceof ApiError && (error.status >= 500 || error.code === 'RES-002');
+const mayExist = (error: unknown): boolean =>
+  error instanceof ApiError && (error.status >= 500 || error.code === 'RES-002');
 const shape = RegisterRequestSchema.shape;
 
 /** Office signup (D-083): creates the office and its manager, then signs the manager in. */
@@ -23,7 +36,10 @@ export function SignupPage(): React.JSX.Element {
   const { t } = useTranslation();
   const { translateKey: message, applyToForm } = useApiErrorHandler();
   const { locale } = useLanguage();
-  const currencyNames = useMemo(() => new Intl.DisplayNames(locale, { type: 'currency' }), [locale]);
+  const currencyNames = useMemo(
+    () => new Intl.DisplayNames(locale, { type: 'currency' }),
+    [locale],
+  );
   const navigate = useNavigate();
   const [form] = Form.useForm();
 
@@ -43,12 +59,18 @@ export function SignupPage(): React.JSX.Element {
   // (`isFieldTouched` cannot tell: AntD marks a field touched on `setFieldValue` too.)
   const languagePicked = useRef(false);
   useEffect(() => {
-    if (!languagePicked.current) form.setFieldValue('defaultLanguage', locale === 'en' ? 'EN' : 'AR');
+    if (!languagePicked.current)
+      form.setFieldValue('defaultLanguage', locale === 'en' ? 'EN' : 'AR');
   }, [form, locale]);
 
   const submit = (values: Record<string, unknown>) => {
     // Unticked boxes are `false`; the contract wants `true` and names the box in its message.
-    const body = parseForm(RegisterRequestSchema, { ...values, phone: values['phone'] || undefined }, form, message);
+    const body = parseForm(
+      RegisterRequestSchema,
+      { ...values, phone: values['phone'] || undefined },
+      form,
+      message,
+    );
     if (body) register.mutate(body);
   };
 
@@ -90,52 +112,109 @@ export function SignupPage(): React.JSX.Element {
           <Divider titlePlacement="start" plain>
             {t('auth.signup.account')}
           </Divider>
-          <Form.Item name="fullName" label={t('auth.fields.fullName')} rules={zodRule(shape.fullName, message)}>
+          <Form.Item
+            name="fullName"
+            label={t('auth.fields.fullName')}
+            rules={zodRule(shape.fullName, message)}
+          >
             <Input autoComplete="name" autoFocus data-testid="signup-full-name" />
           </Form.Item>
-          <Form.Item name="email" label={t('auth.fields.email')} rules={zodRule(shape.email, message)}>
+          <Form.Item
+            name="email"
+            label={t('auth.fields.email')}
+            rules={zodRule(shape.email, message)}
+          >
             <Input type="email" autoComplete="email" dir="ltr" data-testid="signup-email" />
           </Form.Item>
-          <Form.Item name="password" label={t('auth.fields.password')} extra={t('auth.passwordHint')} rules={zodRule(shape.password, message)}>
+          <Form.Item
+            name="password"
+            label={t('auth.fields.password')}
+            extra={t('auth.passwordHint')}
+            rules={zodRule(shape.password, message)}
+          >
             <Input.Password autoComplete="new-password" dir="ltr" data-testid="signup-password" />
           </Form.Item>
-          <Form.Item name="phone" label={t('auth.fields.phone')} rules={zodRule(shape.phone, message)}>
+          <Form.Item
+            name="phone"
+            label={t('auth.fields.phone')}
+            rules={zodRule(shape.phone, message)}
+          >
             <Input type="tel" autoComplete="tel" dir="ltr" data-testid="signup-phone" />
           </Form.Item>
 
           <Divider titlePlacement="start" plain>
             {t('auth.signup.office')}
           </Divider>
-          <Form.Item name="officeName" label={t('auth.fields.officeName')} rules={zodRule(shape.officeName, message)}>
+          <Form.Item
+            name="officeName"
+            label={t('auth.fields.officeName')}
+            rules={zodRule(shape.officeName, message)}
+          >
             <Input autoComplete="organization" data-testid="signup-office-name" />
           </Form.Item>
           <Form.Item name="accountType" label={t('auth.fields.accountType')}>
-            <Select data-testid="signup-account-type" options={ACCOUNT_TYPES.map((value) => ({ value, label: t(`enums.accountType.${value}`) }))} />
+            <Select
+              data-testid="signup-account-type"
+              options={ACCOUNT_TYPES.map((value) => ({
+                value,
+                label: t(`enums.accountType.${value}`),
+              }))}
+            />
           </Form.Item>
           <Flex gap={16} wrap>
-            <Form.Item name="jurisdiction" label={t('auth.fields.jurisdiction')} style={{ flex: '1 1 160px' }}>
+            <Form.Item
+              name="jurisdiction"
+              label={t('auth.fields.jurisdiction')}
+              style={{ flex: '1 1 160px' }}
+            >
               <Select
                 showSearch={{ optionFilterProp: 'label' }}
                 data-testid="signup-jurisdiction"
-                options={JURISDICTIONS.map((value) => ({ value, label: t(`enums.jurisdiction.${value}`) }))}
+                options={JURISDICTIONS.map((value) => ({
+                  value,
+                  label: t(`enums.jurisdiction.${value}`),
+                }))}
               />
             </Form.Item>
-            <Form.Item name="currency" label={t('auth.fields.currency')} style={{ flex: '1 1 120px' }}>
+            <Form.Item
+              name="currency"
+              label={t('auth.fields.currency')}
+              style={{ flex: '1 1 120px' }}
+            >
               <Select
                 showSearch={{ optionFilterProp: 'title' }}
                 data-testid="signup-currency"
                 options={CURRENCIES.map((value) => {
                   const name = currencyNames.of(value) ?? value;
-                  return { value, title: `${value} ${name}`, label: <><bdi>{value}</bdi> {name}</> };
+                  return {
+                    value,
+                    title: `${value} ${name}`,
+                    label: (
+                      <>
+                        <bdi>{value}</bdi> {name}
+                      </>
+                    ),
+                  };
                 })}
               />
             </Form.Item>
           </Flex>
           <Form.Item name="defaultLanguage" label={t('auth.fields.defaultLanguage')}>
-            <Select data-testid="signup-language" options={OFFICE_LANGUAGES.map((value) => ({ value, label: t(`enums.officeLanguage.${value}`) }))} />
+            <Select
+              data-testid="signup-language"
+              options={OFFICE_LANGUAGES.map((value) => ({
+                value,
+                label: t(`enums.officeLanguage.${value}`),
+              }))}
+            />
           </Form.Item>
 
-          <Form.Item name="acceptTerms" valuePropName="checked" rules={zodRule(shape.acceptTerms, message)} style={{ marginBlockEnd: 8 }}>
+          <Form.Item
+            name="acceptTerms"
+            valuePropName="checked"
+            rules={zodRule(shape.acceptTerms, message)}
+            style={{ marginBlockEnd: 8 }}
+          >
             <Checkbox data-testid="signup-accept-terms">
               {t('auth.signup.accept')}{' '}
               <Typography.Link href="/legal/terms" target="_blank" rel="noopener noreferrer">
@@ -143,7 +222,11 @@ export function SignupPage(): React.JSX.Element {
               </Typography.Link>
             </Checkbox>
           </Form.Item>
-          <Form.Item name="acceptPrivacy" valuePropName="checked" rules={zodRule(shape.acceptPrivacy, message)}>
+          <Form.Item
+            name="acceptPrivacy"
+            valuePropName="checked"
+            rules={zodRule(shape.acceptPrivacy, message)}
+          >
             <Checkbox data-testid="signup-accept-privacy">
               {t('auth.signup.accept')}{' '}
               <Typography.Link href="/legal/privacy" target="_blank" rel="noopener noreferrer">
@@ -151,7 +234,13 @@ export function SignupPage(): React.JSX.Element {
               </Typography.Link>
             </Checkbox>
           </Form.Item>
-          <Button type="primary" htmlType="submit" block loading={register.isPending} data-testid="signup-submit">
+          <Button
+            type="primary"
+            htmlType="submit"
+            block
+            loading={register.isPending}
+            data-testid="signup-submit"
+          >
             {t('auth.signup.submit')}
           </Button>
         </Form>

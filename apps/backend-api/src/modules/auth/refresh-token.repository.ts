@@ -72,12 +72,18 @@ export class RefreshTokenRepository {
    * holds it (its user update) while revoking: without it, a token inserted by a concurrent rotation is invisible to the
    * revoking statement and the session survives the reset (D-086).
    */
-  async lockUser(tx: Pick<ScopedPrismaClient, '$queryRaw'>, user: { id: string; officeId: string }): Promise<void> {
+  async lockUser(
+    tx: Pick<ScopedPrismaClient, '$queryRaw'>,
+    user: { id: string; officeId: string },
+  ): Promise<void> {
     await tx.$queryRaw`SELECT 1 FROM users WHERE id = ${user.id}::uuid AND office_id = ${user.officeId}::uuid FOR UPDATE`;
   }
 
   async claim(tx: ScopedTx, id: string): Promise<boolean> {
-    const claimed = await tx.refreshToken.updateMany({ where: { id, revokedAt: null }, data: { revokedAt: new Date() } });
+    const claimed = await tx.refreshToken.updateMany({
+      where: { id, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
     return claimed.count === 1;
   }
 
@@ -86,14 +92,26 @@ export class RefreshTokenRepository {
   }
 
   /** Ends every session of a user (password reset), or every other one (password change keeps `exceptFamilyId`). */
-  async revokeAllForUser(tx: ScopedTx, userId: string, now: Date, exceptFamilyId?: string): Promise<void> {
+  async revokeAllForUser(
+    tx: ScopedTx,
+    userId: string,
+    now: Date,
+    exceptFamilyId?: string,
+  ): Promise<void> {
     await tx.refreshToken.updateMany({
-      where: { userId, revokedAt: null, ...(exceptFamilyId ? { familyId: { not: exceptFamilyId } } : {}) },
+      where: {
+        userId,
+        revokedAt: null,
+        ...(exceptFamilyId ? { familyId: { not: exceptFamilyId } } : {}),
+      },
       data: { revokedAt: now },
     });
   }
 
   async revokeFamily(tx: ScopedTx, familyId: string): Promise<void> {
-    await tx.refreshToken.updateMany({ where: { familyId, revokedAt: null }, data: { revokedAt: new Date() } });
+    await tx.refreshToken.updateMany({
+      where: { familyId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
   }
 }

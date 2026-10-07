@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
-import { ValidationException } from '../errors/app.exception';
 import { PaginatedResult } from './paginated-result';
 import { zodIssuesToDetails, ZodValidationPipe } from './zod-validation.pipe';
+import { ValidationException } from '../errors/app.exception';
 
 describe('ZodValidationPipe', () => {
   const schema = z.object({

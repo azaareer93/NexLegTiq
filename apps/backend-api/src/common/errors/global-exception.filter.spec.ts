@@ -1,5 +1,9 @@
 import type { ArgumentsHost } from '@nestjs/common';
-import { InternalServerErrorException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import {
+  InternalServerErrorException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import type { ClsService } from 'nestjs-cls';
 import type { PinoLogger } from 'nestjs-pino';
 import { z } from 'zod';
@@ -17,7 +21,10 @@ function setup(options: { clsActive?: boolean; headersSent?: boolean } = {}) {
     getType: () => 'http',
     switchToHttp: () => ({ getResponse: () => response }),
   } as unknown as ArgumentsHost;
-  const cls = { isActive: () => options.clsActive ?? true, getId: () => 'req-123' } as unknown as ClsService;
+  const cls = {
+    isActive: () => options.clsActive ?? true,
+    getId: () => 'req-123',
+  } as unknown as ClsService;
   const logger = { setContext: jest.fn(), error: jest.fn(), debug: jest.fn() };
   const filter = new GlobalExceptionFilter(cls, logger as unknown as PinoLogger);
   return { filter, host, response, logger };
@@ -41,17 +48,35 @@ describe('GlobalExceptionFilter', () => {
 
   it.each([
     [new UnprocessableEntityException('field x is bad'), 422, 'VAL-001', 'Invalid input'],
-    [Object.assign(new Error('request entity too large'), { expose: true, status: 413 }), 413, 'VAL-006', 'Payload too large'],
-    [Object.assign(new Error('unsupported charset'), { expose: true, status: 415 }), 415, 'VAL-005', 'Unsupported media type'],
-    [new InternalServerErrorException('db password in message'), 500, 'SYS-001', 'Internal server error'],
-  ])('should map framework error %# to its status, catalog code and a generic message', (error, status, code, message) => {
-    const { filter, host, response } = setup();
+    [
+      Object.assign(new Error('request entity too large'), { expose: true, status: 413 }),
+      413,
+      'VAL-006',
+      'Payload too large',
+    ],
+    [
+      Object.assign(new Error('unsupported charset'), { expose: true, status: 415 }),
+      415,
+      'VAL-005',
+      'Unsupported media type',
+    ],
+    [
+      new InternalServerErrorException('db password in message'),
+      500,
+      'SYS-001',
+      'Internal server error',
+    ],
+  ])(
+    'should map framework error %# to its status, catalog code and a generic message',
+    (error, status, code, message) => {
+      const { filter, host, response } = setup();
 
-    filter.catch(error, host);
+      filter.catch(error, host);
 
-    expect(response.status).toHaveBeenCalledWith(status);
-    expect(response.json.mock.calls[0][0].error).toEqual({ code, message });
-  });
+      expect(response.status).toHaveBeenCalledWith(status);
+      expect(response.json.mock.calls[0][0].error).toEqual({ code, message });
+    },
+  );
 
   it('should not treat non-exposed errors with a status as client errors', () => {
     const { filter, host, response } = setup();

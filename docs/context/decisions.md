@@ -772,3 +772,36 @@ whose loader throws an `ApiError` shows `ErrorState` with its message and refere
 `useOnline` live in their own component folder; the 500 text no longer claims the problem "has been recorded" (there is no
 client-side error reporting yet). Why: every app explains failures the same way, in the user's language, with a reference support
 can use.
+
+**D-094 — Code quality tooling: rules, formatting and git hooks** · Accepted (owner chose our hook installer over husky and
+printWidth 100; MVP-29, 2026-10-07)
+→ **ESLint:** the rule set of quality-testing.md lives in `packages/shared-config/eslint/base.mjs`; the root
+`eslint.config.mjs` re-exports it and every project spreads it (apps and shared-ui add `no-literal-string`, D-087; the backend adds
+`backend-rules.mjs`). Type-aware rules use typescript-eslint's **project service** (each file checked with the tsconfig that
+includes it). `no-unsafe-*` are **off in tests** (Supertest bodies and mocks are `any`; ≈180 hits, none a real risk) while
+`no-floating-promises` stays on there; `max-lines` is off in tests; `no-console` is off in `scripts/` (CLIs). Rest siblings and
+`_`-prefixed names may be unused. Physical properties in an inline `style` (`marginLeft`, `right`…) are an error. **Custom bans**
+(fixtures in `shared-config/src/lint-rules.spec.ts`): `$queryRawUnsafe`/`$executeRawUnsafe`; `nexlegtiq/no-raw-cache-key` — a
+string, template or concatenated key passed to a Redis/cache client method (`get`, `set`, `del`, …; receiver named `*redis*` or
+`*cache*`) outside `CacheKeys` (a heuristic: a key held in a variable is not seen); `nexlegtiq/unscoped-needs-reason` moved here
+from the backend config. Everything is an error and `nx lint` runs with `--max-warnings=0` (`targetDefaults.lint`). Five
+functions over complexity 10 were split, not suppressed (the env production checks became a table; the raw-SQL tenant guard moved
+to `tenant-raw-sql.ts`, behaviour unchanged). **Prettier** as specified (printWidth 100): the whole repository was reformatted in
+one mechanical commit; `*.md` (hand-wrapped prose, tables) and `*.sql` (migrations reviewed as written) are not formatted, nor
+tool-owned files. As PRs are squash-merged (D-070), the squash commit of the MVP-29 PR is added to `.git-blame-ignore-revs` after
+the merge. **Stylelint:** logical properties only (`property-disallowed-list`, and `left`/`right` values of `text-align`, `float`,
+`clear`). **Git hooks — deviation from the ticket's husky:** husky works by setting `core.hooksPath`, which would silently disable
+graphify's hooks and our post-merge hook in `.git/hooks`; instead `scripts/git-hooks/` gains `pre-commit` (lint-staged: Prettier +
+ESLint with each file's own project config, or stylelint), `commit-msg` (commitlint: conventional, `Refs: MVP-n`, header ≤ 100,
+subject case free so `docs: D-094 …` passes) and `pre-push` (`nx affected -t typecheck test --base=origin/develop`), installed by
+the existing installer, now also run on `pnpm install` (`prepare`; skipped in CI and outside a git clone). CI runs
+`pnpm format:check` and `pnpm lint:css`. Review additions (same PR): **commit messages must carry `Refs: MVP-<n>`**
+(`references-empty`); lint-staged runs ESLint `--fix` before Prettier, so its fixes are formatted; **pre-push** compares with the
+merge-base of `origin/develop` and skips with a note when that ref is unknown (no blocked push before a `git fetch`); root
+`scripts/` and `*.config.mjs` belong to no Nx project and are linted by `pnpm lint:root` in CI; `unscoped-needs-reason` also
+catches ``prisma[`unscoped`]`` and any run-time key on the Prisma service (`prisma[k]`); `no-raw-cache-key` also catches computed
+commands (`redis['get']`), every key of `del`/`unlink`/`exists`/`mget` and more commands; the inline-style ban also covers quoted
+keys and `textAlign`/`float`/`clear: 'left'|'right'`; every fixture asserts the code parsed. The test rules (`no-unsafe-*` off,
+no `max-lines`) apply to `*.spec.*`, `*.test.*`, `*.stories.tsx` and `test/` helper folders. **Known limit:** an inline
+`eslint-disable` can still silence the security rules; reviews grep for it (a lint ban on such comments needs another plugin).
+Why: the quality gates are enforced by the machine, not by review, without breaking the local knowledge hooks.

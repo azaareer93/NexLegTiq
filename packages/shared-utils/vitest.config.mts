@@ -17,6 +17,6 @@ export default defineConfig(() => ({
       exclude: ['src/**/*.{spec,test}.{ts,tsx}', 'src/**/index.ts'],
       // packages.md: pure utils are 100% covered (enforced when run with --coverage, as CI does)
       thresholds: { lines: 100, branches: 100, functions: 100, statements: 100 },
-    }
+    },
   },
 }));

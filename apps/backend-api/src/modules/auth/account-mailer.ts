@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 
+import { tenantContextFor } from './client-info';
+import type { ClientInfo } from './client-info';
 import { QueueProducer } from '../../common/queue/queue-producer';
 import { QUEUE } from '../../common/queue/queues';
 import { TenantRunner } from '../../common/tenancy/tenant-runner';
-import { tenantContextFor } from './client-info';
-import type { ClientInfo } from './client-info';
 
 export const SEND_VERIFICATION_EMAIL_JOB = 'send-verification-email';
 export const SEND_PASSWORD_RESET_JOB = 'send-password-reset';
@@ -39,7 +39,10 @@ export class AccountMailer {
         this.queues.enqueue(QUEUE.EMAIL, job, { userId: user.userId }),
       );
     } catch (error) {
-      this.logger.error({ err: error, userId: user.userId, job }, 'Could not enqueue an account email');
+      this.logger.error(
+        { err: error, userId: user.userId, job },
+        'Could not enqueue an account email',
+      );
     }
   }
 }

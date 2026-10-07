@@ -8,9 +8,7 @@
     "forceConsistentCasingInFileNames": true,
     "types": []
   },
-  "include": [
-    "src/**/*.ts"
-  ],
+  "include": ["src/**/*.ts"],
   "references": [],
   "exclude": [
     "vite.config.ts",

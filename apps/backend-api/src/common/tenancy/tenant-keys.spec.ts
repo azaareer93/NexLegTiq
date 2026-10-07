@@ -28,9 +28,9 @@ describe('CacheKeys.tenant', () => {
 
 describe('documentStorageKey', () => {
   it('should build {officeId}/{fileId}/{documentId}/{uuid}.{ext}', () => {
-    expect(documentStorageKey({ officeId: A, fileId: FILE, documentId: DOC, extension: 'PDF' })).toMatch(
-      new RegExp(`^${A}/${FILE}/${DOC}/[0-9a-f-]{36}\\.pdf$`),
-    );
+    expect(
+      documentStorageKey({ officeId: A, fileId: FILE, documentId: DOC, extension: 'PDF' }),
+    ).toMatch(new RegExp(`^${A}/${FILE}/${DOC}/[0-9a-f-]{36}\\.pdf$`));
   });
 
   it.each([
@@ -38,9 +38,15 @@ describe('documentStorageKey', () => {
     ['an extension with a dot', { extension: 'tar.gz' }],
     ['an extension with a slash', { extension: 'pdf/../x' }],
   ])('should reject %s', (_label, override) => {
-    expect(() => documentStorageKey({ officeId: A, fileId: FILE, documentId: DOC, extension: 'pdf', ...override })).toThrow(
-      TenantViolationError,
-    );
+    expect(() =>
+      documentStorageKey({
+        officeId: A,
+        fileId: FILE,
+        documentId: DOC,
+        extension: 'pdf',
+        ...override,
+      }),
+    ).toThrow(TenantViolationError);
   });
 });
 

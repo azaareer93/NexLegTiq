@@ -5,13 +5,6 @@ import { JwtService } from '@nestjs/jwt';
 import type { AuthSession, LoginRequest } from '@nexlegtiq/shared-contracts';
 import { isRole, permissionsFor } from '@nexlegtiq/shared-types';
 
-import { hashOpaqueToken, newOpaqueToken } from '../../common/auth/opaque-token';
-import { AppException } from '../../common/errors/app.exception';
-import { TenantRunner } from '../../common/tenancy/tenant-runner';
-import { AppConfig } from '../../config/app-config';
-import { PrismaService } from '../../database/prisma.service';
-import type { ScopedPrismaClient } from '../../database/prisma.service';
-import type { AuditAction, Prisma } from '../../generated/prisma/client';
 import { ACCESS_TOKEN_TTL_SECONDS, JWT_AUDIENCE, JWT_ISSUER } from './auth.constants';
 import type { AccessTokenClaims } from './auth.constants';
 import { tenantContextFor, truncateUserAgent } from './client-info';
@@ -22,6 +15,13 @@ import { LoginAttemptRepository } from './login-attempt.repository';
 import { PasswordHasher } from './password-hasher';
 import { refreshExpiry, rotatedExpiry } from './refresh-token';
 import { RefreshTokenRepository, USER_FOR_SESSION } from './refresh-token.repository';
+import { hashOpaqueToken, newOpaqueToken } from '../../common/auth/opaque-token';
+import { AppException } from '../../common/errors/app.exception';
+import { TenantRunner } from '../../common/tenancy/tenant-runner';
+import { AppConfig } from '../../config/app-config';
+import type { ScopedPrismaClient } from '../../database/prisma.service';
+import { PrismaService } from '../../database/prisma.service';
+import type { AuditAction, Prisma } from '../../generated/prisma/client';
 
 /** A session issued to the controller: the JSON body plus the refresh token for the cookie. */
 export interface IssuedSession {
@@ -78,7 +78,9 @@ export class AuthService {
     this.assertActive(user, now);
 
     const opened = await this.tenant.run(tenantContextFor(user.officeId, user.id, client), () =>
-      this.prisma.db.$transaction((tx) => this.openSession(tx, user, { rememberMe: request.rememberMe, now, client })),
+      this.prisma.db.$transaction((tx) =>
+        this.openSession(tx, user, { rememberMe: request.rememberMe, now, client }),
+      ),
     );
     return this.issue(user, opened);
   }
@@ -97,14 +99,19 @@ export class AuthService {
     // A new family (session) per login; every rotation stays in it.
     const familyId = randomUUID();
     await tx.user.update({ where: { id: user.id }, data: { lastLoginAt: now } });
-    await this.refreshTokens.create(tx, this.newTokenRow(user, familyId, refreshToken, refreshExpiresAt, client));
+    await this.refreshTokens.create(
+      tx,
+      this.newTokenRow(user, familyId, refreshToken, refreshExpiresAt, client),
+    );
     await this.audit(tx, user, 'LOGIN', client);
     return { familyId, refreshToken, refreshExpiresAt };
   }
 
   /** Rotates the refresh token. A revoked token being replayed revokes the whole family (theft signal). */
   async refresh(refreshToken: string | undefined, client: ClientInfo): Promise<IssuedSession> {
-    const existing = refreshToken ? await this.refreshTokens.findByHash(hashOpaqueToken(refreshToken)) : null;
+    const existing = refreshToken
+      ? await this.refreshTokens.findByHash(hashOpaqueToken(refreshToken))
+      : null;
     if (!existing) throw new AppException('AUTH-005', 'Invalid refresh token');
     const { user } = existing;
 
@@ -115,29 +122,44 @@ export class AuthService {
       try {
         this.assertActive(user, now);
       } catch (error) {
-        await this.prisma.db.$transaction((tx) => this.refreshTokens.revokeFamily(tx, existing.familyId));
+        await this.prisma.db.$transaction((tx) =>
+          this.refreshTokens.revokeFamily(tx, existing.familyId),
+        );
         throw error;
       }
 
-      const expiresAt = rotatedExpiry(now, existing, await this.refreshTokens.familyStartedAt(existing.familyId));
+      const expiresAt = rotatedExpiry(
+        now,
+        existing,
+        await this.refreshTokens.familyStartedAt(existing.familyId),
+      );
       if (expiresAt <= now) throw new AppException('AUTH-004', 'Refresh token expired');
       const token = newOpaqueToken();
       const rotated = await this.prisma.db.$transaction(async (tx) => {
         await this.refreshTokens.lockUser(tx, user);
         // Conditional claim: of two concurrent refreshes with the same token, only one can win.
         if (!(await this.refreshTokens.claim(tx, existing.id))) return false;
-        const next = await this.refreshTokens.create(tx, this.newTokenRow(user, existing.familyId, token, expiresAt, client));
+        const next = await this.refreshTokens.create(
+          tx,
+          this.newTokenRow(user, existing.familyId, token, expiresAt, client),
+        );
         await this.refreshTokens.linkReplacement(tx, existing.id, next.id);
         return true;
       });
       if (!rotated) return this.reuseDetected(existing.familyId, user, client);
-      return this.issue(user, { familyId: existing.familyId, refreshToken: token, refreshExpiresAt: expiresAt });
+      return this.issue(user, {
+        familyId: existing.familyId,
+        refreshToken: token,
+        refreshExpiresAt: expiresAt,
+      });
     });
   }
 
   /** Revokes the session family of the given refresh token. Idempotent: an unknown or missing token is a no-op. */
   async logout(refreshToken: string | undefined, client: ClientInfo): Promise<void> {
-    const existing = refreshToken ? await this.refreshTokens.findByHash(hashOpaqueToken(refreshToken)) : null;
+    const existing = refreshToken
+      ? await this.refreshTokens.findByHash(hashOpaqueToken(refreshToken))
+      : null;
     // Already revoked (second logout, or a rotated-away token): nothing to do and nothing to audit.
     if (!existing || existing.revokedAt !== null) return;
     await this.tenant.run(tenantContextFor(existing.user.officeId, existing.user.id, client), () =>
@@ -148,7 +170,11 @@ export class AuthService {
     );
   }
 
-  private async reuseDetected(familyId: string, user: SessionUser, client: ClientInfo): Promise<never> {
+  private async reuseDetected(
+    familyId: string,
+    user: SessionUser,
+    client: ClientInfo,
+  ): Promise<never> {
     await this.prisma.db.$transaction(async (tx) => {
       await this.refreshTokens.revokeFamily(tx, familyId);
       await this.audit(tx, user, 'SECURITY', client, { reason: 'REFRESH_TOKEN_REUSE', familyId });
@@ -156,7 +182,13 @@ export class AuthService {
     throw new AppException('AUTH-005', 'Invalid refresh token');
   }
 
-  private newTokenRow(user: SessionUser, familyId: string, token: string, expiresAt: Date, client: ClientInfo) {
+  private newTokenRow(
+    user: SessionUser,
+    familyId: string,
+    token: string,
+    expiresAt: Date,
+    client: ClientInfo,
+  ) {
     return {
       officeId: user.officeId,
       userId: user.id,
@@ -169,8 +201,16 @@ export class AuthService {
   }
 
   /** The response for an opened or rotated session: a fresh access token plus the user as the UI needs it. */
-  async issue(user: SessionUser, { familyId, refreshToken, refreshExpiresAt }: OpenedSession): Promise<IssuedSession> {
-    const claims: AccessTokenClaims = { sub: user.id, officeId: user.officeId, role: user.role, sid: familyId };
+  async issue(
+    user: SessionUser,
+    { familyId, refreshToken, refreshExpiresAt }: OpenedSession,
+  ): Promise<IssuedSession> {
+    const claims: AccessTokenClaims = {
+      sub: user.id,
+      officeId: user.officeId,
+      role: user.role,
+      sid: familyId,
+    };
     const accessToken = await this.jwt.signAsync(claims, {
       expiresIn: ACCESS_TOKEN_TTL_SECONDS,
       issuer: JWT_ISSUER,
@@ -212,7 +252,13 @@ export class AuthService {
     }
   }
 
-  private async audit(tx: SessionTx, user: SessionUser, action: AuditAction, client: ClientInfo, details?: Prisma.InputJsonObject) {
+  private async audit(
+    tx: SessionTx,
+    user: SessionUser,
+    action: AuditAction,
+    client: ClientInfo,
+    details?: Prisma.InputJsonObject,
+  ) {
     await tx.auditLog.create({
       data: {
         officeId: user.officeId,
@@ -227,6 +273,4 @@ export class AuthService {
       },
     });
   }
-
 }
-

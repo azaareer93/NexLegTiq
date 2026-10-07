@@ -11,7 +11,11 @@ export function assertCookieRequestOrigin(
 ): void {
   const origin = single(headers['origin']);
   const requestedWith = single(headers['x-requested-with']);
-  if (origin === undefined || !allowedOrigins.includes(origin) || requestedWith !== 'XMLHttpRequest') {
+  if (
+    origin === undefined ||
+    !allowedOrigins.includes(origin) ||
+    requestedWith !== 'XMLHttpRequest'
+  ) {
     throw new PermissionDeniedException('Cross-site request rejected');
   }
 }

@@ -35,7 +35,12 @@ export interface DocumentKeyParts {
 }
 
 /** `{officeId}/{fileId}/{documentId}/{uuid}.{ext}` (D-035): the office prefix makes a leaked key useless elsewhere. */
-export function documentStorageKey({ officeId, fileId, documentId, extension }: DocumentKeyParts): string {
+export function documentStorageKey({
+  officeId,
+  fileId,
+  documentId,
+  extension,
+}: DocumentKeyParts): string {
   assertUuid(officeId, 'officeId');
   assertUuid(fileId, 'fileId');
   assertUuid(documentId, 'documentId');
@@ -47,7 +52,10 @@ export function documentStorageKey({ officeId, fileId, documentId, extension }: 
 /** Before signing a download/delete URL: the stored key must sit under the current office's prefix. */
 export function assertStorageKeyInOffice(key: string, officeId: OfficeId): void {
   const segments = key.split('/');
-  if (segments[0] !== officeId || segments.some((segment) => segment === '' || segment === '.' || segment === '..')) {
+  if (
+    segments[0] !== officeId ||
+    segments.some((segment) => segment === '' || segment === '.' || segment === '..')
+  ) {
     throw new TenantViolationError('storage key is outside the current office');
   }
 }

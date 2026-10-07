@@ -1,17 +1,42 @@
-import { Prisma } from '../../generated/prisma/client';
-import { assertRawQueryScoped, scopeArgs } from './tenant-scope';
+import { assertRawQueryScoped } from './tenant-raw-sql';
+import { scopeArgs } from './tenant-scope';
 import type { RelationMap, ScopeContext } from './tenant-scope';
 import { TenantContextMissingError, TenantViolationError } from './tenant.errors';
+import { Prisma } from '../../generated/prisma/client';
 
 // Cases added by the MVP-37 review (D-080): read-only global models, relation filters, orderBy, raw SQL edge cases.
 const A = '01920000-0000-7000-8000-00000000000a';
 const B = '01920000-0000-7000-8000-00000000000b';
 
 const relations: RelationMap = new Map([
-  ['Office', new Map([['users', 'User'], ['subscriptions', 'Subscription']])],
-  ['User', new Map([['office', 'Office'], ['notifications', 'Notification']])],
-  ['Notification', new Map([['office', 'Office'], ['user', 'User']])],
-  ['Subscription', new Map([['office', 'Office'], ['plan', 'Plan']])],
+  [
+    'Office',
+    new Map([
+      ['users', 'User'],
+      ['subscriptions', 'Subscription'],
+    ]),
+  ],
+  [
+    'User',
+    new Map([
+      ['office', 'Office'],
+      ['notifications', 'Notification'],
+    ]),
+  ],
+  [
+    'Notification',
+    new Map([
+      ['office', 'Office'],
+      ['user', 'User'],
+    ]),
+  ],
+  [
+    'Subscription',
+    new Map([
+      ['office', 'Office'],
+      ['plan', 'Plan'],
+    ]),
+  ],
   ['Plan', new Map([['subscriptions', 'Subscription']])],
 ]);
 
@@ -24,13 +49,20 @@ function ctx(officeId: string | null = A): ScopeContext {
 }
 
 describe('scopeArgs — missing context and unknown shapes', () => {
-  it.each(['create', 'createMany', 'upsert', 'update', 'delete', 'groupBy', 'aggregate'])('should need an office for User.%s', (op) => {
-    expect(() => scopeArgs('User', op, { where: { id: 'u1' }, data: {} }, ctx(null))).toThrow(TenantContextMissingError);
-  });
+  it.each(['create', 'createMany', 'upsert', 'update', 'delete', 'groupBy', 'aggregate'])(
+    'should need an office for User.%s',
+    (op) => {
+      expect(() => scopeArgs('User', op, { where: { id: 'u1' }, data: {} }, ctx(null))).toThrow(
+        TenantContextMissingError,
+      );
+    },
+  );
 
   it('should need an office for Office reads and updates', () => {
     expect(() => scopeArgs('Office', 'findMany', {}, ctx(null))).toThrow(TenantContextMissingError);
-    expect(() => scopeArgs('Office', 'update', { where: {}, data: {} }, ctx(null))).toThrow(TenantContextMissingError);
+    expect(() => scopeArgs('Office', 'update', { where: {}, data: {} }, ctx(null))).toThrow(
+      TenantContextMissingError,
+    );
   });
 
   it('should fail closed on an operation it does not know', () => {
@@ -38,7 +70,9 @@ describe('scopeArgs — missing context and unknown shapes', () => {
   });
 
   it('should reject a createMany row that is not an object', () => {
-    expect(() => scopeArgs('User', 'createMany', { data: [{ email: 'e' }, 'oops'] }, ctx())).toThrow(TenantViolationError);
+    expect(() =>
+      scopeArgs('User', 'createMany', { data: [{ email: 'e' }, 'oops'] }, ctx()),
+    ).toThrow(TenantViolationError);
   });
 });
 
@@ -46,23 +80,32 @@ describe('scopeArgs — global models and relation writes', () => {
   it.each(['create', 'createMany', 'update', 'updateMany', 'upsert', 'delete', 'deleteMany'])(
     'should keep global models read-only (Plan.%s)',
     (op) => {
-      expect(() => scopeArgs('Plan', op, { where: { id: 'p1' }, data: {} }, ctx())).toThrow(/read-only/);
+      expect(() => scopeArgs('Plan', op, { where: { id: 'p1' }, data: {} }, ctx())).toThrow(
+        /read-only/,
+      );
     },
   );
 
   it('should allow only connect/disconnect into a global model', () => {
     const connect = { where: { id: 's1' }, data: { plan: { connect: { id: 'p2' } } } };
-    expect(scopeArgs('Subscription', 'update', connect, ctx())).toMatchObject({ data: { plan: { connect: { id: 'p2' } } } });
+    expect(scopeArgs('Subscription', 'update', connect, ctx())).toMatchObject({
+      data: { plan: { connect: { id: 'p2' } } },
+    });
     for (const op of ['create', 'update', 'upsert', 'connectOrCreate']) {
       const nested = { where: { id: 's1' }, data: { plan: { [op]: {} } } };
-      expect(() => scopeArgs('Subscription', 'update', nested, ctx())).toThrow(/only connect\/disconnect/);
+      expect(() => scopeArgs('Subscription', 'update', nested, ctx())).toThrow(
+        /only connect\/disconnect/,
+      );
     }
   });
 
-  it.each(['disconnect', 'deleteMany', 'updateMany', 'createManyAndReturn'])('should reject a nested %s into a tenant model', (op) => {
-    const args = { where: { id: 'u1' }, data: { notifications: { [op]: {} } } };
-    expect(() => scopeArgs('User', 'update', args, ctx())).toThrow(TenantViolationError);
-  });
+  it.each(['disconnect', 'deleteMany', 'updateMany', 'createManyAndReturn'])(
+    'should reject a nested %s into a tenant model',
+    (op) => {
+      const args = { where: { id: 'u1' }, data: { notifications: { [op]: {} } } };
+      expect(() => scopeArgs('User', 'update', args, ctx())).toThrow(TenantViolationError);
+    },
+  );
 
   it('should reject relation writes from the Office root into tenant models', () => {
     const args = { where: {}, data: { users: { create: { email: 'e' } } } };
@@ -76,19 +119,33 @@ describe('scopeArgs — relation filters, orderBy and projections', () => {
     expect(scopeArgs('Subscription', 'findMany', { where }, ctx())).toEqual({
       where: {
         officeId: A,
-        plan: { subscriptions: { some: { status: 'ACTIVE', officeId: A }, none: { notes: 'x', officeId: A } } },
+        plan: {
+          subscriptions: {
+            some: { status: 'ACTIVE', officeId: A },
+            none: { notes: 'x', officeId: A },
+          },
+        },
       },
     });
   });
 
   it('should make `every` judge only the current office rows', () => {
-    expect(scopeArgs('Plan', 'findMany', { where: { subscriptions: { every: { status: 'ACTIVE' } } } }, ctx())).toEqual({
+    expect(
+      scopeArgs(
+        'Plan',
+        'findMany',
+        { where: { subscriptions: { every: { status: 'ACTIVE' } } } },
+        ctx(),
+      ),
+    ).toEqual({
       where: { subscriptions: { every: { OR: [{ NOT: { officeId: A } }, { status: 'ACTIVE' }] } } },
     });
   });
 
   it('should scope relation filters inside AND/OR/NOT and reject a foreign office in them', () => {
-    expect(scopeArgs('Plan', 'findMany', { where: { OR: [{ subscriptions: { some: {} } }] } }, ctx())).toEqual({
+    expect(
+      scopeArgs('Plan', 'findMany', { where: { OR: [{ subscriptions: { some: {} } }] } }, ctx()),
+    ).toEqual({
       where: { OR: [{ subscriptions: { some: { officeId: A } } }] },
     });
     const foreign = { where: { subscriptions: { some: { officeId: B } } } };
@@ -96,18 +153,34 @@ describe('scopeArgs — relation filters, orderBy and projections', () => {
   });
 
   it('should reject ordering a global model by a tenant relation, but allow ordering by a global one', () => {
-    expect(() => scopeArgs('Plan', 'findMany', { orderBy: { subscriptions: { _count: 'desc' } } }, ctx())).toThrow(/every office/);
-    expect(() => scopeArgs('Subscription', 'findMany', { orderBy: [{ plan: { name: 'asc' } }] }, ctx())).not.toThrow();
+    expect(() =>
+      scopeArgs('Plan', 'findMany', { orderBy: { subscriptions: { _count: 'desc' } } }, ctx()),
+    ).toThrow(/every office/);
+    expect(() =>
+      scopeArgs('Subscription', 'findMany', { orderBy: [{ plan: { name: 'asc' } }] }, ctx()),
+    ).not.toThrow();
   });
 
   it('should scope _count and select inside includes, and skip disabled relations', () => {
-    const args = { include: { plan: { select: { _count: { select: { subscriptions: true } } } } }, office: false };
+    const args = {
+      include: { plan: { select: { _count: { select: { subscriptions: true } } } } },
+      office: false,
+    };
     expect(scopeArgs('Subscription', 'findMany', args, ctx())).toEqual({
       where: { officeId: A },
-      include: { plan: { select: { _count: { select: { subscriptions: { where: { officeId: A } } } } } } },
+      include: {
+        plan: { select: { _count: { select: { subscriptions: { where: { officeId: A } } } } } },
+      },
       office: false,
     });
-    expect(scopeArgs('Plan', 'findMany', { include: { subscriptions: false }, select: { _count: false } }, ctx())).toEqual({
+    expect(
+      scopeArgs(
+        'Plan',
+        'findMany',
+        { include: { subscriptions: false }, select: { _count: false } },
+        ctx(),
+      ),
+    ).toEqual({
       include: { subscriptions: false },
       select: { _count: false },
     });
@@ -135,13 +208,17 @@ describe('assertRawQueryScoped — edge cases', () => {
     const joined = Prisma.sql`SELECT * FROM users WHERE id IN (${Prisma.join([A, B])})`;
     expect(() => assertRawQueryScoped('$queryRaw', joined, tables, () => A)).not.toThrow();
     const foreign = Prisma.sql`SELECT * FROM users WHERE id IN (${Prisma.join([B])})`;
-    expect(() => assertRawQueryScoped('$queryRaw', foreign, tables, () => A)).toThrow(TenantViolationError);
+    expect(() => assertRawQueryScoped('$queryRaw', foreign, tables, () => A)).toThrow(
+      TenantViolationError,
+    );
   });
 
   it.each(['SELECT * FROM "public"."users"', 'SELECT * FROM public.users', 'SELECT * FROM USERS'])(
     'should see the tenant table in %s',
     (text) => {
-      expect(() => assertRawQueryScoped('$queryRaw', { strings: [text], values: [] }, tables, () => A)).toThrow(TenantViolationError);
+      expect(() =>
+        assertRawQueryScoped('$queryRaw', { strings: [text], values: [] }, tables, () => A),
+      ).toThrow(TenantViolationError);
     },
   );
 

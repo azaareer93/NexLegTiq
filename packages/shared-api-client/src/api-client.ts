@@ -2,8 +2,8 @@ import axios from 'axios';
 import type { AxiosResponse } from 'axios';
 import type { z } from 'zod';
 
-import { buildApiUrl } from './api-url.js';
 import { ApiError, REQUEST_ID_HEADER, toApiError } from './api-error.js';
+import { buildApiUrl } from './api-url.js';
 
 export type Realm = 'office' | 'portal' | 'admin';
 
@@ -72,7 +72,9 @@ function withRefreshLock<T>(realm: Realm, run: () => Promise<T>): Promise<T> {
 }
 
 function requestIdOf(response: AxiosResponse): string | undefined {
-  const id: unknown = (response.data as { meta?: { requestId?: unknown } } | null)?.meta?.requestId ?? response.headers[REQUEST_ID_HEADER];
+  const id: unknown =
+    (response.data as { meta?: { requestId?: unknown } } | null)?.meta?.requestId ??
+    response.headers[REQUEST_ID_HEADER];
   return typeof id === 'string' ? id : undefined;
 }
 
@@ -82,7 +84,13 @@ function unwrap(response: AxiosResponse): unknown {
     return undefined;
   }
   if ((body as { success?: unknown } | null)?.success !== true) {
-    throw new ApiError('SYS-001', 'Response is not an API envelope', response.status, [], requestIdOf(response));
+    throw new ApiError(
+      'SYS-001',
+      'Response is not an API envelope',
+      response.status,
+      [],
+      requestIdOf(response),
+    );
   }
   return (body as { data: unknown }).data;
 }
@@ -120,7 +128,13 @@ export function createApiClient(config: ApiClientConfig): ApiClient {
         const data = unwrap(response);
         const token = (data as { accessToken?: unknown } | undefined)?.accessToken;
         if (typeof token !== 'string') {
-          throw new ApiError('SYS-001', 'Refresh response has no access token', response.status, [], requestIdOf(response));
+          throw new ApiError(
+            'SYS-001',
+            'Refresh response has no access token',
+            response.status,
+            [],
+            requestIdOf(response),
+          );
         }
         config.setToken(token);
         return data;
@@ -184,8 +198,16 @@ export function createApiClient(config: ApiClientConfig): ApiClient {
     if (!parsed.success) {
       // The server and this build disagree on the contract (a deploy in progress, a bug): never hand the UI bad data.
       // Only paths and issue codes go into the message, never values (it may reach logs).
-      const issues = parsed.error.issues.map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.code}`).join(', ');
-      throw new ApiError('SYS-001', `Response does not match the contract (${issues})`, response.status, [], requestIdOf(response));
+      const issues = parsed.error.issues
+        .map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.code}`)
+        .join(', ');
+      throw new ApiError(
+        'SYS-001',
+        `Response does not match the contract (${issues})`,
+        response.status,
+        [],
+        requestIdOf(response),
+      );
     }
     return parsed.data;
   }
