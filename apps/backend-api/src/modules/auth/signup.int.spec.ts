@@ -8,6 +8,10 @@ import type { OfficeId } from '@nexlegtiq/shared-types';
 import { ClsService } from 'nestjs-cls';
 import request from 'supertest';
 
+import { AccountMailer } from './account-mailer';
+import { REFRESH_COOKIE } from './refresh-token';
+import { LEGAL_VERSIONS } from './signup.repository';
+import { VerificationLinks } from './verification-links';
 import { seedPlans } from '../../../prisma/seed';
 import { AppModule } from '../../app/app.module';
 import { configureApp } from '../../app/configure-app';
@@ -17,10 +21,6 @@ import { TenantRunner } from '../../common/tenancy/tenant-runner';
 import { AppConfig } from '../../config/app-config';
 import { integrationEnv } from '../../config/env.fixture';
 import { PrismaService } from '../../database/prisma.service';
-import { REFRESH_COOKIE } from './refresh-token';
-import { LEGAL_VERSIONS } from './signup.repository';
-import { VerificationLinks } from './verification-links';
-import { AccountMailer } from './account-mailer';
 
 @Controller('__signup_probe__')
 class ProbeController {

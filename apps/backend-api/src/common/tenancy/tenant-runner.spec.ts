@@ -1,8 +1,8 @@
 import type { OfficeId, UserId } from '@nexlegtiq/shared-types';
 import { ClsServiceManager } from 'nestjs-cls';
 
-import type { RequestContext } from '../context/request-context';
 import { TenantRunner } from './tenant-runner';
+import type { RequestContext } from '../context/request-context';
 
 const cls = ClsServiceManager.getClsService<RequestContext>();
 const runner = new TenantRunner(cls);

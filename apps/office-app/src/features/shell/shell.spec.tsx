@@ -1,8 +1,8 @@
+import { ApiError } from '@nexlegtiq/shared-api-client';
 import { permissionsFor, ROLES } from '@nexlegtiq/shared-types';
 import type { Role } from '@nexlegtiq/shared-types';
 import { LANGUAGE_STORAGE_KEY } from '@nexlegtiq/shared-ui';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { ApiError } from '@nexlegtiq/shared-api-client';
 import axe from 'axe-core';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import type { RouteObject } from 'react-router';
@@ -197,10 +197,10 @@ describe('navigation states and errors', () => {
       [
         {
           path: 'slow',
-          lazy: async () => (
-            await loaded,
-            { Component: () => <p data-testid="page-slow">slow</p> }
-          ),
+          lazy: async () => {
+            await loaded;
+            return { Component: () => <p data-testid="page-slow">slow</p> };
+          },
         },
       ],
       '/',

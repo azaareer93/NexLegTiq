@@ -4,14 +4,14 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { z } from 'zod';
 
-import { QueueModule } from '../common/queue/queue.module';
-import { QueueStubModule } from '../common/queue/testing';
+import { AppModule } from './app.module';
+import { configureApp } from './configure-app';
+import { Public } from '../common/auth/public.decorator';
 import { BusinessRuleException } from '../common/errors/app.exception';
 import { PaginatedResult } from '../common/http/paginated-result';
 import { ZodValidationPipe } from '../common/http/zod-validation.pipe';
-import { AppModule } from './app.module';
-import { Public } from '../common/auth/public.decorator';
-import { configureApp } from './configure-app';
+import { QueueModule } from '../common/queue/queue.module';
+import { QueueStubModule } from '../common/queue/testing';
 
 const CreateThingSchema = z.object({
   title: z.string().min(3),

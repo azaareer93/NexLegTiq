@@ -7,11 +7,11 @@ import { ModuleRef } from '@nestjs/core';
 import type { Queue } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 
-import { AppConfig } from '../../config/app-config';
-import { ReadinessRegistry } from '../../health/readiness.registry';
 import { QueueProducer } from './queue-producer';
 import { getQueue, QUEUE, QUEUE_NAMES, QUEUE_POLICY } from './queues';
 import { redisConnectionOptions } from './redis-connection';
+import { AppConfig } from '../../config/app-config';
+import { ReadinessRegistry } from '../../health/readiness.registry';
 
 /**
  * BullMQ (D-011, D-084): the Redis connection and key prefix from env, every canonical queue with its default job

@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { ClsService } from 'nestjs-cls';
 
+import { linkWindowStart, MAX_LINKS_PER_WINDOW, mayIssueLink } from './link-limits';
 import { hashOpaqueToken, newOpaqueToken } from '../../common/auth/opaque-token';
 import type { RequestContext } from '../../common/context/request-context';
 import { TenantContextMissingError } from '../../common/tenancy/tenant.errors';
 import { AppConfig } from '../../config/app-config';
 import { PrismaService } from '../../database/prisma.service';
-import { linkWindowStart, MAX_LINKS_PER_WINDOW, mayIssueLink } from './link-limits';
 
 /** Reset links last one hour (auth-rbac.md, Flows). */
 export const RESET_LINK_MINUTES = 60;

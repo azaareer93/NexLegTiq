@@ -1,6 +1,9 @@
-import { ESLint } from 'eslint';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import type { ESLint } from 'eslint';
+
+import { fixtureLinter } from './fixture-eslint.js';
 
 const app = resolve(dirname(fileURLToPath(import.meta.url)), '../../../apps/office-app');
 
@@ -17,7 +20,7 @@ const component = (jsx: string) =>
 
 describe('frontend text lint rules (D-087)', () => {
   beforeAll(async () => {
-    eslint = new ESLint({ cwd: app });
+    eslint = fixtureLinter(app);
     await eslint.calculateConfigForFile(resolve(app, 'src/main.tsx'));
   }, 60_000);
 

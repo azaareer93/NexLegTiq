@@ -1,5 +1,12 @@
 import { ClsServiceManager } from 'nestjs-cls';
 
+import type { AccountMailer } from './account-mailer';
+import type { ClientInfo } from './client-info';
+import { mayIssueLink } from './link-limits';
+import type { PasswordHasher } from './password-hasher';
+import { PasswordResetLinks } from './password-reset-links';
+import type { PasswordRepository } from './password.repository';
+import { PasswordService } from './password.service';
 import { hashOpaqueToken } from '../../common/auth/opaque-token';
 import type { RequestContext } from '../../common/context/request-context';
 import { TenantRunner } from '../../common/tenancy/tenant-runner';
@@ -8,13 +15,6 @@ import { AppConfig } from '../../config/app-config';
 import { testEnv } from '../../config/env.fixture';
 import { parseEnv } from '../../config/env.schema';
 import type { PrismaService } from '../../database/prisma.service';
-import type { AccountMailer } from './account-mailer';
-import type { ClientInfo } from './client-info';
-import { mayIssueLink } from './link-limits';
-import type { PasswordHasher } from './password-hasher';
-import { PasswordResetLinks } from './password-reset-links';
-import type { PasswordRepository } from './password.repository';
-import { PasswordService } from './password.service';
 
 const OFFICE = '01920000-0000-7000-8000-00000000000a';
 const USER = '01920000-0000-7000-8000-0000000000aa';

@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { ClsService } from 'nestjs-cls';
 
+import { VERIFY_EMAIL_WITHIN_DAYS, verificationLinkExpiry } from './email-verification';
+import { linkWindowStart, MAX_LINKS_PER_WINDOW, mayIssueLink } from './link-limits';
 import { hashOpaqueToken, newOpaqueToken } from '../../common/auth/opaque-token';
 import type { RequestContext } from '../../common/context/request-context';
 import { TenantContextMissingError } from '../../common/tenancy/tenant.errors';
 import { AppConfig } from '../../config/app-config';
 import { PrismaService } from '../../database/prisma.service';
-import { VERIFY_EMAIL_WITHIN_DAYS, verificationLinkExpiry } from './email-verification';
-import { linkWindowStart, MAX_LINKS_PER_WINDOW, mayIssueLink } from './link-limits';
 
 /** What the email worker sends for a verification job. */
 export interface VerificationEmail {

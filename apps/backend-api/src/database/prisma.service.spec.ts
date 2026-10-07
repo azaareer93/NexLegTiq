@@ -1,11 +1,11 @@
 import { ClsServiceManager } from 'nestjs-cls';
-import { PinoLogger } from 'nestjs-pino';
+import type { PinoLogger } from 'nestjs-pino';
 
+import { PrismaService } from './prisma.service';
 import { AppConfig } from '../config/app-config';
 import { testEnv } from '../config/env.fixture';
 import { parseEnv } from '../config/env.schema';
 import { ReadinessRegistry } from '../health/readiness.registry';
-import { PrismaService } from './prisma.service';
 
 function setup(): { prisma: PrismaService; registry: ReadinessRegistry } {
   const logger = { setContext: jest.fn(), warn: jest.fn() } as unknown as PinoLogger;

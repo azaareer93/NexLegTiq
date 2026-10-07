@@ -3,15 +3,15 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 
+import { AppModule } from './app.module';
+import { configureApp } from './configure-app';
+import { Public } from '../common/auth/public.decorator';
 import { QueueModule } from '../common/queue/queue.module';
 import { QueueStubModule } from '../common/queue/testing';
 import { StorageService } from '../common/storage/storage.service';
 import { PrismaService } from '../database/prisma.service';
 import { ReadinessRegistry } from '../health/readiness.registry';
 import { MetricsService } from '../metrics/metrics.service';
-import { AppModule } from './app.module';
-import { Public } from '../common/auth/public.decorator';
-import { configureApp } from './configure-app';
 
 // Public: this suite tests the HTTP platform (headers, compression, metrics), not authentication.
 @Public()

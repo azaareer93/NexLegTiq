@@ -4,13 +4,13 @@ import type { Job } from 'bullmq';
 import type { PinoLogger } from 'nestjs-pino';
 import type { z } from 'zod';
 
-import type { PrismaService } from '../../database/prisma.service';
-import type { TenantRunner } from '../tenancy/tenant-runner';
 import { QUEUE_POLICY } from './queues';
 import type { QueueName } from './queues';
 import { parseTenantJob } from './tenant-job';
 import type { TenantJobData } from './tenant-job';
 import { withTimeout } from './with-timeout';
+import type { PrismaService } from '../../database/prisma.service';
+import type { TenantRunner } from '../tenancy/tenant-runner';
 
 /** Log fields for one job attempt: worker logs have no HTTP request, so the request id comes from the payload (D-076). */
 export function jobLogFields(job: Job, requestId: string | null) {

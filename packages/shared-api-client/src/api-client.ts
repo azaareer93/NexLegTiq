@@ -2,8 +2,8 @@ import axios from 'axios';
 import type { AxiosResponse } from 'axios';
 import type { z } from 'zod';
 
-import { buildApiUrl } from './api-url.js';
 import { ApiError, REQUEST_ID_HEADER, toApiError } from './api-error.js';
+import { buildApiUrl } from './api-url.js';
 
 export type Realm = 'office' | 'portal' | 'admin';
 

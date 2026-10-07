@@ -1,6 +1,9 @@
-import { ESLint } from 'eslint';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import type { ESLint } from 'eslint';
+
+import { fixtureLinter } from './fixture-eslint.js';
 
 const workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const RULE = '@nx/enforce-module-boundaries';
@@ -16,7 +19,7 @@ async function boundaryErrors(filePath: string, code: string): Promise<string[]>
 describe('module boundaries', () => {
   // Loading the flat config and the Nx project graph is slow on a cold start.
   beforeAll(async () => {
-    eslint = new ESLint({ cwd: workspaceRoot });
+    eslint = fixtureLinter(workspaceRoot);
     await eslint.calculateConfigForFile(
       resolve(workspaceRoot, 'packages/shared-types/src/index.ts'),
     );

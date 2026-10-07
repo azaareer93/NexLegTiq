@@ -63,6 +63,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - uses: nrwl/nx-set-shas@v4
+      # Formatting and stylesheet rules (MVP-29, D-094): cheap, whole-repo checks.
+      - run: pnpm format:check
+      - run: pnpm lint:css
       - run: pnpm nx affected -t lint typecheck --parallel=3
       # Same images and credentials as docker/compose.dev.yml. Started here, not as services: RustFS needs its data
       # directory as a command argument, which service containers cannot pass. The bucket is created like s3-init does.

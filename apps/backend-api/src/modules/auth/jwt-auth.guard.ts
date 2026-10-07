@@ -5,15 +5,15 @@ import { JwtService, TokenExpiredError } from '@nestjs/jwt';
 import { isRole } from '@nexlegtiq/shared-types';
 import type { OfficeId, UserId } from '@nexlegtiq/shared-types';
 
+import { JWT_AUDIENCE, JWT_ISSUER } from './auth.constants';
+import type { AccessTokenClaims } from './auth.constants';
+import { isVerificationOverdue } from './email-verification';
+import { IS_PUBLIC_KEY } from '../../common/auth/public.decorator';
 import type { AuthPrincipal } from '../../common/context/request-context';
 import { AppException } from '../../common/errors/app.exception';
 import { DEFAULT_MESSAGE } from '../../common/errors/error-catalog';
 import { AppConfig } from '../../config/app-config';
 import { PrismaService } from '../../database/prisma.service';
-import { IS_PUBLIC_KEY } from '../../common/auth/public.decorator';
-import { JWT_AUDIENCE, JWT_ISSUER } from './auth.constants';
-import type { AccessTokenClaims } from './auth.constants';
-import { isVerificationOverdue } from './email-verification';
 
 type AuthenticatedRequest = {
   headers: Record<string, string | string[] | undefined>;

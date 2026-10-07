@@ -1,6 +1,7 @@
-import { Prisma } from '../../generated/prisma/client';
-import { assertRawQueryScoped, scopeArgs } from './tenant-scope';
+import { assertRawQueryScoped } from './tenant-raw-sql';
+import { scopeArgs } from './tenant-scope';
 import type { RelationMap, ScopeContext } from './tenant-scope';
+import { Prisma } from '../../generated/prisma/client';
 
 interface RuntimeModel {
   readonly dbName: string | null;

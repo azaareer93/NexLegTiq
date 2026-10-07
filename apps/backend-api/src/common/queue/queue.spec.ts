@@ -7,14 +7,9 @@ import { ClsServiceManager } from 'nestjs-cls';
 import type { PinoLogger } from 'nestjs-pino';
 import { z } from 'zod';
 
-import type { PrismaService } from '../../database/prisma.service';
-import { UnitOfWork } from '../../database/unit-of-work';
-import type { RequestContext } from '../context/request-context';
-import { TenantRunner } from '../tenancy/tenant-runner';
-import { TenantContextMissingError } from '../tenancy/tenant.errors';
 import { BULL_BOARD_PATH, mountBullBoard } from './bull-board';
-import { QueueModule } from './queue.module';
 import { ENQUEUE_TIMEOUT_MS, QueueProducer } from './queue-producer';
+import { QueueModule } from './queue.module';
 import { QUEUE, QUEUE_NAMES, QUEUE_POLICY, workerOptions } from './queues';
 import { redisConnectionOptions } from './redis-connection';
 import { parseTenantJob } from './tenant-job';
@@ -22,6 +17,11 @@ import type { TenantJobData } from './tenant-job';
 import { SKIPPED_OFFICE_INACTIVE, TenantProcessor } from './tenant-processor';
 import { drainQueue } from './testing';
 import { withTimeout } from './with-timeout';
+import type { PrismaService } from '../../database/prisma.service';
+import { UnitOfWork } from '../../database/unit-of-work';
+import type { RequestContext } from '../context/request-context';
+import { TenantRunner } from '../tenancy/tenant-runner';
+import { TenantContextMissingError } from '../tenancy/tenant.errors';
 
 const OFFICE = '01920000-0000-7000-8000-00000000000a';
 const cls = ClsServiceManager.getClsService<RequestContext>();
@@ -169,10 +169,12 @@ describe('QueueProducer', () => {
 
   it('should overwrite an officeId or requestId smuggled into the payload', async () => {
     const { producer, add } = setup();
-    // @ts-expect-error -- callers cannot name the tenant fields; this proves the runtime guard too.
+    // Callers cannot name the tenant fields (type errors below); this proves the runtime guard too.
     await inOffice(() =>
       producer.enqueue(QUEUE.EMAIL, 'send-email', {
+        // @ts-expect-error -- the officeId comes from the request context, never from the caller.
         officeId: 'other-office',
+        // @ts-expect-error -- the requestId comes from the request context, never from the caller.
         requestId: 'forged',
       }),
     );

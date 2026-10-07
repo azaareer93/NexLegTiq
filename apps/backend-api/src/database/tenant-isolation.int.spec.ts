@@ -2,6 +2,10 @@ import type { OfficeId } from '@nexlegtiq/shared-types';
 import { ClsServiceManager } from 'nestjs-cls';
 import type { PinoLogger } from 'nestjs-pino';
 
+import { PrismaService } from './prisma.service';
+import { TENANT_ISOLATION_MATRIX } from './tenant-isolation.matrix';
+import type { SeededOffice, TenantResource } from './tenant-isolation.matrix';
+import { TENANT_MODELS } from './tenant-models';
 import type { RequestContext } from '../common/context/request-context';
 import { TenantRunner } from '../common/tenancy/tenant-runner';
 import { TenantContextMissingError, TenantViolationError } from '../common/tenancy/tenant.errors';
@@ -9,10 +13,6 @@ import { AppConfig } from '../config/app-config';
 import { testEnv } from '../config/env.fixture';
 import { parseEnv } from '../config/env.schema';
 import { ReadinessRegistry } from '../health/readiness.registry';
-import { PrismaService } from './prisma.service';
-import { TENANT_ISOLATION_MATRIX } from './tenant-isolation.matrix';
-import type { SeededOffice, TenantResource } from './tenant-isolation.matrix';
-import { TENANT_MODELS } from './tenant-models';
 
 type Delegate = Record<string, (args?: unknown) => Promise<unknown>>;
 const delegate = (client: object, model: string): Delegate =>

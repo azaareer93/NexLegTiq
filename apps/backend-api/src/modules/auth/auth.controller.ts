@@ -24,12 +24,6 @@ import type {
 import type { Request, Response } from 'express';
 import { ClsService } from 'nestjs-cls';
 
-import type { RequestContext } from '../../common/context/request-context';
-import { ZodValidationPipe } from '../../common/http/zod-validation.pipe';
-import { ApiZodBody, ApiZodResponse } from '../../common/openapi/api-zod.decorators';
-import { AppConfig } from '../../config/app-config';
-import { Public } from '../../common/auth/public.decorator';
-import { AppException } from '../../common/errors/app.exception';
 import { AuthService } from './auth.service';
 import type { IssuedSession } from './auth.service';
 import { clientFromRequest } from './client-info';
@@ -37,6 +31,12 @@ import type { ClientInfo } from './client-info';
 import { assertCookieRequestOrigin } from './csrf';
 import { REFRESH_COOKIE, refreshCookieOptions } from './refresh-token';
 import { SignupService } from './signup.service';
+import { Public } from '../../common/auth/public.decorator';
+import type { RequestContext } from '../../common/context/request-context';
+import { AppException } from '../../common/errors/app.exception';
+import { ZodValidationPipe } from '../../common/http/zod-validation.pipe';
+import { ApiZodBody, ApiZodResponse } from '../../common/openapi/api-zod.decorators';
+import { AppConfig } from '../../config/app-config';
 
 const MINUTE_MS = 60_000;
 /** Refusals that mean the cookie is dead; any other error (CSRF, rate limit, outage) leaves it alone. */

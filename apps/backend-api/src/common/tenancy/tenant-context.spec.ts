@@ -3,9 +3,9 @@ import type { OfficeId, UserId } from '@nexlegtiq/shared-types';
 import { CLS_ID, ClsServiceManager } from 'nestjs-cls';
 import { lastValueFrom, of } from 'rxjs';
 
-import type { AuthPrincipal, RequestContext } from '../context/request-context';
 import { TenantRunner } from './tenant-runner';
 import { TenantInterceptor } from './tenant.interceptor';
+import type { AuthPrincipal, RequestContext } from '../context/request-context';
 
 const cls = ClsServiceManager.getClsService<RequestContext>();
 const OFFICE = '01920000-0000-7000-8000-00000000000a' as OfficeId;

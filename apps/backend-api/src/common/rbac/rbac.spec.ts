@@ -6,14 +6,14 @@ import type { OfficeId, Role, UserId } from '@nexlegtiq/shared-types';
 import { ClsServiceManager } from 'nestjs-cls';
 import type { PinoLogger } from 'nestjs-pino';
 
+import { assignedFilesWhere, caseScope, caseScopeWhere } from './case-scope';
+import { RequireAnyPermission, RequirePermissions } from './permissions.decorator';
+import { PermissionsGuard } from './permissions.guard';
 import type { PrismaService } from '../../database/prisma.service';
 import { Role as PrismaRole } from '../../generated/prisma/enums';
 import type { AuthPrincipal, RequestContext } from '../context/request-context';
 import { AppException, PermissionDeniedException } from '../errors/app.exception';
 import { TenantRunner } from '../tenancy/tenant-runner';
-import { assignedFilesWhere, caseScope, caseScopeWhere } from './case-scope';
-import { RequireAnyPermission, RequirePermissions } from './permissions.decorator';
-import { PermissionsGuard } from './permissions.guard';
 
 const OFFICE = '01920000-0000-7000-8000-00000000000a' as OfficeId;
 const USER = '01920000-0000-7000-8000-0000000000aa' as UserId;

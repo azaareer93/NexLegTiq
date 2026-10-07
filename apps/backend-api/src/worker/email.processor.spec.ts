@@ -3,6 +3,7 @@ import type { Job } from 'bullmq';
 import { ClsServiceManager } from 'nestjs-cls';
 import type { PinoLogger } from 'nestjs-pino';
 
+import { EmailProcessor, SKIPPED_NOTHING_TO_SEND } from './email.processor';
 import type { RequestContext } from '../common/context/request-context';
 import { AppException } from '../common/errors/app.exception';
 import type { MailTransport } from '../common/mail/mail-transport';
@@ -13,7 +14,6 @@ import { parseEnv } from '../config/env.schema';
 import type { PrismaService } from '../database/prisma.service';
 import type { PasswordResetLinks } from '../modules/auth/password-reset-links';
 import type { VerificationLinks } from '../modules/auth/verification-links';
-import { EmailProcessor, SKIPPED_NOTHING_TO_SEND } from './email.processor';
 
 const OFFICE = '01920000-0000-7000-8000-00000000000a';
 const USER = '01920000-0000-7000-8000-0000000000aa';

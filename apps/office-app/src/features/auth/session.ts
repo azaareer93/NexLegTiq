@@ -35,7 +35,7 @@ export const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
 });
 
-const configuredApiUrl: string | undefined = import.meta.env['VITE_API_URL'];
+const configuredApiUrl = import.meta.env['VITE_API_URL'] as string | undefined;
 if (import.meta.env.PROD && !configuredApiUrl?.startsWith('https://')) {
   throw new Error('VITE_API_URL must be set to the https:// API origin in a production build');
 }
@@ -97,25 +97,31 @@ export function onRemoteActivity(listener: (at: number) => void): () => void {
   return () => activityListeners.delete(listener);
 }
 
+type Message = Partial<Record<string, unknown>> | null;
+
+/** The activity time of a message, never in the future: a bogus timestamp must not switch the idle timeout off. */
+const activityAt = (message: Message): number | null =>
+  typeof message?.['at'] === 'number' && Number.isFinite(message['at'])
+    ? Math.min(message['at'], Date.now())
+    : null;
+
 function onMessage(data: unknown): void {
-  const message = data as Partial<Record<string, unknown>> | null;
-  if (
-    message?.['type'] === 'activity' &&
-    typeof message['at'] === 'number' &&
-    Number.isFinite(message['at'])
-  ) {
-    // Never in the future: a bogus timestamp must not switch the idle timeout off.
-    const at = Math.min(message['at'], Date.now());
-    activityListeners.forEach((listener) => listener(at));
-  } else if (
-    message?.['type'] === 'signedOut' &&
-    useSession.getState().status === 'authenticated'
-  ) {
-    const reason = SIGN_OUT_REASONS.find((known) => known === message['reason']) ?? 'signedOut';
-    endSession(reason);
-  } else if (message?.['type'] === 'signedIn') {
-    // Another tab signed in, possibly as someone else (the refresh cookie is shared): re-check who this tab is.
-    void restoreSession();
+  const message = data as Message;
+  switch (message?.['type']) {
+    case 'activity': {
+      const at = activityAt(message);
+      if (at !== null) activityListeners.forEach((listener) => listener(at));
+      break;
+    }
+    case 'signedOut':
+      if (useSession.getState().status === 'authenticated') {
+        endSession(SIGN_OUT_REASONS.find((known) => known === message?.['reason']) ?? 'signedOut');
+      }
+      break;
+    case 'signedIn':
+      // Another tab signed in, possibly as someone else (the refresh cookie is shared): re-check who this tab is.
+      void restoreSession();
+      break;
   }
 }
 

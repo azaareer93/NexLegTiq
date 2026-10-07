@@ -2,6 +2,8 @@ import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import axe from 'axe-core';
 import { HttpResponse } from 'msw';
 
+import { safeNext } from './forms';
+import { apiClient, queryClient, restoreSession, signOut, useSession } from './session';
 import {
   api,
   fail,
@@ -18,8 +20,6 @@ import {
   signOutFromMenu,
   USER,
 } from '../../test/render-app';
-import { safeNext } from './forms';
-import { apiClient, queryClient, restoreSession, signOut, useSession } from './session';
 
 setupTestServer();
 

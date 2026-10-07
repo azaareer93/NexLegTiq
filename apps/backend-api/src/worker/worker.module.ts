@@ -1,13 +1,13 @@
 import { Module } from '@nestjs/common';
 
+import { EmailProcessor } from './email.processor';
 import { CoreModule } from '../common/core/core.module';
 import { MailModule } from '../common/mail/mail.module';
 import { QueueModule } from '../common/queue/queue.module';
 import { StorageModule } from '../common/storage/storage.module';
+import { DatabaseModule } from '../database/database.module';
 import { PasswordResetLinks } from '../modules/auth/password-reset-links';
 import { VerificationLinks } from '../modules/auth/verification-links';
-import { EmailProcessor } from './email.processor';
-import { DatabaseModule } from '../database/database.module';
 
 /**
  * Root module of the worker process (D-011). Processors (`TenantProcessor` subclasses) are registered only here, so

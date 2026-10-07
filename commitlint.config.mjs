@@ -7,6 +7,8 @@ export default {
   parserPreset: { parserOpts: { issuePrefixes: ['MVP-'] } },
   rules: {
     'header-max-length': [2, 'always', 100],
+    // Subjects may start with a decision id or a proper noun (`docs: D-094 …`, `build: add Prettier …`).
+    'subject-case': [0],
     // Bodies explain the why in prose; a long URL or path must not fail a commit.
     'body-max-line-length': [0],
     'footer-max-line-length': [0],

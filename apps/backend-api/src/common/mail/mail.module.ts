@@ -1,7 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 
-import { MailService } from './mail.service';
 import { MailTransport } from './mail-transport';
+import { MailService } from './mail.service';
 
 /**
  * Email for both processes (D-085): `MailService` enqueues (HTTP app), `MailTransport` delivers (used by the worker's

@@ -5,13 +5,6 @@ import { JwtService } from '@nestjs/jwt';
 import type { AuthSession, LoginRequest } from '@nexlegtiq/shared-contracts';
 import { isRole, permissionsFor } from '@nexlegtiq/shared-types';
 
-import { hashOpaqueToken, newOpaqueToken } from '../../common/auth/opaque-token';
-import { AppException } from '../../common/errors/app.exception';
-import { TenantRunner } from '../../common/tenancy/tenant-runner';
-import { AppConfig } from '../../config/app-config';
-import { PrismaService } from '../../database/prisma.service';
-import type { ScopedPrismaClient } from '../../database/prisma.service';
-import type { AuditAction, Prisma } from '../../generated/prisma/client';
 import { ACCESS_TOKEN_TTL_SECONDS, JWT_AUDIENCE, JWT_ISSUER } from './auth.constants';
 import type { AccessTokenClaims } from './auth.constants';
 import { tenantContextFor, truncateUserAgent } from './client-info';
@@ -22,6 +15,13 @@ import { LoginAttemptRepository } from './login-attempt.repository';
 import { PasswordHasher } from './password-hasher';
 import { refreshExpiry, rotatedExpiry } from './refresh-token';
 import { RefreshTokenRepository, USER_FOR_SESSION } from './refresh-token.repository';
+import { hashOpaqueToken, newOpaqueToken } from '../../common/auth/opaque-token';
+import { AppException } from '../../common/errors/app.exception';
+import { TenantRunner } from '../../common/tenancy/tenant-runner';
+import { AppConfig } from '../../config/app-config';
+import type { ScopedPrismaClient } from '../../database/prisma.service';
+import { PrismaService } from '../../database/prisma.service';
+import type { AuditAction, Prisma } from '../../generated/prisma/client';
 
 /** A session issued to the controller: the JSON body plus the refresh token for the cookie. */
 export interface IssuedSession {

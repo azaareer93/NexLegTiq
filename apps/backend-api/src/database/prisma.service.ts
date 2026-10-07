@@ -3,12 +3,12 @@ import type { OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { ClsService } from 'nestjs-cls';
 
+import { TENANT_MODELS } from './tenant-models';
 import type { RequestContext } from '../common/context/request-context';
 import { runtimeModels, tenantExtension } from '../common/tenancy/tenant.extension';
 import { AppConfig } from '../config/app-config';
 import { PrismaClient } from '../generated/prisma/client';
 import { ReadinessRegistry } from '../health/readiness.registry';
-import { TENANT_MODELS } from './tenant-models';
 
 function createScopedClient(client: PrismaClient, cls: ClsService<RequestContext>) {
   return client.$extends(

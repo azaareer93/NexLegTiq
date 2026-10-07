@@ -6,15 +6,15 @@ import type {
   ResetPasswordRequest,
 } from '@nexlegtiq/shared-contracts';
 
-import { hashOpaqueToken } from '../../common/auth/opaque-token';
-import type { AuthPrincipal } from '../../common/context/request-context';
-import { AppException, ValidationException } from '../../common/errors/app.exception';
-import { TenantRunner } from '../../common/tenancy/tenant-runner';
 import { AccountMailer } from './account-mailer';
 import { tenantContextFor } from './client-info';
 import type { ClientInfo } from './client-info';
 import { PasswordHasher } from './password-hasher';
 import { PasswordRepository } from './password.repository';
+import { hashOpaqueToken } from '../../common/auth/opaque-token';
+import type { AuthPrincipal } from '../../common/context/request-context';
+import { AppException, ValidationException } from '../../common/errors/app.exception';
+import { TenantRunner } from '../../common/tenancy/tenant-runner';
 
 const INVALID_LINK = 'Reset link is invalid or has expired';
 

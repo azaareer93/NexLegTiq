@@ -6,8 +6,8 @@ import { ClsService } from 'nestjs-cls';
 import { map } from 'rxjs';
 import type { Observable } from 'rxjs';
 
-import type { RequestContext } from '../context/request-context';
 import { PaginatedResult } from './paginated-result';
+import type { RequestContext } from '../context/request-context';
 
 const RAW_RESPONSE = Symbol('RAW_RESPONSE');
 

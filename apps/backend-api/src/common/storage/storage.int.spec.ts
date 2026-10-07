@@ -7,14 +7,14 @@ import { Test } from '@nestjs/testing';
 import type { OfficeId } from '@nexlegtiq/shared-types';
 import { ClsService } from 'nestjs-cls';
 
+import { StorageModule } from './storage.module';
+import { StorageService } from './storage.service';
 import { AppConfig } from '../../config/app-config';
 import { integrationEnv } from '../../config/env.fixture';
 import { ReadinessRegistry } from '../../health/readiness.registry';
 import { CoreModule } from '../core/core.module';
 import { TenantRunner } from '../tenancy/tenant-runner';
 import { TenantViolationError } from '../tenancy/tenant.errors';
-import { StorageModule } from './storage.module';
-import { StorageService } from './storage.service';
 
 /** MVP-35 against real S3-compatible storage (RustFS locally and in CI; D-078, D-085). */
 describe('StorageService (S3-compatible storage)', () => {

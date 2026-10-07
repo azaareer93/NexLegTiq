@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 
+import type { MailLocale, MailTemplateName, MailTemplates } from './templates';
 import { QueueProducer } from '../queue/queue-producer';
 import { QUEUE } from '../queue/queues';
-import type { MailLocale, MailTemplateName, MailTemplates } from './templates';
 
 export const SEND_EMAIL_JOB = 'send-email';
 

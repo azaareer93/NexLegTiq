@@ -20,13 +20,13 @@ import type {
 import type { Request } from 'express';
 import { ClsService } from 'nestjs-cls';
 
+import { clientFromRequest } from './client-info';
+import type { ClientInfo } from './client-info';
+import { PasswordService } from './password.service';
 import { Public } from '../../common/auth/public.decorator';
 import type { AuthPrincipal, RequestContext } from '../../common/context/request-context';
 import { ZodValidationPipe } from '../../common/http/zod-validation.pipe';
 import { ApiZodBody } from '../../common/openapi/api-zod.decorators';
-import { clientFromRequest } from './client-info';
-import type { ClientInfo } from './client-info';
-import { PasswordService } from './password.service';
 
 const MINUTE_MS = 60_000;
 

@@ -2,8 +2,8 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { App, Button, Flex, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
 
-import { ErrorState } from '../States/States';
 import { ApiErrorAlert, useApiErrorHandler } from './ApiErrors';
+import { ErrorState } from '../States/States';
 
 const meta = {
   title: 'Feedback/API errors',

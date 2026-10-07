@@ -7,11 +7,7 @@ import type {
 import type { AccountType } from '@nexlegtiq/shared-types';
 import { PinoLogger } from 'nestjs-pino';
 
-import { hashOpaqueToken } from '../../common/auth/opaque-token';
-import { AppException } from '../../common/errors/app.exception';
-import { TenantRunner } from '../../common/tenancy/tenant-runner';
-import { AppConfig } from '../../config/app-config';
-import { PrismaService } from '../../database/prisma.service';
+import { AccountMailer } from './account-mailer';
 import { AuthService } from './auth.service';
 import type { IssuedSession } from './auth.service';
 import { tenantContextFor } from './client-info';
@@ -20,7 +16,11 @@ import { isVerificationOverdue } from './email-verification';
 import { PasswordHasher } from './password-hasher';
 import { SignupRepository } from './signup.repository';
 import type { ExistingAccount } from './signup.repository';
-import { AccountMailer } from './account-mailer';
+import { hashOpaqueToken } from '../../common/auth/opaque-token';
+import { AppException } from '../../common/errors/app.exception';
+import { TenantRunner } from '../../common/tenancy/tenant-runner';
+import { AppConfig } from '../../config/app-config';
+import { PrismaService } from '../../database/prisma.service';
 
 /** D-005/D-006/D-083: Palestine gets the 6-month freemium plan; elsewhere a 30-day trial sized by account type. */
 const GLOBAL_TRIAL_PLAN: Record<AccountType, string> = {

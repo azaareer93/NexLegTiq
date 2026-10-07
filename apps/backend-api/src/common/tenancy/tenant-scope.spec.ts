@@ -1,4 +1,5 @@
-import { assertRawQueryScoped, scopeArgs } from './tenant-scope';
+import { assertRawQueryScoped } from './tenant-raw-sql';
+import { scopeArgs } from './tenant-scope';
 import type { RelationMap, ScopeContext } from './tenant-scope';
 import { TenantContextMissingError, TenantViolationError } from './tenant.errors';
 

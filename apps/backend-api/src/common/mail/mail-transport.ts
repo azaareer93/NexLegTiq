@@ -4,9 +4,9 @@ import { UnrecoverableError } from 'bullmq';
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 
+import type { RenderedMail } from './templates';
 import { AppConfig } from '../../config/app-config';
 import { AppException } from '../errors/app.exception';
-import type { RenderedMail } from './templates';
 
 const RESEND_URL = 'https://api.resend.com/emails';
 

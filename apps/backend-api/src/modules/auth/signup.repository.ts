@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import type { RegisterRequest } from '@nexlegtiq/shared-contracts';
 
-import { AppException } from '../../common/errors/app.exception';
-import { PrismaService } from '../../database/prisma.service';
-import type { Prisma } from '../../generated/prisma/client';
 import { truncateUserAgent } from './client-info';
 import type { ClientInfo } from './client-info';
 import { USER_FOR_SESSION } from './refresh-token.repository';
+import { AppException } from '../../common/errors/app.exception';
+import { PrismaService } from '../../database/prisma.service';
+import type { Prisma } from '../../generated/prisma/client';
 
 const DAY_MS = 86_400_000;
 

@@ -13,6 +13,13 @@ import { PinoLogger } from 'nestjs-pino';
 import request from 'supertest';
 import { z } from 'zod';
 
+import { BULL_BOARD_PATH } from './bull-board';
+import { QueueProducer } from './queue-producer';
+import { QueueModule } from './queue.module';
+import { QUEUE, QUEUE_NAMES, QUEUE_POLICY, workerOptions } from './queues';
+import type { TenantJobData } from './tenant-job';
+import { TenantProcessor } from './tenant-processor';
+import { drainQueue, getQueue } from './testing';
 import { AppModule } from '../../app/app.module';
 import { configureApp } from '../../app/configure-app';
 import { integrationEnv } from '../../config/env.fixture';
@@ -23,13 +30,6 @@ import { ReadinessRegistry } from '../../health/readiness.registry';
 import type { RequestContext } from '../context/request-context';
 import { CoreModule } from '../core/core.module';
 import { TenantRunner } from '../tenancy/tenant-runner';
-import { BULL_BOARD_PATH } from './bull-board';
-import { QueueModule } from './queue.module';
-import { QueueProducer } from './queue-producer';
-import { QUEUE, QUEUE_NAMES, QUEUE_POLICY, workerOptions } from './queues';
-import type { TenantJobData } from './tenant-job';
-import { TenantProcessor } from './tenant-processor';
-import { drainQueue, getQueue } from './testing';
 
 const ProbeJobSchema = z.object({ failTimes: z.number().int().optional() });
 type ProbeJob = z.infer<typeof ProbeJobSchema>;

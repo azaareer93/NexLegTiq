@@ -5,6 +5,8 @@ import type { OfficeId, UserId } from '@nexlegtiq/shared-types';
 import { ClsServiceManager } from 'nestjs-cls';
 import type { PinoLogger } from 'nestjs-pino';
 
+import { RequirePermissions } from './permissions.decorator';
+import { PermissionsGuard } from './permissions.guard';
 import { AppConfig } from '../../config/app-config';
 import { testEnv } from '../../config/env.fixture';
 import { parseEnv } from '../../config/env.schema';
@@ -13,8 +15,6 @@ import { ReadinessRegistry } from '../../health/readiness.registry';
 import type { AuthPrincipal, RequestContext } from '../context/request-context';
 import { PermissionDeniedException } from '../errors/app.exception';
 import { TenantRunner } from '../tenancy/tenant-runner';
-import { RequirePermissions } from './permissions.decorator';
-import { PermissionsGuard } from './permissions.guard';
 
 @Controller('audit-probe')
 class ProbeController {

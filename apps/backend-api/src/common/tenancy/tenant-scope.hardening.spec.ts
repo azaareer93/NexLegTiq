@@ -1,7 +1,8 @@
-import { Prisma } from '../../generated/prisma/client';
-import { assertRawQueryScoped, scopeArgs } from './tenant-scope';
+import { assertRawQueryScoped } from './tenant-raw-sql';
+import { scopeArgs } from './tenant-scope';
 import type { RelationMap, ScopeContext } from './tenant-scope';
 import { TenantContextMissingError, TenantViolationError } from './tenant.errors';
+import { Prisma } from '../../generated/prisma/client';
 
 // Cases added by the MVP-37 review (D-080): read-only global models, relation filters, orderBy, raw SQL edge cases.
 const A = '01920000-0000-7000-8000-00000000000a';

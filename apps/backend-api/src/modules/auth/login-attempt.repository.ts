@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
-import { PrismaService } from '../../database/prisma.service';
 import { LOCKOUT_DURATION_MS, LOCKOUT_MAX_FAILURES } from './auth.constants';
+import { PrismaService } from '../../database/prisma.service';
 
 /**
  * LoginAttempt rows (D-053). The table is global and written before an office is known, so every access here uses

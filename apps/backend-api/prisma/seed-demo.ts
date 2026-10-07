@@ -1,5 +1,5 @@
-import type { PrismaClient } from '../src/generated/prisma/client';
 import { createSeedClient, seedPlans } from './seed';
+import type { PrismaClient } from '../src/generated/prisma/client';
 
 /** Fixed ids so re-running updates the same rows instead of creating new ones. */
 export const DEMO_OFFICE_ID = '01920000-0000-7000-8000-000000000001';

@@ -5,12 +5,12 @@ import type { Response } from 'express';
 import { ClsService } from 'nestjs-cls';
 import { PinoLogger } from 'nestjs-pino';
 
-import type { RequestContext } from '../context/request-context';
 import { AppException } from './app.exception';
 import { DEFAULT_MESSAGE, ERROR_STATUS } from './error-catalog';
 import type { GenericErrorCode } from './error-catalog';
 import { loggableError } from './error-log';
 import { isPrismaError, mapPrismaError } from './prisma-error';
+import type { RequestContext } from '../context/request-context';
 
 interface NormalizedError {
   readonly status: number;

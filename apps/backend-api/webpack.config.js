@@ -1,5 +1,6 @@
-const { NxAppWebpackPlugin } = require('@nx/webpack/app-plugin');
 const { join } = require('path');
+
+const { NxAppWebpackPlugin } = require('@nx/webpack/app-plugin');
 const nodeExternals = require('webpack-node-externals');
 
 // Two entrypoints from one codebase: `main` (HTTP API) and `worker` (BullMQ consumers, D-011).

@@ -14,7 +14,8 @@
         "{workspaceRoot}/packages/*/project.json",
         "{workspaceRoot}/apps/*/eslint.config.mjs",
         "{workspaceRoot}/packages/*/eslint.config.mjs",
-        "{workspaceRoot}/packages/shared-config/eslint/*.mjs"
+        "{workspaceRoot}/packages/shared-config/eslint/*.mjs",
+        "{workspaceRoot}/stylelint.config.mjs"
       ]
     }
   }

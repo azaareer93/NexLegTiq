@@ -5,16 +5,16 @@ import type { OfficeId, Role, UserId } from '@nexlegtiq/shared-types';
 import { ClsServiceManager } from 'nestjs-cls';
 import type { PinoLogger } from 'nestjs-pino';
 
-import type { PrismaService } from '../../database/prisma.service';
-import type { AuthPrincipal, AuthRealm, RequestContext } from '../context/request-context';
-import { PermissionDeniedException } from '../errors/app.exception';
-import { TenantRunner } from '../tenancy/tenant-runner';
 import {
   PermissionConditionsCheckedByService,
   RequireAnyPermission,
   RequirePermissions,
 } from './permissions.decorator';
 import { PermissionsGuard } from './permissions.guard';
+import type { PrismaService } from '../../database/prisma.service';
+import type { AuthPrincipal, AuthRealm, RequestContext } from '../context/request-context';
+import { PermissionDeniedException } from '../errors/app.exception';
+import { TenantRunner } from '../tenancy/tenant-runner';
 
 // Cases added by the MVP-38 review (D-081): class + method requirements, ANY denial, realms, conditional cells.
 const OFFICE = '01920000-0000-7000-8000-00000000000a' as OfficeId;

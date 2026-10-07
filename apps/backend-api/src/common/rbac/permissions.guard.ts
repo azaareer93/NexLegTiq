@@ -11,6 +11,8 @@ import type { Permission } from '@nexlegtiq/shared-types';
 import { ClsService } from 'nestjs-cls';
 import { PinoLogger } from 'nestjs-pino';
 
+import { CONDITIONS_CHECKED_KEY, PERMISSIONS_KEY } from './permissions.decorator';
+import type { PermissionRequirement } from './permissions.decorator';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
 import type { AuthPrincipal, RequestContext } from '../context/request-context';
@@ -19,8 +21,6 @@ import { DEFAULT_MESSAGE } from '../errors/error-catalog';
 import { routeTemplateOf } from '../http/route-template';
 import type { RoutedRequest } from '../http/route-template';
 import { TenantRunner } from '../tenancy/tenant-runner';
-import { CONDITIONS_CHECKED_KEY, PERMISSIONS_KEY } from './permissions.decorator';
-import type { PermissionRequirement } from './permissions.decorator';
 
 type GuardedRequest = RoutedRequest & {
   user?: AuthPrincipal;

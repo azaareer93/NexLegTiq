@@ -3,11 +3,11 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { z } from 'zod';
 
-import { DependencyUnavailableException } from '../common/errors/app.exception';
-import { ApiZodResponse } from '../common/openapi/api-zod.decorators';
-import { Public } from '../common/auth/public.decorator';
 import { ReadinessRegistry } from './readiness.registry';
 import type { ReadinessReport } from './readiness.registry';
+import { Public } from '../common/auth/public.decorator';
+import { DependencyUnavailableException } from '../common/errors/app.exception';
+import { ApiZodResponse } from '../common/openapi/api-zod.decorators';
 
 const LivenessSchema = z.object({ status: z.literal('ok') });
 const ReadinessSchema = z.object({

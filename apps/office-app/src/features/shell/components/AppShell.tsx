@@ -19,6 +19,48 @@ import { VerifyBanner } from './VerifyBanner';
 /** Height of the phone bottom bar, which the content keeps clear of (plus the iPhone home-indicator area). */
 const BOTTOM_BAR_PX = 64;
 
+interface SideNavProps {
+  readonly menu: React.JSX.Element;
+  /** ≥1200 px: the full menu, which the user may collapse; narrower: icons only. */
+  readonly wide: boolean;
+  readonly collapsed: boolean;
+  readonly onToggle: () => void;
+}
+
+/** The side menu of tablets and desktops (D-091); phones get the bottom bar instead. */
+function SideNav({ menu, wide, collapsed, onToggle }: SideNavProps): React.JSX.Element {
+  const { t } = useTranslation();
+  const { token } = theme.useToken();
+  const folded = wide ? collapsed : true;
+  return (
+    <Layout.Sider
+      theme="light"
+      width={232}
+      collapsed={folded}
+      trigger={null}
+      data-testid="app-sider"
+      data-collapsed={folded}
+      style={{ position: 'sticky', insetBlockStart: 0, blockSize: '100vh', overflow: 'auto' }}
+    >
+      <Flex vertical justify="space-between" style={{ minBlockSize: '100%' }}>
+        <nav aria-label={t('shell.nav.label')}>{menu}</nav>
+        {wide ? (
+          <Button
+            type="text"
+            block
+            onClick={onToggle}
+            aria-expanded={!collapsed}
+            aria-label={t(collapsed ? 'shell.nav.expand' : 'shell.nav.collapse')}
+            icon={<DirectionalIcon icon={collapsed ? MenuUnfoldOutlined : MenuFoldOutlined} />}
+            data-testid="sider-toggle"
+            style={{ marginBlock: token.marginSM }}
+          />
+        ) : null}
+      </Flex>
+    </Layout.Sider>
+  );
+}
+
 /**
  * The signed-in layout (frontend.md#shell, D-091). Width decides the navigation: ≥1200 px a full side menu the user can
  * collapse, 768–1199 px an icon-only side menu, under 768 px a bottom bar with "Menu" for the rest. AntD lays the side
@@ -68,31 +110,12 @@ export function AppShell(): React.JSX.Element {
   return (
     <Layout style={{ minBlockSize: '100vh' }} data-testid="app-shell">
       {phone ? null : (
-        <Layout.Sider
-          theme="light"
-          width={232}
-          collapsed={wide ? collapsed : true}
-          trigger={null}
-          data-testid="app-sider"
-          data-collapsed={wide ? collapsed : true}
-          style={{ position: 'sticky', insetBlockStart: 0, blockSize: '100vh', overflow: 'auto' }}
-        >
-          <Flex vertical justify="space-between" style={{ minBlockSize: '100%' }}>
-            <nav aria-label={t('shell.nav.label')}>{menu}</nav>
-            {wide ? (
-              <Button
-                type="text"
-                block
-                onClick={() => setCollapsed((value) => !value)}
-                aria-expanded={!collapsed}
-                aria-label={t(collapsed ? 'shell.nav.expand' : 'shell.nav.collapse')}
-                icon={<DirectionalIcon icon={collapsed ? MenuUnfoldOutlined : MenuFoldOutlined} />}
-                data-testid="sider-toggle"
-                style={{ marginBlock: token.marginSM }}
-              />
-            ) : null}
-          </Flex>
-        </Layout.Sider>
+        <SideNav
+          menu={menu}
+          wide={wide}
+          collapsed={collapsed}
+          onToggle={() => setCollapsed((value) => !value)}
+        />
       )}
       <Layout>
         <Layout.Header

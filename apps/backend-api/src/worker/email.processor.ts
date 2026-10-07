@@ -5,8 +5,8 @@ import type { Job } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 import { z } from 'zod';
 
-import { SEND_EMAIL_JOB } from '../common/mail/mail.service';
 import { MailTransport } from '../common/mail/mail-transport';
+import { SEND_EMAIL_JOB } from '../common/mail/mail.service';
 import { MAIL_TEMPLATE_SCHEMAS, renderMail } from '../common/mail/templates';
 import type { MailLocale, MailTemplateName, MailTemplates } from '../common/mail/templates';
 import { QUEUE, workerOptions } from '../common/queue/queues';

@@ -7,6 +7,9 @@ import type { OfficeId } from '@nexlegtiq/shared-types';
 import { ClsService } from 'nestjs-cls';
 import request from 'supertest';
 
+import { PasswordHasher } from './password-hasher';
+import { PasswordResetLinks } from './password-reset-links';
+import { REFRESH_COOKIE } from './refresh-token';
 import { AppModule } from '../../app/app.module';
 import { configureApp } from '../../app/configure-app';
 import { hashOpaqueToken, newOpaqueToken } from '../../common/auth/opaque-token';
@@ -16,9 +19,6 @@ import { TenantRunner } from '../../common/tenancy/tenant-runner';
 import { AppConfig } from '../../config/app-config';
 import { integrationEnv } from '../../config/env.fixture';
 import { PrismaService } from '../../database/prisma.service';
-import { PasswordHasher } from './password-hasher';
-import { PasswordResetLinks } from './password-reset-links';
-import { REFRESH_COOKIE } from './refresh-token';
 
 const ORIGIN = 'http://localhost:4200';
 const csrf = { Origin: ORIGIN, 'X-Requested-With': 'XMLHttpRequest' };

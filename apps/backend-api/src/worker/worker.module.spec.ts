@@ -1,7 +1,7 @@
 import { Test } from '@nestjs/testing';
 
-import { ReadinessRegistry } from '../health/readiness.registry';
 import { WorkerModule } from './worker.module';
+import { ReadinessRegistry } from '../health/readiness.registry';
 
 describe('WorkerModule', () => {
   it('should compile as a standalone application context with a readiness registry', async () => {

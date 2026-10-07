@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 
-import { PrismaService } from '../../database/prisma.service';
 import { truncateUserAgent } from './client-info';
 import type { ClientInfo } from './client-info';
 import { RefreshTokenRepository } from './refresh-token.repository';
+import { PrismaService } from '../../database/prisma.service';
 
 /**
  * Password reset and change rows (D-086). Lookups by email or link hash happen before the office is known (raw client);

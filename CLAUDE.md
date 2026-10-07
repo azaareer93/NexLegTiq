@@ -26,7 +26,8 @@ docker compose -f docker/compose.dev.yml up -d      # postgres(pgvector) redis m
 pnpm nx run backend-api:prisma-migrate               # prisma migrate dev
 pnpm nx run backend-api:seed                         # reference + demo data (never prod)
 pnpm nx serve backend-api | office-app | client-portal | admin-panel
-pnpm nx affected -t lint typecheck test build         # what CI runs
+pnpm nx affected -t lint typecheck test build         # what CI runs (plus `pnpm format:check` and `pnpm lint:css`)
+pnpm format                                           # Prettier (pre-commit formats staged files)
 pnpm nx run backend-api-e2e:e2e                       # integration (real PG/Redis)
 pnpm nx run e2e:e2e                                   # Cypress
 ```

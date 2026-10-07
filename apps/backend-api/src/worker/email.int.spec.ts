@@ -5,12 +5,13 @@ import type { INestApplicationContext } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import type { OfficeId } from '@nexlegtiq/shared-types';
 
+import { EmailProcessor } from './email.processor';
 import { hashOpaqueToken } from '../common/auth/opaque-token';
 import { CoreModule } from '../common/core/core.module';
 import { MailModule } from '../common/mail/mail.module';
 import { MailService } from '../common/mail/mail.service';
-import { QueueModule } from '../common/queue/queue.module';
 import { QueueProducer } from '../common/queue/queue-producer';
+import { QueueModule } from '../common/queue/queue.module';
 import { QUEUE, QUEUE_NAMES } from '../common/queue/queues';
 import { drainQueue, getQueue } from '../common/queue/testing';
 import { TenantRunner } from '../common/tenancy/tenant-runner';
@@ -23,7 +24,6 @@ import {
 } from '../modules/auth/account-mailer';
 import { PasswordResetLinks } from '../modules/auth/password-reset-links';
 import { VerificationLinks } from '../modules/auth/verification-links';
-import { EmailProcessor } from './email.processor';
 
 const MAILPIT = process.env['MAILPIT_URL'] ?? 'http://127.0.0.1:8025';
 

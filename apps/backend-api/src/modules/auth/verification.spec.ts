@@ -1,6 +1,9 @@
 import { ClsServiceManager } from 'nestjs-cls';
 import type { PinoLogger } from 'nestjs-pino';
 
+import { SEND_VERIFICATION_EMAIL_JOB, AccountMailer } from './account-mailer';
+import type { ClientInfo } from './client-info';
+import { VerificationLinks } from './verification-links';
 import { hashOpaqueToken } from '../../common/auth/opaque-token';
 import type { RequestContext } from '../../common/context/request-context';
 import type { QueueProducer } from '../../common/queue/queue-producer';
@@ -10,9 +13,6 @@ import { AppConfig } from '../../config/app-config';
 import { testEnv } from '../../config/env.fixture';
 import { parseEnv } from '../../config/env.schema';
 import type { PrismaService } from '../../database/prisma.service';
-import type { ClientInfo } from './client-info';
-import { VerificationLinks } from './verification-links';
-import { SEND_VERIFICATION_EMAIL_JOB, AccountMailer } from './account-mailer';
 
 const OFFICE = '01920000-0000-7000-8000-00000000000a';
 const USER = '01920000-0000-7000-8000-0000000000aa';

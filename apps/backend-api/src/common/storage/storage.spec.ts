@@ -3,6 +3,7 @@ import { Upload } from '@aws-sdk/lib-storage';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { ClsServiceManager } from 'nestjs-cls';
 
+import { contentDisposition, MAX_URL_TTL_SECONDS, StorageService } from './storage.service';
 import { AppConfig } from '../../config/app-config';
 import { testEnv } from '../../config/env.fixture';
 import { parseEnv } from '../../config/env.schema';
@@ -10,7 +11,6 @@ import type { ReadinessRegistry } from '../../health/readiness.registry';
 import type { RequestContext } from '../context/request-context';
 import { TenantRunner } from '../tenancy/tenant-runner';
 import { TenantContextMissingError, TenantViolationError } from '../tenancy/tenant.errors';
-import { contentDisposition, MAX_URL_TTL_SECONDS, StorageService } from './storage.service';
 
 jest.mock('@aws-sdk/lib-storage', () => ({ Upload: jest.fn() }));
 jest.mock('@aws-sdk/s3-request-presigner', () => ({ getSignedUrl: jest.fn() }));

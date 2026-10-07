@@ -87,6 +87,65 @@ const EnvObject = z.object({
   BULL_BOARD_ENABLED: z.stringbool().default(false),
 });
 
+type RawEnv = z.output<typeof EnvObject>;
+
+/** Production-only checks: [variable, is it broken?, message]. In transit TLS 1.2+ everywhere (ops-security.md, D-078). */
+const PRODUCTION_RULES: readonly (readonly [keyof RawEnv, (env: RawEnv) => boolean, string])[] = [
+  [
+    'DATABASE_URL',
+    (env) => !TLS_SSLMODES.has(new URL(env.DATABASE_URL).searchParams.get('sslmode') ?? ''),
+    'must set sslmode=require, verify-ca or verify-full in production',
+  ],
+  [
+    'REDIS_URL',
+    (env) => !env.REDIS_URL.startsWith('rediss:'),
+    'must use rediss:// (TLS) in production',
+  ],
+  [
+    'S3_ENDPOINT',
+    (env) => !env.S3_ENDPOINT.startsWith('https:'),
+    'must use https:// in production',
+  ],
+  // AWS S3 does not encrypt unless asked (D-035, D-085); R2 and other providers encrypt at rest on their own.
+  [
+    'S3_SSE',
+    (env) =>
+      new URL(env.S3_ENDPOINT).hostname.endsWith('.amazonaws.com') && env.S3_SSE !== 'AES256',
+    'must be AES256 when storing on AWS S3 in production',
+  ],
+  // With 0 behind a proxy every client shares the proxy's IP: one attacker would lock out or throttle everyone.
+  [
+    'TRUST_PROXY_HOPS',
+    (env) => env.TRUST_PROXY_HOPS === undefined || env.TRUST_PROXY_HOPS < 1,
+    'must be set to the number of reverse proxies (>= 1) in production',
+  ],
+  [
+    'OFFICE_APP_URL',
+    (env) => !env.OFFICE_APP_URL.startsWith('https:'),
+    'must use https:// in production (links in emails)',
+  ],
+  [
+    'BULL_BOARD_ENABLED',
+    (env) => env.BULL_BOARD_ENABLED,
+    'must be false in production until platform-admin auth guards it',
+  ],
+  [
+    'SMTP_REQUIRE_TLS',
+    (env) => env.SMTP_REQUIRE_TLS === false && !env.SMTP_SECURE,
+    'must not be false in production unless SMTP_SECURE is true',
+  ],
+];
+
+/** Credentials that must not be the documented dev/CI placeholders in production. */
+const secretsOf = (env: RawEnv): Record<string, string> => ({
+  DATABASE_URL: decodeURIComponent(new URL(env.DATABASE_URL).password),
+  S3_ACCESS_KEY_ID: env.S3_ACCESS_KEY_ID,
+  S3_SECRET_ACCESS_KEY: env.S3_SECRET_ACCESS_KEY,
+  JWT_SECRET: env.JWT_SECRET,
+  SMTP_PASSWORD: env.SMTP_PASSWORD ?? '',
+  RESEND_API_KEY: env.RESEND_API_KEY ?? '',
+});
+
 /** Every variable the backend reads; `.env.example` must document each of them (asserted in env.schema.spec.ts). */
 export const ENV_KEYS = Object.keys(EnvObject.shape);
 
@@ -107,42 +166,18 @@ export const EnvSchema = EnvObject.refine(
   })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV !== 'production') return;
-    // In transit TLS 1.2+ everywhere (ops-security.md, D-078). Messages never echo values: URLs carry credentials.
-    const fail = (path: string, message: string): void =>
-      void ctx.addIssue({ code: 'custom', path: [path], message });
-    if (!TLS_SSLMODES.has(new URL(env.DATABASE_URL).searchParams.get('sslmode') ?? '')) {
-      fail('DATABASE_URL', 'must set sslmode=require, verify-ca or verify-full in production');
+    // Messages never echo values: URLs carry credentials.
+    for (const [path, broken, message] of PRODUCTION_RULES) {
+      if (broken(env)) ctx.addIssue({ code: 'custom', path: [path], message });
     }
-    if (!env.REDIS_URL.startsWith('rediss:'))
-      fail('REDIS_URL', 'must use rediss:// (TLS) in production');
-    if (!env.S3_ENDPOINT.startsWith('https:'))
-      fail('S3_ENDPOINT', 'must use https:// in production');
-    // AWS S3 does not encrypt unless asked (D-035, D-085); R2 and other providers encrypt at rest on their own.
-    if (new URL(env.S3_ENDPOINT).hostname.endsWith('.amazonaws.com') && env.S3_SSE !== 'AES256') {
-      fail('S3_SSE', 'must be AES256 when storing on AWS S3 in production');
-    }
-    if (env.TRUST_PROXY_HOPS === undefined || env.TRUST_PROXY_HOPS < 1) {
-      // With 0 behind a proxy every client shares the proxy's IP: one attacker would lock out or throttle everyone.
-      fail('TRUST_PROXY_HOPS', 'must be set to the number of reverse proxies (>= 1) in production');
-    }
-    if (!env.OFFICE_APP_URL.startsWith('https:'))
-      fail('OFFICE_APP_URL', 'must use https:// in production (links in emails)');
-    if (env.BULL_BOARD_ENABLED)
-      fail('BULL_BOARD_ENABLED', 'must be false in production until platform-admin auth guards it');
-    if (env.SMTP_REQUIRE_TLS === false && !env.SMTP_SECURE) {
-      fail('SMTP_REQUIRE_TLS', 'must not be false in production unless SMTP_SECURE is true');
-    }
-    const secrets = {
-      DATABASE_URL: decodeURIComponent(new URL(env.DATABASE_URL).password),
-      S3_ACCESS_KEY_ID: env.S3_ACCESS_KEY_ID,
-      S3_SECRET_ACCESS_KEY: env.S3_SECRET_ACCESS_KEY,
-      JWT_SECRET: env.JWT_SECRET,
-      SMTP_PASSWORD: env.SMTP_PASSWORD ?? '',
-      RESEND_API_KEY: env.RESEND_API_KEY ?? '',
-    };
-    for (const [key, value] of Object.entries(secrets)) {
-      if (PLACEHOLDER_SECRET.test(value))
-        fail(key, 'uses a documented dev/CI placeholder credential');
+    for (const [key, value] of Object.entries(secretsOf(env))) {
+      if (PLACEHOLDER_SECRET.test(value)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [key],
+          message: 'uses a documented dev/CI placeholder credential',
+        });
+      }
     }
   })
   .transform((env) => ({

@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 
-import { AppConfig } from '../../config/app-config';
 import { AccountMailer } from './account-mailer';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -14,6 +13,7 @@ import { PasswordService } from './password.service';
 import { RefreshTokenRepository } from './refresh-token.repository';
 import { SignupRepository } from './signup.repository';
 import { SignupService } from './signup.service';
+import { AppConfig } from '../../config/app-config';
 
 /** Office authentication (MVP-40). JwtAuthGuard is exported for AppModule to register as a global guard. */
 @Module({

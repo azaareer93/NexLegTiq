@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 
+import { tenantContextFor } from './client-info';
+import type { ClientInfo } from './client-info';
 import { QueueProducer } from '../../common/queue/queue-producer';
 import { QUEUE } from '../../common/queue/queues';
 import { TenantRunner } from '../../common/tenancy/tenant-runner';
-import { tenantContextFor } from './client-info';
-import type { ClientInfo } from './client-info';
 
 export const SEND_VERIFICATION_EMAIL_JOB = 'send-verification-email';
 export const SEND_PASSWORD_RESET_JOB = 'send-password-reset';

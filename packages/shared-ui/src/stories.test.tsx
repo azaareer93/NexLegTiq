@@ -4,8 +4,8 @@ import type { Meta, StoryFn } from '@storybook/react-vite';
 import { cleanup, render } from '@testing-library/react';
 import axe from 'axe-core';
 
-import preview from '../.storybook/preview';
 import * as sharedUi from './index';
+import preview from '../.storybook/preview';
 
 type StoryModule = { default: Meta } & Record<string, StoryFn>;
 

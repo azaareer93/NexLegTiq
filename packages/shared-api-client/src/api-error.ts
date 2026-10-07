@@ -38,6 +38,39 @@ function isErrorEnvelope(body: unknown): body is ApiErrorResponse {
   );
 }
 
+/** The `x-request-id` response header, when there is one (ApiError keeps it only if well-formed). */
+const headerIdOf = (headers: Record<string, unknown>): string | undefined => {
+  const id = headers[REQUEST_ID_HEADER];
+  return typeof id === 'string' ? id : undefined;
+};
+
+/** Seconds from `Retry-After`: only the delta-seconds form (an HTTP-date is not worth parsing for a hint), a day at most. */
+function retryAfterOf(headers: Record<string, unknown>): number | undefined {
+  const seconds = Number(headers['retry-after']);
+  // A hostile or broken header must not tell the user to wait for years.
+  return Number.isInteger(seconds) && seconds > 0 ? Math.min(seconds, 86_400) : undefined;
+}
+
+/** The API's own error envelope, as sent. */
+function fromEnvelope(
+  body: ApiErrorResponse,
+  status: number,
+  headerId: string | undefined,
+  retryAfter: number | undefined,
+): ApiError {
+  const { code, message, details } = body.error;
+  // A code this build does not know yet (newer server) falls back to the generic one, like ErrorState does.
+  const known = isErrorCode(code) ? code : 'SYS-001';
+  return new ApiError(
+    known,
+    message,
+    status,
+    details ?? [],
+    body.meta?.requestId ?? headerId,
+    retryAfter,
+  );
+}
+
 /** Normalises anything a request can throw. Cancellations pass through untouched (TanStack Query ignores them). */
 export function toApiError(error: unknown): unknown {
   if (error instanceof ApiError || !isAxiosError(error) || error.code === 'ERR_CANCELED') {
@@ -48,33 +81,14 @@ export function toApiError(error: unknown): unknown {
     // No answer at all: the user is offline, the server is down or the 30 s timeout hit.
     return new ApiError('SYS-002', error.message, 0);
   }
-  const headerId = response.headers[REQUEST_ID_HEADER] as unknown;
-  // Only the delta-seconds form; an HTTP-date is not worth parsing for a hint.
-  const retryHeader = Number(response.headers['retry-after']);
-  // A day at most: a hostile or broken header must not tell the user to wait for years.
-  const retryAfter =
-    Number.isInteger(retryHeader) && retryHeader > 0 ? Math.min(retryHeader, 86_400) : undefined;
+  const headers = response.headers as Record<string, unknown>;
+  const headerId = headerIdOf(headers);
+  const retryAfter = retryAfterOf(headers);
   const body: unknown = response.data;
   if (isErrorEnvelope(body)) {
-    const { code, message, details } = body.error;
-    // A code this build does not know yet (newer server) falls back to the generic one, like ErrorState does.
-    return new ApiError(
-      isErrorCode(code) ? code : 'SYS-001',
-      message,
-      response.status,
-      details ?? [],
-      body.meta?.requestId ?? (typeof headerId === 'string' ? headerId : undefined),
-      retryAfter,
-    );
+    return fromEnvelope(body, response.status, headerId, retryAfter);
   }
   // Not our envelope: a proxy or CDN answered (502/503/504 while the API restarts, an HTML error page…).
   const code = response.status >= 502 && response.status <= 504 ? 'SYS-002' : 'SYS-001';
-  return new ApiError(
-    code,
-    error.message,
-    response.status,
-    [],
-    typeof headerId === 'string' ? headerId : undefined,
-    retryAfter,
-  );
+  return new ApiError(code, error.message, response.status, [], headerId, retryAfter);
 }

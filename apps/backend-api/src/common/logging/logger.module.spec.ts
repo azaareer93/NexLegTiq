@@ -2,10 +2,10 @@ import { Writable } from 'node:stream';
 
 import pino from 'pino';
 
+import { buildLoggerParams, REDACT_PATHS, serializeError, serializeRequest } from './logger.module';
 import { AppConfig } from '../../config/app-config';
 import { testEnv } from '../../config/env.fixture';
 import { parseEnv } from '../../config/env.schema';
-import { buildLoggerParams, REDACT_PATHS, serializeError, serializeRequest } from './logger.module';
 
 function capture(): { stream: Writable; output: () => string } {
   const chunks: string[] = [];

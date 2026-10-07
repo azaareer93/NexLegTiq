@@ -5,8 +5,8 @@ import { ACCOUNT_TYPES, JURISDICTIONS, OFFICE_LANGUAGES } from '@nexlegtiq/share
 import { ApiErrorAlert, useApiErrorHandler, useLanguage } from '@nexlegtiq/shared-ui';
 import { useMutation } from '@tanstack/react-query';
 import { Button, Checkbox, Divider, Flex, Form, Input, Select, Typography } from 'antd';
-import { useTranslation } from 'react-i18next';
 import { useEffect, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router';
 
 import { AuthLayout } from '../components/AuthLayout';

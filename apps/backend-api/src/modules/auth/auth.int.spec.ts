@@ -2,20 +2,20 @@ import { randomUUID } from 'node:crypto';
 
 import { Controller, Get, Module } from '@nestjs/common';
 import type { INestApplication } from '@nestjs/common';
-import type { NestExpressApplication } from '@nestjs/platform-express';
 import { JwtService } from '@nestjs/jwt';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import request from 'supertest';
 
-import { configureApp } from '../../app/configure-app';
+import { bearerFor } from './auth.test-helper';
+import { PasswordHasher } from './password-hasher';
+import { REFRESH_COOKIE } from './refresh-token';
 import { AppModule } from '../../app/app.module';
+import { configureApp } from '../../app/configure-app';
 import { RequirePermissions } from '../../common/rbac/permissions.decorator';
 import { integrationEnv } from '../../config/env.fixture';
 import { PrismaService } from '../../database/prisma.service';
-import { bearerFor } from './auth.test-helper';
-import { REFRESH_COOKIE } from './refresh-token';
-import { PasswordHasher } from './password-hasher';
 
 @Controller('__auth_probe__')
 class ProbeController {

@@ -1,13 +1,13 @@
 import { UnrecoverableError } from 'bullmq';
 import nodemailer from 'nodemailer';
 
+import { MailTransport } from './mail-transport';
+import { MailService, SEND_EMAIL_JOB } from './mail.service';
+import { duration, MAIL_TEMPLATE_NAMES, MAIL_TEMPLATE_SCHEMAS, renderMail } from './templates';
 import { AppConfig } from '../../config/app-config';
 import { testEnv } from '../../config/env.fixture';
 import { parseEnv } from '../../config/env.schema';
 import type { QueueProducer } from '../queue/queue-producer';
-import { MailService, SEND_EMAIL_JOB } from './mail.service';
-import { MailTransport } from './mail-transport';
-import { duration, MAIL_TEMPLATE_NAMES, MAIL_TEMPLATE_SCHEMAS, renderMail } from './templates';
 
 const APP = 'https://app.example.test';
 const config = (env: Record<string, string> = {}) =>

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
-import type { PrismaClient } from '../generated/prisma/client';
 import type { TenantModel } from './tenant-models';
+import type { PrismaClient } from '../generated/prisma/client';
 
 /** One office seeded for isolation tests, with the rows other tenant rows need to reference. */
 export interface SeededOffice {

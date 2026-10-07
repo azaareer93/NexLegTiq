@@ -84,6 +84,16 @@ export const baseConfig = [
         { fixStyle: 'separate-type-imports' },
       ],
       '@typescript-eslint/no-floating-promises': 'error',
+      // `_`-prefixed names and the rest siblings of a destructuring (`{ secret: _s, ...rest }`) are deliberately unused.
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrors: 'none',
+          ignoreRestSiblings: true,
+        },
+      ],
       '@typescript-eslint/no-unsafe-assignment': 'error',
       '@typescript-eslint/no-unsafe-member-access': 'error',
       '@typescript-eslint/no-unsafe-call': 'error',
