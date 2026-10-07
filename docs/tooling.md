@@ -105,6 +105,9 @@ Four things hold knowledge outside git and drift after a merge. Two are automati
 task-observer needs nothing: its workspace lives outside the repo and its session-start protocol offers an overdue review.
 Serena is not part of this loop (not in D-077; no language server configured for this repo).
 
-Once per clone: `pnpm hooks:install` (idempotent; keeps graphify's hooks). The hook never writes Ruflo: Claude Code's
+`pnpm install` runs `pnpm hooks:install` (`prepare`; idempotent; keeps graphify's hooks; skipped in CI). It also installs
+the quality hooks of D-094: **pre-commit** `lint-staged` (Prettier + ESLint, or stylelint, on the staged files),
+**commit-msg** `commitlint`, **pre-push** `nx affected -t typecheck test` against `origin/develop`. Skip one run with
+`--no-verify` (e.g. a mechanical reformat). The hook never writes Ruflo: Claude Code's
 claude-flow MCP server owns `.swarm/memory.db`, and a second writer leaves its copy stale (docs/ruflo.md#windows-notes).
 The hook runs in the background and logs to `$TMPDIR/nexlegtiq-post-merge.log`; `NEXLEGTIQ_SKIP_POST_MERGE=1` disables it.
