@@ -43,6 +43,12 @@ for (const hook of readdirSync(sourceDir)) {
     ? current.replace(pattern, () => `${block}\n`)
     : `${current.trimEnd()}\n\n${block}\n`;
 
+  if (/^\s*exec\s/m.test(current.replace(pattern, ''))) {
+    // A hook that ends in `exec …` replaces the shell: a block appended after it would never run.
+    console.warn(
+      `${hook}: another tool's hook uses exec; check that the ${marker} block still runs (${target})`,
+    );
+  }
   writeFileSync(target, next);
   chmodSync(target, 0o755);
   console.info(`${pattern.test(current) ? 'updated' : 'installed'} ${hook} (${target})`);

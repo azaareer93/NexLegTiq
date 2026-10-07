@@ -13,6 +13,9 @@ const workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..
 const PHYSICAL_STYLE =
   '/^(margin|padding|border)(Left|Right)|^(left|right)$|^border(Top|Bottom)(Left|Right)Radius$/';
 
+const PHYSICAL_MESSAGE =
+  'Use the logical property (marginInlineStart, paddingInlineEnd, insetInlineStart…): RTL layouts mirror (frontend.md).';
+
 const TESTS = [
   '**/*.spec.ts',
   '**/*.spec.tsx',
@@ -48,6 +51,16 @@ export const baseConfig = [
     rules: {
       // Log through the injected PinoLogger (backend) / nothing in production UI code.
       'no-console': 'error',
+      // `_`-prefixed names and the rest siblings of a destructuring (`{ secret: _s, ...rest }`) are deliberately unused.
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrors: 'none',
+          ignoreRestSiblings: true,
+        },
+      ],
       complexity: ['error', 10],
       'max-depth': ['error', 3],
       'max-lines': ['error', { max: 300, skipBlankLines: true, skipComments: true }],
@@ -84,16 +97,6 @@ export const baseConfig = [
         { fixStyle: 'separate-type-imports' },
       ],
       '@typescript-eslint/no-floating-promises': 'error',
-      // `_`-prefixed names and the rest siblings of a destructuring (`{ secret: _s, ...rest }`) are deliberately unused.
-      '@typescript-eslint/no-unused-vars': [
-        'error',
-        {
-          argsIgnorePattern: '^_',
-          varsIgnorePattern: '^_',
-          caughtErrors: 'none',
-          ignoreRestSiblings: true,
-        },
-      ],
       '@typescript-eslint/no-unsafe-assignment': 'error',
       '@typescript-eslint/no-unsafe-member-access': 'error',
       '@typescript-eslint/no-unsafe-call': 'error',
@@ -108,8 +111,16 @@ export const baseConfig = [
         'error',
         {
           selector: `JSXAttribute[name.name='style'] Property > Identifier.key[name=${PHYSICAL_STYLE}]`,
-          message:
-            'Use the logical property (marginInlineStart, paddingInlineEnd, insetInlineStart…): RTL layouts mirror (frontend.md).',
+          message: PHYSICAL_MESSAGE,
+        },
+        {
+          selector: `JSXAttribute[name.name='style'] Property > Literal.key[value=${PHYSICAL_STYLE}]`,
+          message: PHYSICAL_MESSAGE,
+        },
+        {
+          selector:
+            "JSXAttribute[name.name='style'] Property[key.name=/^(textAlign|float|clear)$/] > Literal.value[value=/^(left|right)$/]",
+          message: 'Use start / end (inline-start / inline-end) so RTL mirrors (frontend.md).',
         },
       ],
     },

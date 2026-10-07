@@ -21,7 +21,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint:css": "stylelint \"apps/*/src/**/*.css\" \"packages/*/src/**/*.css\" --allow-empty-input",
-    "prepare": "node scripts/install-git-hooks.mjs"
+    "prepare": "node scripts/install-git-hooks.mjs",
+    "lint:root": "eslint scripts \"*.config.mjs\" eslint.config.mjs --max-warnings=0"
   },
   "devDependencies": {
     "@babel/core": "^7.14.5",

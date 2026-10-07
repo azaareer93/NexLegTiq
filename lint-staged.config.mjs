@@ -5,7 +5,8 @@
 const eslint = 'eslint --flag v10_config_lookup_from_file --fix --max-warnings=0 --no-warn-ignored';
 
 export default {
-  '*.{ts,tsx,js,jsx,mjs,cjs}': ['prettier --write', eslint],
+  // ESLint first: its fixes (import order, type imports) are then laid out by Prettier, as `format:check` expects.
+  '*.{ts,tsx,js,jsx,mjs,cjs}': [eslint, 'prettier --write'],
   '*.css': ['prettier --write', 'stylelint --fix'],
   '*.{json,yml,yaml,html}': 'prettier --write',
 };

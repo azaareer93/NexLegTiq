@@ -1,4 +1,10 @@
 # nexlegtiq-pre-push-start
-# Typecheck and unit-test what this branch changed against develop before it reaches CI. Skip once with `git push --no-verify`.
-pnpm exec nx affected -t typecheck test --base=origin/develop --head=HEAD || exit 1
+# Typecheck and unit-test what this branch changed since it left develop, before it reaches CI. Skipped when develop is
+# unknown here (run `git fetch`); skip once with `git push --no-verify`.
+base=$(git merge-base HEAD origin/develop 2>/dev/null) || base=""
+if [ -n "$base" ]; then
+  pnpm exec nx affected -t typecheck test --base="$base" --head=HEAD || exit 1
+else
+  echo "pre-push: origin/develop not found, checks skipped (run git fetch)" >&2
+fi
 # nexlegtiq-pre-push-end

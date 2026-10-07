@@ -13,58 +13,85 @@ const officeApp = resolve(root, 'apps/office-app');
 
 const linters = new Map<string, ESLint>();
 
-/** Rule ids reported for `code` linted as `file` inside `project` with that project's eslint.config.mjs. */
+/**
+ * Rule ids reported for `code` linted as `file` inside `project` with that project's eslint.config.mjs. A parse error fails
+ * the test: otherwise every "should accept" assertion would pass on code that was never checked.
+ */
 async function ruleIds(project: string, file: string, code: string): Promise<string[]> {
   const eslint = linters.get(project) ?? fixtureLinter(project);
   linters.set(project, eslint);
   const [result] = await eslint.lintText(code, { filePath: resolve(project, file) });
-  return (result?.messages ?? []).map((message) => message.ruleId ?? message.message);
+  const messages = result?.messages ?? [];
+  expect(messages.filter((message) => message.fatal).map((message) => message.message)).toEqual([]);
+  return messages.map((message) => message.ruleId ?? '');
 }
+
+const backendIds = (code: string) => ruleIds(backend, 'src/x.ts', code);
+const DB =
+  'declare const db: { $queryRawUnsafe(q: string): void; $executeRawUnsafe(q: string): void };\n';
+const REDIS =
+  'declare const redis: Record<string, (...args: string[]) => void>;\ndeclare const id: string;\n';
+const PRISMA = 'declare const prisma: Record<string, () => void>;\ndeclare const k: string;\n';
 
 describe('backend lint bans', () => {
   it.each([
-    ['$queryRawUnsafe', 'export const q = (db: any) => db.$queryRawUnsafe("SELECT 1");'],
-    ['$executeRawUnsafe', 'export const q = (db: any) => db.$executeRawUnsafe("DELETE FROM x");'],
+    ['$queryRawUnsafe', 'db.$queryRawUnsafe("SELECT 1");'],
+    ['$executeRawUnsafe', 'db.$executeRawUnsafe("DELETE FROM x");'],
+    ['a computed $queryRawUnsafe', "db['$queryRawUnsafe']('SELECT 1');"],
+    [
+      'a destructured $executeRawUnsafe',
+      'const { $executeRawUnsafe } = db;\n$executeRawUnsafe("x");',
+    ],
   ])(
     'should reject %s',
     async (_case, code) => {
-      expect(await ruleIds(backend, 'src/x.ts', code)).toContain('no-restricted-properties');
+      expect(await backendIds(`${DB}${code}\nexport {};`)).toContain('no-restricted-properties');
     },
     60_000,
   );
 
   it.each([
-    ['a string key', "export const f = (redis: { get(k: string): void }) => redis.get('cases:1');"],
+    ['a string key', "redis.get('cases:1');"],
+    ['a template key', 'redis.set(`o:${id}:x`, "1");'],
+    ['a concatenated key', "redis.del('x:' + id);"],
+    ['a computed command', "redis['get']('cases:1');"],
+    ['the second key of a multi-key command', "redis.del(id, 'cases:2');"],
+    ['a command added for completeness', "redis.setnx('lock', '1');"],
     [
-      'a template key',
-      'export const f = (cache: { set(k: string, v: number): void }, id: string) => cache.set(`o:${id}:x`, 1);',
-    ],
-    [
-      'a concatenated key',
-      "export const f = (this_redis: { del(k: string): void }, id: string) => this_redis.del('x:' + id);",
+      'a cache client',
+      "declare const cache: { set(k: string, v: string): void };\ncache.set('k', 'v');",
     ],
   ])('should reject %s for a Redis/cache client', async (_case, code) => {
-    expect(await ruleIds(backend, 'src/x.ts', code)).toContain('nexlegtiq/no-raw-cache-key');
+    expect(await backendIds(`${REDIS}${code}\nexport {};`)).toContain('nexlegtiq/no-raw-cache-key');
   });
 
   it.each([
     [
       'a key from CacheKeys',
-      'declare const CacheKeys: { tenant(o: string, ...p: string[]): string };\nexport const f = (redis: { get(k: string): void }, o: string) => redis.get(CacheKeys.tenant(o, "cases"));',
+      'declare const CacheKeys: { tenant(o: string, ...p: string[]): string };\nredis.get(CacheKeys.tenant(id, "cases"));',
     ],
-    ['a Map with a string key', "export const f = (map: Map<string, number>) => map.get('a');"],
+    ['a Map with a string key', "const map = new Map<string, number>();\nmap.get('a');"],
   ])('should accept %s', async (_case, code) => {
-    expect(await ruleIds(backend, 'src/x.ts', code)).not.toContain('nexlegtiq/no-raw-cache-key');
+    expect(await backendIds(`${REDIS}${code}\nexport {};`)).not.toContain(
+      'nexlegtiq/no-raw-cache-key',
+    );
   });
 
-  it('should require a reason for prisma.unscoped()', async () => {
-    const call = 'export const f = (prisma: { unscoped(): void }) => {\n  prisma.unscoped();\n};';
-    expect(await ruleIds(backend, 'src/x.ts', call)).toContain('nexlegtiq/unscoped-needs-reason');
-    const justified =
-      'export const f = (prisma: { unscoped(): void }) => {\n  // unscoped: signup creates the office\n  prisma.unscoped();\n};';
-    expect(await ruleIds(backend, 'src/x.ts', justified)).not.toContain(
+  it.each([
+    ['a call', 'prisma.unscoped();'],
+    ['a computed access', "prisma['unscoped']();"],
+    ['a template access', 'prisma[`unscoped`]();'],
+    ['a destructuring', 'const { unscoped } = prisma;\nunscoped();'],
+    ['a run-time property name', 'prisma[k]();'],
+  ])('should require a reason for %s of prisma.unscoped()', async (_case, code) => {
+    expect(await backendIds(`${PRISMA}${code}\nexport {};`)).toContain(
       'nexlegtiq/unscoped-needs-reason',
     );
+  });
+
+  it('should accept prisma.unscoped() with its reason', async () => {
+    const justified = `${PRISMA}// unscoped: signup creates the office\nprisma.unscoped();\nexport {};`;
+    expect(await backendIds(justified)).not.toContain('nexlegtiq/unscoped-needs-reason');
   });
 });
 
@@ -80,8 +107,7 @@ describe('workspace lint rules', () => {
       '  return 0;',
       '}',
     ].join('\n');
-    const ids = await ruleIds(backend, 'src/x.ts', code);
-    expect(ids).toEqual(
+    expect(await backendIds(code)).toEqual(
       expect.arrayContaining([
         '@typescript-eslint/no-explicit-any',
         '@typescript-eslint/no-floating-promises',
@@ -90,12 +116,22 @@ describe('workspace lint rules', () => {
     );
   });
 
-  it('should reject a physical property in an inline style, and accept the logical one', async () => {
-    const physical = 'export const X = () => <div style={{ marginLeft: 8 }} />;';
-    expect(await ruleIds(officeApp, 'src/x.tsx', physical)).toContain('no-restricted-syntax');
-    const logical =
-      'export const X = () => <div style={{ marginInlineStart: 8, insetInlineEnd: 0 }} />;';
-    expect(await ruleIds(officeApp, 'src/x.tsx', logical)).not.toContain('no-restricted-syntax');
+  it.each([
+    ['marginLeft', '{ marginLeft: 8 }'],
+    ['right', '{ right: 0 }'],
+    ['a quoted key', "{ 'paddingRight': 4 }"],
+    ['a corner radius', '{ borderTopLeftRadius: 4 }'],
+    ['textAlign: left', "{ textAlign: 'left' }"],
+    ['float: right', "{ float: 'right' }"],
+  ])('should reject %s in an inline style', async (_case, style) => {
+    const code = `export const X = () => <div style={${style}} />;`;
+    expect(await ruleIds(officeApp, 'src/x.tsx', code)).toContain('no-restricted-syntax');
+  });
+
+  it('should accept logical properties in an inline style', async () => {
+    const code =
+      "export const X = () => <div style={{ marginInlineStart: 8, insetInlineEnd: 0, textAlign: 'start' }} />;";
+    expect(await ruleIds(officeApp, 'src/x.tsx', code)).not.toContain('no-restricted-syntax');
   });
 });
 
@@ -110,17 +146,25 @@ describe('stylelint', () => {
 
   it.each([
     'a { margin-left: 4px; }',
+    'a { margin-right: 4px; }',
     'a { padding-right: 4px; }',
     'a { left: 0; }',
+    'a { right: 0; }',
     'a { border-left: 1px solid; }',
+    'a { border-left-color: red; }',
+    'a { border-top-left-radius: 4px; }',
     'a { text-align: right; }',
+    'a { float: left; }',
+    'a { clear: right; }',
   ])('should reject %s', async (css) => {
     expect(await lint(css)).not.toEqual([]);
   });
 
   it('should accept logical properties', async () => {
     expect(
-      await lint('a { margin-inline-start: 4px; inset-inline-end: 0; text-align: start; }'),
+      await lint(
+        'a { margin-inline-start: 4px; inset-inline-end: 0; text-align: start; float: inline-start; }',
+      ),
     ).toEqual([]);
   });
 });

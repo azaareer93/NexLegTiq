@@ -31,9 +31,9 @@
  *   3. global install (`npm root -g`)/ruflo
  *   4. otherwise installs ruflo@latest into the local cache once
  */
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
-import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { basename, join, relative, resolve, sep } from 'node:path';
 
 const args = process.argv.slice(2);
 const dryRun = args.includes('--dry-run');
@@ -193,6 +193,11 @@ function store(namespace, key, value) {
     exported.push({ key, namespace, value, tags: ['nexlegtiq', 'seed'] });
     return true;
   }
+  return storeWithCli(namespace, key, value);
+}
+
+/** One `ruflo memory store` call; true when it worked. */
+function storeWithCli(namespace, key, value) {
   const r = spawnSync(
     process.execPath,
     [
