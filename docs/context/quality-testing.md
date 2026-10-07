@@ -23,7 +23,8 @@ with `--max-warnings=0`. Fixtures proving the bans: `packages/shared-config/src/
 Prettier: singleQuote, trailingComma all, printWidth 100, semi, endOfLine lf (`pnpm format`, CI `pnpm format:check`; `*.md`
 and `*.sql` are not formatted). Stylelint: logical properties (`pnpm lint:css`, CI).
 Git hooks (installed by `pnpm install`, not husky — D-094): pre-commit `lint-staged`; commit-msg `commitlint` (conventional,
-`Refs: MVP-n`); pre-push `nx affected -t typecheck test`.
+`Refs: MVP-n` required); pre-push `nx affected -t typecheck test` since the merge-base with `origin/develop`. Root scripts and
+configs: `pnpm lint:root` (CI).
 
 ## Quality gates (CI blocks merge)
 - lint 0 errors / 0 warnings, typecheck clean, build passes.

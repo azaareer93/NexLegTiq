@@ -795,5 +795,13 @@ graphify's hooks and our post-merge hook in `.git/hooks`; instead `scripts/git-h
 ESLint with each file's own project config, or stylelint), `commit-msg` (commitlint: conventional, `Refs: MVP-n`, header ≤ 100,
 subject case free so `docs: D-094 …` passes) and `pre-push` (`nx affected -t typecheck test --base=origin/develop`), installed by
 the existing installer, now also run on `pnpm install` (`prepare`; skipped in CI and outside a git clone). CI runs
-`pnpm format:check` and `pnpm lint:css`. Why: the quality gates are enforced by the machine, not by review, without breaking the
-local knowledge hooks.
+`pnpm format:check` and `pnpm lint:css`. Review additions (same PR): **commit messages must carry `Refs: MVP-<n>`**
+(`references-empty`); lint-staged runs ESLint `--fix` before Prettier, so its fixes are formatted; **pre-push** compares with the
+merge-base of `origin/develop` and skips with a note when that ref is unknown (no blocked push before a `git fetch`); root
+`scripts/` and `*.config.mjs` belong to no Nx project and are linted by `pnpm lint:root` in CI; `unscoped-needs-reason` also
+catches ``prisma[`unscoped`]`` and any run-time key on the Prisma service (`prisma[k]`); `no-raw-cache-key` also catches computed
+commands (`redis['get']`), every key of `del`/`unlink`/`exists`/`mget` and more commands; the inline-style ban also covers quoted
+keys and `textAlign`/`float`/`clear: 'left'|'right'`; every fixture asserts the code parsed. The test rules (`no-unsafe-*` off,
+no `max-lines`) apply to `*.spec.*`, `*.test.*`, `*.stories.tsx` and `test/` helper folders. **Known limit:** an inline
+`eslint-disable` can still silence the security rules; reviews grep for it (a lint ban on such comments needs another plugin).
+Why: the quality gates are enforced by the machine, not by review, without breaking the local knowledge hooks.
