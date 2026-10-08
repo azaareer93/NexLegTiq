@@ -80,6 +80,7 @@ CREATE TABLE "file_clients" (
     "client_id" UUID NOT NULL,
     "is_primary" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(3) NOT NULL,
 
     CONSTRAINT "file_clients_pkey" PRIMARY KEY ("id")
 );
@@ -264,10 +265,16 @@ CREATE UNIQUE INDEX "file_parties_file_id_party_id_party_type_key" ON "file_part
 CREATE INDEX "conflicts_of_interest_office_id_resolved_idx" ON "conflicts_of_interest"("office_id", "resolved");
 
 -- CreateIndex
+CREATE INDEX "conflicts_of_interest_office_id_party_id_idx" ON "conflicts_of_interest"("office_id", "party_id");
+
+-- CreateIndex
 CREATE INDEX "conflicts_of_interest_office_id_file_id_a_idx" ON "conflicts_of_interest"("office_id", "file_id_a");
 
 -- CreateIndex
 CREATE INDEX "conflicts_of_interest_office_id_file_id_b_idx" ON "conflicts_of_interest"("office_id", "file_id_b");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "conflicts_of_interest_file_id_a_file_id_b_party_id_key" ON "conflicts_of_interest"("file_id_a", "file_id_b", "party_id");
 
 -- CreateIndex
 CREATE INDEX "case_timeline_events_office_id_file_id_occurred_at_idx" ON "case_timeline_events"("office_id", "file_id", "occurred_at" DESC);
@@ -285,34 +292,34 @@ CREATE INDEX "task_templates_office_id_file_type_idx" ON "task_templates"("offic
 ALTER TABLE "clients" ADD CONSTRAINT "clients_office_id_fkey" FOREIGN KEY ("office_id") REFERENCES "offices"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "clients" ADD CONSTRAINT "clients_primary_lawyer_id_office_id_fkey" FOREIGN KEY ("primary_lawyer_id", "office_id") REFERENCES "users"("id", "office_id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "clients" ADD CONSTRAINT "clients_primary_lawyer_id_office_id_fkey" FOREIGN KEY ("primary_lawyer_id", "office_id") REFERENCES "users"("id", "office_id") ON DELETE RESTRICT ON UPDATE RESTRICT;
 
 -- AddForeignKey
 ALTER TABLE "legal_files" ADD CONSTRAINT "legal_files_office_id_fkey" FOREIGN KEY ("office_id") REFERENCES "offices"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "legal_files" ADD CONSTRAINT "legal_files_responsible_lawyer_id_office_id_fkey" FOREIGN KEY ("responsible_lawyer_id", "office_id") REFERENCES "users"("id", "office_id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "legal_files" ADD CONSTRAINT "legal_files_responsible_lawyer_id_office_id_fkey" FOREIGN KEY ("responsible_lawyer_id", "office_id") REFERENCES "users"("id", "office_id") ON DELETE RESTRICT ON UPDATE RESTRICT;
 
 -- AddForeignKey
-ALTER TABLE "legal_files" ADD CONSTRAINT "legal_files_responsible_paralegal_id_office_id_fkey" FOREIGN KEY ("responsible_paralegal_id", "office_id") REFERENCES "users"("id", "office_id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "legal_files" ADD CONSTRAINT "legal_files_responsible_paralegal_id_office_id_fkey" FOREIGN KEY ("responsible_paralegal_id", "office_id") REFERENCES "users"("id", "office_id") ON DELETE RESTRICT ON UPDATE RESTRICT;
 
 -- AddForeignKey
 ALTER TABLE "file_clients" ADD CONSTRAINT "file_clients_office_id_fkey" FOREIGN KEY ("office_id") REFERENCES "offices"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "file_clients" ADD CONSTRAINT "file_clients_file_id_office_id_fkey" FOREIGN KEY ("file_id", "office_id") REFERENCES "legal_files"("id", "office_id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "file_clients" ADD CONSTRAINT "file_clients_file_id_office_id_fkey" FOREIGN KEY ("file_id", "office_id") REFERENCES "legal_files"("id", "office_id") ON DELETE CASCADE ON UPDATE RESTRICT;
 
 -- AddForeignKey
-ALTER TABLE "file_clients" ADD CONSTRAINT "file_clients_client_id_office_id_fkey" FOREIGN KEY ("client_id", "office_id") REFERENCES "clients"("id", "office_id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "file_clients" ADD CONSTRAINT "file_clients_client_id_office_id_fkey" FOREIGN KEY ("client_id", "office_id") REFERENCES "clients"("id", "office_id") ON DELETE RESTRICT ON UPDATE RESTRICT;
 
 -- AddForeignKey
 ALTER TABLE "file_team_members" ADD CONSTRAINT "file_team_members_office_id_fkey" FOREIGN KEY ("office_id") REFERENCES "offices"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "file_team_members" ADD CONSTRAINT "file_team_members_file_id_office_id_fkey" FOREIGN KEY ("file_id", "office_id") REFERENCES "legal_files"("id", "office_id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "file_team_members" ADD CONSTRAINT "file_team_members_file_id_office_id_fkey" FOREIGN KEY ("file_id", "office_id") REFERENCES "legal_files"("id", "office_id") ON DELETE CASCADE ON UPDATE RESTRICT;
 
 -- AddForeignKey
-ALTER TABLE "file_team_members" ADD CONSTRAINT "file_team_members_user_id_office_id_fkey" FOREIGN KEY ("user_id", "office_id") REFERENCES "users"("id", "office_id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "file_team_members" ADD CONSTRAINT "file_team_members_user_id_office_id_fkey" FOREIGN KEY ("user_id", "office_id") REFERENCES "users"("id", "office_id") ON DELETE RESTRICT ON UPDATE RESTRICT;
 
 -- AddForeignKey
 ALTER TABLE "file_number_sequences" ADD CONSTRAINT "file_number_sequences_office_id_fkey" FOREIGN KEY ("office_id") REFERENCES "offices"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -324,46 +331,46 @@ ALTER TABLE "parties" ADD CONSTRAINT "parties_office_id_fkey" FOREIGN KEY ("offi
 ALTER TABLE "file_parties" ADD CONSTRAINT "file_parties_office_id_fkey" FOREIGN KEY ("office_id") REFERENCES "offices"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "file_parties" ADD CONSTRAINT "file_parties_file_id_office_id_fkey" FOREIGN KEY ("file_id", "office_id") REFERENCES "legal_files"("id", "office_id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "file_parties" ADD CONSTRAINT "file_parties_file_id_office_id_fkey" FOREIGN KEY ("file_id", "office_id") REFERENCES "legal_files"("id", "office_id") ON DELETE CASCADE ON UPDATE RESTRICT;
 
 -- AddForeignKey
-ALTER TABLE "file_parties" ADD CONSTRAINT "file_parties_party_id_office_id_fkey" FOREIGN KEY ("party_id", "office_id") REFERENCES "parties"("id", "office_id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "file_parties" ADD CONSTRAINT "file_parties_party_id_office_id_fkey" FOREIGN KEY ("party_id", "office_id") REFERENCES "parties"("id", "office_id") ON DELETE RESTRICT ON UPDATE RESTRICT;
 
 -- AddForeignKey
 ALTER TABLE "conflicts_of_interest" ADD CONSTRAINT "conflicts_of_interest_office_id_fkey" FOREIGN KEY ("office_id") REFERENCES "offices"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "conflicts_of_interest" ADD CONSTRAINT "conflicts_of_interest_file_id_a_office_id_fkey" FOREIGN KEY ("file_id_a", "office_id") REFERENCES "legal_files"("id", "office_id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "conflicts_of_interest" ADD CONSTRAINT "conflicts_of_interest_file_id_a_office_id_fkey" FOREIGN KEY ("file_id_a", "office_id") REFERENCES "legal_files"("id", "office_id") ON DELETE CASCADE ON UPDATE RESTRICT;
 
 -- AddForeignKey
-ALTER TABLE "conflicts_of_interest" ADD CONSTRAINT "conflicts_of_interest_file_id_b_office_id_fkey" FOREIGN KEY ("file_id_b", "office_id") REFERENCES "legal_files"("id", "office_id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "conflicts_of_interest" ADD CONSTRAINT "conflicts_of_interest_file_id_b_office_id_fkey" FOREIGN KEY ("file_id_b", "office_id") REFERENCES "legal_files"("id", "office_id") ON DELETE CASCADE ON UPDATE RESTRICT;
 
 -- AddForeignKey
-ALTER TABLE "conflicts_of_interest" ADD CONSTRAINT "conflicts_of_interest_party_id_office_id_fkey" FOREIGN KEY ("party_id", "office_id") REFERENCES "parties"("id", "office_id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "conflicts_of_interest" ADD CONSTRAINT "conflicts_of_interest_party_id_office_id_fkey" FOREIGN KEY ("party_id", "office_id") REFERENCES "parties"("id", "office_id") ON DELETE RESTRICT ON UPDATE RESTRICT;
 
 -- AddForeignKey
-ALTER TABLE "conflicts_of_interest" ADD CONSTRAINT "conflicts_of_interest_resolved_by_id_office_id_fkey" FOREIGN KEY ("resolved_by_id", "office_id") REFERENCES "users"("id", "office_id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "conflicts_of_interest" ADD CONSTRAINT "conflicts_of_interest_resolved_by_id_office_id_fkey" FOREIGN KEY ("resolved_by_id", "office_id") REFERENCES "users"("id", "office_id") ON DELETE RESTRICT ON UPDATE RESTRICT;
 
 -- AddForeignKey
 ALTER TABLE "case_timeline_events" ADD CONSTRAINT "case_timeline_events_office_id_fkey" FOREIGN KEY ("office_id") REFERENCES "offices"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "case_timeline_events" ADD CONSTRAINT "case_timeline_events_file_id_office_id_fkey" FOREIGN KEY ("file_id", "office_id") REFERENCES "legal_files"("id", "office_id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "case_timeline_events" ADD CONSTRAINT "case_timeline_events_file_id_office_id_fkey" FOREIGN KEY ("file_id", "office_id") REFERENCES "legal_files"("id", "office_id") ON DELETE CASCADE ON UPDATE RESTRICT;
 
 -- AddForeignKey
-ALTER TABLE "case_timeline_events" ADD CONSTRAINT "case_timeline_events_actor_id_office_id_fkey" FOREIGN KEY ("actor_id", "office_id") REFERENCES "users"("id", "office_id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "case_timeline_events" ADD CONSTRAINT "case_timeline_events_actor_id_office_id_fkey" FOREIGN KEY ("actor_id", "office_id") REFERENCES "users"("id", "office_id") ON DELETE RESTRICT ON UPDATE RESTRICT;
 
 -- AddForeignKey
 ALTER TABLE "file_notes" ADD CONSTRAINT "file_notes_office_id_fkey" FOREIGN KEY ("office_id") REFERENCES "offices"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "file_notes" ADD CONSTRAINT "file_notes_file_id_office_id_fkey" FOREIGN KEY ("file_id", "office_id") REFERENCES "legal_files"("id", "office_id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "file_notes" ADD CONSTRAINT "file_notes_file_id_office_id_fkey" FOREIGN KEY ("file_id", "office_id") REFERENCES "legal_files"("id", "office_id") ON DELETE RESTRICT ON UPDATE RESTRICT;
 
 -- AddForeignKey
-ALTER TABLE "file_notes" ADD CONSTRAINT "file_notes_client_id_office_id_fkey" FOREIGN KEY ("client_id", "office_id") REFERENCES "clients"("id", "office_id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "file_notes" ADD CONSTRAINT "file_notes_client_id_office_id_fkey" FOREIGN KEY ("client_id", "office_id") REFERENCES "clients"("id", "office_id") ON DELETE RESTRICT ON UPDATE RESTRICT;
 
 -- AddForeignKey
-ALTER TABLE "file_notes" ADD CONSTRAINT "file_notes_author_id_office_id_fkey" FOREIGN KEY ("author_id", "office_id") REFERENCES "users"("id", "office_id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "file_notes" ADD CONSTRAINT "file_notes_author_id_office_id_fkey" FOREIGN KEY ("author_id", "office_id") REFERENCES "users"("id", "office_id") ON DELETE RESTRICT ON UPDATE RESTRICT;
 
 -- AddForeignKey
 ALTER TABLE "task_templates" ADD CONSTRAINT "task_templates_office_id_fkey" FOREIGN KEY ("office_id") REFERENCES "offices"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -377,9 +384,20 @@ ALTER TABLE "file_number_sequences" ADD CONSTRAINT "file_number_sequences_last_v
 ALTER TABLE "parties" ADD CONSTRAINT "parties_name_check" CHECK (CASE WHEN "is_individual" THEN "full_name" IS NOT NULL ELSE "company_name" IS NOT NULL END);
 ALTER TABLE "conflicts_of_interest" ADD CONSTRAINT "conflicts_of_interest_two_files_check" CHECK ("file_id_a" <> "file_id_b");
 ALTER TABLE "file_notes" ADD CONSTRAINT "file_notes_subject_check" CHECK ("file_id" IS NOT NULL OR "client_id" IS NOT NULL);
+ALTER TABLE "task_templates" ADD CONSTRAINT "task_templates_due_days_check" CHECK ("due_days_after_open" IS NULL OR "due_days_after_open" >= 0);
 
--- One primary client per file (D-033).
+-- D-056: fields encrypted by the app hold only ciphertext with its key-version prefix (`v1:…`, ops-security.md), so
+-- plaintext can never be written by mistake — nor read through the read-only role.
+ALTER TABLE "clients" ADD CONSTRAINT "clients_national_id_encrypted_check" CHECK ("national_id" ~ '^v[0-9]+:');
+ALTER TABLE "clients" ADD CONSTRAINT "clients_individual_tax_id_encrypted_check" CHECK ("client_type" <> 'INDIVIDUAL' OR "tax_id" ~ '^v[0-9]+:');
+ALTER TABLE "parties" ADD CONSTRAINT "parties_national_id_encrypted_check" CHECK ("national_id" ~ '^v[0-9]+:');
+ALTER TABLE "parties" ADD CONSTRAINT "parties_individual_tax_id_encrypted_check" CHECK (NOT "is_individual" OR "tax_id" ~ '^v[0-9]+:');
+ALTER TABLE "parties" ADD CONSTRAINT "parties_notes_encrypted_check" CHECK ("notes" ~ '^v[0-9]+:');
+ALTER TABLE "file_notes" ADD CONSTRAINT "file_notes_confidential_encrypted_check" CHECK (NOT "is_confidential" OR "body" ~ '^v[0-9]+:');
+
+-- One primary client and one responsible lawyer per file (D-033).
 CREATE UNIQUE INDEX "file_clients_one_primary_per_file" ON "file_clients" ("file_id") WHERE "is_primary";
+CREATE UNIQUE INDEX "file_team_members_one_responsible_per_file" ON "file_team_members" ("file_id") WHERE "role" = 'RESPONSIBLE_LAWYER';
 
 -- Case list (MVP-57): newest activity first, without visiting the table for the list columns.
 CREATE INDEX "legal_files_list_idx" ON "legal_files" ("office_id", "updated_at" DESC)
@@ -388,3 +406,13 @@ CREATE INDEX "legal_files_list_idx" ON "legal_files" ("office_id", "updated_at" 
 -- "My open files" (dashboard, assigned scope): open, not deleted, per responsible lawyer.
 CREATE INDEX "legal_files_open_by_lawyer_idx" ON "legal_files" ("office_id", "responsible_lawyer_id", "opening_date" DESC)
   WHERE "status" = 'OPEN' AND "deleted_at" IS NULL;
+
+-- A file's history is append-only for the app role, like audit_logs (D-079). DELETE stays: a purged file takes its
+-- events with it. No-op where the role does not exist (local, CI).
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'nexlegtiq_app') THEN
+    REVOKE UPDATE, TRUNCATE ON "case_timeline_events" FROM nexlegtiq_app;
+  END IF;
+END
+$$;

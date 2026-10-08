@@ -27,8 +27,12 @@ export interface FileNumberFormat {
 }
 
 const TOKEN = /\{([^{}]*)\}/g;
-/** Literal text: letters, digits and the usual separators — a file number is shown in `<Ltr>` and typed in searches. */
-const LITERAL = /^[\p{L}\p{N} ._/#-]*$/u;
+/**
+ * Literal text: letters, Western digits and the usual separators — a file number is shown in `<Ltr>` and typed in
+ * searches, which do not fold Arabic-Indic digits (D-092).
+ */
+const LITERAL = /^[\p{L}0-9 ._/#-]*$/u;
+const MAX_FORMAT_LENGTH = 64;
 
 /**
  * Parses a format such as `{YEAR}-{TYPE}-{SEQ:5}` (D-031): `{YEAR}` the four-digit year, `{TYPE}` the type code,
@@ -36,6 +40,9 @@ const LITERAL = /^[\p{L}\p{N} ._/#-]*$/u;
  * stray brace is refused. The settings API (MVP-48) validates with this before saving.
  */
 export function parseFileNumberFormat(format: string): FileNumberFormat {
+  if (format.length > MAX_FORMAT_LENGTH) {
+    throw new RangeError(`Invalid file number format: longer than ${MAX_FORMAT_LENGTH} characters`);
+  }
   const parts: Part[] = [];
   let last = 0;
   for (const match of format.matchAll(TOKEN)) {

@@ -67,6 +67,10 @@ BEGIN
   IF to_regclass('public.audit_logs') IS NOT NULL THEN
     REVOKE UPDATE, DELETE, TRUNCATE ON public.audit_logs FROM nexlegtiq_app;
   END IF;
+  -- A file's timeline is append-only too (D-095); DELETE stays so a purged file takes its events with it.
+  IF to_regclass('public.case_timeline_events') IS NOT NULL THEN
+    REVOKE UPDATE, TRUNCATE ON public.case_timeline_events FROM nexlegtiq_app;
+  END IF;
   IF to_regclass('public._prisma_migrations') IS NOT NULL THEN
     REVOKE ALL ON public._prisma_migrations FROM nexlegtiq_app, nexlegtiq_readonly;
   END IF;

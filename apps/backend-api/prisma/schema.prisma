@@ -496,7 +496,8 @@ model Subscription {
 
 // ─── Clients, legal files & parties (MVP-56, D-095) ─────────────────────────────────────────────────────────────
 // References between tenant rows are composite (…_id, office_id) FKs, so no row can point into another office (D-079).
-// Optional composite relations are Restrict: SetNull would also null office_id.
+// Composite relations are Restrict on update (ids and office_id never change; a cascade would carry rows into another
+// office) and, when optional, on delete (SetNull would also null office_id).
 
 /// Created here because FileClient needs it; contact persons and the API come with MVP-53.
 model Client {
@@ -506,8 +507,9 @@ model Client {
   displayName     String     @map("display_name")
   fullName        String?    @map("full_name")
   companyName     String?    @map("company_name")
-  /// AES-256-GCM ciphertext (D-056), never the raw number.
+  /// AES-256-GCM ciphertext `v<key>:…` (D-056, CHECK), never the raw number.
   nationalId      String?    @map("national_id")
+  /// Ciphertext for an INDIVIDUAL client (D-056: tax ids of individuals; CHECK).
   taxId           String?    @map("tax_id")
   phone           String?
   email           String?    @db.Citext
@@ -520,7 +522,7 @@ model Client {
   updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   office        Office       @relation(fields: [officeId], references: [id])
-  primaryLawyer User?        @relation("ClientPrimaryLawyer", fields: [primaryLawyerId, officeId], references: [id, officeId], onDelete: Restrict)
+  primaryLawyer User?        @relation("ClientPrimaryLawyer", fields: [primaryLawyerId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
   files         FileClient[]
   notes         FileNote[]
 
@@ -559,8 +561,8 @@ model LegalFile {
   updatedAt              DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   office               Office               @relation(fields: [officeId], references: [id])
-  responsibleLawyer    User                 @relation("FileResponsibleLawyer", fields: [responsibleLawyerId, officeId], references: [id, officeId])
-  responsibleParalegal User?                @relation("FileResponsibleParalegal", fields: [responsibleParalegalId, officeId], references: [id, officeId], onDelete: Restrict)
+  responsibleLawyer    User                 @relation("FileResponsibleLawyer", fields: [responsibleLawyerId, officeId], references: [id, officeId], onUpdate: Restrict)
+  responsibleParalegal User?                @relation("FileResponsibleParalegal", fields: [responsibleParalegalId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
   clients              FileClient[]
   teamMembers          FileTeamMember[]
   parties              FileParty[]
@@ -585,10 +587,11 @@ model FileClient {
   /// At most one per file: partial unique index in the migration.
   isPrimary Boolean  @default(false) @map("is_primary")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   office Office    @relation(fields: [officeId], references: [id])
-  file   LegalFile @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade)
-  client Client    @relation(fields: [clientId, officeId], references: [id, officeId])
+  file   LegalFile @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  client Client    @relation(fields: [clientId, officeId], references: [id, officeId], onUpdate: Restrict)
 
   @@unique([fileId, clientId])
   @@index([officeId, clientId])
@@ -605,8 +608,8 @@ model FileTeamMember {
   updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   office Office    @relation(fields: [officeId], references: [id])
-  file   LegalFile @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade)
-  user   User      @relation(fields: [userId, officeId], references: [id, officeId])
+  file   LegalFile @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  user   User      @relation(fields: [userId, officeId], references: [id, officeId], onUpdate: Restrict)
 
   @@unique([fileId, userId])
   @@index([officeId, userId])
@@ -638,14 +641,15 @@ model Party {
   isIndividual        Boolean  @map("is_individual")
   fullName            String?  @map("full_name")
   companyName         String?  @map("company_name")
-  /// AES-256-GCM ciphertext (D-056).
+  /// AES-256-GCM ciphertext `v<key>:…` (D-056, CHECK).
   nationalId          String?  @map("national_id")
+  /// Ciphertext when isIndividual (D-056: tax ids of individuals; CHECK).
   taxId               String?  @map("tax_id")
   address             String?
   phone               String?
   email               String?  @db.Citext
   legalRepresentative String?  @map("legal_representative")
-  /// AES-256-GCM ciphertext (D-056).
+  /// AES-256-GCM ciphertext `v<key>:…` (D-056, CHECK).
   notes               String?
   createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -673,8 +677,8 @@ model FileParty {
   updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   office Office    @relation(fields: [officeId], references: [id])
-  file   LegalFile @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade)
-  party  Party     @relation(fields: [partyId, officeId], references: [id, officeId])
+  file   LegalFile @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  party  Party     @relation(fields: [partyId, officeId], references: [id, officeId], onUpdate: Restrict)
 
   @@unique([fileId, partyId, partyType])
   // Conflict check: every file a party appears on.
@@ -699,12 +703,15 @@ model ConflictOfInterest {
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   office     Office    @relation(fields: [officeId], references: [id])
-  fileA      LegalFile @relation("ConflictFileA", fields: [fileIdA, officeId], references: [id, officeId], onDelete: Cascade)
-  fileB      LegalFile @relation("ConflictFileB", fields: [fileIdB, officeId], references: [id, officeId], onDelete: Cascade)
-  party      Party     @relation(fields: [partyId, officeId], references: [id, officeId])
-  resolvedBy User?     @relation(fields: [resolvedById, officeId], references: [id, officeId], onDelete: Restrict)
+  fileA      LegalFile @relation("ConflictFileA", fields: [fileIdA, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  fileB      LegalFile @relation("ConflictFileB", fields: [fileIdB, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  party      Party     @relation(fields: [partyId, officeId], references: [id, officeId], onUpdate: Restrict)
+  resolvedBy User?     @relation(fields: [resolvedById, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
 
+  /// Detection upserts on it, so re-running a check adds no duplicates.
+  @@unique([fileIdA, fileIdB, partyId])
   @@index([officeId, resolved])
+  @@index([officeId, partyId])
   @@index([officeId, fileIdA])
   @@index([officeId, fileIdB])
   @@map("conflicts_of_interest")
@@ -725,8 +732,8 @@ model CaseTimelineEvent {
   payload    Json              @default("{}")
 
   office Office    @relation(fields: [officeId], references: [id])
-  file   LegalFile @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade)
-  actor  User?     @relation(fields: [actorId, officeId], references: [id, officeId], onDelete: Restrict)
+  file   LegalFile @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  actor  User?     @relation(fields: [actorId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([officeId, fileId, occurredAt(sort: Desc)])
   @@map("case_timeline_events")
@@ -739,7 +746,7 @@ model FileNote {
   fileId         String?  @map("file_id") @db.Uuid
   clientId       String?  @map("client_id") @db.Uuid
   authorId       String   @map("author_id") @db.Uuid
-  /// AES-256-GCM ciphertext when isConfidential (D-056).
+  /// AES-256-GCM ciphertext `v<key>:…` when isConfidential (D-056, CHECK).
   body           String
   isConfidential Boolean  @default(false) @map("is_confidential")
   pinned         Boolean  @default(false)
@@ -747,9 +754,9 @@ model FileNote {
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   office Office     @relation(fields: [officeId], references: [id])
-  file   LegalFile? @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Restrict)
-  client Client?    @relation(fields: [clientId, officeId], references: [id, officeId], onDelete: Restrict)
-  author User       @relation(fields: [authorId, officeId], references: [id, officeId])
+  file   LegalFile? @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
+  client Client?    @relation(fields: [clientId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
+  author User       @relation(fields: [authorId, officeId], references: [id, officeId], onUpdate: Restrict)
 
   @@index([officeId, fileId, createdAt(sort: Desc)])
   @@index([officeId, clientId, createdAt(sort: Desc)])
