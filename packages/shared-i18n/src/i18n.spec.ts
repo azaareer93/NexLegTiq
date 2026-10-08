@@ -18,6 +18,11 @@ const ENUM_LABELS = {
   OFFICE_LANGUAGES: 'officeLanguage',
   ROLES: 'role',
   PRIORITIES: 'priority',
+  FILE_TYPES: 'fileType',
+  FILE_STATUSES: 'fileStatus',
+  CLIENT_TYPES: 'clientType',
+  FILE_TEAM_ROLES: 'fileTeamRole',
+  PARTY_TYPES: 'partyType',
 } as const;
 /** Value lists translated elsewhere (`errors.*`, `common.language.*`), or not shown to users yet (permissions, D-087). */
 const LABELLED_ELSEWHERE = ['ERROR_CODES', 'SUPPORTED_LOCALES', 'PERMISSIONS'];

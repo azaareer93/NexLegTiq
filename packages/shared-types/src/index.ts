@@ -15,6 +15,14 @@ export { isLocale, SUPPORTED_LOCALES } from './locale.js';
 export { ACCOUNT_TYPES, JURISDICTIONS, OFFICE_LANGUAGES } from './office.js';
 export type { AccountType, Jurisdiction, OfficeLanguage } from './office.js';
 export type { Locale } from './locale.js';
+export {
+  CLIENT_TYPES,
+  FILE_STATUSES,
+  FILE_TEAM_ROLES,
+  FILE_TYPES,
+  PARTY_TYPES,
+} from './legal-file.js';
+export type { ClientType, FileStatus, FileTeamRole, FileType, PartyType } from './legal-file.js';
 export { PRIORITIES } from './priority.js';
 export type { Priority } from './priority.js';
 export {

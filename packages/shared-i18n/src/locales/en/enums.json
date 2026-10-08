@@ -40,5 +40,48 @@
     "MEDIUM": "Medium",
     "HIGH": "High",
     "URGENT": "Urgent"
+  },
+  "fileType": {
+    "LITIGATION": "Litigation",
+    "CRIMINAL": "Criminal",
+    "CONTRACT_DRAFTING": "Contract drafting",
+    "LEGAL_ADVISORY": "Legal advisory",
+    "COMPLIANCE": "Compliance",
+    "CONFLICT_RESOLUTION": "Dispute resolution",
+    "BUSINESS_SUPPORT": "Business support",
+    "NDA_REVIEW": "NDA review",
+    "WILL_TRUST": "Wills and endowments",
+    "COMPANY_FORMATION": "Company formation",
+    "RENTAL_AGREEMENT": "Rental agreement",
+    "EMPLOYMENT_CONTRACT": "Employment contract"
+  },
+  "fileStatus": {
+    "OPEN": "Open",
+    "SUSPENDED": "Suspended",
+    "CLOSED": "Closed",
+    "ARCHIVED": "Archived"
+  },
+  "clientType": {
+    "INDIVIDUAL": "Individual",
+    "CORPORATION": "Company",
+    "GOVERNMENT": "Government body",
+    "NGO": "Non-governmental organization",
+    "PARTNERSHIP": "Partnership"
+  },
+  "fileTeamRole": {
+    "RESPONSIBLE_LAWYER": "Responsible lawyer",
+    "PARALEGAL": "Paralegal",
+    "MEMBER": "Team member"
+  },
+  "partyType": {
+    "PLAINTIFF": "Plaintiff",
+    "DEFENDANT": "Defendant",
+    "APPELLANT": "Appellant",
+    "RESPONDENT": "Respondent",
+    "THIRD_PARTY": "Third party",
+    "GUARANTOR": "Guarantor",
+    "SIGNATORY": "Signatory",
+    "INTERESTED_PARTY": "Interested party",
+    "PROSECUTION": "Prosecution"
   }
 }

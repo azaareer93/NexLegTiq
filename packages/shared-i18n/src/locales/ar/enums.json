@@ -40,5 +40,48 @@
     "MEDIUM": "متوسطة",
     "HIGH": "مرتفعة",
     "URGENT": "عاجلة"
+  },
+  "fileType": {
+    "LITIGATION": "تقاضٍ",
+    "CRIMINAL": "جزائي",
+    "CONTRACT_DRAFTING": "صياغة العقود",
+    "LEGAL_ADVISORY": "استشارة قانونية",
+    "COMPLIANCE": "الامتثال",
+    "CONFLICT_RESOLUTION": "تسوية النزاعات",
+    "BUSINESS_SUPPORT": "دعم الأعمال",
+    "NDA_REVIEW": "مراجعة اتفاقية عدم الإفصاح",
+    "WILL_TRUST": "الوصايا والوقف",
+    "COMPANY_FORMATION": "تأسيس الشركات",
+    "RENTAL_AGREEMENT": "عقد إيجار",
+    "EMPLOYMENT_CONTRACT": "عقد عمل"
+  },
+  "fileStatus": {
+    "OPEN": "مفتوح",
+    "SUSPENDED": "موقوف",
+    "CLOSED": "مغلق",
+    "ARCHIVED": "مؤرشف"
+  },
+  "clientType": {
+    "INDIVIDUAL": "فرد",
+    "CORPORATION": "شركة",
+    "GOVERNMENT": "جهة حكومية",
+    "NGO": "منظمة غير حكومية",
+    "PARTNERSHIP": "شراكة"
+  },
+  "fileTeamRole": {
+    "RESPONSIBLE_LAWYER": "المحامي المسؤول",
+    "PARALEGAL": "مساعد قانوني",
+    "MEMBER": "عضو الفريق"
+  },
+  "partyType": {
+    "PLAINTIFF": "المدعي",
+    "DEFENDANT": "المدعى عليه",
+    "APPELLANT": "المستأنف",
+    "RESPONDENT": "المستأنف ضده",
+    "THIRD_PARTY": "طرف ثالث",
+    "GUARANTOR": "الكفيل",
+    "SIGNATORY": "الموقّع",
+    "INTERESTED_PARTY": "صاحب مصلحة",
+    "PROSECUTION": "النيابة العامة"
   }
 }
