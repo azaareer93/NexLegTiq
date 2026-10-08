@@ -836,3 +836,22 @@ the field encryption itself (D-056) arrives with the first story that writes the
 `FILE_STATUSES`, `CLIENT_TYPES`, `FILE_TEAM_ROLES`, `PARTY_TYPES` with AR/EN labels (`CONFLICT_RESOLUTION` reads "Dispute
 resolution" / تسوية النزاعات, to keep it apart from conflict of interest). Why: the core tables land once with their
 integrity in the database, without inventing court or client APIs ahead of their stories.
+Review additions (same PR): the service is `next(tx, fileType, year)` — the office comes from CLS, never a parameter;
+`year` is the opening date's year in the office's time zone (D-092) and must have four digits. **A number a file already
+has is skipped** (a format change that renders an existing number, a soft-deleted file), so one clash can never block
+numbering; existing numbers are never rewritten when the format changes. Formats are at most 64 characters and literal
+digits are Western only (search does not fold Arabic-Indic, D-092). A missing OfficeSettings row is a plain error (500, not
+the 404 P2025 would map to). **Composite FKs are `ON UPDATE RESTRICT`**: with Prisma's default cascade, re-keying a user's
+`office_id` through the raw client carried their files, notes and timeline into the other office (reproduced in review);
+the init migration's older composite user FKs still cascade — a later migration should align them. **Encrypted columns are
+enforced by CHECK** to hold the key-version prefixed ciphertext (`v<n>:…`, ops-security.md) — client and party national
+ids, party notes, the tax id of an individual client or party (D-056 covers tax ids of individuals) and confidential note
+bodies — so plaintext can never be written before the field cipher exists, nor read through the read-only role. One
+responsible lawyer per file (partial unique index; MVP-57/61 keep `responsibleLawyerId` in sync with it), one conflict row
+per (file A, file B, party) so detection can upsert, conflicts indexed by party, `due_days_after_open >= 0`,
+`FileClient.updatedAt`. `case_timeline_events` loses UPDATE for the app role (migration and `db-roles.sql`, like the
+audit log; DELETE stays for purges). Left to their stories: who created a file is the `FILE_OPENED` event's actor (no
+`createdById`); FTS on file title/number (MVP-57) and trigram indexes for party and client names (MVP-62, MVP-53); `Party`,
+`FileNote` and `TaskTemplate` have no soft delete (`TaskTemplate.isActive` retires a template); `fileNumber` is never taken
+from client input. Labels: `CRIMINAL` is "قضية جزائية" (a noun, not the bare adjective), `SUSPENDED` "معلّق" (موقوف also
+reads "detained"), `WILL_TRUST` "وصايا وأوقاف".

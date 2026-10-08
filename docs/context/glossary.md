@@ -44,7 +44,7 @@ Use these exact Arabic terms in i18n files and AI prompts. Add new terms here fi
 | Timeline | السجل الزمني | `CaseTimelineEvent` |
 | Client portal | بوابة الموكلين | `client-portal` |
 | Litigation | تقاضٍ | `LITIGATION` |
-| Criminal (matter) | جزائي | `CRIMINAL` |
+| Criminal matter | قضية جزائية | `CRIMINAL` |
 | Third party | طرف ثالث | `THIRD_PARTY` |
 | Guarantor | الكفيل | `GUARANTOR` |
 | Responsible lawyer | المحامي المسؤول | `RESPONSIBLE_LAWYER` |

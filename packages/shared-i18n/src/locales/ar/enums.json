@@ -43,21 +43,21 @@
   },
   "fileType": {
     "LITIGATION": "تقاضٍ",
-    "CRIMINAL": "جزائي",
+    "CRIMINAL": "قضية جزائية",
     "CONTRACT_DRAFTING": "صياغة العقود",
     "LEGAL_ADVISORY": "استشارة قانونية",
-    "COMPLIANCE": "الامتثال",
+    "COMPLIANCE": "امتثال",
     "CONFLICT_RESOLUTION": "تسوية النزاعات",
     "BUSINESS_SUPPORT": "دعم الأعمال",
     "NDA_REVIEW": "مراجعة اتفاقية عدم الإفصاح",
-    "WILL_TRUST": "الوصايا والوقف",
+    "WILL_TRUST": "وصايا وأوقاف",
     "COMPANY_FORMATION": "تأسيس الشركات",
     "RENTAL_AGREEMENT": "عقد إيجار",
     "EMPLOYMENT_CONTRACT": "عقد عمل"
   },
   "fileStatus": {
     "OPEN": "مفتوح",
-    "SUSPENDED": "موقوف",
+    "SUSPENDED": "معلّق",
     "CLOSED": "مغلق",
     "ARCHIVED": "مؤرشف"
   },
