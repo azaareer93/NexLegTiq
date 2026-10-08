@@ -805,3 +805,53 @@ keys and `textAlign`/`float`/`clear: 'left'|'right'`; every fixture asserts the 
 no `max-lines`) apply to `*.spec.*`, `*.test.*`, `*.stories.tsx` and `test/` helper folders. **Known limit:** an inline
 `eslint-disable` can still silence the security rules; reviews grep for it (a lint ban on such comments needs another plugin).
 Why: the quality gates are enforced by the machine, not by review, without breaking the local knowledge hooks.
+
+**D-095 — Legal-file schema and file numbering** · Accepted (owner chose the four calls below; MVP-56, 2026-10-08)
+MVP-56 lists ten models, but FileClient needs Client (MVP-53), LegalFile's court and judge need Court/Judge (MVP-66), and D-031
+(one counter per office + year) and domain-model.md (per office + year + type) disagree. → **Client is created here** (all
+domain-model columns, soft delete, `(office_id, display_name)` index); ContactPerson, search indexes and the API stay in MVP-53.
+**`courtId`/`judgeId` are added by MVP-66** with their tables (nullable columns + composite FKs, nothing to backfill); the
+Phase 2 `embedding vector(1536)` waits for the similar-cases story. **Numbering (amends D-031):** the counter follows the
+office's format — per office + year + type code when it shows `{TYPE}`, one shared counter when it does not (`type_code` '',
+and `year` 0 without `{YEAR}`), so a rendered number can never repeat. `FileNumberService.next(tx, fileType, year)` runs in
+the file's create transaction: `createMany … skipDuplicates` (ON CONFLICT DO NOTHING) makes the counter row once, then an
+`UPDATE … last_value + 1` takes its row lock until commit (the ticket's `SELECT … FOR UPDATE` cannot lock a row that does not
+exist yet, so two first creates would race) — concurrent creates queue, a rollback gives the number back, numbers are
+gap-free; 50 parallel creates are tested. A number is never reused, also after a soft delete. Formats: `{YEAR}`, `{TYPE}`,
+`{SEQ}`/`{SEQ:n}` (n 1–9, zero-padded, grows past its width), exactly one `{SEQ}`, literal text limited to letters, digits,
+space and `. _ / # -` (no bidi controls or markup — numbers are shown in `<Ltr>`); `parseFileNumberFormat` is what the
+settings API (MVP-48) validates with. Type codes in `file-number.ts` (LIT, CRM, CON, ADV, CMP, CRS, BUS, NDA, WIL, INC, RNT,
+EMP). **Schema details:** every reference between tenant rows is a composite `(…_id, office_id)` FK (D-079), so a file can
+never name another office's client, party or user; optional ones are `RESTRICT` (SetNull would also null `office_id`). Join and
+history rows (FileClient, FileTeamMember, FileParty, ConflictOfInterest, CaseTimelineEvent) cascade with a hard-deleted file
+(files are soft-deleted; the cascade only serves purges); notes block it. One primary client per file (partial unique index);
+CHECKs: closing ≥ opening date, rates not negative, a party has its name (person → full name, organisation → company name), a
+conflict names two different files, a note belongs to a file or a client. Indexes: list `(office_id, updated_at DESC) INCLUDE
+(number, title, type, status, priority, lawyer) WHERE deleted_at IS NULL`, open files per responsible lawyer (partial), the
+assigned scope's lawyer/paralegal/team-member columns, conflict lookup by party; MVP-57 checks them with EXPLAIN on 5k files.
+`openingDate`/`closingDate` are dates (`@db.Date`). `TaskTemplate.defaultAssigneeRole` is a **file team role**
+(RESPONSIBLE_LAWYER|PARALEGAL|MEMBER, null = responsible lawyer), not an office role. CaseTimelineEvent is append-only by
+convention (no `updatedAt`). Party national id/notes, client national id and confidential note bodies are ciphertext columns;
+the field encryption itself (D-056) arrives with the first story that writes them. shared-types gains `FILE_TYPES`,
+`FILE_STATUSES`, `CLIENT_TYPES`, `FILE_TEAM_ROLES`, `PARTY_TYPES` with AR/EN labels (`CONFLICT_RESOLUTION` reads "Dispute
+resolution" / تسوية النزاعات, to keep it apart from conflict of interest). Why: the core tables land once with their
+integrity in the database, without inventing court or client APIs ahead of their stories.
+Review additions (same PR): the service is `next(tx, fileType, year)` — the office comes from CLS, never a parameter;
+`year` is the opening date's year in the office's time zone (D-092) and must have four digits. **A number a file already
+has is skipped** (a format change that renders an existing number, a soft-deleted file), so one clash can never block
+numbering; existing numbers are never rewritten when the format changes. Formats are at most 64 characters and literal
+digits are Western only (search does not fold Arabic-Indic, D-092). A missing OfficeSettings row is a plain error (500, not
+the 404 P2025 would map to). **Composite FKs are `ON UPDATE RESTRICT`**: with Prisma's default cascade, re-keying a user's
+`office_id` through the raw client carried their files, notes and timeline into the other office (reproduced in review);
+the init migration's older composite user FKs still cascade — a later migration should align them. **Encrypted columns are
+enforced by CHECK** to hold the key-version prefixed ciphertext (`v<n>:…`, ops-security.md) — client and party national
+ids, party notes, the tax id of an individual client or party (D-056 covers tax ids of individuals) and confidential note
+bodies — so plaintext can never be written before the field cipher exists, nor read through the read-only role. One
+responsible lawyer per file (partial unique index; MVP-57/61 keep `responsibleLawyerId` in sync with it), one conflict row
+per (file A, file B, party) so detection can upsert, conflicts indexed by party, `due_days_after_open >= 0`,
+`FileClient.updatedAt`. `case_timeline_events` loses UPDATE for the app role (migration and `db-roles.sql`, like the
+audit log; DELETE stays for purges). Left to their stories: who created a file is the `FILE_OPENED` event's actor (no
+`createdById`); FTS on file title/number (MVP-57) and trigram indexes for party and client names (MVP-62, MVP-53); `Party`,
+`FileNote` and `TaskTemplate` have no soft delete (`TaskTemplate.isActive` retires a template); `fileNumber` is never taken
+from client input. Labels: `CRIMINAL` is "قضية جزائية" (a noun, not the bare adjective), `SUSPENDED` "معلّق" (موقوف also
+reads "detained"), `WILL_TRUST` "وصايا وأوقاف".

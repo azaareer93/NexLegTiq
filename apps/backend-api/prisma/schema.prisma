@@ -120,6 +120,80 @@ enum NotificationChannel {
   EMAIL
 }
 
+enum ClientType {
+  INDIVIDUAL
+  CORPORATION
+  GOVERNMENT
+  NGO
+  PARTNERSHIP
+}
+
+/// Number type codes (LIT, CRM, …) live in src/modules/legal-files/file-number.ts (D-031, D-034).
+enum FileType {
+  LITIGATION
+  CRIMINAL
+  CONTRACT_DRAFTING
+  LEGAL_ADVISORY
+  COMPLIANCE
+  CONFLICT_RESOLUTION
+  BUSINESS_SUPPORT
+  NDA_REVIEW
+  WILL_TRUST
+  COMPANY_FORMATION
+  RENTAL_AGREEMENT
+  EMPLOYMENT_CONTRACT
+}
+
+enum FileStatus {
+  OPEN
+  SUSPENDED
+  CLOSED
+  ARCHIVED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum FileTeamRole {
+  RESPONSIBLE_LAWYER
+  PARALEGAL
+  MEMBER
+}
+
+enum PartyType {
+  PLAINTIFF
+  DEFENDANT
+  APPELLANT
+  RESPONDENT
+  THIRD_PARTY
+  GUARANTOR
+  SIGNATORY
+  INTERESTED_PARTY
+  PROSECUTION
+}
+
+/// Display text is rendered client-side from the type and `payload` (i18n params), never stored.
+enum TimelineEventType {
+  FILE_OPENED
+  FILE_CLOSED
+  FILE_REOPENED
+  FILE_REASSIGNED
+  SESSION_CREATED
+  SESSION_UPDATED
+  DOCUMENT_UPLOADED
+  DOCUMENT_SHARED
+  TASK_COMPLETED
+  PARTY_ADDED
+  WITNESS_STATEMENT_ADDED
+  SUMMARY_GENERATED
+  INVOICE_SENT
+  INVOICE_PAID
+}
+
 // ─── Tenancy & identity ─────────────────────────────────────────────────────────────────────────────────────────
 
 /// The tenant. Every tenant-owned row references it.
@@ -152,6 +226,17 @@ model Office {
   subscriptions       Subscription[]
   auditLogs           AuditLog[]
   notifications       Notification[]
+  clients             Client[]
+  legalFiles          LegalFile[]
+  fileClients         FileClient[]
+  fileTeamMembers     FileTeamMember[]
+  fileNumberSequences FileNumberSequence[]
+  parties             Party[]
+  fileParties         FileParty[]
+  conflicts           ConflictOfInterest[]
+  timelineEvents      CaseTimelineEvent[]
+  fileNotes           FileNote[]
+  taskTemplates       TaskTemplate[]
 
   @@map("offices")
 }
@@ -208,6 +293,13 @@ model User {
   legalAcceptances    LegalAcceptance[]
   auditLogs           AuditLog[]
   notifications       Notification[]
+  primaryClients      Client[]                 @relation("ClientPrimaryLawyer")
+  responsibleFiles    LegalFile[]              @relation("FileResponsibleLawyer")
+  paralegalFiles      LegalFile[]              @relation("FileResponsibleParalegal")
+  fileTeams           FileTeamMember[]
+  resolvedConflicts   ConflictOfInterest[]
+  timelineEvents      CaseTimelineEvent[]
+  fileNotes           FileNote[]
 
   /// Target of the composite (user_id, office_id) FKs: a child row can never name a user of another office (D-079).
   @@unique([id, officeId])
@@ -400,6 +492,296 @@ model Subscription {
 
   @@index([officeId, status])
   @@map("subscriptions")
+}
+
+// ─── Clients, legal files & parties (MVP-56, D-095) ─────────────────────────────────────────────────────────────
+// References between tenant rows are composite (…_id, office_id) FKs, so no row can point into another office (D-079).
+// Composite relations are Restrict on update (ids and office_id never change; a cascade would carry rows into another
+// office) and, when optional, on delete (SetNull would also null office_id).
+
+/// Created here because FileClient needs it; contact persons and the API come with MVP-53.
+model Client {
+  id              String     @id @default(uuid(7)) @db.Uuid
+  officeId        String     @map("office_id") @db.Uuid
+  clientType      ClientType @map("client_type")
+  displayName     String     @map("display_name")
+  fullName        String?    @map("full_name")
+  companyName     String?    @map("company_name")
+  /// AES-256-GCM ciphertext `v<key>:…` (D-056, CHECK), never the raw number.
+  nationalId      String?    @map("national_id")
+  /// Ciphertext for an INDIVIDUAL client (D-056: tax ids of individuals; CHECK).
+  taxId           String?    @map("tax_id")
+  phone           String?
+  email           String?    @db.Citext
+  address         String?
+  industry        String?
+  primaryLawyerId String?    @map("primary_lawyer_id") @db.Uuid
+  isActive        Boolean    @default(true) @map("is_active")
+  deletedAt       DateTime?  @map("deleted_at") @db.Timestamptz(3)
+  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office        Office       @relation(fields: [officeId], references: [id])
+  primaryLawyer User?        @relation("ClientPrimaryLawyer", fields: [primaryLawyerId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
+  files         FileClient[]
+  notes         FileNote[]
+
+  @@unique([id, officeId])
+  @@index([officeId, displayName])
+  @@map("clients")
+}
+
+/// A case. Open-file and list indexes are partial/covering SQL indexes in the migration.
+model LegalFile {
+  id                     String        @id @default(uuid(7)) @db.Uuid
+  officeId               String        @map("office_id") @db.Uuid
+  /// Rendered from OfficeSettings.fileNumberFormat by FileNumberService; never reused, also after a soft delete.
+  fileNumber             String        @map("file_number")
+  title                  String
+  description            String?
+  fileType               FileType      @map("file_type")
+  subType                String?       @map("sub_type")
+  status                 FileStatus    @default(OPEN)
+  priority               Priority      @default(MEDIUM)
+  openingDate            DateTime      @default(dbgenerated("CURRENT_DATE")) @map("opening_date") @db.Date
+  closingDate            DateTime?     @map("closing_date") @db.Date
+  responsibleLawyerId    String        @map("responsible_lawyer_id") @db.Uuid
+  responsibleParalegalId String?       @map("responsible_paralegal_id") @db.Uuid
+  courtCaseNumber        String?       @map("court_case_number")
+  jurisdiction           Jurisdiction
+  billingMethod          BillingMethod @default(HOURLY) @map("billing_method")
+  hourlyRate             Decimal?      @map("hourly_rate") @db.Decimal(14, 2)
+  fixedFee               Decimal?      @map("fixed_fee") @db.Decimal(14, 2)
+  retainerBalance        Decimal       @default(0) @map("retainer_balance") @db.Decimal(14, 2)
+  /// ISO-4217 code of every amount on the file (D-017).
+  currency               String        @db.Char(3)
+  isConfidential         Boolean       @default(false) @map("is_confidential")
+  deletedAt              DateTime?     @map("deleted_at") @db.Timestamptz(3)
+  createdAt              DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office               Office               @relation(fields: [officeId], references: [id])
+  responsibleLawyer    User                 @relation("FileResponsibleLawyer", fields: [responsibleLawyerId, officeId], references: [id, officeId], onUpdate: Restrict)
+  responsibleParalegal User?                @relation("FileResponsibleParalegal", fields: [responsibleParalegalId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
+  clients              FileClient[]
+  teamMembers          FileTeamMember[]
+  parties              FileParty[]
+  conflictsAsA         ConflictOfInterest[] @relation("ConflictFileA")
+  conflictsAsB         ConflictOfInterest[] @relation("ConflictFileB")
+  timeline             CaseTimelineEvent[]
+  notes                FileNote[]
+
+  @@unique([officeId, fileNumber])
+  @@unique([id, officeId])
+  // "Assigned" scope (D-051): responsible lawyer or paralegal; team members through file_team_members.
+  @@index([officeId, responsibleLawyerId])
+  @@index([officeId, responsibleParalegalId])
+  @@map("legal_files")
+}
+
+model FileClient {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  officeId  String   @map("office_id") @db.Uuid
+  fileId    String   @map("file_id") @db.Uuid
+  clientId  String   @map("client_id") @db.Uuid
+  /// At most one per file: partial unique index in the migration.
+  isPrimary Boolean  @default(false) @map("is_primary")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office Office    @relation(fields: [officeId], references: [id])
+  file   LegalFile @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  client Client    @relation(fields: [clientId, officeId], references: [id, officeId], onUpdate: Restrict)
+
+  @@unique([fileId, clientId])
+  @@index([officeId, clientId])
+  @@map("file_clients")
+}
+
+model FileTeamMember {
+  id        String       @id @default(uuid(7)) @db.Uuid
+  officeId  String       @map("office_id") @db.Uuid
+  fileId    String       @map("file_id") @db.Uuid
+  userId    String       @map("user_id") @db.Uuid
+  role      FileTeamRole @default(MEMBER)
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office Office    @relation(fields: [officeId], references: [id])
+  file   LegalFile @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  user   User      @relation(fields: [userId, officeId], references: [id, officeId], onUpdate: Restrict)
+
+  @@unique([fileId, userId])
+  @@index([officeId, userId])
+  @@map("file_team_members")
+}
+
+/// Gap-free counter per office, year and type code (D-095); `year` is 0 and `typeCode` '' when the format lacks them.
+/// Incremented in the file's create transaction, so a rolled-back create gives its number back.
+model FileNumberSequence {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  officeId  String   @map("office_id") @db.Uuid
+  year      Int
+  typeCode  String   @map("type_code")
+  /// The last number issued.
+  lastValue Int      @map("last_value")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office Office @relation(fields: [officeId], references: [id])
+
+  @@unique([officeId, year, typeCode])
+  @@map("file_number_sequences")
+}
+
+/// Office-scoped registry reused across files for conflict checks (D-030). Individual → fullName, else companyName (CHECK).
+model Party {
+  id                  String   @id @default(uuid(7)) @db.Uuid
+  officeId            String   @map("office_id") @db.Uuid
+  isIndividual        Boolean  @map("is_individual")
+  fullName            String?  @map("full_name")
+  companyName         String?  @map("company_name")
+  /// AES-256-GCM ciphertext `v<key>:…` (D-056, CHECK).
+  nationalId          String?  @map("national_id")
+  /// Ciphertext when isIndividual (D-056: tax ids of individuals; CHECK).
+  taxId               String?  @map("tax_id")
+  address             String?
+  phone               String?
+  email               String?  @db.Citext
+  legalRepresentative String?  @map("legal_representative")
+  /// AES-256-GCM ciphertext `v<key>:…` (D-056, CHECK).
+  notes               String?
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office    Office               @relation(fields: [officeId], references: [id])
+  files     FileParty[]
+  conflicts ConflictOfInterest[]
+
+  @@unique([id, officeId])
+  @@index([officeId, fullName])
+  @@index([officeId, companyName])
+  @@map("parties")
+}
+
+model FileParty {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  officeId  String    @map("office_id") @db.Uuid
+  fileId    String    @map("file_id") @db.Uuid
+  partyId   String    @map("party_id") @db.Uuid
+  partyType PartyType @map("party_type")
+  /// Free text shown next to the type, e.g. "Landlord".
+  roleLabel String?   @map("role_label")
+  joinedAt  DateTime  @default(now()) @map("joined_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office Office    @relation(fields: [officeId], references: [id])
+  file   LegalFile @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  party  Party     @relation(fields: [partyId, officeId], references: [id, officeId], onUpdate: Restrict)
+
+  @@unique([fileId, partyId, partyType])
+  // Conflict check: every file a party appears on.
+  @@index([officeId, partyId])
+  @@map("file_parties")
+}
+
+/// A party on file A in a role adverse to file B (domain-model invariant 6). file_id_a <> file_id_b (CHECK).
+model ConflictOfInterest {
+  id              String    @id @default(uuid(7)) @db.Uuid
+  officeId        String    @map("office_id") @db.Uuid
+  fileIdA         String    @map("file_id_a") @db.Uuid
+  fileIdB         String    @map("file_id_b") @db.Uuid
+  partyId         String    @map("party_id") @db.Uuid
+  reason          String
+  detectedAt      DateTime  @default(now()) @map("detected_at") @db.Timestamptz(3)
+  resolved        Boolean   @default(false)
+  resolutionNotes String?   @map("resolution_notes")
+  resolvedById    String?   @map("resolved_by_id") @db.Uuid
+  resolvedAt      DateTime? @map("resolved_at") @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office     Office    @relation(fields: [officeId], references: [id])
+  fileA      LegalFile @relation("ConflictFileA", fields: [fileIdA, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  fileB      LegalFile @relation("ConflictFileB", fields: [fileIdB, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  party      Party     @relation(fields: [partyId, officeId], references: [id, officeId], onUpdate: Restrict)
+  resolvedBy User?     @relation(fields: [resolvedById, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
+
+  /// Detection upserts on it, so re-running a check adds no duplicates.
+  @@unique([fileIdA, fileIdB, partyId])
+  @@index([officeId, resolved])
+  @@index([officeId, partyId])
+  @@index([officeId, fileIdA])
+  @@index([officeId, fileIdB])
+  @@map("conflicts_of_interest")
+}
+
+/// Append-only history of a file (no updatedAt).
+model CaseTimelineEvent {
+  id         String            @id @default(uuid(7)) @db.Uuid
+  officeId   String            @map("office_id") @db.Uuid
+  fileId     String            @map("file_id") @db.Uuid
+  eventType  TimelineEventType @map("event_type")
+  /// Entity behind the event (e.g. "Session") and its id; polymorphic, so no FK (D-015).
+  sourceType String?           @map("source_type")
+  sourceId   String?           @map("source_id") @db.Uuid
+  occurredAt DateTime          @default(now()) @map("occurred_at") @db.Timestamptz(3)
+  actorId    String?           @map("actor_id") @db.Uuid
+  /// i18n params for the client-side text.
+  payload    Json              @default("{}")
+
+  office Office    @relation(fields: [officeId], references: [id])
+  file   LegalFile @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  actor  User?     @relation(fields: [actorId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([officeId, fileId, occurredAt(sort: Desc)])
+  @@map("case_timeline_events")
+}
+
+/// A note on a file or a client (at least one of them, CHECK).
+model FileNote {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  officeId       String   @map("office_id") @db.Uuid
+  fileId         String?  @map("file_id") @db.Uuid
+  clientId       String?  @map("client_id") @db.Uuid
+  authorId       String   @map("author_id") @db.Uuid
+  /// AES-256-GCM ciphertext `v<key>:…` when isConfidential (D-056, CHECK).
+  body           String
+  isConfidential Boolean  @default(false) @map("is_confidential")
+  pinned         Boolean  @default(false)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office Office     @relation(fields: [officeId], references: [id])
+  file   LegalFile? @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
+  client Client?    @relation(fields: [clientId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
+  author User       @relation(fields: [authorId, officeId], references: [id, officeId], onUpdate: Restrict)
+
+  @@index([officeId, fileId, createdAt(sort: Desc)])
+  @@index([officeId, clientId, createdAt(sort: Desc)])
+  @@map("file_notes")
+}
+
+/// Tasks created when a file of `fileType` (or any type when null) is opened; applied by the Tasks epic.
+model TaskTemplate {
+  id                  String        @id @default(uuid(7)) @db.Uuid
+  officeId            String        @map("office_id") @db.Uuid
+  name                String
+  fileType            FileType?     @map("file_type")
+  defaultTitle        String        @map("default_title")
+  defaultDescription  String?       @map("default_description")
+  dueDaysAfterOpen    Int?          @map("due_days_after_open")
+  /// Which file team member gets the task; null = the responsible lawyer.
+  defaultAssigneeRole FileTeamRole? @map("default_assignee_role")
+  isActive            Boolean       @default(true) @map("is_active")
+  createdAt           DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office Office @relation(fields: [officeId], references: [id])
+
+  @@index([officeId, fileType])
+  @@map("task_templates")
 }
 
 // ─── Cross-cutting ──────────────────────────────────────────────────────────────────────────────────────────────

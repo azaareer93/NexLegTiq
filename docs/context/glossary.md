@@ -43,6 +43,11 @@ Use these exact Arabic terms in i18n files and AI prompts. Add new terms here fi
 | Reminder | تذكير | `SessionReminder` |
 | Timeline | السجل الزمني | `CaseTimelineEvent` |
 | Client portal | بوابة الموكلين | `client-portal` |
+| Litigation | تقاضٍ | `LITIGATION` |
+| Criminal matter | قضية جزائية | `CRIMINAL` |
+| Third party | طرف ثالث | `THIRD_PARTY` |
+| Guarantor | الكفيل | `GUARANTOR` |
+| Responsible lawyer | المحامي المسؤول | `RESPONSIBLE_LAWYER` |
 
 Palestinian context: courts include Magistrate (صلح), First Instance (بداية), Appeal (استئناف), Cassation/High Court (النقض/العليا),
 Sharia courts (المحاكم الشرعية), Administrative. Common currencies: ILS (₪), JOD, USD.
