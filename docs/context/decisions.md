@@ -855,3 +855,40 @@ audit log; DELETE stays for purges). Left to their stories: who created a file i
 `FileNote` and `TaskTemplate` have no soft delete (`TaskTemplate.isActive` retires a template); `fileNumber` is never taken
 from client input. Labels: `CRIMINAL` is "قضية جزائية" (a noun, not the bare adjective), `SUSPENDED` "معلّق" (موقوف also
 reads "detained"), `WILL_TRUST` "وصايا وأوقاف".
+
+**D-096 — Legal files API: access, confidentiality and what waits for other stories** · Accepted (MVP-57, 2026-10-08)
+MVP-57 assumed sessions, documents, tasks, courts and a cache existed, and left confidentiality and the paralegal/lawyer
+rules open. → `POST/GET /cases`, `GET/PATCH/DELETE /cases/:id` (`src/modules/legal-files`, contracts in
+`shared-contracts/case.contract.ts`). **Access** (`CaseAccessService`, exported for other features' routes on a file):
+lists use `visibleWhere()`, every route on a file `assertFileAccess(id, 'read'|'write')` — not visible, not assigned (for
+`edit:assigned:case` only) or another office → 404 RES-001 (D-019, a malformed id too); writing to an ARCHIVED file →
+422 BIZ-007 (PATCH and DELETE; reads still work). **Confidential files** are visible only to the OFFICE_MANAGER and the
+people assigned to them, also for SENIOR_LAWYER and ADMIN who otherwise see every file (`caseScopeWhere(scope, role)`).
+`scope=mine` narrows to assigned files whatever the permission. Routes: create `create:case`; list/get ANY of
+`view:all|assigned:cases`; PATCH ANY of `edit:any|assigned:case`; DELETE `delete:case` (soft: `deletedAt`, gone from
+lists, number kept, D-095). **Create** runs in one transaction: participant checks, number (D-095, the year of the opening
+date in the office's time zone — 23:30 UTC on 31 Dec is already next year in Hebron), the file, FileClient rows (one
+primary, which must be in `clientIds`), FileTeamMember rows (the responsible lawyer as RESPONSIBLE_LAWYER, the paralegal
+as PARALEGAL), the FILE_OPENED timeline event (actor = creator, payload `{fileNumber}`) and a CREATE audit row. Clients
+must be live (`deletedAt` null, active) clients of the office; the responsible lawyer an active OFFICE_MANAGER,
+SENIOR_LAWYER or LAWYER; the paralegal an active PARALEGAL — otherwise 400 VAL-001 on the field
+(`validation.unknownClient|responsibleLawyer|responsibleParalegal`). The office supplies currency, jurisdiction and opening
+date (today); `billingMethod` defaults to the office's, and an hourly file without a rate gets the office's default rate.
+Money is a decimal string with at most 2 decimals (`MoneySchema`, `validation.amount`). **PATCH** edits title,
+description, sub-type, priority, billing fields, court case number and confidentiality (`null` clears); number, type,
+status, lawyer and team have their own routes (close/reopen/archive/reassign, team) — unknown fields are dropped, an empty
+change is VAL-001; an UPDATE audit row holds the old and new values of the changed fields. **List**: filters `status`,
+`fileType`, `priority`, `clientId`, `responsibleLawyerId`; `search` matches number, title, court case number and client
+names (case-insensitive `contains`; Arabic-normalised full-text search comes with global search); `sort=field:dir,…` over
+`updatedAt|createdAt|openingDate|fileNumber|title|priority|status` (default `updatedAt:desc`, id as tie-breaker); page/limit
+≤ 100. Rows: number, title, type, status, priority, opening date (`YYYY-MM-DD`), confidential flag, primary client,
+responsible lawyer, `updatedAt`. Detail adds the remaining columns, clients, team and counts of parties and notes.
+`BILLING_METHODS` joins shared-types with AR/EN labels. **Performance:** with 5k files the list (as manager, as an
+assigned-only lawyer, filtered, a deep page, a search) stays under 500 ms P95 through HTTP (`cases.performance.int.spec.ts`);
+EXPLAIN shows the default and assigned lists on `legal_files_list_idx` (0.1 ms), the count a 1.3 ms scan.
+**Deviations / later stories:** `courtId`/`judgeId` with the courts story (D-095); next hearing and document/task counts with
+their tables; task templates applied by the Tasks epic; no `o:{officeId}:case:{id}` cache — a primary-key read is far
+inside the budget and nothing caches yet, so the cache and its invalidation wait until a measurement asks for them; no
+custom opening date at creation yet (importing older files). The HTTP half of the isolation matrix now runs
+(`tenant-isolation.http.int.spec.ts`: list, get, update, delete → 404 for every matrix entry with endpoints).
+Why: one access rule for every route on a file, and the case list the UI needs without inventing tables early.
