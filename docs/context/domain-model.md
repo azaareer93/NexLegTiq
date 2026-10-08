@@ -40,15 +40,17 @@
   `status: OPEN|SUSPENDED|CLOSED|ARCHIVED`, `priority: LOW|MEDIUM|HIGH|URGENT`, openingDate, closingDate?,
   responsibleLawyerId, responsibleParalegalId?, courtId?, judgeId?, courtCaseNumber?, jurisdiction,
   `billingMethod: HOURLY|FIXED_FEE|RETAINER|CONTINGENCY`, hourlyRate?, fixedFee?, retainerBalance Decimal,
-  currency, isConfidential, embedding vector(1536)? (Phase 2).
+  currency, isConfidential, embedding vector(1536)? (Phase 2). courtId/judgeId arrive with MVP-66, embedding with the
+  similar-cases story (D-095).
 - **FileClient** 🔒 (fileId, clientId, isPrimary) · **FileTeamMember** 🔒 (fileId, userId, role).
-- **FileNumberSequence** 🔒 (officeId, year, typeCode, next).
+- **FileNumberSequence** 🔒 (officeId, year, typeCode, lastValue) — keyed by what the format shows (D-095).
 - **FileNote** 🔒 — fileId?, clientId?, authorId, body, isConfidential (encrypted when confidential), pinned.
 - **CaseTimelineEvent** 🔒 — fileId, `eventType` (FILE_OPENED, FILE_CLOSED, FILE_REOPENED, FILE_REASSIGNED,
   SESSION_CREATED, SESSION_UPDATED, DOCUMENT_UPLOADED, DOCUMENT_SHARED, TASK_COMPLETED, PARTY_ADDED,
   WITNESS_STATEMENT_ADDED, SUMMARY_GENERATED, INVOICE_SENT, INVOICE_PAID, …), sourceType, sourceId (uuid),
   occurredAt, actorId, payload JSON (i18n params — display text is rendered client-side, not stored).
-- **TaskTemplate** 🔒 — name, fileType?, defaultTitle, defaultDescription, dueDaysAfterOpen, defaultAssigneeRole.
+- **TaskTemplate** 🔒 — name, fileType?, defaultTitle, defaultDescription, dueDaysAfterOpen, defaultAssigneeRole (file team
+  role, null = responsible lawyer), isActive.
 
 ## Courts & hearings
 - **Court** (officeId? — global or office) — name (ar/en), `courtType: CourtType` (D-037), jurisdiction, city,
