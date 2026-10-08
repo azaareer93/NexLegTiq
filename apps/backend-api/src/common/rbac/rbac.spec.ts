@@ -164,7 +164,10 @@ describe('PermissionsGuard', () => {
 
 describe('case scope (D-051)', () => {
   it('should give ALL to view:all:cases and ASSIGNED to view:assigned:cases', () => {
-    expect(caseScope(['view:all:cases', 'view:assigned:cases'], USER)).toEqual({ kind: 'ALL' });
+    expect(caseScope(['view:all:cases', 'view:assigned:cases'], USER)).toEqual({
+      kind: 'ALL',
+      userId: USER,
+    });
     expect(caseScope(['view:assigned:cases'], USER)).toEqual({ kind: 'ASSIGNED', userId: USER });
     expect(() => caseScope(['use:ai'], USER)).toThrow(PermissionDeniedException);
   });
@@ -177,8 +180,13 @@ describe('case scope (D-051)', () => {
         { teamMembers: { some: { userId: USER } } },
       ],
     });
-    expect(caseScopeWhere({ kind: 'ALL' })).toEqual({});
-    expect(caseScopeWhere({ kind: 'ASSIGNED', userId: USER })).toEqual(assignedFilesWhere(USER));
+    expect(caseScopeWhere({ kind: 'ALL', userId: USER }, 'OFFICE_MANAGER')).toEqual({});
+    expect(caseScopeWhere({ kind: 'ALL', userId: USER }, 'SENIOR_LAWYER')).toEqual({
+      OR: [{ isConfidential: false }, assignedFilesWhere(USER)],
+    });
+    expect(caseScopeWhere({ kind: 'ASSIGNED', userId: USER }, 'LAWYER')).toEqual(
+      assignedFilesWhere(USER),
+    );
   });
 });
 
