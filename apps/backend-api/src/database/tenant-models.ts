@@ -16,6 +16,18 @@ export const TENANT_MODELS = [
   'Subscription',
   'AuditLog',
   'Notification',
+  // Parents before children: tests clean up in reverse order.
+  'Client',
+  'LegalFile',
+  'FileClient',
+  'FileTeamMember',
+  'FileNumberSequence',
+  'Party',
+  'FileParty',
+  'ConflictOfInterest',
+  'CaseTimelineEvent',
+  'FileNote',
+  'TaskTemplate',
 ] as const satisfies readonly Prisma.ModelName[];
 
 export type TenantModel = (typeof TENANT_MODELS)[number];

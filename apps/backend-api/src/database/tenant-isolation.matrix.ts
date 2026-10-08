@@ -26,6 +26,27 @@ export interface TenantResource {
 
 const soon = (): Date => new Date(Date.now() + 3_600_000);
 
+const clientIn = (db: PrismaClient, { officeId }: SeededOffice) =>
+  db.client.create({
+    data: { officeId, clientType: 'INDIVIDUAL', displayName: 'Isolation client' },
+  });
+
+const fileIn = (db: PrismaClient, { officeId, userId }: SeededOffice) =>
+  db.legalFile.create({
+    data: {
+      officeId,
+      fileNumber: `ISO-${randomUUID()}`,
+      title: 'Isolation file',
+      fileType: 'LITIGATION',
+      responsibleLawyerId: userId,
+      jurisdiction: 'PALESTINE',
+      currency: 'ILS',
+    },
+  });
+
+const partyIn = (db: PrismaClient, { officeId }: SeededOffice) =>
+  db.party.create({ data: { officeId, isIndividual: true, fullName: 'Isolation party' } });
+
 export const TENANT_ISOLATION_MATRIX: readonly TenantResource[] = [
   {
     model: 'OfficeSettings',
@@ -120,5 +141,100 @@ export const TENANT_ISOLATION_MATRIX: readonly TenantResource[] = [
     create: (db, { officeId, userId }) =>
       db.notification.create({ data: { officeId, userId, type: 'TEST', titleKey: 'test.title' } }),
     update: { readAt: new Date() },
+  },
+  { model: 'Client', create: clientIn, update: { phone: '0599000000' } },
+  { model: 'LegalFile', create: fileIn, update: { title: 'Renamed' } },
+  {
+    model: 'FileClient',
+    create: async (db, office) =>
+      db.fileClient.create({
+        data: {
+          officeId: office.officeId,
+          fileId: (await fileIn(db, office)).id,
+          clientId: (await clientIn(db, office)).id,
+        },
+      }),
+    update: { isPrimary: true },
+  },
+  {
+    model: 'FileTeamMember',
+    create: async (db, office) =>
+      db.fileTeamMember.create({
+        data: {
+          officeId: office.officeId,
+          fileId: (await fileIn(db, office)).id,
+          userId: office.userId,
+        },
+      }),
+    update: { role: 'PARALEGAL' },
+  },
+  {
+    model: 'FileNumberSequence',
+    create: (db, { officeId }) =>
+      db.fileNumberSequence.create({
+        data: { officeId, year: 2026, typeCode: randomUUID(), lastValue: 1 },
+      }),
+    update: { lastValue: 2 },
+  },
+  { model: 'Party', create: partyIn, update: { phone: '0599000000' } },
+  {
+    model: 'FileParty',
+    create: async (db, office) =>
+      db.fileParty.create({
+        data: {
+          officeId: office.officeId,
+          fileId: (await fileIn(db, office)).id,
+          partyId: (await partyIn(db, office)).id,
+          partyType: 'DEFENDANT',
+        },
+      }),
+    update: { roleLabel: 'Landlord' },
+  },
+  {
+    model: 'ConflictOfInterest',
+    create: async (db, office) =>
+      db.conflictOfInterest.create({
+        data: {
+          officeId: office.officeId,
+          fileIdA: (await fileIn(db, office)).id,
+          fileIdB: (await fileIn(db, office)).id,
+          partyId: (await partyIn(db, office)).id,
+          reason: 'ADVERSE_PARTY',
+        },
+      }),
+    update: { resolutionNotes: 'changed' },
+  },
+  {
+    model: 'CaseTimelineEvent',
+    create: async (db, office) =>
+      db.caseTimelineEvent.create({
+        data: {
+          officeId: office.officeId,
+          fileId: (await fileIn(db, office)).id,
+          eventType: 'FILE_OPENED',
+        },
+      }),
+    update: { sourceType: 'changed' },
+  },
+  {
+    model: 'FileNote',
+    create: async (db, office) =>
+      db.fileNote.create({
+        data: {
+          officeId: office.officeId,
+          fileId: (await fileIn(db, office)).id,
+          authorId: office.userId,
+          body: 'Isolation note',
+        },
+      }),
+    update: { pinned: true },
+  },
+  {
+    model: 'TaskTemplate',
+    create: (db, { officeId }) =>
+      db.taskTemplate.create({
+        data: { officeId, name: 'Isolation', defaultTitle: 'File the claim' },
+      }),
+    update: { name: 'Renamed' },
   },
 ];
