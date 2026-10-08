@@ -143,7 +143,12 @@ export const TENANT_ISOLATION_MATRIX: readonly TenantResource[] = [
     update: { readAt: new Date() },
   },
   { model: 'Client', create: clientIn, update: { phone: '0599000000' } },
-  { model: 'LegalFile', create: fileIn, update: { title: 'Renamed' } },
+  {
+    model: 'LegalFile',
+    create: fileIn,
+    update: { title: 'Renamed' },
+    http: { list: 'cases', item: (id) => `cases/${id}` },
+  },
   {
     model: 'FileClient',
     create: async (db, office) =>

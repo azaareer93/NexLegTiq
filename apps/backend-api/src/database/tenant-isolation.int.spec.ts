@@ -288,8 +288,4 @@ describe('tenant isolation (two offices, scoped Prisma client)', () => {
         { v: 'محكمه' },
       ]);
     }));
-
-  it.todo(
-    'HTTP: list/get/update/delete of another office resource → 404 RES-001 (first entry with `http`; auth via bearerFor)',
-  );
 });
