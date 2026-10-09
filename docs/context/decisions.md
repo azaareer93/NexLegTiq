@@ -908,3 +908,20 @@ cannot open it again). PATCH does not re-apply the office's default rate when th
 clear a rate or fee that no longer applies — billing consistency belongs to the billing story. Client-name search skips
 deleted clients; `search` rejects control/bidi characters; a sort field may appear once. Conflict-of-interest detection
 on create comes with the parties story (BIZ-009).
+
+**D-097 — Autopilot delivery loop and stacked PRs** · Accepted (owner asked for it; MVP-141, 2026-10-09)
+The owner wants tickets to flow without starting each step, and not to wait for merges. → `/ticket` now ends with `/review`
+(fixes applied), `/ship` and `/sync-notion decisions`; `--auto` runs it unattended. `/autopilot` loops: (1) fix own open PRs
+(failing checks, conflicts, owner review comments, a merged parent); (2) pick the To Do ticket with the highest priority,
+then the most not-Done issues it blocks, then the lowest slice, then rank — eligible when every blocker is Done or has an
+open PR; (3) deliver it. **Stacking:** a ticket whose blocker is only in review branches from that PR's branch (≤ 3 deep;
+parent kept in `git config branch.<b>.nlqParent`) and its PR targets that branch with "Stacked on #n". Because PRs are
+squash-merged (D-070), after a parent merges the child is retargeted to `develop` and **`develop` is merged into it** —
+never rebased or force-pushed. **Questions:** only expensive-to-reverse decisions (CLAUDE.md) stop a ticket — posted as one
+Jira comment with options and a recommendation, label `needs-decision`, back to To Do; the owner answers and removes the
+label. Everything else is decided and recorded as `D-###`. **Limits:** never merges, never reprioritises or closes issues,
+waits at 6 open PRs; a stop file ends it. **Usage limits:** a session cannot resume itself after a hard limit, so
+`scripts/autopilot.sh` runs `/autopilot --once` in a fresh headless session per iteration and retries every 15 min after a
+failed run (also gives each ticket a clean context). Headless runs use the permission mode the owner starts them with — the
+script sets none. Why: the backlog moves while the owner only reviews and merges, without unreviewed code reaching
+`develop`.
