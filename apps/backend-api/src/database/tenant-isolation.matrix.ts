@@ -242,4 +242,19 @@ export const TENANT_ISOLATION_MATRIX: readonly TenantResource[] = [
       }),
     update: { name: 'Renamed' },
   },
+  {
+    model: 'Task',
+    create: async (db, office) =>
+      db.task.create({
+        data: {
+          officeId: office.officeId,
+          fileId: (await fileIn(db, office)).id,
+          title: 'Isolation task',
+          assignedToId: office.userId,
+          createdById: office.userId,
+        },
+      }),
+    update: { title: 'Renamed' },
+    http: { list: 'tasks', item: (id) => `tasks/${id}` },
+  },
 ];
