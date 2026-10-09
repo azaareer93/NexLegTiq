@@ -925,3 +925,33 @@ waits at 6 open PRs; a stop file ends it. **Usage limits:** a session cannot res
 failed run (also gives each ticket a clean context). Headless runs use the permission mode the owner starts them with — the
 script sets none. Why: the backlog moves while the owner only reviews and merges, without unreviewed code reaching
 `develop`.
+
+**D-098 — Tasks API: access, assignment and what waits for other stories** · Accepted (MVP-76, 2026-10-10)
+MVP-76 left who sees a task, who may move it, tasks without a file and the notification channel open. → **Schema** (`Task`,
+tenant, `tasks`): `fileId?` (null = a **personal task**), title, description, `dueDate` as a calendar date (`@db.Date`,
+D-092: a deadline), `priority`, `status` TODO|IN_PROGRESS|BLOCKED|DONE (`TASK_STATUSES`, labels `enums.taskStatus.*`),
+`assignedToId` (required; defaults to the creator), `createdById`, `completedAt` (CHECK: set exactly while DONE), `sortOrder`
+(≥ 0); composite `(…, office_id)` FKs to the file (cascade, files are soft-deleted) and users (restrict); indexes
+`(office_id, assigned_to_id, status, due_date)` and `(office_id, file_id)`. Tasks are **hard-deleted** with an audit row.
+Deferred to their stories: `sourceType/sourceId` (templates, AI next steps), `reminderSentAt` (task reminders), recurrence
+(Phase 2), a search vector (Arabic search). **Access** (`TaskAccessService`): a file's task follows the file — visible when
+`CaseAccessService.visibleWhere` sees the file (scope + confidentiality, D-096), changed only with write access to it (else
+404), and **read-only once the file is archived (422 BIZ-007, status moves included)**; a personal task is seen and edited
+only by its creator and assignee (not even by the office manager). **Routes:** list/get ANY of `view:all|assigned:cases`;
+create, PATCH, DELETE and reorder `create:task` (a reassignment in PATCH also needs `assign:task`); bulk-assign
+`assign:task`; `PATCH :id/status` `complete:task` with `@PermissionConditionsCheckedByService` — an EXTERNAL_COLLABORATOR
+moves only tasks assigned to them (403 AUTH-100), a TRAINEE any task they can see. Every status change uses
+`complete:task` (moving a card is working on it). **Assignee** (create, PATCH, bulk): an active user of the office whose
+role holds `complete:task` (so not ADMIN staff) and who sees the file **by their own scope**; otherwise 400 VAL-001 on
+`assignedToId` (`validation.assignee`) — another office's user fails the same way. **Status:** DONE sets `completedAt` and,
+for a file's task, adds `TASK_COMPLETED` to the timeline (`sourceType 'Task'`, payload `{title}`); leaving DONE clears it;
+the update is guarded on the status read, so a concurrent move is 409 RES-003 instead of a second event. **Kanban:** a new
+task goes last in the office's TODO column (max + 1; concurrent creates may tie, ties order by due date); `PATCH
+/tasks/reorder {status, taskIds}` sets positions 0…n in the order sent — every task must be editable and in that column
+(`validation.taskColumn`); status changes keep the position. **Bulk assign** is all or nothing (one unreachable task → 404,
+nothing changed) and returns `{updated}` (tasks that changed hands). **Lists** order by position, due date (nulls last),
+creation; `dueBefore` includes that day; `overdue=true` = not DONE and due before today in the office's time zone.
+**Notification:** assigning a task to someone else writes an in-app `Notification` (`type task.assigned`, `titleKey
+common.notifications.taskAssigned`, params `{taskId, title}`, no link) in the same transaction; WebSocket push and email
+come with the notifications story (no `notification` queue consumer exists yet). The HTTP isolation matrix covers `tasks`.
+Why: one access rule for a file and its tasks, and no task route that reaches a file its caller cannot.
