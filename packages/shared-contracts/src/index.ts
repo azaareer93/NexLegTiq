@@ -38,4 +38,24 @@ export type {
   CreateCaseRequest,
   UpdateCaseRequest,
 } from './case.contract.js';
+export {
+  BulkAssignResultSchema,
+  BulkAssignTasksSchema,
+  ChangeTaskStatusSchema,
+  CreateTaskSchema,
+  ReorderTasksSchema,
+  TaskQuerySchema,
+  TaskSchema,
+  UpdateTaskSchema,
+} from './task.contract.js';
+export type {
+  BulkAssignResult,
+  BulkAssignTasksRequest,
+  ChangeTaskStatusRequest,
+  CreateTaskRequest,
+  ReorderTasksRequest,
+  Task,
+  TaskQuery,
+  UpdateTaskRequest,
+} from './task.contract.js';
 export { longText, MoneySchema, plainText } from './fields.js';

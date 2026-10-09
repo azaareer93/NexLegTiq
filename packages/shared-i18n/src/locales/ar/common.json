@@ -42,5 +42,8 @@
   },
   "feedback": {
     "saved": "تم الحفظ"
+  },
+  "notifications": {
+    "taskAssigned": "أُسندت إليك مهمة جديدة: {{title}}"
   }
 }
