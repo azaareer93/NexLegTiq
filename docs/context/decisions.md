@@ -924,4 +924,8 @@ waits at 6 open PRs; a stop file ends it. **Usage limits:** a session cannot res
 `scripts/autopilot.sh` runs `/autopilot --once` in a fresh headless session per iteration and retries every 15 min after a
 failed run (also gives each ticket a clean context). Headless runs use the permission mode the owner starts them with — the
 script sets none. Why: the backlog moves while the owner only reviews and merges, without unreviewed code reaching
-`develop`.
+`develop`. Same PR, owner's additions: **two tickets in parallel** (default) in separate git worktrees when they do not
+collide (different areas, at most one touching `prisma/`, not blocking each other); the second numbers its decisions from
+the first's + 5, so `D-###` may have gaps (they are ids). A **push notification** after each delivered or skipped ticket;
+`/standup` opens with "Waiting for you" (questions with recommendations, PRs in merge order). On the first idle round of a
+day the loop **grooms** the backlog: missing "Blocks" links and splitting stories over ~3 days, never priorities or slices.
