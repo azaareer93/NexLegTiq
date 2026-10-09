@@ -111,3 +111,24 @@ the quality hooks of D-094: **pre-commit** `lint-staged` (Prettier + ESLint, or 
 `--no-verify` (e.g. a mechanical reformat). The hook never writes Ruflo: Claude Code's
 claude-flow MCP server owns `.swarm/memory.db`, and a second writer leaves its copy stale (docs/ruflo.md#windows-notes).
 The hook runs in the background and logs to `$TMPDIR/nexlegtiq-post-merge.log`; `NEXLEGTIQ_SKIP_POST_MERGE=1` disables it.
+
+## 8. Autopilot: delivering tickets unattended (D-097)
+
+`/ticket MVP-n` runs the whole flow: plan → branch → implement → verify → `/review` (fixes applied) → `/ship` → Notion sync.
+`/autopilot` repeats it over the backlog: first it fixes its own open PRs (failing checks, conflicts, review comments, a
+merged parent), then picks the highest-priority ticket that blocks the most open work and whose blockers are Done or in an
+open PR (it **stacks** the branch on that PR, at most 3 deep). A ticket with an expensive-to-reverse question gets the
+questions as a Jira comment and the label `needs-decision`, and the loop moves on — **remove the label once you have
+answered** and it is picked up again. It never merges, force-pushes or reprioritises; at 6 open PRs it waits for reviews.
+
+| How | When |
+|---|---|
+| `/autopilot` in a session | a few tickets while you watch; stops after two idle rounds |
+| `/loop /autopilot` | self-paced in one session (wakes every 30 min when idle) |
+| `scripts/autopilot.sh --permission-mode <mode>` in its own terminal | unattended: a fresh session per iteration, retries every 15 min after a usage limit or error |
+
+Stop: `touch .git/nexlegtiq/autopilot-stop`. Log: `.git/nexlegtiq/autopilot.log` (one line per iteration) and
+`autopilot-runs.log` (full output). Headless runs cannot ask for permission: pick the permission mode you trust, and keep
+the allow list in `.claude/settings.json` covering git, pnpm, gh and the Atlassian/Notion tools. Merging stacked PRs: merge
+the bottom one first; the loop retargets the next to `develop` and merges `develop` into it.
+

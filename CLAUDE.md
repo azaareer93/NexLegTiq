@@ -8,7 +8,8 @@ Launch market: Palestine. Solo-founder project: prefer simple, low-ops, well-tes
   (imported below). If code, ticket and docs disagree, `decisions.md` wins; if it's silent, make the senior-engineer call,
   record a new `D-###` entry, and mention it in the PR + Jira comment. Only stop and ask on decisions that are expensive to reverse
   (schema shape of core entities, auth/security model, pricing/legal promises, infra spend).
-- Start every task from a Jira key (`MVP-123`). Use `/ticket MVP-123` to load it, plan, branch, and implement.
+- Start every task from a Jira key (`MVP-123`). `/ticket MVP-123` delivers it end to end (plan, branch, implement, verify,
+  `/review`, `/ship`, Notion sync). `/autopilot` (or `scripts/autopilot.sh`) loops over the backlog unattended (D-097).
 - Before non-trivial work read `docs/context/00-index.md` and the topic file it points to. Use Ruflo memory search
   (`memory_search` / `npx ruflo@latest memory search -q "..."`) for prior patterns and lessons when available.
 - Finish with `/review` then `/ship` (PR + Jira transition + comment). Record durable learnings with `/remember`.
@@ -58,7 +59,7 @@ pnpm nx run e2e:e2e                                   # Cypress
 - Subagents in `.claude/agents/`: `architect`, `backend-engineer`, `frontend-engineer`, `code-reviewer`, `security-auditor`,
   `qa-engineer`, `rtl-i18n-reviewer`, `spec-guardian`.
 - Skills in `.claude/skills/`: `nest-module`, `react-feature`, `prisma-change`, `jira-workflow`, `rtl-i18n`, `ai-feature`, `tenant-isolation`.
-- Commands: `/ticket`, `/spec-check`, `/review`, `/ship`, `/adr`, `/remember`, `/sync-notion`, `/standup`, `/backlog`.
+- Commands: `/ticket`, `/autopilot`, `/spec-check`, `/review`, `/ship`, `/adr`, `/remember`, `/sync-notion`, `/standup`, `/backlog`.
 - Add-ons (D-077, `docs/tooling.md`): plugins `ponytail`, `agent-skills`, `claude-code-setup` (enabled in `.claude/settings.json`);
   `task-observer` skill (activation in `.claude/rules/task-observer.md`); Graphify code graph (`graphify query` when
   `graphify-out/graph.json` exists). Headroom / claude-mem / OmniRoute are per-machine opt-ins only.
