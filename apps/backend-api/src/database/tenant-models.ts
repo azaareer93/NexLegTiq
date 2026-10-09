@@ -28,6 +28,7 @@ export const TENANT_MODELS = [
   'CaseTimelineEvent',
   'FileNote',
   'TaskTemplate',
+  'Task',
 ] as const satisfies readonly Prisma.ModelName[];
 
 export type TenantModel = (typeof TENANT_MODELS)[number];

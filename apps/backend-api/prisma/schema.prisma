@@ -158,6 +158,13 @@ enum Priority {
   URGENT
 }
 
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  BLOCKED
+  DONE
+}
+
 enum FileTeamRole {
   RESPONSIBLE_LAWYER
   PARALEGAL
@@ -237,6 +244,7 @@ model Office {
   timelineEvents      CaseTimelineEvent[]
   fileNotes           FileNote[]
   taskTemplates       TaskTemplate[]
+  tasks               Task[]
 
   @@map("offices")
 }
@@ -300,6 +308,8 @@ model User {
   resolvedConflicts   ConflictOfInterest[]
   timelineEvents      CaseTimelineEvent[]
   fileNotes           FileNote[]
+  assignedTasks       Task[]                   @relation("TaskAssignee")
+  createdTasks        Task[]                   @relation("TaskCreator")
 
   /// Target of the composite (user_id, office_id) FKs: a child row can never name a user of another office (D-079).
   @@unique([id, officeId])
@@ -570,6 +580,7 @@ model LegalFile {
   conflictsAsB         ConflictOfInterest[] @relation("ConflictFileB")
   timeline             CaseTimelineEvent[]
   notes                FileNote[]
+  tasks                Task[]
 
   @@unique([officeId, fileNumber])
   @@unique([id, officeId])
@@ -782,6 +793,40 @@ model TaskTemplate {
 
   @@index([officeId, fileType])
   @@map("task_templates")
+}
+
+/**
+ * A to-do on a file, or a personal one (fileId null: only its creator and assignee see it). `completedAt` is set
+ * exactly while DONE (CHECK). Hard-deleted (audited); recurrence, reminders and template/AI sources join with their
+ * stories (D-098).
+ */
+model Task {
+  id           String     @id @default(uuid(7)) @db.Uuid
+  officeId     String     @map("office_id") @db.Uuid
+  fileId       String?    @map("file_id") @db.Uuid
+  title        String
+  description  String?
+  /// Calendar date (D-092): a deadline, shown as written in every time zone.
+  dueDate      DateTime?  @map("due_date") @db.Date
+  priority     Priority   @default(MEDIUM)
+  status       TaskStatus @default(TODO)
+  assignedToId String     @map("assigned_to_id") @db.Uuid
+  createdById  String     @map("created_by_id") @db.Uuid
+  completedAt  DateTime?  @map("completed_at") @db.Timestamptz(3)
+  /// Position in its Kanban column, ascending (PATCH /tasks/reorder).
+  sortOrder    Int        @default(0) @map("sort_order")
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office     Office     @relation(fields: [officeId], references: [id])
+  file       LegalFile? @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  assignedTo User       @relation("TaskAssignee", fields: [assignedToId, officeId], references: [id, officeId], onUpdate: Restrict)
+  createdBy  User       @relation("TaskCreator", fields: [createdById, officeId], references: [id, officeId], onUpdate: Restrict)
+
+  // "My tasks" (assignee, status, due date) and a file's Tasks tab.
+  @@index([officeId, assignedToId, status, dueDate])
+  @@index([officeId, fileId])
+  @@map("tasks")
 }
 
 // ─── Cross-cutting ──────────────────────────────────────────────────────────────────────────────────────────────
