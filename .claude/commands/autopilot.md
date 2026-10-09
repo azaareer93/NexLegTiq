@@ -1,6 +1,6 @@
 ---
 description: Unattended delivery loop — fix own PRs, pick the most-blocking highest-priority ticket, deliver it with /ticket --auto, repeat.
-argument-hint: "[--once] [--max-open-prs N]"
+argument-hint: "[--once] [--max-open-prs N] [--parallel 1|2]"
 ---
 Run the delivery loop for project MVP (cloudId `9cb815a7-782c-46e9-a4ca-74b3977b88f4`). Args: $ARGUMENTS
 `--once` = one iteration, then print exactly one of `DONE: …`, `SKIPPED: …`, `FIXED: …` or `IDLE` as the last line
@@ -35,6 +35,18 @@ Stop at once when `.git/nexlegtiq/autopilot-stop` exists. Each iteration appends
 4. **Deliver**: `/ticket <key> --auto`. It returns `DONE: …` or `SKIPPED: …` — log it and end the iteration.
    If it fails unexpectedly (tool outage, a check you cannot fix within the ticket), push what is committed, comment the
    state on the Jira issue, add the label `autopilot-skip`, log `SKIPPED: <key> <reason>` and continue.
+5. **Two at once** (`--parallel 2`, the default; `--parallel 1` turns it off): when the pick list holds a second eligible
+   ticket that does not collide with the first, deliver both at the same time — each in its own subagent with
+   `isolation: "worktree"`, told to run `/ticket <key> --auto` and return its last line. Collision-free means: different
+   areas (one `backend` + one `frontend`/`portal`/`admin`, or `docs`/`infra` with anything), at most one of them touches
+   `prisma/` (migrations share the dev database), neither is the other's blocker. Give each its first decision number
+   (the first ticket the next free `D-###`, the second that number + 5; gaps are fine — numbers are ids). The coordinator
+   (you) logs both results and runs the Notion sync once afterwards. The capacity check counts both PRs.
+6. **Notify me**: after a `DONE` or a `SKIPPED: needs decision`, send a push notification (`PushNotification`, load it
+   with ToolSearch) with the key, the outcome and the PR or Jira link. Nothing for `FIXED`/`IDLE`.
+7. **Groom when idle**: on the first `IDLE` of a day, run one grooming pass before waiting — `/backlog` restricted to
+   adding missing "Blocks" links and splitting stories over ~3 days among `statusCategory = "To Do" AND labels = phase-1`
+   (never change priorities, ranks, statuses or slices). Record the date in `.git/nexlegtiq/autopilot-groomed`.
 
 ## Looping
 - With `--once`: end after one iteration.

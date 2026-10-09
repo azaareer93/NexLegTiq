@@ -1,10 +1,11 @@
 ---
 description: Deliver a Jira ticket end to end — load, plan, branch (stacked if needed), implement, verify, review, ship, sync Notion.
-argument-hint: MVP-123 [--auto] [--no-ship]
+argument-hint: MVP-123 [--auto] [--no-ship] [--decisions-from D-###]
 ---
 Deliver Jira issue **$ARGUMENTS** (project MVP, site nexlegtiq.atlassian.net, cloudId `9cb815a7-782c-46e9-a4ca-74b3977b88f4`)
 from plan to open PR. Follow the `jira-workflow` skill. `--auto` = run unattended (called by `/autopilot`): never ask me,
-follow the **Skip rule** instead. `--no-ship` = stop after step 9 (review fixes committed, nothing pushed).
+follow the **Skip rule** instead. `--no-ship` = stop after step 9 (review fixes committed, nothing pushed). `--decisions-from D-###` = number new
+decisions from there (set by `/autopilot` when two tickets run in parallel), else the next free number.
 
 **Never:** merge a PR, force-push, rewrite pushed history, run `prisma migrate reset`, read `.env`, change permissions or
 settings, or name another `MVP-<n>` key in a commit, PR title or PR body (merging auto-closes every key mentioned).
