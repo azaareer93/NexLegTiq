@@ -9,7 +9,7 @@ import {
 } from '@nexlegtiq/shared-types';
 import { z } from 'zod';
 
-import { longText, MoneySchema, plainText } from './fields.js';
+import { longText, MoneySchema, plainText, searchText } from './fields.js';
 
 /**
  * `POST /cases` (W6, D-095/D-096). The number, office, currency, jurisdiction and opening date come from the server;
@@ -84,7 +84,8 @@ const SortSchema = z
     const sort: { field: CaseSortField; direction: 'asc' | 'desc' }[] = [];
     for (const [field, direction = 'asc', ...rest] of parts) {
       const known = (CASE_SORT_FIELDS as readonly string[]).includes(field ?? '');
-      if (!known || rest.length > 0 || (direction !== 'asc' && direction !== 'desc')) {
+      const repeated = sort.some((key) => key.field === field);
+      if (!known || repeated || rest.length > 0 || (direction !== 'asc' && direction !== 'desc')) {
         ctx.addIssue({ code: 'custom', message: 'validation.sort' });
         return z.NEVER;
       }
@@ -100,7 +101,7 @@ export const CaseQuerySchema = z.object({
   priority: z.enum(PRIORITIES).optional(),
   /** `mine`: only files assigned to the caller, even with `view:all:cases`. */
   scope: z.enum(['mine', 'all']).default('all'),
-  search: z.string().trim().max(100, 'validation.tooLong').optional(),
+  search: searchText(100).optional(),
   clientId: z.uuid().optional(),
   responsibleLawyerId: z.uuid().optional(),
   sort: SortSchema.default([{ field: 'updatedAt', direction: 'desc' }]),
@@ -137,10 +138,11 @@ export const CaseSchema = CaseListItemSchema.extend({
   responsibleParalegal: PersonSchema.nullable(),
   courtCaseNumber: z.string().nullable(),
   jurisdiction: z.enum(JURISDICTIONS),
-  billingMethod: z.enum(BILLING_METHODS),
+  /** Billing terms are `null` for a caller without an invoice permission (D-096). */
+  billingMethod: z.enum(BILLING_METHODS).nullable(),
   hourlyRate: z.string().nullable(),
   fixedFee: z.string().nullable(),
-  retainerBalance: z.string(),
+  retainerBalance: z.string().nullable(),
   currency: z.string(),
   clients: z.array(
     z.object({

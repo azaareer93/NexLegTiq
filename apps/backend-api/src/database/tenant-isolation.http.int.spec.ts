@@ -16,7 +16,10 @@ import { integrationEnv } from '../config/env.fixture';
 import type { PrismaClient } from '../generated/prisma/client';
 import { bearerFor } from '../modules/auth/auth.test-helper';
 
-type Delegate = { deleteMany(args: unknown): Promise<unknown> };
+type Delegate = {
+  deleteMany(args: unknown): Promise<unknown>;
+  findUnique(args: unknown): Promise<unknown>;
+};
 
 const WITH_HTTP = TENANT_ISOLATION_MATRIX.flatMap((resource) =>
   resource.http ? [{ ...resource, http: resource.http }] : [],
@@ -86,6 +89,11 @@ describe('tenant isolation over HTTP (two offices)', () => {
     async (_model, resource) => {
       const { http } = resource;
       const theirs = await resource.create(raw, b);
+      await resource.create(raw, a); // so A's list is not trivially empty
+      const delegate = (raw as unknown as Record<string, Delegate>)[
+        resource.model.charAt(0).toLowerCase() + resource.model.slice(1)
+      ] as Delegate;
+      const before = await delegate.findUnique({ where: { id: theirs.id } });
       const auth = bearerFor(app.get(JwtService), { ...a, role: 'OFFICE_MANAGER' });
       const server = () => request(app.getHttpServer());
 
@@ -114,6 +122,8 @@ describe('tenant isolation over HTTP (two offices)', () => {
           body: { error: { code: 'RES-001' } },
         });
       }
+      // The refused update and delete changed nothing.
+      expect(await delegate.findUnique({ where: { id: theirs.id } })).toEqual(before);
     },
   );
 });

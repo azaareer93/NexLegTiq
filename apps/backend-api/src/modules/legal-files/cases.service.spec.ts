@@ -1,4 +1,6 @@
 import { CaseQuerySchema, CreateCaseSchema } from '@nexlegtiq/shared-contracts';
+import { permissionsFor } from '@nexlegtiq/shared-types';
+import type { Role } from '@nexlegtiq/shared-types';
 import type { ClsService } from 'nestjs-cls';
 
 import type { CaseAccessService } from './case-access.service';
@@ -6,7 +8,11 @@ import type { CasesRepository } from './cases.repository';
 import { CasesService } from './cases.service';
 import type { FileNumberService } from './file-number.service';
 import type { RequestContext } from '../../common/context/request-context';
-import { PermissionDeniedException, ValidationException } from '../../common/errors/app.exception';
+import {
+  PermissionDeniedException,
+  ResourceNotFoundException,
+  ValidationException,
+} from '../../common/errors/app.exception';
 import { assignedFilesWhere } from '../../common/rbac/case-scope';
 import type { UnitOfWork } from '../../database/unit-of-work';
 import { Prisma } from '../../generated/prisma/client';
@@ -19,9 +25,14 @@ const CLIENT = '01920000-0000-7000-8000-0000000000c1';
 const CLIENT_2 = '01920000-0000-7000-8000-0000000000c2';
 const CLIENT_INFO = { ip: '127.0.0.1', userAgent: 'jest', requestId: 'req-12345678' };
 
-function setup(
-  context: Partial<RequestContext> = { officeId: OFFICE as never, userId: USER as never },
-) {
+const caller = (role: Role, userId = USER): Partial<RequestContext> => ({
+  officeId: OFFICE as never,
+  userId: userId as never,
+  role,
+  permissions: permissionsFor(role),
+});
+
+function setup(context: Partial<RequestContext> = caller('OFFICE_MANAGER')) {
   const tx = {
     office: {
       findFirstOrThrow: jest
@@ -42,8 +53,16 @@ function setup(
     user: { count: jest.fn().mockResolvedValue(1) },
     legalFile: {
       create: jest.fn().mockResolvedValue({ id: 'f1' }),
-      findFirstOrThrow: jest.fn().mockResolvedValue({ title: 'Old', courtCaseNumber: '1/2026' }),
-      update: jest.fn().mockResolvedValue({}),
+      findFirst: jest.fn().mockResolvedValue({
+        title: 'Old',
+        description: null,
+        priority: 'MEDIUM',
+        hourlyRate: new Prisma.Decimal('120'),
+        courtCaseNumber: '1/2026',
+        isConfidential: false,
+        responsibleLawyerId: LAWYER,
+      }),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     fileClient: { createMany: jest.fn() },
     fileTeamMember: { createMany: jest.fn() },
@@ -64,7 +83,13 @@ function setup(
     next: jest.fn().mockResolvedValue('2026-LIT-00007'),
   } as unknown as FileNumberService;
   const cases = {
-    get: jest.fn().mockResolvedValue({ id: 'f1' }),
+    get: jest.fn().mockResolvedValue({
+      id: 'f1',
+      billingMethod: 'HOURLY',
+      hourlyRate: '120.00',
+      fixedFee: null,
+      retainerBalance: '0.00',
+    }),
     list: jest.fn().mockResolvedValue({ items: [], total: 0 }),
   } as unknown as CasesRepository;
   return {
@@ -191,16 +216,27 @@ describe('CasesService', () => {
     expect(cases.list).toHaveBeenLastCalledWith({ deletedAt: null }, expect.anything());
   });
 
-  it('should check access before reading, editing and deleting, and audit the old and new values', async () => {
+  it('should check access before reading, editing and deleting, and audit only real changes', async () => {
     const { service, tx, access } = setup();
     await service.get('f1');
     expect(access.assertFileAccess).toHaveBeenLastCalledWith('f1', 'read');
 
-    await service.update('f1', { title: 'New', courtCaseNumber: null }, CLIENT_INFO);
+    await service.update(
+      'f1',
+      {
+        title: 'New',
+        courtCaseNumber: null,
+        priority: 'MEDIUM',
+        hourlyRate: '120',
+        description: '',
+      },
+      CLIENT_INFO,
+    );
     expect(access.assertFileAccess).toHaveBeenLastCalledWith('f1', 'write');
-    expect(tx.legalFile.findFirstOrThrow).toHaveBeenCalledWith({
-      where: { id: 'f1' },
-      select: { title: true, courtCaseNumber: true },
+    // Unchanged priority, rate (120 = 120.00) and description ('' is stored as null) are neither written nor audited.
+    expect(tx.legalFile.updateMany).toHaveBeenCalledWith({
+      where: { id: 'f1', deletedAt: null, status: { not: 'ARCHIVED' } },
+      data: { title: 'New', courtCaseNumber: null },
     });
     expect(tx.auditLog.create).toHaveBeenLastCalledWith({
       data: expect.objectContaining({
@@ -210,10 +246,18 @@ describe('CasesService', () => {
       }),
     });
 
+    await service.update('f1', { hourlyRate: '99.50' }, CLIENT_INFO);
+    expect(tx.auditLog.create).toHaveBeenLastCalledWith({
+      data: expect.objectContaining({
+        oldValues: { hourlyRate: '120.00' },
+        newValues: { hourlyRate: '99.50' },
+      }),
+    });
+
     await service.remove('f1', CLIENT_INFO);
     expect(access.assertFileAccess).toHaveBeenLastCalledWith('f1', 'write');
-    expect(tx.legalFile.update).toHaveBeenLastCalledWith({
-      where: { id: 'f1' },
+    expect(tx.legalFile.updateMany).toHaveBeenLastCalledWith({
+      where: { id: 'f1', deletedAt: null, status: { not: 'ARCHIVED' } },
       data: { deletedAt: expect.any(Date) },
     });
     expect(tx.auditLog.create).toHaveBeenLastCalledWith({
@@ -221,12 +265,74 @@ describe('CasesService', () => {
     });
   });
 
-  it('should fail closed without a caller or office in the context', async () => {
-    await expect(setup({}).service.create(input(), CLIENT_INFO)).rejects.toBeInstanceOf(
-      PermissionDeniedException,
+  it('should write nothing for a change that changes nothing', async () => {
+    const { service, tx } = setup();
+    await service.update('f1', { title: 'Old', isConfidential: false }, CLIENT_INFO);
+    expect(tx.legalFile.updateMany).not.toHaveBeenCalled();
+    expect(tx.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  it('should refuse a write to a file deleted or archived after the access check (404, no audit)', async () => {
+    const { service, tx } = setup();
+    tx.legalFile.updateMany.mockResolvedValue({ count: 0 });
+    await expect(service.update('f1', { title: 'New' }, CLIENT_INFO)).rejects.toBeInstanceOf(
+      ResourceNotFoundException,
     );
+    await expect(service.remove('f1', CLIENT_INFO)).rejects.toBeInstanceOf(
+      ResourceNotFoundException,
+    );
+    tx.legalFile.findFirst.mockResolvedValue(null);
+    await expect(service.update('f1', { title: 'New' }, CLIENT_INFO)).rejects.toBeInstanceOf(
+      ResourceNotFoundException,
+    );
+    expect(tx.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  it('should let only the manager or the responsible lawyer change confidentiality', async () => {
     await expect(
-      setup({ userId: USER as never }).service.create(input(), CLIENT_INFO),
+      setup().service.update('f1', { isConfidential: true }, CLIENT_INFO),
+    ).resolves.toBeDefined();
+    await expect(
+      setup(caller('LAWYER', LAWYER)).service.update('f1', { isConfidential: true }, CLIENT_INFO),
+    ).resolves.toBeDefined();
+    for (const role of ['SENIOR_LAWYER', 'PARALEGAL'] as const) {
+      const { service, tx } = setup(caller(role));
+      await expect(
+        service.update('f1', { isConfidential: true }, CLIENT_INFO),
+      ).rejects.toBeInstanceOf(PermissionDeniedException);
+      await expect(
+        service.create(input({ isConfidential: true }), CLIENT_INFO),
+      ).rejects.toBeInstanceOf(PermissionDeniedException);
+      expect(tx.legalFile.updateMany).not.toHaveBeenCalled();
+    }
+  });
+
+  it('should keep billing terms to invoice permissions', async () => {
+    const paralegal = setup(caller('PARALEGAL'));
+    await expect(
+      paralegal.service.update('f1', { hourlyRate: '1' }, CLIENT_INFO),
     ).rejects.toBeInstanceOf(PermissionDeniedException);
+    await expect(
+      paralegal.service.create(input({ billingMethod: 'FIXED_FEE' }), CLIENT_INFO),
+    ).rejects.toBeInstanceOf(PermissionDeniedException);
+    await expect(paralegal.service.get('f1')).resolves.toMatchObject({ hourlyRate: '120.00' });
+
+    await expect(setup(caller('TRAINEE')).service.get('f1')).resolves.toEqual({
+      id: 'f1',
+      billingMethod: null,
+      hourlyRate: null,
+      fixedFee: null,
+      retainerBalance: null,
+    });
+  });
+
+  it('should fail loudly (500) without a caller or office in the context', async () => {
+    await expect(setup({}).service.create(input(), CLIENT_INFO)).rejects.toThrow('No caller');
+    await expect(
+      setup({
+        userId: USER as never,
+        permissions: permissionsFor('OFFICE_MANAGER'),
+      }).service.create(input(), CLIENT_INFO),
+    ).rejects.toThrow('No office');
   });
 });

@@ -31,3 +31,7 @@ export const MoneySchema = z
   .string()
   .trim()
   .regex(/^\d{1,12}(\.\d{1,2})?$/, 'validation.amount');
+
+/** A search term: trimmed, may be empty, same character rules as `plainText`. */
+export const searchText = (max: number) =>
+  z.string().trim().max(max, 'validation.tooLong').regex(SAFE_LINE, 'validation.invalidCharacters');

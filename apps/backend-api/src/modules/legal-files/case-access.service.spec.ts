@@ -55,7 +55,7 @@ describe('CaseAccessService', () => {
   });
 
   it('should fail closed without a caller in the context', () => {
-    expect(() => service(undefined).access.visibleWhere()).toThrow(PermissionDeniedException);
+    expect(() => service(undefined).access.visibleWhere()).toThrow('No office caller');
   });
 
   it('should return a reachable file, 404 an unreachable one and BIZ-007 a write to an archived one', async () => {

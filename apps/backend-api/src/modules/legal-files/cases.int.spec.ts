@@ -13,6 +13,8 @@ import { AppConfig } from '../../config/app-config';
 import { integrationEnv } from '../../config/env.fixture';
 import { PrismaService } from '../../database/prisma.service';
 import { TENANT_MODELS } from '../../database/tenant-models';
+import { UnitOfWork } from '../../database/unit-of-work';
+import type { ScopedTransaction } from '../../database/unit-of-work';
 import type { PrismaClient } from '../../generated/prisma/client';
 import { bearerFor } from '../auth/auth.test-helper';
 
@@ -237,6 +239,54 @@ describe('cases API (HTTP + PostgreSQL)', () => {
         expect(res.body).toMatchObject({ error: { code: 'AUTH-100' } });
       },
     );
+
+    it('should keep billing terms to invoice permissions and confidentiality to the manager or responsible lawyer', async () => {
+      const paralegal = users['paralegal'] as SeededUser;
+      for (const overrides of [{ billingMethod: 'FIXED_FEE' }, { isConfidential: true }]) {
+        const res = await create(paralegal, overrides).expect(403);
+        expect(res.body).toMatchObject({ error: { code: 'AUTH-100' } });
+      }
+      await create(users['senior'] as SeededUser, { isConfidential: true }).expect(403);
+      await create(users['lawyer'] as SeededUser, { isConfidential: true }).expect(201);
+    });
+
+    it('should roll everything back, number included, when a later step of the create fails', async () => {
+      const manager = users['manager'] as SeededUser;
+      const seq = (number: string) => Number(number.split('-').pop());
+      const numberOf = async () =>
+        ((await create(manager).expect(201)).body as { data: { fileNumber: string } }).data
+          .fileNumber;
+      const counts = () =>
+        Promise.all([
+          raw.legalFile.count({ where: { officeId } }),
+          raw.fileClient.count({ where: { officeId } }),
+          raw.fileTeamMember.count({ where: { officeId } }),
+          raw.caseTimelineEvent.count({ where: { officeId } }),
+          raw.auditLog.count({ where: { officeId } }),
+        ]);
+      const first = await numberOf();
+      const before = await counts();
+
+      const uow = app.get(UnitOfWork);
+      const run = uow.run.bind(uow);
+      const failingAudit = (tx: ScopedTransaction) =>
+        new Proxy(tx, {
+          get: (target, key) =>
+            key === 'auditLog'
+              ? { create: () => Promise.reject(new Error('audit store down')) }
+              : Reflect.get(target, key),
+        });
+      jest
+        .spyOn(uow, 'run')
+        .mockImplementationOnce((work) =>
+          run((tx, afterCommit) => work(failingAudit(tx), afterCommit)),
+        );
+      const res = await create(manager).expect(500);
+      expect(res.body).toMatchObject({ error: { code: 'SYS-001' } });
+
+      expect(await counts()).toEqual(before);
+      expect(seq(await numberOf())).toBe(seq(first) + 1);
+    });
   });
 
   describe('visibility (D-051, D-096)', () => {
@@ -409,10 +459,46 @@ describe('cases API (HTTP + PostgreSQL)', () => {
       const audit = await raw.auditLog.findFirstOrThrow({
         where: { entityId: id, action: 'UPDATE' },
       });
-      expect(audit).toMatchObject({
-        userId: lawyer.userId,
-        oldValues: { title: 'Land dispute — Ramallah', courtCaseNumber: '123/2026' },
-        newValues: { title: 'Renamed', courtCaseNumber: null },
+      expect(audit).toMatchObject({ userId: lawyer.userId });
+      expect({ old: audit.oldValues, new: audit.newValues }).toEqual({
+        old: {
+          title: 'Land dispute — Ramallah',
+          priority: 'MEDIUM',
+          courtCaseNumber: '123/2026',
+          fixedFee: null,
+        },
+        new: { title: 'Renamed', priority: 'HIGH', courtCaseNumber: null, fixedFee: '2500' },
+      });
+    });
+
+    it('should let only the manager or the responsible lawyer change confidentiality, and hide billing from roles without invoices', async () => {
+      const id = await file({ responsibleParalegalId: users['paralegal']?.userId });
+      await raw.fileTeamMember.create({
+        data: { officeId, fileId: id, userId: (users['trainee'] as SeededUser).userId },
+      });
+      const patch = (key: string, payload: object) =>
+        http()
+          .patch(`/api/v1/cases/${id}`)
+          .set(as(users[key] as SeededUser))
+          .send(payload);
+
+      await patch('paralegal', { isConfidential: true }).expect(403);
+      await patch('senior', { isConfidential: true }).expect(403);
+      await patch('paralegal', { hourlyRate: '1' }).expect(403);
+      await patch('paralegal', { title: 'Paralegal edit' }).expect(200);
+      await patch('lawyer', { isConfidential: true }).expect(200);
+      await patch('manager', { isConfidential: false }).expect(200);
+
+      const seen = await http()
+        .get(`/api/v1/cases/${id}`)
+        .set(as(users['trainee'] as SeededUser))
+        .expect(200);
+      expect((seen.body as { data: object }).data).toMatchObject({
+        title: 'Paralegal edit',
+        billingMethod: null,
+        hourlyRate: null,
+        fixedFee: null,
+        retainerBalance: null,
       });
     });
 
@@ -486,6 +572,19 @@ describe('cases API (HTTP + PostgreSQL)', () => {
         expect(res.status).toBe(422);
         expect(res.body).toMatchObject({ error: { code: 'BIZ-007' } });
       }
+      // Not assigned: 404 first, so an archived file's existence does not leak.
+      await http()
+        .patch(`/api/v1/cases/${id}`)
+        .set(as(users['otherLawyer'] as SeededUser))
+        .send({ title: 'x' })
+        .expect(404);
+      await expect(raw.legalFile.findUniqueOrThrow({ where: { id } })).resolves.toMatchObject({
+        title: 'Land dispute — Ramallah',
+        deletedAt: null,
+      });
+      await expect(
+        raw.auditLog.count({ where: { entityId: id, action: { in: ['UPDATE', 'DELETE'] } } }),
+      ).resolves.toBe(0);
     });
   });
 });

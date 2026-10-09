@@ -11,10 +11,14 @@ import { AppModule } from '../../app/app.module';
 import { configureApp } from '../../app/configure-app';
 import { integrationEnv } from '../../config/env.fixture';
 import { PrismaService } from '../../database/prisma.service';
+import { TENANT_MODELS } from '../../database/tenant-models';
 import type { PrismaClient } from '../../generated/prisma/client';
 import { bearerFor } from '../auth/auth.test-helper';
 
+type Delegate = { deleteMany(args: unknown): Promise<unknown> };
+
 const FILES = 5_000;
+const WARM_UP = 3;
 const RUNS = 15;
 /** MVP-57 budget: P95 < 500 ms for the list, measured through HTTP (guards, envelope, serialization included). */
 const BUDGET_MS = 500;
@@ -87,9 +91,12 @@ describe('GET /cases with 5k files (performance)', () => {
 
   afterAll(async () => {
     if (raw && officeId) {
-      await raw.fileClient.deleteMany({ where: { officeId } });
-      await raw.legalFile.deleteMany({ where: { officeId } });
-      await raw.client.deleteMany({ where: { officeId } });
+      for (const model of [...TENANT_MODELS].filter((name) => name !== 'User').reverse()) {
+        const name = model.charAt(0).toLowerCase() + model.slice(1);
+        await (raw as unknown as Record<string, Delegate>)[name]?.deleteMany({
+          where: { officeId },
+        });
+      }
       await raw.user.deleteMany({ where: { officeId } });
       await raw.office.delete({ where: { id: officeId } });
     }
@@ -99,10 +106,13 @@ describe('GET /cases with 5k files (performance)', () => {
 
   async function p95(user: (typeof users)['manager'], query: string): Promise<number> {
     const auth = bearerFor(app.get(JwtService), user);
+    const call = () =>
+      request(app.getHttpServer()).get(`/api/v1/cases${query}`).set(auth).expect(200);
+    for (let run = 0; run < WARM_UP; run += 1) await call(); // connection pool and query plans warm
     const timings: number[] = [];
     for (let run = 0; run < RUNS; run += 1) {
       const started = performance.now();
-      await request(app.getHttpServer()).get(`/api/v1/cases${query}`).set(auth).expect(200);
+      await call();
       timings.push(performance.now() - started);
     }
     timings.sort((x, y) => x - y);

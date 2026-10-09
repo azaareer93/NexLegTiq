@@ -79,14 +79,20 @@ describe('CaseQuerySchema', () => {
     ]);
   });
 
-  it.each(['passwordHash', 'title:up', 'title:asc:x', ''])('should refuse the sort %j', (sort) => {
-    expect(issues(CaseQuerySchema.safeParse({ sort }))).toEqual(['sort: validation.sort']);
-  });
-
-  it.each([{ limit: '101' }, { page: '0' }, { scope: 'everyone' }, { clientId: 'x' }])(
-    'should refuse %j',
-    (query) => {
-      expect(CaseQuerySchema.safeParse(query).success).toBe(false);
+  it.each(['passwordHash', 'title:up', 'title:asc:x', '', 'title:asc,title:desc'])(
+    'should refuse the sort %j',
+    (sort) => {
+      expect(issues(CaseQuerySchema.safeParse({ sort }))).toEqual(['sort: validation.sort']);
     },
   );
+
+  it.each([
+    { limit: '101' },
+    { page: '0' },
+    { scope: 'everyone' },
+    { clientId: 'x' },
+    { search: 'a\u202Eb' },
+  ])('should refuse %j', (query) => {
+    expect(CaseQuerySchema.safeParse(query).success).toBe(false);
+  });
 });

@@ -60,8 +60,10 @@ export class CaseAccessService {
     const userId = this.cls.get('userId');
     const role = this.cls.get('role');
     const permissions = this.cls.get('permissions');
-    // Routes are guarded (JWT + permissions), so an office caller always has these; anything else fails closed.
-    if (!userId || !role || !permissions) throw new PermissionDeniedException();
+    // Routes are guarded (JWT + permissions), so an office caller always has these; a missing one is a programming
+    // error (500 SYS-001), never a 403 that would hide it.
+    if (!userId || !role || !permissions)
+      throw new Error('No office caller in the request context');
     return { userId, role, permissions };
   }
 }

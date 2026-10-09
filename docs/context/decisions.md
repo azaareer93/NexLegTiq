@@ -892,3 +892,19 @@ inside the budget and nothing caches yet, so the cache and its invalidation wait
 custom opening date at creation yet (importing older files). The HTTP half of the isolation matrix now runs
 (`tenant-isolation.http.int.spec.ts`: list, get, update, delete → 404 for every matrix entry with endpoints).
 Why: one access rule for every route on a file, and the case list the UI needs without inventing tables early.
+Review additions (owner chose the confidentiality, billing and audit rules; same PR): **Confidentiality** is set or lifted
+only by the OFFICE_MANAGER or the file's responsible lawyer (create and PATCH; others 403 AUTH-100) — a paralegal or a
+senior lawyer cannot expose a confidential file. **Billing terms** (`billingMethod`, `hourlyRate`, `fixedFee`,
+`retainerBalance`) are returned only to holders of `view:all|assigned:invoices` (TRAINEE and EXTERNAL_COLLABORATOR get
+`null`) and written only with `generate:invoice` (a PARALEGAL sending them gets 403). **Audit:** an UPDATE row holds only
+the fields whose value really changed (money compared as decimals, old money with 2 digits, `""` stored and audited as
+null); a change that changes nothing writes nothing. Audit rows keep titles and descriptions in full — the audit-viewer
+story must hide LegalFile rows the viewer cannot see (`visibleWhere`), since ADMIN holds `view:audit` but not confidential
+files. **Writes are conditional** (`updateMany` on a live, non-archived file): a file deleted or archived between the
+access check and the write is 404, so concurrent deletes never write two audit rows. DELETE is checked as a write (every
+`delete:case` holder also has `edit:any:case`). A missing caller in the request context is 500 SYS-001, not 403. The
+create answer is the file even when the creator is not assigned to it (a paralegal opening a file for a lawyer, who then
+cannot open it again). PATCH does not re-apply the office's default rate when the billing method changes, and does not
+clear a rate or fee that no longer applies — billing consistency belongs to the billing story. Client-name search skips
+deleted clients; `search` rejects control/bidi characters; a sort field may appear once. Conflict-of-interest detection
+on create comes with the parties story (BIZ-009).

@@ -6,19 +6,23 @@ import type {
   CreateCaseRequest,
   UpdateCaseRequest,
 } from '@nexlegtiq/shared-contracts';
-import type { BillingMethod, Jurisdiction, UserId } from '@nexlegtiq/shared-types';
+import type { BillingMethod, Jurisdiction, Permission, UserId } from '@nexlegtiq/shared-types';
 import { ClsService } from 'nestjs-cls';
 
 import { CaseAccessService } from './case-access.service';
 import { CasesRepository } from './cases.repository';
 import { FileNumberService } from './file-number.service';
 import type { RequestContext } from '../../common/context/request-context';
-import { PermissionDeniedException, ValidationException } from '../../common/errors/app.exception';
+import {
+  PermissionDeniedException,
+  ResourceNotFoundException,
+  ValidationException,
+} from '../../common/errors/app.exception';
 import { PaginatedResult } from '../../common/http/paginated-result';
 import { assignedFilesWhere } from '../../common/rbac/case-scope';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { ScopedTransaction } from '../../database/unit-of-work';
-import type { Prisma } from '../../generated/prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import type { ClientInfo } from '../auth/client-info';
 import { truncateUserAgent } from '../auth/client-info';
 
@@ -48,6 +52,8 @@ export class CasesService {
   /** Opens a file: number, client links, team, FILE_OPENED timeline event and audit row in one transaction. */
   async create(input: CreateCaseRequest, client: ClientInfo): Promise<Case> {
     const actorId = this.actorId();
+    this.assertMayEditBilling(input);
+    if (input.isConfidential) this.assertMayChangeConfidentiality(input.responsibleLawyerId);
     const id = await this.uow.run(async (tx) => {
       const [office, settings] = await Promise.all([
         tx.office.findFirstOrThrow({
@@ -92,7 +98,8 @@ export class CasesService {
       });
       return file.id;
     });
-    return this.cases.get(id);
+    // The creator may not be assigned (a paralegal opening a file for a lawyer): they still get what they sent.
+    return this.present(await this.cases.get(id));
   }
 
   async list(query: CaseQuery): Promise<PaginatedResult<CaseListItem>> {
@@ -105,32 +112,67 @@ export class CasesService {
 
   async get(id: string): Promise<Case> {
     await this.access.assertFileAccess(id, 'read');
-    return this.cases.get(id);
+    return this.present(await this.cases.get(id));
   }
 
+  /** Edits the file; only fields whose value changes are written and audited (old and new values). */
   async update(id: string, input: UpdateCaseRequest, client: ClientInfo): Promise<Case> {
     await this.access.assertFileAccess(id, 'write');
+    this.assertMayEditBilling(input);
     await this.uow.run(async (tx) => {
-      const before = await tx.legalFile.findFirstOrThrow({
-        where: { id },
-        select: Object.fromEntries(Object.keys(input).map((key) => [key, true])),
+      const before = await tx.legalFile.findFirst({ where: liveFile(id), select: EDITABLE });
+      if (!before) throw new ResourceNotFoundException();
+      const { old, next } = changes(before, {
+        ...input,
+        description: emptyToNull(input.description),
       });
-      await tx.legalFile.update({
-        where: { id },
-        data: { ...input, description: emptyToNull(input.description) },
-      });
-      await tx.auditLog.create({ data: this.audit(client, id, 'UPDATE', before, input) });
+      if (Object.keys(next).length === 0) return;
+      if ('isConfidential' in next) this.assertMayChangeConfidentiality(before.responsibleLawyerId);
+      await writeLive(tx, id, next);
+      await tx.auditLog.create({ data: this.audit(client, id, 'UPDATE', old, next) });
     });
-    return this.cases.get(id);
+    return this.present(await this.cases.get(id));
   }
 
-  /** Soft delete (`delete:case`): the file disappears from every list; its number is never reused (D-095). */
+  /**
+   * Soft delete (`delete:case`): the file disappears from every list; its number is never reused (D-095). Access is
+   * checked as a write: every `delete:case` holder (OM, SL) also holds `edit:any:case`.
+   */
   async remove(id: string, client: ClientInfo): Promise<void> {
     await this.access.assertFileAccess(id, 'write');
     await this.uow.run(async (tx) => {
-      await tx.legalFile.update({ where: { id }, data: { deletedAt: new Date() } });
+      await writeLive(tx, id, { deletedAt: new Date() });
       await tx.auditLog.create({ data: this.audit(client, id, 'DELETE', null, null) });
     });
+  }
+
+  /** Billing terms are written only with `generate:invoice` (D-096): not by paralegals, trainees or collaborators. */
+  private assertMayEditBilling(input: Partial<Record<(typeof BILLING_FIELDS)[number], unknown>>) {
+    const touches = BILLING_FIELDS.some((field) => input[field] !== undefined);
+    if (touches && !this.permissions().includes('generate:invoice')) {
+      throw new PermissionDeniedException();
+    }
+  }
+
+  /** Only the office manager or the file's responsible lawyer may make a file confidential or lift it (D-096). */
+  private assertMayChangeConfidentiality(responsibleLawyerId: string) {
+    if (this.cls.get('role') !== 'OFFICE_MANAGER' && this.actorId() !== responsibleLawyerId) {
+      throw new PermissionDeniedException();
+    }
+  }
+
+  /** Hides the billing terms from a caller without an invoice permission (D-096). */
+  private present(file: Case): Case {
+    const canSee = this.permissions().some(
+      (permission) => permission === 'view:all:invoices' || permission === 'view:assigned:invoices',
+    );
+    return canSee
+      ? file
+      : { ...file, billingMethod: null, hourlyRate: null, fixedFee: null, retainerBalance: null };
+  }
+
+  private permissions(): readonly Permission[] {
+    return this.cls.get('permissions') ?? [];
   }
 
   private async addParticipants(tx: ScopedTransaction, fileId: string, input: CreateCaseRequest) {
@@ -179,17 +221,63 @@ export class CasesService {
     };
   }
 
+  // A missing caller is a programming error (guarded routes always set it): 500 SYS-001, never a 403 that hides it.
   private actorId(): UserId {
     const userId = this.cls.get('userId');
-    if (!userId) throw new PermissionDeniedException();
+    if (!userId) throw new Error('No caller in the request context');
     return userId;
   }
 
   private officeId(): string {
     const officeId = this.cls.get('officeId');
-    if (!officeId) throw new PermissionDeniedException();
+    if (!officeId) throw new Error('No office in the request context');
     return officeId;
   }
+}
+
+const BILLING_FIELDS = ['billingMethod', 'hourlyRate', 'fixedFee'] as const;
+
+/** The columns PATCH may change (UpdateCaseSchema), plus the responsible lawyer for the confidentiality rule. */
+const EDITABLE = {
+  title: true,
+  description: true,
+  subType: true,
+  priority: true,
+  billingMethod: true,
+  hourlyRate: true,
+  fixedFee: true,
+  courtCaseNumber: true,
+  isConfidential: true,
+  responsibleLawyerId: true,
+} satisfies Prisma.LegalFileSelect;
+
+/** Writes may only reach a live, non-archived file, also when it was deleted or archived after the access check. */
+const liveFile = (id: string) => ({ id, deletedAt: null, status: { not: 'ARCHIVED' as const } });
+
+async function writeLive(
+  tx: ScopedTransaction,
+  id: string,
+  data: Prisma.LegalFileUpdateManyMutationInput,
+) {
+  const { count } = await tx.legalFile.updateMany({ where: liveFile(id), data });
+  if (count === 0) throw new ResourceNotFoundException();
+}
+
+/** The fields of `data` whose value differs from `before`; money compares as decimals and is audited with 2 digits. */
+function changes(before: Record<string, unknown>, data: Record<string, unknown>) {
+  const old: Record<string, unknown> = {};
+  const next: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (value === undefined) continue;
+    const previous = before[key];
+    const decimal = Prisma.Decimal.isDecimal(previous) ? previous : null;
+    const same = decimal ? value !== null && decimal.equals(value as string) : previous === value;
+    if (!same) {
+      old[key] = decimal ? decimal.toFixed(2) : previous;
+      next[key] = value;
+    }
+  }
+  return { old, next };
 }
 
 const orNull = <T>(value: T | undefined): T | null => value ?? null;

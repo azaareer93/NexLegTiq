@@ -87,7 +87,7 @@ export class CasesRepository {
 
   async get(id: string): Promise<Case> {
     const row = await this.prisma.db.legalFile.findFirstOrThrow({
-      where: { id },
+      where: { id, deletedAt: null },
       select: DETAIL_SELECT,
     });
     return toCase(row);
@@ -104,7 +104,10 @@ function filtersOf(query: CaseQuery): Prisma.LegalFileWhereInput {
           {
             clients: {
               some: {
-                client: { displayName: { contains: query.search, mode: 'insensitive' as const } },
+                client: {
+                  deletedAt: null,
+                  displayName: { contains: query.search, mode: 'insensitive' as const },
+                },
               },
             },
           },
