@@ -1,0 +1,78 @@
+# Staging on one VPS (D-020, D-103): Caddy (TLS) → api; worker; ClamAV. Postgres, Redis and object storage are managed
+# services reached over TLS (the production env rules apply: staging runs NODE_ENV=production).
+# Copied to the host by .github/workflows/deploy-staging.yml together with Caddyfile and deploy.sh; the host holds three
+# files that are never committed: `.env` (IMAGE_REPO, IMAGE_TAG, API_DOMAIN, STAGING_ALLOWED_IPS — written by deploy.sh),
+# `app.env` (backend env, env.schema.ts) and `migrate.env` (DATABASE_URL of the migrator role). See docs/runbooks/deploy.md.
+name: nexlegtiq-staging
+
+x-backend: &backend
+  image: ${IMAGE_REPO:?}/backend-api:${IMAGE_TAG:?}
+  env_file: app.env
+  restart: unless-stopped
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: ['no-new-privileges:true']
+  depends_on:
+    clamav:
+      condition: service_healthy
+
+services:
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    ports: ['80:80', '443:443', '443:443/udp']
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?}
+      STAGING_ALLOWED_IPS: ${STAGING_ALLOWED_IPS:?}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on: [api]
+
+  api:
+    <<: *backend
+    # Port 3000 is reached through Caddy only; the metrics port 9464 stays on the internal network.
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  worker:
+    <<: *backend
+    command: ['node', '--enable-source-maps', 'worker.js']
+
+  clamav:
+    image: clamav/clamav:stable
+    restart: unless-stopped
+    volumes:
+      - clamav-db:/var/lib/clamav
+    healthcheck:
+      test: ['CMD', 'clamdcheck.sh']
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      # First start downloads signatures (~300 MB) before clamd listens.
+      start_period: 300s
+
+  # One-off: `docker compose run --rm migrate` (deploy.sh), never started by `up`.
+  migrate:
+    image: ${IMAGE_REPO:?}/backend-api-migrate:${IMAGE_TAG:?}
+    env_file: migrate.env
+    profiles: [tools]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+
+volumes:
+  caddy-data:
+  caddy-config:
+  clamav-db:
