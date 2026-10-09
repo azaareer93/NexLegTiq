@@ -35,6 +35,8 @@
 - `staging` ← `develop` auto-deploy; `prod` ← tag `v*` on `main` with manual approval (GitHub Environment protection).
 - Pipeline: CI (lint/typecheck/test/build/coverage/security) → build images (api, worker) → push GHCR → SSH deploy
   (`docker compose pull && up -d`) → `prisma migrate deploy` (migrator role) as a one-off job → smoke tests `/health/ready` → Sentry release.
+  Staging is built (D-103): `apps/backend-api/Dockerfile`, `infra/staging/`, `.github/workflows/deploy-staging.yml`,
+  runbook `docs/runbooks/deploy.md`.
 - SPAs → Cloudflare Pages (preview per PR). Env: `VITE_API_URL`, `VITE_WS_URL`, `VITE_SENTRY_DSN`, feature flags.
 - Migrations: expand/contract for zero downtime; backup before prod migrate; rollback = restore + previous image.
 
