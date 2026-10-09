@@ -29,9 +29,10 @@ USER node
 EXPOSE 3000
 CMD ["node", "--enable-source-maps", "main.js"]
 
-# ponytail: reuses the full build stage (dev dependencies included, large image); a slim prisma-only image if pulls hurt.
-FROM build AS migrate
-ENV NODE_ENV=production PATH=/repo/node_modules/.bin:$PATH
-WORKDIR /repo/apps/backend-api
-USER node
-CMD ["sh", "-c", "prisma migrate deploy && tsx prisma/seed.ts"]
+# The runtime image plus the schema and migrations: `prisma` is a runtime dependency (its bin is needed here) and
+# seed.js is the plan seed bundled by webpack, so no dev dependencies ship to the host.
+FROM runtime AS migrate
+COPY apps/backend-api/prisma.config.ts ./
+COPY apps/backend-api/prisma/schema.prisma ./prisma/
+COPY apps/backend-api/prisma/migrations ./prisma/migrations
+CMD ["sh", "-c", "node_modules/.bin/prisma migrate deploy && node seed.js"]

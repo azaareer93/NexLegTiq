@@ -862,7 +862,9 @@ region is chosen (D-020 gives examples, D-021 is Proposed) and that choice commi
 is provider-agnostic (any host with Docker and SSH): `apps/backend-api/Dockerfile` builds **one runtime image for the API
 and the worker** (`node main.js` / `node worker.js`: same bundle, two commands — a separate worker image arrives with the
 first worker-only system dependency) and a **migrate image** (`prisma migrate deploy` + the create-only plan seed, run
-with the `nexlegtiq_migrator` role; it reuses the build stage, so it is large — a slim one if pulls hurt). Node 22
+with the `nexlegtiq_migrator` role) = the runtime image plus schema and migrations: `prisma` became a runtime dependency
+of backend-api (`@prisma/client` already installed it as a peer; now its bin is linked) and the plan seed is bundled by
+webpack as `dist/seed.js` (`prisma/seed-entry.ts`), so no dev dependencies or TypeScript runner ship. Node 22
 bookworm-slim, Nx `prune` output installed with `--prod`, root-owned files, `USER node`; compose runs both with a
 read-only root filesystem, `tmpfs /tmp`, `cap_drop: ALL`, `no-new-privileges`. **Tesseract and Chromium are not in the
 image yet** (the ticket lists them): nothing calls them, and the OCR/PDF stories add them with the code that uses them.
