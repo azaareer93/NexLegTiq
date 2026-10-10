@@ -287,6 +287,10 @@ describe('tasks API (HTTP + PostgreSQL)', () => {
         .expect(200);
       expect(await listIds('manager', '?overdue=true&limit=100')).not.toContain(mine.id);
       expect(await listIds('trainee', '?assignee=me&status=DONE')).toEqual([mine.id]);
+      const undated = await task();
+      const notOverdue = await listIds('manager', '?overdue=false&limit=100');
+      expect(notOverdue).toEqual(expect.arrayContaining([mine.id, later.id, undated.id]));
+      expect(notOverdue).not.toContain(elsewhere.id);
       expectError(
         await http().get('/api/v1/tasks?assignee=someone').set(as('lawyer')),
         400,

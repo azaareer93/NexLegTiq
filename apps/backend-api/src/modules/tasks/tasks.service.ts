@@ -55,6 +55,7 @@ export class TasksService {
     const fileId = input.fileId ?? null;
     if (fileId) await this.files.assertFileAccess(fileId, 'write');
     const assignedToId = input.assignedToId ?? me;
+    if (assignedToId !== me) this.assertHolds('assign:task');
     const id = await this.uow.run(async (tx) => {
       await assertAssignable(tx, assignedToId, fileId);
       const { _max } = await tx.task.aggregate({
@@ -103,8 +104,12 @@ export class TasksService {
     if (query.overdue !== undefined) {
       const office = await this.prisma.db.office.findFirstOrThrow({ select: { timezone: true } });
       const today = toDbDate(todayIn(office.timezone, new Date()));
-      const overdue: Prisma.TaskWhereInput = { status: { not: 'DONE' }, dueDate: { lt: today } };
-      filters.AND = query.overdue ? [overdue] : [{ NOT: overdue }];
+      // Spelled out both ways: NOT(…) would also drop open tasks without a due date (NULL comparison).
+      filters.AND = [
+        query.overdue
+          ? { status: { not: 'DONE' }, dueDate: { lt: today } }
+          : { OR: [{ status: 'DONE' }, { dueDate: null }, { dueDate: { gte: today } }] },
+      ];
     }
     const { items, total } = await this.tasks.list(this.access.visibleWhere(), filters, query);
     return PaginatedResult.of(items, { page: query.page, limit: query.limit, total });

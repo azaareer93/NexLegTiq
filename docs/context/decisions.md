@@ -938,7 +938,7 @@ Deferred to their stories: `sourceType/sourceId` (templates, AI next steps), `re
 `CaseAccessService.visibleWhere` sees the file (scope + confidentiality, D-096), changed only with write access to it (else
 404), and **read-only once the file is archived (422 BIZ-007, status moves included)**; a personal task is seen and edited
 only by its creator and assignee (not even by the office manager). **Routes:** list/get ANY of `view:all|assigned:cases`;
-create, PATCH, DELETE and reorder `create:task` (a reassignment in PATCH also needs `assign:task`); bulk-assign
+create, PATCH, DELETE and reorder `create:task` (giving the task to someone else, on create or PATCH, also needs `assign:task`); bulk-assign
 `assign:task`; `PATCH :id/status` `complete:task` with `@PermissionConditionsCheckedByService` — an EXTERNAL_COLLABORATOR
 moves only tasks assigned to them (403 AUTH-100), a TRAINEE any task they can see. Every status change uses
 `complete:task` (moving a card is working on it). **Assignee** (create, PATCH, bulk): an active user of the office whose

@@ -186,7 +186,9 @@ describe('TasksService', () => {
         unknown,
         { AND: unknown[] },
       ];
-      expect(notOverdue.AND).toEqual([{ NOT: expect.any(Object) }]);
+      expect(notOverdue.AND).toEqual([
+        { OR: [{ status: 'DONE' }, { dueDate: null }, { dueDate: { gte: expect.any(Date) } }] },
+      ]);
     });
   });
 
