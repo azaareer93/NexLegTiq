@@ -35,3 +35,43 @@ export const MoneySchema = z
 /** A search term: trimmed, may be empty, same character rules as `plainText`. */
 export const searchText = (max: number) =>
   z.string().trim().max(max, 'validation.tooLong').regex(SAFE_LINE, 'validation.invalidCharacters');
+
+/** An email address, trimmed and lower-cased. */
+export const EmailSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(254)
+  .pipe(z.email('validation.email'));
+
+/** A phone number: digits with an optional leading `+`, spaces, brackets and dashes (Western digits). */
+export const PhoneSchema = z
+  .string()
+  .trim()
+  .regex(/^\+?[0-9][0-9 ()-]{6,19}$/, 'validation.phone');
+
+/** `sort=field:dir,…` (api-conventions.md): known fields only, each once, `asc` when no direction is given. */
+export const sortParam = <F extends string>(fields: readonly F[]) =>
+  z
+    .string()
+    .trim()
+    .max(200, 'validation.tooLong')
+    .transform((value, ctx) => {
+      const parts = value.split(',').map((part) => part.trim().split(':'));
+      const sort: { field: F; direction: 'asc' | 'desc' }[] = [];
+      for (const [field, direction = 'asc', ...rest] of parts) {
+        const known = (fields as readonly string[]).includes(field ?? '');
+        const repeated = sort.some((key) => key.field === field);
+        if (
+          !known ||
+          repeated ||
+          rest.length > 0 ||
+          (direction !== 'asc' && direction !== 'desc')
+        ) {
+          ctx.addIssue({ code: 'custom', message: 'validation.sort' });
+          return z.NEVER;
+        }
+        sort.push({ field: field as F, direction });
+      }
+      return sort;
+    });

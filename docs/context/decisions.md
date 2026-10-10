@@ -926,6 +926,41 @@ failed run (also gives each ticket a clean context). Headless runs use the permi
 script sets none. Why: the backlog moves while the owner only reviews and merges, without unreviewed code reaching
 `develop`.
 
+**D-108 — Clients API, contact persons and the field cipher** · Accepted (MVP-53, 2026-10-10)
+MVP-53 needed the D-056 field encryption (no story had built it), a rule for "exactly one primary contact", and left counts,
+search and the open-file sort open. → **Field cipher** (`src/common/crypto/field-cipher.ts`, global via `CoreModule`):
+AES-256-GCM with a fresh 96-bit IV, stored as `v1:<base64url(iv | tag | ciphertext)>` (the `v<n>:` CHECKs of D-095), the
+column, office and row bound as additional data (`clients.national_id:<officeId>:<clientId>`), so a value copied to another
+column, office or row fails instead of decrypting (a new client is inserted first and its ids sealed in the same transaction,
+since the row id is generated on insert); parties and confidential notes use the same pattern. Key: **`ENCRYPTION_KEY`** (ops-security.md), required, 64 hex characters; the dev/CI value (one
+repeated digit) is refused in production. One key version for now — rotation adds older keys by version and a re-encrypt job
+when first needed. **Losing the key loses the fields:** it belongs in the secret store with a backup. **Clients:**
+`POST/GET /clients`, `GET/PATCH/DELETE /clients/:id`, all `manage:clients` (D-091's known gap stands: it also means "see
+clients"). `nationalId` **and `taxId` are always encrypted** (D-056 asks it for individuals only; one rule avoids re-encrypting
+when `clientType` changes) and returned decrypted only by `GET /clients/:id` (and create/update answers); audit rows record
+`"[encrypted]"` instead of their values; a DELETE row keeps the client's `displayName`. PATCH writes and audits only changed fields (old and new); a primary lawyer must be an
+active OFFICE_MANAGER/SENIOR_LAWYER/LAWYER (`validation.primaryLawyer`). **Delete** is soft (`deletedAt`; gone from lists and
+lookups, 404 afterwards) and refused with **422 BIZ-010** (new code: "client has open files") while the client is linked to a
+live OPEN or SUSPENDED file; CLOSED/ARCHIVED files keep pointing at it. **File counts** (`openFiles` in rows, `openFiles` +
+`closedFiles` in the detail) count every live file of the office linked to the client, confidential ones included — they are
+facts about the client (the delete rule depends on them), not file content; invoice totals join with the billing story.
+**List:** `search` = case-insensitive substring of display, full or company name or phone (`%`/`_` literal), each with a
+trigram GIN index so the `OR` can use them (email is not searched: citext has no trigram operator class without an expression
+index Prisma cannot model); Arabic normalisation (hamza/alef forms) waits for global search like the cases list
+(D-096). `clientType`, `isActive` filters; `sort=name|createdAt|openFiles[:dir],…` (default `name`). The order and count come
+from one parameterised SQL query (Prisma cannot sort by a filtered relation count; the office id is a parameter, D-080), the
+rows from Prisma. **Contact persons** (`ContactPerson`, tenant model, cascades with a purged client): `GET/POST
+/clients/:id/contacts`, `PATCH/DELETE /clients/:id/contacts/:contactId`. A client with contacts has **exactly one primary**:
+the first contact is primary whatever it says, `isPrimary: true` promotes (the previous one is demoted), PATCH accepts only
+`true` (`validation.primaryContact` — demoting would leave none), deleting the primary promotes the oldest remaining one.
+Every contact write locks the client row (`SELECT … FOR UPDATE`), so concurrent writes queue; a partial unique index is the
+backstop. Contacts are hard-deleted. Audit rows name the side effects: `previousPrimaryId` when a contact is
+promoted, `promotedContactId` when the primary is deleted. The number of contacts is not capped yet. Another client's contact or another office's client → 404 RES-001.
+**Shared contracts:** `EmailSchema`, `PhoneSchema` and `sortParam(fields)` moved to `fields.ts` (auth and cases reuse them).
+**Known limits:** a file opened for a client at the instant it is deleted can still link it (file creation does not lock the
+client row). Why: the AC's encryption lands once, reusable by parties and confidential notes, and clients get the list the UI
+needs without inventing billing data.
+
 **D-113 — Cases list page: URL state, views and what waits for other stories** · Accepted (MVP-58, 2026-10-10)
 The ticket asks for columns, filters and a create modal whose data or endpoints do not exist yet (next hearing, document
 count, sub-type, client and user pickers, client selection for a new file). → `/cases` (`apps/office-app/src/features/cases`)

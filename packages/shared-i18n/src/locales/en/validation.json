@@ -16,6 +16,8 @@
   "unknownClient": "One of the selected clients does not exist or is inactive.",
   "responsibleLawyer": "Choose an active lawyer from your office.",
   "responsibleParalegal": "Choose an active paralegal from your office.",
+  "primaryLawyer": "Choose an active lawyer from your office.",
+  "primaryContact": "To change the primary contact, make another contact primary.",
   "password": {
     "tooShort": "Use at least 10 characters.",
     "weak": "Use upper- and lower-case letters and at least one digit.",
