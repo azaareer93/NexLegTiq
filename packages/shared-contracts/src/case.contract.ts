@@ -97,7 +97,13 @@ const SortSchema = z
 /** `GET /cases` query (api-conventions.md): filters, `scope=mine|all`, `sort=field:dir,…`, `page`, `limit` ≤ 100. */
 export const CaseQuerySchema = z.object({
   status: z.enum(FILE_STATUSES).optional(),
-  fileType: z.enum(FILE_TYPES).optional(),
+  /** One type or a comma-separated list (`CONTRACT_DRAFTING,NDA_REVIEW`): the "Contracts" view spans several types. */
+  fileType: z
+    .string()
+    .transform((value) => value.split(',').map((type) => type.trim()))
+    .pipe(z.array(z.enum(FILE_TYPES)).min(1).max(FILE_TYPES.length))
+    .optional()
+    .meta({ description: `One or more of ${FILE_TYPES.join(', ')}, comma-separated` }),
   priority: z.enum(PRIORITIES).optional(),
   /** `mine`: only files assigned to the caller, even with `view:all:cases`. */
   scope: z.enum(['mine', 'all']).default('all'),

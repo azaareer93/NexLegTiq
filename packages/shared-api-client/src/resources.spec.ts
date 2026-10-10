@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 
 import { createApiClient } from './api-client.js';
-import { authApi, usersApi } from './resources.js';
+import { authApi, casesApi, usersApi } from './resources.js';
 
 const ORIGIN = 'http://api.test';
 const url = (path: string) => `${ORIGIN}/api/v1/${path}`;
@@ -44,7 +44,13 @@ function setup(token: string | null = null) {
     },
     onAuthFailure,
   });
-  return { auth: authApi(client), users: usersApi(client), store, onAuthFailure };
+  return {
+    auth: authApi(client),
+    users: usersApi(client),
+    cases: casesApi(client),
+    store,
+    onAuthFailure,
+  };
 }
 
 const registration = {
@@ -192,5 +198,48 @@ describe('usersApi', () => {
       }),
     ).resolves.toBeUndefined();
     expect(authorization).toBe('Bearer access-1');
+  });
+});
+
+describe('casesApi', () => {
+  const row = {
+    id: '01920000-0000-7000-8000-0000000000f1',
+    fileNumber: '2026-LIT-00001',
+    title: 'Land dispute',
+    fileType: 'LITIGATION',
+    status: 'OPEN',
+    priority: 'HIGH',
+    openingDate: '2026-10-01',
+    isConfidential: false,
+    primaryClient: null,
+    responsibleLawyer: { id: '01920000-0000-7000-8000-000000000001', fullName: 'Layla Haddad' },
+    updatedAt: '2026-10-05T10:00:00.000Z',
+  };
+  const pagination = { page: 2, limit: 20, total: 21, totalPages: 2, hasMore: false };
+
+  it('should send the filters and return the rows with the pagination', async () => {
+    let query = '';
+    server.use(
+      http.get(url('cases'), ({ request }) => {
+        query = new URL(request.url).search;
+        return HttpResponse.json({ success: true, data: [row], meta: { ...meta, pagination } });
+      }),
+    );
+    await expect(
+      setup('access-1').cases.list({ fileType: 'NDA_REVIEW,RENTAL_AGREEMENT', page: '2' }),
+    ).resolves.toEqual({ items: [row], pagination });
+    expect(new URLSearchParams(query).get('fileType')).toBe('NDA_REVIEW,RENTAL_AGREEMENT');
+  });
+
+  it.each([
+    ['a row that breaks the contract', [{ ...row, status: 'LOST' }], pagination],
+    ['no pagination', [row], undefined],
+  ])('should refuse %s as SYS-001', async (_case, data, page) => {
+    server.use(
+      http.get(url('cases'), () =>
+        HttpResponse.json({ success: true, data, meta: { ...meta, pagination: page } }),
+      ),
+    );
+    await expect(setup('access-1').cases.list({})).rejects.toMatchObject({ code: 'SYS-001' });
   });
 });

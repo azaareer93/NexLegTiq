@@ -5,7 +5,7 @@ export {
   idempotencyHeaders,
   REQUEST_TIMEOUT_MS,
 } from './api-client.js';
-export type { ApiClient, ApiClientConfig, ApiRequest, Realm } from './api-client.js';
+export type { ApiClient, ApiClientConfig, ApiRequest, Page, Realm } from './api-client.js';
 export { API_BASE_PATH, buildApiUrl } from './api-url.js';
-export { authApi, usersApi } from './resources.js';
-export type { ClientSession } from './resources.js';
+export { authApi, casesApi, usersApi } from './resources.js';
+export type { CaseListParams, ClientSession } from './resources.js';

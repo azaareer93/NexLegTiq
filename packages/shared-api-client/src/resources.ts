@@ -1,6 +1,8 @@
-import { AuthSessionSchema } from '@nexlegtiq/shared-contracts';
+import { AuthSessionSchema, CaseListItemSchema } from '@nexlegtiq/shared-contracts';
 import type {
   AuthSession,
+  CaseListItem,
+  CaseQuerySchema,
   ChangePasswordRequestSchema,
   ForgotPasswordRequestSchema,
   LoginRequestSchema,
@@ -11,7 +13,7 @@ import type {
 } from '@nexlegtiq/shared-contracts';
 import type { z } from 'zod';
 
-import type { ApiClient } from './api-client.js';
+import type { ApiClient, Page } from './api-client.js';
 import { ApiError } from './api-error.js';
 
 // Request bodies are typed as the schemas' *input* (defaults may be omitted); forms validate with the same schemas.
@@ -74,5 +76,19 @@ export function usersApi(client: ApiClient) {
   return {
     changePassword: (body: Input<typeof ChangePasswordRequestSchema>) =>
       client.request({ method: 'POST', path: 'users/me/password', body }),
+  };
+}
+
+/**
+ * `GET /cases` parameters as they travel in the query string (`CaseQuerySchema` input): `fileType` may list several types
+ * (`LITIGATION,CRIMINAL`), `sort` is `field:dir,…`.
+ */
+export type CaseListParams = Partial<Record<keyof z.input<typeof CaseQuerySchema>, string>>;
+
+/** Legal files (W6, D-096). Create, detail and update join with the screens that use them. */
+export function casesApi(client: ApiClient) {
+  return {
+    list: (query: CaseListParams, signal?: AbortSignal): Promise<Page<CaseListItem>> =>
+      client.requestPage({ method: 'GET', path: 'cases', query, signal }, CaseListItemSchema),
   };
 }

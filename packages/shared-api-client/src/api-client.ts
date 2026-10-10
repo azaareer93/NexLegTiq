@@ -1,6 +1,7 @@
+import type { PaginationMeta } from '@nexlegtiq/shared-types';
 import axios from 'axios';
 import type { AxiosResponse } from 'axios';
-import type { z } from 'zod';
+import { z } from 'zod';
 
 import { ApiError, REQUEST_ID_HEADER, toApiError } from './api-error.js';
 import { buildApiUrl } from './api-url.js';
@@ -42,6 +43,8 @@ export interface ApiClient {
   request<S extends z.ZodType>(request: ApiRequest, schema: S): Promise<z.output<S>>;
   /** For endpoints without a body to read (204, or an acknowledgement). */
   request(request: ApiRequest): Promise<void>;
+  /** A paginated list (api-conventions.md): every item checked against `itemSchema`, plus `meta.pagination`. */
+  requestPage<S extends z.ZodType>(request: ApiRequest, itemSchema: S): Promise<Page<z.output<S>>>;
   /**
    * For the public endpoints that start or end a session (login, register, logout): sent after any refresh in flight and
    * under the cross-tab refresh lock, never refreshed or retried.
@@ -56,6 +59,20 @@ export interface ApiClient {
   /** The `setToken` of the config, for resource calls that start or end a session (login, logout). */
   readonly setToken: ApiClientConfig['setToken'];
 }
+
+/** One page of a list endpoint. */
+export interface Page<T> {
+  readonly items: T[];
+  readonly pagination: PaginationMeta;
+}
+
+const PaginationSchema = z.object({
+  page: z.number().int(),
+  limit: z.number().int(),
+  total: z.number().int(),
+  totalPages: z.number().int(),
+  hasMore: z.boolean(),
+});
 
 interface LockManagerLike {
   request<T>(name: string, callback: () => Promise<T>): Promise<T>;
@@ -191,9 +208,10 @@ export function createApiClient(config: ApiClientConfig): ApiClient {
 
   function parse(response: AxiosResponse, schema?: z.ZodType): unknown {
     const data = unwrap(response);
-    if (!schema) {
-      return undefined;
-    }
+    return schema ? checked(response, schema, data) : undefined;
+  }
+
+  function checked(response: AxiosResponse, schema: z.ZodType, data: unknown): unknown {
     const parsed = schema.safeParse(data);
     if (!parsed.success) {
       // The server and this build disagree on the contract (a deploy in progress, a bug): never hand the UI bad data.
@@ -216,6 +234,17 @@ export function createApiClient(config: ApiClientConfig): ApiClient {
     return parse(await send(apiRequest), schema);
   }
 
+  async function requestPage(
+    apiRequest: ApiRequest,
+    itemSchema: z.ZodType,
+  ): Promise<Page<unknown>> {
+    const response = await send(apiRequest);
+    const items = checked(response, z.array(itemSchema), unwrap(response)) as unknown[];
+    const meta = (response.data as { meta?: { pagination?: unknown } }).meta;
+    const pagination = checked(response, PaginationSchema, meta?.pagination) as PaginationMeta;
+    return { items, pagination };
+  }
+
   async function sessionRequest(apiRequest: ApiRequest, schema?: z.ZodType): Promise<unknown> {
     // Wait for this tab's refresh, then hold the cross-tab refresh lock: a rotation finishing during a logout would
     // otherwise leave a live refresh cookie behind (the old cookie logs nothing out), or overwrite a new login's cookie.
@@ -226,6 +255,7 @@ export function createApiClient(config: ApiClientConfig): ApiClient {
 
   return {
     request: request as ApiClient['request'],
+    requestPage: requestPage as ApiClient['requestPage'],
     sessionRequest: sessionRequest as ApiClient['sessionRequest'],
     refresh: () => refresh(),
     setToken: config.setToken,
