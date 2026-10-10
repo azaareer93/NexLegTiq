@@ -15,7 +15,8 @@
   "meta": { "timestamp": "…", "requestId": "…" } }
 ```
 - Pagination `?page=1&limit=20` (max 100); cursor (`?cursor=`) for timeline/audit/notifications.
-  Sorting `?sort=createdAt:desc,priority:asc` (allow-listed fields). Filters as query params validated by `XQuerySchema`.
+  Sorting `?sort=createdAt:desc,priority:asc` (allow-listed fields). Filters as query params validated by `XQuerySchema`;
+  a multi-value filter is comma-separated (`?fileType=NDA_REVIEW,RENTAL_AGREEMENT`, D-113).
 - Async work → `202 { jobId, status }`; poll `GET /jobs/:id` or listen to WS.
 - `error.message` is an English developer message; the FE maps `code` → i18n key `errors.<CODE>`.
 - Idempotency: `Idempotency-Key` header honored on POST create endpoints for uploads, invoices, sessions (Redis 24h).

@@ -117,7 +117,7 @@ function filtersOf(query: CaseQuery): Prisma.LegalFileWhereInput {
   return {
     ...search,
     ...(query.status && { status: query.status }),
-    ...(query.fileType && { fileType: query.fileType }),
+    ...(query.fileType && { fileType: { in: query.fileType } }),
     ...(query.priority && { priority: query.priority }),
     ...(query.responsibleLawyerId && { responsibleLawyerId: query.responsibleLawyerId }),
     ...(query.clientId && { clients: { some: { clientId: query.clientId } } }),

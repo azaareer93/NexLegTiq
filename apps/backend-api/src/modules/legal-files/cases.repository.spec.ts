@@ -52,7 +52,7 @@ describe('CasesRepository', () => {
           { deletedAt: null },
           {
             status: 'OPEN',
-            fileType: 'LITIGATION',
+            fileType: { in: ['LITIGATION'] },
             priority: 'HIGH',
             responsibleLawyerId: '01920000-0000-7000-8000-0000000000a1',
             clients: { some: { clientId: '01920000-0000-7000-8000-0000000000c1' } },

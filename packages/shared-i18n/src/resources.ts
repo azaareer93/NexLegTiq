@@ -1,6 +1,7 @@
 import type { Locale } from '@nexlegtiq/shared-types';
 
 import arAuth from './locales/ar/auth.json' with { type: 'json' };
+import arCases from './locales/ar/cases.json' with { type: 'json' };
 import arCommon from './locales/ar/common.json' with { type: 'json' };
 import arEnums from './locales/ar/enums.json' with { type: 'json' };
 import arErrors from './locales/ar/errors.json' with { type: 'json' };
@@ -8,6 +9,7 @@ import arLegal from './locales/ar/legal.json' with { type: 'json' };
 import arShell from './locales/ar/shell.json' with { type: 'json' };
 import arValidation from './locales/ar/validation.json' with { type: 'json' };
 import enAuth from './locales/en/auth.json' with { type: 'json' };
+import enCases from './locales/en/cases.json' with { type: 'json' };
 import enCommon from './locales/en/common.json' with { type: 'json' };
 import enEnums from './locales/en/enums.json' with { type: 'json' };
 import enErrors from './locales/en/errors.json' with { type: 'json' };
@@ -24,6 +26,7 @@ const en = {
   legal: enLegal,
   validation: enValidation,
   shell: enShell,
+  cases: enCases,
 };
 const ar = {
   common: arCommon,
@@ -33,6 +36,7 @@ const ar = {
   legal: arLegal,
   validation: arValidation,
   shell: arShell,
+  cases: arCases,
 };
 
 /** Nested string tree of one namespace file. */

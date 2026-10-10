@@ -72,6 +72,16 @@ describe('CaseQuerySchema', () => {
     });
   });
 
+  it('should read one file type or a comma-separated list', () => {
+    expect(CaseQuerySchema.parse({ fileType: 'LITIGATION' }).fileType).toEqual(['LITIGATION']);
+    expect(CaseQuerySchema.parse({ fileType: 'NDA_REVIEW, RENTAL_AGREEMENT' }).fileType).toEqual([
+      'NDA_REVIEW',
+      'RENTAL_AGREEMENT',
+    ]);
+    expect(CaseQuerySchema.safeParse({ fileType: 'LITIGATION,PIZZA' }).success).toBe(false);
+    expect(CaseQuerySchema.safeParse({ fileType: '' }).success).toBe(false);
+  });
+
   it('should parse several sort keys with an optional direction', () => {
     expect(CaseQuerySchema.parse({ sort: 'priority:desc, title' }).sort).toEqual([
       { field: 'priority', direction: 'desc' },

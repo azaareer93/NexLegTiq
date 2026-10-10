@@ -383,6 +383,9 @@ describe('cases API (HTTP + PostgreSQL)', () => {
       const rentals = await listIds(manager(), '?fileType=RENTAL_AGREEMENT&limit=100');
       expect(rentals).toEqual(expect.arrayContaining([filtered[1], filtered[2]]));
       expect(rentals).not.toContain(filtered[0]);
+      expect(
+        await listIds(manager(), '?fileType=RENTAL_AGREEMENT,EMPLOYMENT_CONTRACT&limit=100'),
+      ).toEqual(expect.arrayContaining(filtered));
       expect(await listIds(manager(), '?priority=URGENT&fileType=EMPLOYMENT_CONTRACT')).toEqual([
         filtered[0],
       ]);
