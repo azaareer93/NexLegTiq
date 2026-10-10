@@ -9,7 +9,7 @@ import {
 } from '@nexlegtiq/shared-types';
 import { z } from 'zod';
 
-import { longText, MoneySchema, plainText, searchText } from './fields.js';
+import { longText, MoneySchema, plainText, searchText, sortParam } from './fields.js';
 
 /**
  * `POST /cases` (W6, D-095/D-096). The number, office, currency, jurisdiction and opening date come from the server;
@@ -75,25 +75,6 @@ export const CASE_SORT_FIELDS = [
 ] as const;
 export type CaseSortField = (typeof CASE_SORT_FIELDS)[number];
 
-const SortSchema = z
-  .string()
-  .trim()
-  .max(200, 'validation.tooLong')
-  .transform((value, ctx) => {
-    const parts = value.split(',').map((part) => part.trim().split(':'));
-    const sort: { field: CaseSortField; direction: 'asc' | 'desc' }[] = [];
-    for (const [field, direction = 'asc', ...rest] of parts) {
-      const known = (CASE_SORT_FIELDS as readonly string[]).includes(field ?? '');
-      const repeated = sort.some((key) => key.field === field);
-      if (!known || repeated || rest.length > 0 || (direction !== 'asc' && direction !== 'desc')) {
-        ctx.addIssue({ code: 'custom', message: 'validation.sort' });
-        return z.NEVER;
-      }
-      sort.push({ field: field as CaseSortField, direction });
-    }
-    return sort;
-  });
-
 /** `GET /cases` query (api-conventions.md): filters, `scope=mine|all`, `sort=field:dir,…`, `page`, `limit` ≤ 100. */
 export const CaseQuerySchema = z.object({
   status: z.enum(FILE_STATUSES).optional(),
@@ -104,7 +85,7 @@ export const CaseQuerySchema = z.object({
   search: searchText(100).optional(),
   clientId: z.uuid().optional(),
   responsibleLawyerId: z.uuid().optional(),
-  sort: SortSchema.default([{ field: 'updatedAt', direction: 'desc' }]),
+  sort: sortParam(CASE_SORT_FIELDS).default([{ field: 'updatedAt', direction: 'desc' }]),
   page: z.coerce.number().int().min(1).max(10_000).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
