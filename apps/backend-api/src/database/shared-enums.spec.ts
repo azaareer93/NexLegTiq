@@ -2,6 +2,7 @@ import {
   ACCOUNT_TYPES,
   BILLING_METHODS,
   CLIENT_TYPES,
+  COURT_TYPES,
   FILE_STATUSES,
   FILE_TEAM_ROLES,
   FILE_TYPES,
@@ -17,6 +18,7 @@ import {
   AccountType,
   BillingMethod,
   ClientType,
+  CourtType,
   FileStatus,
   FileTeamRole,
   FileType,
@@ -43,6 +45,7 @@ describe('shared-types enums match the Prisma schema', () => {
     ['PartyType', PARTY_TYPES, PartyType],
     ['BillingMethod', BILLING_METHODS, BillingMethod],
     ['TaskStatus', TASK_STATUSES, TaskStatus],
+    ['CourtType', COURT_TYPES, CourtType],
   ] as const)('%s', (_name, shared, prisma) => {
     expect([...shared].sort()).toEqual(Object.values(prisma).sort());
   });

@@ -95,5 +95,20 @@
     "IN_PROGRESS": "In progress",
     "BLOCKED": "Blocked",
     "DONE": "Done"
+  },
+  "courtType": {
+    "CIVIL": "Civil",
+    "CRIMINAL": "Criminal",
+    "COMMERCIAL": "Commercial",
+    "LABOR": "Labour",
+    "FAMILY": "Family",
+    "ADMINISTRATIVE": "Administrative",
+    "SHARIA": "Sharia",
+    "MAGISTRATE": "Magistrate",
+    "FIRST_INSTANCE": "First instance",
+    "APPEAL": "Appeal",
+    "CASSATION": "Cassation",
+    "SUPREME": "Supreme",
+    "ARBITRATION": "Arbitration"
   }
 }

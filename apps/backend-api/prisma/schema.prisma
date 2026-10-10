@@ -158,6 +158,23 @@ enum Priority {
   URGENT
 }
 
+/// D-037. Labels: `enums.courtType.<VALUE>`.
+enum CourtType {
+  CIVIL
+  CRIMINAL
+  COMMERCIAL
+  LABOR
+  FAMILY
+  ADMINISTRATIVE
+  SHARIA
+  MAGISTRATE
+  FIRST_INSTANCE
+  APPEAL
+  CASSATION
+  SUPREME
+  ARBITRATION
+}
+
 enum TaskStatus {
   TODO
   IN_PROGRESS
@@ -246,6 +263,9 @@ model Office {
   fileNotes           FileNote[]
   taskTemplates       TaskTemplate[]
   tasks               Task[]
+  courts              Court[]
+  judges              Judge[]
+  publicProsecutors   PublicProsecutor[]
 
   @@map("offices")
 }
@@ -593,11 +613,17 @@ model LegalFile {
   /// ISO-4217 code of every amount on the file (D-017).
   currency               String        @db.Char(3)
   isConfidential         Boolean       @default(false) @map("is_confidential")
+  /// A platform court or one of the office's (D-037); a trigger checks it is visible to the file's office (D-115).
+  courtId                String?       @map("court_id") @db.Uuid
+  /// Requires `courtId` and sits at that court (same trigger).
+  judgeId                String?       @map("judge_id") @db.Uuid
   deletedAt              DateTime?     @map("deleted_at") @db.Timestamptz(3)
   createdAt              DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt              DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   office               Office               @relation(fields: [officeId], references: [id])
+  court                Court?               @relation(fields: [courtId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  judge                Judge?               @relation(fields: [judgeId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   responsibleLawyer    User                 @relation("FileResponsibleLawyer", fields: [responsibleLawyerId, officeId], references: [id, officeId], onUpdate: Restrict)
   responsibleParalegal User?                @relation("FileResponsibleParalegal", fields: [responsibleParalegalId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
   clients              FileClient[]
@@ -614,6 +640,9 @@ model LegalFile {
   // "Assigned" scope (D-051): responsible lawyer or paralegal; team members through file_team_members.
   @@index([officeId, responsibleLawyerId])
   @@index([officeId, responsibleParalegalId])
+  // Foreign-key lookups when a court or judge is deleted (BIZ-011).
+  @@index([courtId])
+  @@index([judgeId])
   @@map("legal_files")
 }
 
@@ -799,6 +828,74 @@ model FileNote {
   @@index([officeId, fileId, createdAt(sort: Desc)])
   @@index([officeId, clientId, createdAt(sort: Desc)])
   @@map("file_notes")
+}
+
+// ─── Courts (D-037, D-115) ──────────────────────────────────────────────────────────────────────────────────────
+
+/// Reference data: `officeId` null = a platform row (seeded, read-only to offices), set = the office's own row.
+/// Platform rows are unique by (jurisdiction, nameEn) and office rows by (office, jurisdiction, nameAr): partial unique
+/// indexes in the migration.
+model Court {
+  id           String       @id @default(uuid(7)) @db.Uuid
+  officeId     String?      @map("office_id") @db.Uuid
+  jurisdiction Jurisdiction
+  courtType    CourtType    @map("court_type")
+  nameAr       String       @map("name_ar")
+  /// Required on platform rows (the seed key; CHECK).
+  nameEn       String?      @map("name_en")
+  city         String?
+  address      String?
+  phone        String?
+  email        String?      @db.Citext
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  // Restrict: SetNull would turn an office's rows into platform rows.
+  office     Office?     @relation(fields: [officeId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  judges     Judge[]
+  legalFiles LegalFile[]
+
+  @@index([jurisdiction, officeId])
+  @@index([officeId])
+  @@map("courts")
+}
+
+/// Reference data like Court. A judge sits at a court visible to its office (trigger, D-115); the court never changes.
+model Judge {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  officeId  String?  @map("office_id") @db.Uuid
+  courtId   String   @map("court_id") @db.Uuid
+  fullName  String   @map("full_name")
+  isActive  Boolean  @default(true) @map("is_active")
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  // Restrict: SetNull would turn an office's rows into platform rows.
+  office     Office?     @relation(fields: [officeId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  court      Court       @relation(fields: [courtId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  legalFiles LegalFile[]
+
+  @@index([courtId])
+  @@index([officeId])
+  @@map("judges")
+}
+
+model PublicProsecutor {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  officeId   String   @map("office_id") @db.Uuid
+  fullName   String   @map("full_name")
+  /// The prosecution office (e.g. نيابة رام الله).
+  officeName String?  @map("office_name")
+  phone      String?
+  email      String?  @db.Citext
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office Office @relation(fields: [officeId], references: [id])
+
+  @@index([officeId, fullName])
+  @@map("public_prosecutors")
 }
 
 /// Tasks created when a file of `fileType` (or any type when null) is opened; applied by the Tasks epic.

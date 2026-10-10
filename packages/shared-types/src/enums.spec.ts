@@ -1,3 +1,4 @@
+import { COURT_TYPES } from './court.js';
 import {
   BILLING_METHODS,
   CLIENT_TYPES,
@@ -23,6 +24,7 @@ describe('enum value lists', () => {
       FILE_TEAM_ROLES,
       PARTY_TYPES,
       BILLING_METHODS,
+      COURT_TYPES,
     }),
   )('%s should hold unique UPPER_SNAKE values', (_name, values) => {
     expect(values.length).toBeGreaterThan(0);

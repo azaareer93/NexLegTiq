@@ -30,6 +30,13 @@ export const TENANT_MODELS = [
   'FileNote',
   'TaskTemplate',
   'Task',
+  'PublicProsecutor',
 ] as const satisfies readonly Prisma.ModelName[];
 
 export type TenantModel = (typeof TENANT_MODELS)[number];
+
+/**
+ * Reference models (D-037, D-115): `officeId` null = a platform row (seeded) every office reads, set = an office's own
+ * row. The tenant extension lets an office read both and write only its own.
+ */
+export const REFERENCE_MODELS = ['Court', 'Judge'] as const satisfies readonly Prisma.ModelName[];
