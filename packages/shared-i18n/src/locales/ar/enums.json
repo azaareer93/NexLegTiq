@@ -83,5 +83,11 @@
     "SIGNATORY": "الموقّع",
     "INTERESTED_PARTY": "صاحب مصلحة",
     "PROSECUTION": "النيابة العامة"
+  },
+  "billingMethod": {
+    "HOURLY": "بالساعة",
+    "FIXED_FEE": "أتعاب مقطوعة",
+    "RETAINER": "دفعة مقدمة",
+    "CONTINGENCY": "أتعاب مشروطة بالنتيجة"
   }
 }

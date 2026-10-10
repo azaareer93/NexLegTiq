@@ -142,8 +142,30 @@ export const TENANT_ISOLATION_MATRIX: readonly TenantResource[] = [
       db.notification.create({ data: { officeId, userId, type: 'TEST', titleKey: 'test.title' } }),
     update: { readAt: new Date() },
   },
-  { model: 'Client', create: clientIn, update: { phone: '0599000000' } },
-  { model: 'LegalFile', create: fileIn, update: { title: 'Renamed' } },
+  {
+    model: 'Client',
+    create: clientIn,
+    update: { phone: '0599000000' },
+    http: { list: 'clients', item: (id) => `clients/${id}` },
+  },
+  {
+    model: 'ContactPerson',
+    create: async (db, office) =>
+      db.contactPerson.create({
+        data: {
+          officeId: office.officeId,
+          clientId: (await clientIn(db, office)).id,
+          fullName: 'Isolation contact',
+        },
+      }),
+    update: { position: 'Director' },
+  },
+  {
+    model: 'LegalFile',
+    create: fileIn,
+    update: { title: 'Renamed' },
+    http: { list: 'cases', item: (id) => `cases/${id}` },
+  },
   {
     model: 'FileClient',
     create: async (db, office) =>

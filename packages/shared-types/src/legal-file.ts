@@ -45,3 +45,6 @@ export const PARTY_TYPES = [
   'PROSECUTION',
 ] as const;
 export type PartyType = (typeof PARTY_TYPES)[number];
+
+export const BILLING_METHODS = ['HOURLY', 'FIXED_FEE', 'RETAINER', 'CONTINGENCY'] as const;
+export type BillingMethod = (typeof BILLING_METHODS)[number];

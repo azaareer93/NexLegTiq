@@ -83,5 +83,11 @@
     "SIGNATORY": "Signatory",
     "INTERESTED_PARTY": "Interested party",
     "PROSECUTION": "Prosecution"
+  },
+  "billingMethod": {
+    "HOURLY": "Hourly",
+    "FIXED_FEE": "Fixed fee",
+    "RETAINER": "Retainer",
+    "CONTINGENCY": "Contingency fee"
   }
 }

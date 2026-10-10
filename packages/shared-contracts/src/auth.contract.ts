@@ -7,25 +7,13 @@ import {
 } from '@nexlegtiq/shared-types';
 import { z } from 'zod';
 
+import { EmailSchema, PhoneSchema, plainText } from './fields.js';
 import { NewPasswordSchema, passwordIsNotEmail } from './password.contract.js';
 
 // Normalise first, then validate: users paste emails with spaces and capitals; the column is citext anyway (D-032).
-const EmailSchema = z.string().trim().toLowerCase().max(254).pipe(z.email('validation.email'));
 
 /** ISO-4217 codes the runtime knows (Node and every supported browser ship the list). */
 const CURRENCIES = new Set(Intl.supportedValuesOf('currency'));
-
-/**
- * Single-line plain text (names): trimmed, no control characters and no bidi overrides or isolates (U+202A–202E,
- * U+2066–2069), which could reverse how a name displays (D-054). ZWJ/ZWNJ stay allowed: Arabic text uses them.
- */
-const plainText = (max: number) =>
-  z
-    .string()
-    .trim()
-    .min(1, 'validation.required')
-    .max(max, 'validation.tooLong')
-    .regex(/^[^\p{Cc}‪-‮⁦-⁩]*$/u, 'validation.invalidCharacters');
 
 /**
  * Office login (auth-rbac.md, Flows). Passwords are only length-checked here: a wrong password must look exactly like
@@ -57,11 +45,7 @@ export const RegisterRequestSchema = z
       .trim()
       .toUpperCase()
       .refine((code) => CURRENCIES.has(code), 'validation.currency'),
-    phone: z
-      .string()
-      .trim()
-      .regex(/^\+?[0-9][0-9 ()-]{6,19}$/, 'validation.phone')
-      .optional(),
+    phone: PhoneSchema.optional(),
     acceptTerms: z.literal(true, 'validation.mustAcceptTerms'),
     acceptPrivacy: z.literal(true, 'validation.mustAcceptPrivacy'),
   })

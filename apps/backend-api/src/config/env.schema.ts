@@ -80,6 +80,10 @@ const EnvObject = z.object({
 
   // HS256 key of the office access JWT (auth-rbac.md, Tokens); at least 32 characters of randomness.
   JWT_SECRET: z.string().min(32),
+  // AES-256-GCM key of the field cipher (D-056, ops-security.md): 32 random bytes as 64 hex characters.
+  ENCRYPTION_KEY: z
+    .string()
+    .regex(/^[0-9a-fA-F]{64}$/, 'must be 32 bytes written as 64 hexadecimal characters'),
   // AUTH-010 after 7 unverified days, and reclaiming abandoned unverified signups (D-083). Off until verification emails
   // and resend are delivered: with no way to receive the link, enforcing it would lock out every new office.
   EMAIL_VERIFICATION_ENFORCED: z.stringbool().default(false),
@@ -128,6 +132,12 @@ const PRODUCTION_RULES: readonly (readonly [keyof RawEnv, (env: RawEnv) => boole
     'BULL_BOARD_ENABLED',
     (env) => env.BULL_BOARD_ENABLED,
     'must be false in production until platform-admin auth guards it',
+  ],
+  // The dev/CI key is one repeated digit (.env.example, ci.yml); a real key never is.
+  [
+    'ENCRYPTION_KEY',
+    (env) => /^(.)\1*$/.test(env.ENCRYPTION_KEY),
+    'uses a documented dev/CI placeholder key',
   ],
   [
     'SMTP_REQUIRE_TLS',
