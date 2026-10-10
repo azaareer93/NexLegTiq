@@ -1048,3 +1048,40 @@ a placeholder until the legal-file page story. **Deferred to their stories:** ne
 endpoints yet — both filters already work from the URL and show as removable tags), and the **quick-create form**: "New
 case" (only with `create:case`) opens the same "coming soon" dialog as the shell's quick action until client selection
 exists. Why: a shareable, refresh-safe list today, built only on data the API really returns.
+
+**D-115 — Courts, judges and prosecutors: reference rows, permissions and the platform seed** · Accepted (MVP-66, 2026-10-10)
+MVP-66 needed the third tenant-extension category D-080 left open, a permission the RBAC matrix lacks, and a seed whose
+names the owner reviews. → **Reference models** (`REFERENCE_MODELS` = Court, Judge, next to `TENANT_MODELS`): on the
+scoped client a read sees platform rows (`officeId` null) and the office's own — the condition is ANDed after the
+caller's `where`, a caller's `officeId` may only be null or the current office; creates, updates, deletes and upserts
+behave like a tenant model (own rows only, so a platform row is never writable without `unscoped()`); relation writes into
+them are rejected like tenant ones (scalar FKs); relation filters, `_count` and list includes into them get the same
+visibility; a to-one include (`legalFile.court`, `judge.court`) takes no `where` (Prisma refuses one) — to-one is
+recognised by the `<field>Id` FK convention because the runtime model has no list flag (a misnamed one fails loudly);
+raw SQL on `courts`/`judges` must take the officeId like a tenant table. **Integrity:** a platform row cannot be the
+target of a composite `(…, office_id)` FK, so **triggers** give the same guarantee — a judge sits at a court its office
+can see (a platform judge at a platform court), a file names a court its office can see and a judge of that court (judge
+requires court); the API checks first (400 VAL-001 `validation.unknownCourt|unknownJudge`), the triggers are the backstop.
+`courts`/`judges.office_id` FKs are RESTRICT (SetNull would turn an office's rows into platform rows). Uniqueness: platform
+rows by (jurisdiction, nameEn) — the seed key, nameEn required by CHECK —, office rows by (office, jurisdiction, nameAr),
+English optional for them (409 RES-002 on a duplicate). **API** (api-conventions.md#courts): `GET /courts?jurisdiction&
+courtType&search` (Arabic/English name or city, paginated, by Arabic name), `GET /courts/:id`, `POST/PATCH/DELETE /courts`
+(jurisdiction defaults to the office's), `GET/POST /courts/:id/judges`, `PATCH/DELETE /courts/:id/judges/:judgeId` (an
+office may add its own judge to a platform court; a judge never changes court; `isActive` retires one), CRUD
+`/prosecutors` (tenant model `PublicProsecutor`, hard delete). Platform rows → **403 AUTH-100** on write (the ticket's
+rule); another office's row → 404. Delete is hard and refused with **422 BIZ-011** (new code: "still referenced") while a
+file or judge points at the row (the FK decides; files keep their court after a soft delete). Every write has an audit
+row (changed fields only). **Permissions** (no matrix row exists, none added): read with ANY of `view:all|assigned:cases`
+(every role), write with ANY of `create:case|edit:assigned:case|create:session` (OM, SL, L, P) — whoever opens files or
+schedules hearings can add a missing court; TRAINEE, ADMIN and EXTERNAL_COLLABORATOR read only. **Files:** `POST /cases`
+takes `courtId?`/`judgeId?`, `PATCH /cases/:id` both nullable (a new court without a judge clears the old court's judge);
+the detail returns `court {id, nameAr, nameEn, courtType}` and `judge {id, fullName}`. **Seed** (`prisma/courts.seed.ts`,
+run by `seed.ts` and the migrate image): 67 platform courts — for each of the ten West Bank governorate seats a magistrate,
+first-instance and Sharia court, the Ramallah and Jerusalem courts of appeal, cassation, administrative, supreme
+administrative, supreme constitutional, corruption crimes, Sharia appeal and supreme Sharia courts; Jordan's and Egypt's
+main courts. Re-running it updates platform rows' Arabic name, type and city by key and never touches office rows.
+**Deviations:** the names are **for the owner to review** (asked on the ticket, not via the `needs-decision` label, which
+would stop the autopilot: unsure ones are the Jerusalem court of appeal's seat, a Hebron court of appeal and Gaza's courts,
+left out); judges are not seeded; the "inline add court/judge" UI belongs to the quick-create and session-drawer stories
+(the API is ready for them); prosecutors are not yet linked to files or sessions. Why: one platform list every office
+shares without ever seeing another office's additions, enforced in the extension and in the database.

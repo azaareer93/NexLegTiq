@@ -40,8 +40,8 @@
   `status: OPEN|SUSPENDED|CLOSED|ARCHIVED`, `priority: LOW|MEDIUM|HIGH|URGENT`, openingDate, closingDate?,
   responsibleLawyerId, responsibleParalegalId?, courtId?, judgeId?, courtCaseNumber?, jurisdiction,
   `billingMethod: HOURLY|FIXED_FEE|RETAINER|CONTINGENCY`, hourlyRate?, fixedFee?, retainerBalance Decimal,
-  currency, isConfidential, embedding vector(1536)? (Phase 2). courtId/judgeId arrive with MVP-66, embedding with the
-  similar-cases story (D-095).
+  currency, isConfidential, embedding vector(1536)? (Phase 2). courtId/judgeId: D-115 (a visible court, a judge of it), embedding
+  with the similar-cases story (D-095).
 - **FileClient** 🔒 (fileId, clientId, isPrimary) · **FileTeamMember** 🔒 (fileId, userId, role).
 - **FileNumberSequence** 🔒 (officeId, year, typeCode, lastValue) — keyed by what the format shows (D-095).
 - **FileNote** 🔒 — fileId?, clientId?, authorId, body, isConfidential (encrypted when confidential), pinned.
@@ -53,9 +53,10 @@
   role, null = responsible lawyer), isActive.
 
 ## Courts & hearings
-- **Court** (officeId? — global or office) — name (ar/en), `courtType: CourtType` (D-037), jurisdiction, city,
-  address, phone, email. `@@unique([officeId, jurisdiction, name])`.
-- **Judge** (officeId?) — courtId, fullName, isActive, notes.
+- **Court** (officeId? — global or office) — nameAr, nameEn? (required on platform rows), `courtType: CourtType`
+  (D-037), jurisdiction, city, address, phone, email. Unique: platform rows by (jurisdiction, nameEn), office rows by
+  (officeId, jurisdiction, nameAr) (D-115).
+- **Judge** (officeId?) — courtId (a court visible to its office; never changes), fullName, isActive, notes.
 - **PublicProsecutor** 🔒 — fullName, officeName, phone, email.
 - **Session** 🔒 — fileId, courtId?, judgeId?, `sessionType: HEARING|MEDIATION|ARBITRATION|PRE_TRIAL|
   STATUS_CONFERENCE|APPEAL_HEARING|JUDGMENT_PRONOUNCEMENT`, startsAt (timestamptz), endsAt?, courtRoom,

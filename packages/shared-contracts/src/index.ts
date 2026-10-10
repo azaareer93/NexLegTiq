@@ -80,4 +80,30 @@ export type {
   UpdateClientRequest,
   UpdateContactPersonRequest,
 } from './client.contract.js';
+export {
+  CourtQuerySchema,
+  CourtSchema,
+  CreateCourtSchema,
+  CreateJudgeSchema,
+  CreateProsecutorSchema,
+  JudgeSchema,
+  ProsecutorQuerySchema,
+  ProsecutorSchema,
+  UpdateCourtSchema,
+  UpdateJudgeSchema,
+  UpdateProsecutorSchema,
+} from './court.contract.js';
+export type {
+  Court,
+  CourtQuery,
+  CreateCourtRequest,
+  CreateJudgeRequest,
+  CreateProsecutorRequest,
+  Judge,
+  Prosecutor,
+  ProsecutorQuery,
+  UpdateCourtRequest,
+  UpdateJudgeRequest,
+  UpdateProsecutorRequest,
+} from './court.contract.js';
 export { EmailSchema, longText, MoneySchema, PhoneSchema, plainText } from './fields.js';
