@@ -4,3 +4,5 @@
 *.ico binary
 *.woff2 binary
 graphify-out/graph.json merge=graphify
+# Every ticket appends a D-### at the end: keep both sides instead of conflicting (D-114).
+docs/context/decisions.md merge=union

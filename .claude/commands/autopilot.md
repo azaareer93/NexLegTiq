@@ -1,6 +1,6 @@
 ---
 description: Unattended delivery loop — fix own PRs, pick the most-blocking highest-priority ticket, deliver it with /ticket --auto, repeat.
-argument-hint: "[--once] [--max-open-prs N] [--parallel 1|2]"
+argument-hint: "[--once] [--max-open-prs N] [--parallel 1|2] (default 1)"
 ---
 Run the delivery loop for project MVP (cloudId `9cb815a7-782c-46e9-a4ca-74b3977b88f4`). Args: $ARGUMENTS
 `--once` = one iteration, then print exactly one of `DONE: …`, `SKIPPED: …`, `FIXED: …` or `IDLE` as the last line
@@ -17,6 +17,9 @@ Stop at once when `.git/nexlegtiq/autopilot-stop` exists. Each iteration appends
    - **Parent merged** (base is not `develop` and the base branch's PR is merged): `gh pr edit <n> --base develop`,
      `git switch <branch> && git merge --no-edit origin/develop` (squash merges leave the parent's original commits on the
      branch — merging develop resolves them; never rebase or force-push), re-verify, push, `git config --unset branch.<branch>.nlqParent`.
+   - **After every merge of `develop` (or a parent) into a branch**: `pnpm nx run backend-api:prisma-generate` before
+     committing — the commit hook lints with the generated client, and a stale one fails on new models. Push branches
+     **one at a time** in the foreground: each push runs the pre-push typecheck + tests, and two at once exhaust memory.
    - **Failing checks**: read the failed job (`gh run view --log-failed`), fix on the branch, verify, push.
    - **Conflicts with its base**: merge the base in, resolve, verify, push.
    - **Changes requested / new review comments from the owner**: address each (`gh pr view <n> --comments`), reply on the
@@ -35,7 +38,7 @@ Stop at once when `.git/nexlegtiq/autopilot-stop` exists. Each iteration appends
 4. **Deliver**: `/ticket <key> --auto`. It returns `DONE: …` or `SKIPPED: …` — log it and end the iteration.
    If it fails unexpectedly (tool outage, a check you cannot fix within the ticket), push what is committed, comment the
    state on the Jira issue, add the label `autopilot-skip`, log `SKIPPED: <key> <reason>` and continue.
-5. **Two at once** (`--parallel 2`, the default; `--parallel 1` turns it off): when the pick list holds a second eligible
+5. **Two at once** (only with `--parallel 2`; the default is 1 — two worktrees running full tests ran the machine out of memory): when the pick list holds a second eligible
    ticket that does not collide with the first, deliver both at the same time — each in its own subagent with
    `isolation: "worktree"`, told to run `/ticket <key> --auto` and return its last line. Collision-free means: different
    areas (one `backend` + one `frontend`/`portal`/`admin`, or `docs`/`infra` with anything), at most one of them touches

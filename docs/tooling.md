@@ -119,8 +119,8 @@ The hook runs in the background and logs to `$TMPDIR/nexlegtiq-post-merge.log`; 
 merged parent), then picks the highest-priority ticket that blocks the most open work and whose blockers are Done or in an
 open PR (it **stacks** the branch on that PR, at most 3 deep). A ticket with an expensive-to-reverse question gets the
 questions as a Jira comment and the label `needs-decision`, and the loop moves on — **remove the label once you have
-answered** and it is picked up again. It never merges, force-pushes or reprioritises; at 6 open PRs it waits for reviews. Two tickets run in parallel (separate
-worktrees) when they do not collide; each delivered or skipped ticket sends a push notification, and `/standup` starts with
+answered** and it is picked up again. It never merges, force-pushes or reprioritises; at 6 open PRs it waits for reviews. With `--parallel 2`, two tickets run in parallel (separate
+worktrees) when they do not collide (default: one at a time, D-114); each delivered or skipped ticket sends a push notification, and `/standup` starts with
 what is waiting for you.
 
 | How | When |

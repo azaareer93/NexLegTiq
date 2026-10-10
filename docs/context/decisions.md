@@ -1093,3 +1093,14 @@ Jerusalem court of appeal's seat; a Hebron court of appeal; the High Court of Ju
 (city empty); Gaza's courts (left out); the Jordan and Egypt selections; MSA labels such as مدنية vs حقوق. Judges are not seeded; the "inline add court/judge" UI belongs to the quick-create and session-drawer stories
 (the API is ready for them); prosecutors are not yet linked to files or sessions. Why: one platform list every office
 shares without ever seeing another office's additions, enforced in the extension and in the database.
+**D-114 — Autopilot hardening after the first runs** · Accepted (MVP-155, 2026-10-10)
+**Amends D-097.** → **Decision log merges:** `docs/context/decisions.md` is `merge=union` in `.gitattributes` — every ticket
+appends its entry at the end, so two open PRs always "conflicted" there and the resolution was always "keep both" (five times
+on 2026-10-10). Union keeps both sides line by line; the one case it can garble is two branches editing the **same** entry,
+which reviews catch (entries are append-only, new facts go in a new entry or "review additions"). **Prisma client:** after
+merging `develop` or a parent into a branch, `/autopilot` runs `backend-api:prisma-generate` before committing (lint-staged
+type-checks staged files with the generated client and fails on models it does not know). **One ticket at a time** is the
+default (`--parallel 2` stays available): two worktrees each running the pre-push typecheck + tests ran the development machine out
+of memory twice; branches are pushed one at a time. **Merge style:** the owner merges with GitHub's button; the stacking
+rules of D-097 work for squash and merge commits alike (merging `develop` into a child resolves either). Why: the loop stops
+spending rounds on mechanical conflicts and on memory failures.
