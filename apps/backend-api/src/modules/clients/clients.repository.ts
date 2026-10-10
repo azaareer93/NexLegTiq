@@ -83,6 +83,7 @@ export class ClientsRepository {
           ? Prisma.sql`${SORT_COLUMN[field]} DESC`
           : Prisma.sql`${SORT_COLUMN[field]} ASC`,
       ),
+      ', ',
     );
     const [page, [count]] = await Promise.all([
       this.prisma.db.$queryRaw<{ id: string; open_files: number }[]>`
@@ -137,8 +138,8 @@ function conditionsOf(officeId: string, query: ClientQuery): Prisma.Sql[] {
   if (query.search) {
     const like = likePattern(query.search);
     conditions.push(
-      Prisma.sql`(c.display_name ILIKE ${like} OR c.full_name ILIKE ${like} OR c.company_name ILIKE ${like}
-        OR c.email::text ILIKE ${like} OR c.phone ILIKE ${like})`,
+      Prisma.sql`(c.display_name ILIKE ${like} OR c.full_name ILIKE ${like}
+        OR c.company_name ILIKE ${like} OR c.phone ILIKE ${like})`,
     );
   }
   return conditions;

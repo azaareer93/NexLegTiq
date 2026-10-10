@@ -534,6 +534,7 @@ model Client {
   @@index([displayName(ops: raw("gin_trgm_ops"))], type: Gin, map: "clients_display_name_trgm_idx")
   @@index([fullName(ops: raw("gin_trgm_ops"))], type: Gin, map: "clients_full_name_trgm_idx")
   @@index([companyName(ops: raw("gin_trgm_ops"))], type: Gin, map: "clients_company_name_trgm_idx")
+  @@index([phone(ops: raw("gin_trgm_ops"))], type: Gin, map: "clients_phone_trgm_idx")
   @@map("clients")
 }
 

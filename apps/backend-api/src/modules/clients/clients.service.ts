@@ -38,15 +38,21 @@ export class ClientsService {
   async create(input: CreateClientRequest, caller: ClientInfo): Promise<Client> {
     const id = await this.uow.run(async (tx) => {
       if (input.primaryLawyerId) await assertLawyer(tx, input.primaryLawyerId);
+      const { nationalId, taxId, ...plain } = input;
       const client = await tx.client.create({
-        data: {
-          ...input,
-          officeId: this.ctx.officeId(),
-          nationalId: this.seal('nationalId', input.nationalId),
-          taxId: this.seal('taxId', input.taxId),
-        },
+        data: { ...plain, officeId: this.ctx.officeId() },
         select: { id: true },
       });
+      // The ciphertext is bound to the row id, which exists only now (same transaction).
+      if (nationalId || taxId) {
+        await tx.client.updateMany({
+          where: { id: client.id },
+          data: {
+            nationalId: this.seal('nationalId', client.id, nationalId),
+            taxId: this.seal('taxId', client.id, taxId),
+          },
+        });
+      }
       await tx.auditLog.create({
         data: this.ctx.auditRow(caller, 'Client', client.id, 'CREATE', null, { ...input }),
       });
@@ -74,8 +80,8 @@ export class ClientsService {
       const { old, next } = changedFields(
         {
           ...before,
-          nationalId: this.open('nationalId', before.nationalId),
-          taxId: this.open('taxId', before.taxId),
+          nationalId: this.open('nationalId', id, before.nationalId),
+          taxId: this.open('taxId', id, before.taxId),
         },
         input,
       );
@@ -86,8 +92,10 @@ export class ClientsService {
         where: { id },
         data: {
           ...next,
-          ...('nationalId' in next && { nationalId: this.seal('nationalId', input.nationalId) }),
-          ...('taxId' in next && { taxId: this.seal('taxId', input.taxId) }),
+          ...('nationalId' in next && {
+            nationalId: this.seal('nationalId', id, input.nationalId),
+          }),
+          ...('taxId' in next && { taxId: this.seal('taxId', id, input.taxId) }),
         },
       });
       await tx.auditLog.create({
@@ -106,6 +114,10 @@ export class ClientsService {
   async remove(id: string, caller: ClientInfo): Promise<void> {
     await this.uow.run(async (tx) => {
       await this.ctx.lockClient(tx, id);
+      const { displayName } = await tx.client.findFirstOrThrow({
+        where: { id },
+        select: { displayName: true },
+      });
       const openFiles = await tx.fileClient.count({
         where: { clientId: id, file: { deletedAt: null, status: { in: [...OPEN_FILE_STATUSES] } } },
       });
@@ -114,7 +126,7 @@ export class ClientsService {
       }
       await tx.client.updateMany({ where: { id }, data: { deletedAt: new Date() } });
       await tx.auditLog.create({
-        data: this.ctx.auditRow(caller, 'Client', id, 'DELETE', null, null),
+        data: this.ctx.auditRow(caller, 'Client', id, 'DELETE', { displayName }, null),
       });
     });
   }
@@ -122,8 +134,8 @@ export class ClientsService {
   private present(row: ClientRow): Client {
     return {
       ...toListItem(row, row.openFiles),
-      nationalId: this.open('nationalId', row.nationalId),
-      taxId: this.open('taxId', row.taxId),
+      nationalId: this.open('nationalId', row.id, row.nationalId),
+      taxId: this.open('taxId', row.id, row.taxId),
       address: row.address,
       industry: row.industry,
       closedFiles: row.closedFiles,
@@ -131,12 +143,17 @@ export class ClientsService {
     };
   }
 
-  private seal(field: EncryptedField, value: string | null | undefined): string | null {
-    return value ? this.cipher.encrypt(value, `${ENCRYPTED[field]}:${this.ctx.officeId()}`) : null;
+  /** Additional data of a client's encrypted field: column, office and row (D-108). */
+  private context(field: EncryptedField, clientId: string): string {
+    return `${ENCRYPTED[field]}:${this.ctx.officeId()}:${clientId}`;
   }
 
-  private open(field: EncryptedField, value: string | null): string | null {
-    return value && this.cipher.decrypt(value, `${ENCRYPTED[field]}:${this.ctx.officeId()}`);
+  private seal(field: EncryptedField, clientId: string, value: string | null | undefined) {
+    return value ? this.cipher.encrypt(value, this.context(field, clientId)) : null;
+  }
+
+  private open(field: EncryptedField, clientId: string, value: string | null): string | null {
+    return value && this.cipher.decrypt(value, this.context(field, clientId));
   }
 }
 

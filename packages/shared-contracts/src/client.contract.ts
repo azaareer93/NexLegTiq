@@ -62,7 +62,7 @@ export type ClientSortField = (typeof CLIENT_SORT_FIELDS)[number];
 
 /** `GET /clients` query: filters, `sort=name|createdAt|openFiles[:asc|desc],…`, `page`, `limit` ≤ 100. */
 export const ClientQuerySchema = z.object({
-  /** Part of the display, full or company name, email or phone (case-insensitive). */
+  /** Part of the display, full or company name or phone (case-insensitive; every column has a trigram index). */
   search: searchText(100).optional(),
   clientType: z.enum(CLIENT_TYPES).optional(),
   isActive: z.stringbool().optional(),

@@ -26,6 +26,9 @@ CREATE INDEX "clients_full_name_trgm_idx" ON "clients" USING GIN ("full_name" gi
 -- CreateIndex
 CREATE INDEX "clients_company_name_trgm_idx" ON "clients" USING GIN ("company_name" gin_trgm_ops);
 
+-- CreateIndex
+CREATE INDEX "clients_phone_trgm_idx" ON "clients" USING GIN ("phone" gin_trgm_ops);
+
 -- AddForeignKey
 ALTER TABLE "contact_persons" ADD CONSTRAINT "contact_persons_office_id_fkey" FOREIGN KEY ("office_id") REFERENCES "offices"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 

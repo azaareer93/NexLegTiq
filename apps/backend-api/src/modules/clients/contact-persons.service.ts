@@ -46,7 +46,7 @@ export class ContactPersonsService {
       await this.ctx.lockClient(tx, clientId);
       const isPrimary =
         input.isPrimary || (await tx.contactPerson.count({ where: { clientId } })) === 0;
-      if (isPrimary) await demotePrimary(tx, clientId);
+      const previousPrimaryId = isPrimary ? await demotePrimary(tx, clientId) : null;
       const contact = await tx.contactPerson.create({
         data: { ...input, isPrimary, clientId, officeId: this.ctx.officeId() },
         select: CONTACT_SELECT,
@@ -56,6 +56,7 @@ export class ContactPersonsService {
           clientId,
           ...input,
           isPrimary,
+          ...(previousPrimaryId && { previousPrimaryId }),
         }),
       });
       return toContact(contact);
@@ -73,10 +74,13 @@ export class ContactPersonsService {
       const before = await findContact(tx, clientId, id);
       const { old, next } = changedFields(before, input);
       if (Object.keys(next).length > 0) {
-        if (next['isPrimary'] === true) await demotePrimary(tx, clientId);
+        const previousPrimaryId = next['isPrimary'] ? await demotePrimary(tx, clientId) : null;
         await tx.contactPerson.updateMany({ where: { id }, data: next });
         await tx.auditLog.create({
-          data: this.ctx.auditRow(caller, 'ContactPerson', id, 'UPDATE', old, next),
+          data: this.ctx.auditRow(caller, 'ContactPerson', id, 'UPDATE', old, {
+            ...next,
+            ...(previousPrimaryId && { previousPrimaryId }),
+          }),
         });
       }
       return toContact(await findContact(tx, clientId, id));
@@ -88,14 +92,18 @@ export class ContactPersonsService {
       await this.ctx.lockClient(tx, clientId);
       const contact = await findContact(tx, clientId, id);
       await tx.contactPerson.deleteMany({ where: { id } });
-      if (contact.isPrimary) {
-        const next = await tx.contactPerson.findFirst({
-          where: { clientId },
-          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-          select: { id: true },
+      const promoted = contact.isPrimary
+        ? await tx.contactPerson.findFirst({
+            where: { clientId },
+            orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+            select: { id: true },
+          })
+        : null;
+      if (promoted) {
+        await tx.contactPerson.updateMany({
+          where: { id: promoted.id },
+          data: { isPrimary: true },
         });
-        if (next)
-          await tx.contactPerson.updateMany({ where: { id: next.id }, data: { isPrimary: true } });
       }
       await tx.auditLog.create({
         data: this.ctx.auditRow(
@@ -103,7 +111,12 @@ export class ContactPersonsService {
           'ContactPerson',
           id,
           'DELETE',
-          { clientId, fullName: contact.fullName },
+          {
+            clientId,
+            fullName: contact.fullName,
+            isPrimary: contact.isPrimary,
+            ...(promoted && { promotedContactId: promoted.id }),
+          },
           null,
         ),
       });
@@ -120,5 +133,14 @@ async function findContact(tx: ScopedTransaction, clientId: string, id: string) 
   return contact;
 }
 
-const demotePrimary = (tx: ScopedTransaction, clientId: string) =>
-  tx.contactPerson.updateMany({ where: { clientId, isPrimary: true }, data: { isPrimary: false } });
+/** Demotes the client's primary contact, if any, and returns its id for the audit row. */
+async function demotePrimary(tx: ScopedTransaction, clientId: string): Promise<string | null> {
+  const current = await tx.contactPerson.findFirst({
+    where: { clientId, isPrimary: true },
+    select: { id: true },
+  });
+  if (current) {
+    await tx.contactPerson.updateMany({ where: { id: current.id }, data: { isPrimary: false } });
+  }
+  return current?.id ?? null;
+}

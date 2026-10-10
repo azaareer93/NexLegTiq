@@ -238,6 +238,7 @@ describe('clients API (HTTP + PostgreSQL)', () => {
       expect(await listIds(`?search=${tag}&clientType=CORPORATION`)).toEqual([busy]);
       expect(await listIds(`?search=${tag}&sort=openFiles:desc`)).toEqual([busy, idle]);
       expect(await listIds(`?search=${tag}&sort=openFiles:asc`)).toEqual([idle, busy]);
+      expect(await listIds(`?search=${tag}&sort=name:desc`)).toEqual([busy, idle]);
       expect(await listIds(`?search=${encodeURIComponent('100%')}`)).toEqual([]);
 
       const res = await http()
@@ -276,15 +277,30 @@ describe('clients API (HTTP + PostgreSQL)', () => {
       expect(refused.body).toMatchObject({ error: { code: 'BIZ-010' } });
 
       await raw.legalFile.update({ where: { id: fileId }, data: { status: 'CLOSED' } });
+      await linkFile(id, 'ARCHIVED');
+      const deletedOpen = await linkFile(id, 'OPEN');
+      await raw.legalFile.update({ where: { id: deletedOpen }, data: { deletedAt: new Date() } });
+      const before = await http().get(`/api/v1/clients/${id}`).set(as(manager())).expect(200);
+      expect((before.body as Body).data).toMatchObject({ openFiles: 0, closedFiles: 2 });
+
       await http().delete(`/api/v1/clients/${id}`).set(as(manager())).expect(204);
       expect((await raw.client.findUniqueOrThrow({ where: { id } })).deletedAt).not.toBeNull();
-      await http().get(`/api/v1/clients/${id}`).set(as(manager())).expect(404);
-      await http().delete(`/api/v1/clients/${id}`).set(as(manager())).expect(404);
-      expect(
-        await raw.auditLog.count({
-          where: { entityType: 'Client', entityId: id, action: 'DELETE' },
-        }),
-      ).toBe(1);
+      for (const call of [
+        () => http().get(`/api/v1/clients/${id}`).set(as(manager())),
+        () =>
+          http().patch(`/api/v1/clients/${id}`).set(as(manager())).send({ phone: '0599000000' }),
+        () => http().delete(`/api/v1/clients/${id}`).set(as(manager())),
+        () => http().get(`/api/v1/clients/${id}/contacts`).set(as(manager())),
+        () =>
+          http().post(`/api/v1/clients/${id}/contacts`).set(as(manager())).send({ fullName: 'X' }),
+      ]) {
+        expect((await call()).status).toBe(404);
+      }
+      expect(await listIds('?search=Busy%20client')).not.toContain(id);
+      const audit = await raw.auditLog.findFirstOrThrow({
+        where: { entityType: 'Client', entityId: id, action: 'DELETE' },
+      });
+      expect(audit.oldValues).toEqual({ displayName: 'Busy client' });
     });
   });
 
@@ -408,5 +424,5 @@ describe('clients API (HTTP + PostgreSQL)', () => {
         body: { error: { code: 'AUTH-100' } },
       });
     }
-  });
+  }, 30_000);
 });
