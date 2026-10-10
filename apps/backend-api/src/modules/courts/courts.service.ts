@@ -146,7 +146,8 @@ export class CourtsService {
       this.uow.run(async (tx) => {
         const court = await this.findCourt(id, tx);
         assertOwn(court);
-        await tx.court.deleteMany({ where: { id } });
+        const { count } = await tx.court.deleteMany({ where: { id } });
+        if (count === 0) throw new ResourceNotFoundException();
         await tx.auditLog.create({
           data: this.ctx.auditRow(caller, 'Court', id, 'DELETE', { nameAr: court.nameAr }, null),
         });
@@ -208,7 +209,8 @@ export class CourtsService {
       this.uow.run(async (tx) => {
         const judge = await this.findJudge(courtId, id, tx);
         assertOwn(judge);
-        await tx.judge.deleteMany({ where: { id } });
+        const { count } = await tx.judge.deleteMany({ where: { id } });
+        if (count === 0) throw new ResourceNotFoundException();
         await tx.auditLog.create({
           data: this.ctx.auditRow(
             caller,

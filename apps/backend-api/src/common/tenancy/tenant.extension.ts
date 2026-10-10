@@ -39,30 +39,13 @@ export function relationMap(models: Readonly<Record<string, RuntimeModel>>): Rel
   );
 }
 
-/**
- * `Model.field` of the to-one relations: the runtime model has no list flag, so a relation counts as to-one when its
- * model holds the foreign key `<field>Id` (the schema's naming convention).
- * ponytail: a convention, not metadata — a to-one relation named otherwise gets a `where` on include and Prisma rejects
- * the query (loud, not a leak). Revisit if Prisma exposes `isList` at runtime.
- */
-export function toOneRelations(models: Readonly<Record<string, RuntimeModel>>): Set<string> {
-  const toOne = new Set<string>();
-  for (const [model, { fields }] of Object.entries(models)) {
-    const scalars = new Set(fields.filter((f) => f.kind === 'scalar').map((f) => f.name));
-    for (const field of fields) {
-      if (field.kind === 'object' && scalars.has(`${field.name}Id`)) {
-        toOne.add(`${model}.${field.name}`);
-      }
-    }
-  }
-  return toOne;
-}
-
 export interface TenantExtensionOptions {
   readonly models: Readonly<Record<string, RuntimeModel>>;
   readonly tenantModels: readonly string[];
   /** Platform-or-office models (D-037, D-115); see ScopeContext.referenceModels. */
   readonly referenceModels?: readonly string[];
+  /** To-one relations into reference models whose visibility a database trigger guarantees (D-115). */
+  readonly trustedReferenceRelations?: readonly string[];
   /** The current office from CLS, or undefined outside a tenant context. */
   readonly officeId: () => string | undefined;
 }
@@ -72,6 +55,7 @@ export function tenantExtension({
   models,
   tenantModels,
   referenceModels = [],
+  trustedReferenceRelations = [],
   officeId,
 }: TenantExtensionOptions) {
   const unknown = [...tenantModels, ...referenceModels].filter((model) => !(model in models));
@@ -81,7 +65,7 @@ export function tenantExtension({
   const ctx: ScopeContext = {
     tenantModels: new Set(tenantModels),
     referenceModels: new Set(referenceModels),
-    toOneRelations: toOneRelations(models),
+    trustedReferenceRelations: new Set(trustedReferenceRelations),
     relations: relationMap(models),
     officeId,
   };

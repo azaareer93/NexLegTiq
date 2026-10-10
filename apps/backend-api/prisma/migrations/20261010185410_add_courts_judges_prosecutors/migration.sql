@@ -102,12 +102,28 @@ ALTER TABLE "public_prosecutors" ADD CONSTRAINT "public_prosecutors_full_name_ch
 -- A court or judge may be a platform row, so these references cannot be composite (…, office_id) FKs (D-079). The
 -- triggers give the same guarantee: a judge sits at a court its office can see (a platform judge at a platform court),
 -- and a file names only a court its office can see and a judge of that court. The API checks first (400 VAL-001);
--- these are the backstop.
-CREATE FUNCTION nlq_court_visible(court uuid, office uuid) RETURNS boolean LANGUAGE sql STABLE AS $$
+-- these are the backstop. A court never changes office and a judge never changes court or office, so a check made when
+-- a row is written stays true.
+CREATE FUNCTION nlq_court_visible(court uuid, office uuid) RETURNS boolean LANGUAGE sql STABLE
+SET search_path = public, pg_temp AS $$
   SELECT EXISTS (SELECT 1 FROM courts c WHERE c.id = court AND (c.office_id IS NULL OR c.office_id = office))
 $$;
 
-CREATE FUNCTION nlq_judges_check_court() RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE FUNCTION nlq_reference_owner_fixed() RETURNS trigger LANGUAGE plpgsql
+SET search_path = public, pg_temp AS $$
+BEGIN
+  RAISE EXCEPTION '% % cannot move to another office or court', TG_TABLE_NAME, OLD.id
+    USING ERRCODE = 'integrity_constraint_violation';
+END
+$$;
+CREATE TRIGGER "courts_office_fixed" BEFORE UPDATE OF "office_id" ON "courts"
+  FOR EACH ROW WHEN (OLD.office_id IS DISTINCT FROM NEW.office_id) EXECUTE FUNCTION nlq_reference_owner_fixed();
+CREATE TRIGGER "judges_owner_fixed" BEFORE UPDATE OF "office_id", "court_id" ON "judges"
+  FOR EACH ROW WHEN (OLD.office_id IS DISTINCT FROM NEW.office_id OR OLD.court_id IS DISTINCT FROM NEW.court_id)
+  EXECUTE FUNCTION nlq_reference_owner_fixed();
+
+CREATE FUNCTION nlq_judges_check_court() RETURNS trigger LANGUAGE plpgsql
+SET search_path = public, pg_temp AS $$
 BEGIN
   IF NOT nlq_court_visible(NEW.court_id, NEW.office_id) THEN
     RAISE EXCEPTION 'judge % sits at a court its office cannot see', NEW.id USING ERRCODE = 'foreign_key_violation';
@@ -115,10 +131,11 @@ BEGIN
   RETURN NEW;
 END
 $$;
-CREATE TRIGGER "judges_court_visible" BEFORE INSERT OR UPDATE OF "court_id", "office_id" ON "judges"
+CREATE TRIGGER "judges_court_visible" BEFORE INSERT ON "judges"
   FOR EACH ROW EXECUTE FUNCTION nlq_judges_check_court();
 
-CREATE FUNCTION nlq_legal_files_check_court() RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE FUNCTION nlq_legal_files_check_court() RETURNS trigger LANGUAGE plpgsql
+SET search_path = public, pg_temp AS $$
 BEGIN
   IF NEW.court_id IS NOT NULL AND NOT nlq_court_visible(NEW.court_id, NEW.office_id) THEN
     RAISE EXCEPTION 'file % names a court its office cannot see', NEW.id USING ERRCODE = 'foreign_key_violation';

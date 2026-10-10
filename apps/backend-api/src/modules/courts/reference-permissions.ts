@@ -10,6 +10,5 @@ export const READ_REFERENCE = [
 ] as const satisfies readonly Permission[];
 export const WRITE_REFERENCE = [
   'create:case',
-  'edit:assigned:case',
   'create:session',
 ] as const satisfies readonly Permission[];

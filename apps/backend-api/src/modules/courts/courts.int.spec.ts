@@ -276,14 +276,38 @@ describe('courts API (HTTP + PostgreSQL)', () => {
         .expect(404);
     });
 
-    it('should refuse, in the database, a judge at a court its office cannot see', async () => {
+    it('trigger: should refuse a judge at a court its office cannot see, and moving a judge or court', async () => {
       const theirs = await createCourt(other, { nameAr: `قاعدة ${tag}` });
       await expect(
         raw.judge.create({ data: { officeId: manager.officeId, courtId: theirs, fullName: 'x' } }),
-      ).rejects.toThrow();
+      ).rejects.toThrow(/cannot see/);
+      await expect(raw.judge.create({ data: { courtId: theirs, fullName: 'x' } })).rejects.toThrow(
+        /cannot see/,
+      );
+      const mine = await createJudge(manager, platformCourt, `نقل ${tag}`);
       await expect(
-        raw.judge.create({ data: { courtId: theirs, fullName: 'x' } }),
-      ).rejects.toThrow();
+        raw.judge.update({ where: { id: mine }, data: { courtId: theirs } }),
+      ).rejects.toThrow(/cannot move/);
+      await expect(
+        raw.court.update({ where: { id: theirs }, data: { officeId: manager.officeId } }),
+      ).rejects.toThrow(/cannot move/);
+    });
+
+    it('should refuse to delete a judge named by a file (422), and assign only active judges', async () => {
+      const judgeId = await createJudge(manager, platformCourt, `مستخدم ${tag}`);
+      await newCase({ courtId: platformCourt, judgeId }, 201);
+      const blocked = await http()
+        .delete(`/api/v1/courts/${platformCourt}/judges/${judgeId}`)
+        .set(as(manager))
+        .expect(422);
+      expect((blocked.body as Body).error?.code).toBe('BIZ-011');
+      await http()
+        .patch(`/api/v1/courts/${platformCourt}/judges/${judgeId}`)
+        .set(as(manager))
+        .send({ isActive: false })
+        .expect(200);
+      const retired = await newCase({ courtId: platformCourt, judgeId }, 400);
+      expect(JSON.stringify(retired.body)).toContain('validation.unknownJudge');
     });
   });
 
@@ -339,7 +363,7 @@ describe('courts API (HTTP + PostgreSQL)', () => {
             courtId: theirs,
           },
         }),
-      ).rejects.toThrow();
+      ).rejects.toThrow(/cannot see/);
     });
   });
 
@@ -361,6 +385,18 @@ describe('courts API (HTTP + PostgreSQL)', () => {
         .send({ officeName: null })
         .expect(200);
       await http().get(`/api/v1/prosecutors/${id}`).set(as(other)).expect(404);
+      await http()
+        .patch(`/api/v1/prosecutors/${id}`)
+        .set(as(other))
+        .send({ fullName: 'x' })
+        .expect(404);
+      await http().delete(`/api/v1/prosecutors/${id}`).set(as(other)).expect(404);
+      await http()
+        .patch(`/api/v1/prosecutors/${id}`)
+        .set(as(trainee))
+        .send({ fullName: 'x' })
+        .expect(403);
+      await http().patch(`/api/v1/prosecutors/${id}`).set(as(manager)).send({}).expect(400);
       await http().delete(`/api/v1/prosecutors/${id}`).set(as(manager)).expect(204);
       await http().get(`/api/v1/prosecutors/${id}`).set(as(manager)).expect(404);
     });

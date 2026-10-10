@@ -3,7 +3,7 @@ import type { OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { ClsService } from 'nestjs-cls';
 
-import { REFERENCE_MODELS, TENANT_MODELS } from './tenant-models';
+import { REFERENCE_MODELS, TENANT_MODELS, TRUSTED_REFERENCE_RELATIONS } from './tenant-models';
 import type { RequestContext } from '../common/context/request-context';
 import { runtimeModels, tenantExtension } from '../common/tenancy/tenant.extension';
 import { AppConfig } from '../config/app-config';
@@ -16,6 +16,7 @@ function createScopedClient(client: PrismaClient, cls: ClsService<RequestContext
       models: runtimeModels(client),
       tenantModels: TENANT_MODELS,
       referenceModels: REFERENCE_MODELS,
+      trustedReferenceRelations: TRUSTED_REFERENCE_RELATIONS,
       officeId: () => cls.get('officeId'),
     }),
   );

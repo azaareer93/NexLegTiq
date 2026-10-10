@@ -14,8 +14,12 @@ export interface ScopeContext {
    * Reads see platform rows and the office's own; writes behave like a tenant model (own rows only).
    */
   readonly referenceModels?: ReadonlySet<string>;
-  /** `Model.field` of to-one relations (Prisma accepts no `where` on their include/select). */
-  readonly toOneRelations?: ReadonlySet<string>;
+  /**
+   * `Model.field` of to-one relations into reference models whose visibility a database trigger guarantees (Prisma
+   * accepts no `where` on a to-one include). Any other to-one include into a reference model gets a `where` and Prisma
+   * rejects the query: loud, never a silent leak.
+   */
+  readonly trustedReferenceRelations?: ReadonlySet<string>;
   /** The current office, or undefined outside a tenant context. */
   readonly officeId: () => string | undefined;
 }
@@ -303,11 +307,9 @@ function scopeIncluded(
 ): Json | true {
   const nested: Json = isObject(value) ? { ...value } : {};
   scopeShape(related, nested, ctx);
-  // A to-one relation into a reference model takes no `where`: the database triggers keep it visible (D-115).
-  const toOneReference =
-    (ctx.toOneRelations?.has(`${model}.${field}`) ?? false) &&
-    (ctx.referenceModels?.has(related) ?? false);
-  if (needsScope(model, related, ctx) && !toOneReference) {
+  // A trigger-backed to-one relation into a reference model takes no `where` (D-115).
+  const trusted = ctx.trustedReferenceRelations?.has(`${model}.${field}`) ?? false;
+  if (needsScope(model, related, ctx) && !trusted) {
     nested['where'] = scopeRelated(model, related, nested['where'], ctx, `${model}.${field}`);
   }
   return Object.keys(nested).length > 0 ? nested : true;

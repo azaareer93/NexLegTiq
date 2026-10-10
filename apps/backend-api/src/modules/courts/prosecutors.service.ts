@@ -101,7 +101,8 @@ export class ProsecutorsService {
   async remove(id: string, caller: ClientInfo): Promise<void> {
     await this.uow.run(async (tx) => {
       const row = await this.find(id, tx);
-      await tx.publicProsecutor.deleteMany({ where: { id } });
+      const { count } = await tx.publicProsecutor.deleteMany({ where: { id } });
+      if (count === 0) throw new ResourceNotFoundException();
       await tx.auditLog.create({
         data: this.ctx.auditRow(
           caller,

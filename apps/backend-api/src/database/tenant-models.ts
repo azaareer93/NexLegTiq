@@ -40,3 +40,9 @@ export type TenantModel = (typeof TENANT_MODELS)[number];
  * row. The tenant extension lets an office read both and write only its own.
  */
 export const REFERENCE_MODELS = ['Court', 'Judge'] as const satisfies readonly Prisma.ModelName[];
+
+/**
+ * To-one relations into reference models that a database trigger keeps visible to the row's office (migration
+ * add_courts_judges_prosecutors). Includes through them are not filtered; a new one needs its trigger first (D-115).
+ */
+export const TRUSTED_REFERENCE_RELATIONS = ['LegalFile.court', 'LegalFile.judge', 'Judge.court'];

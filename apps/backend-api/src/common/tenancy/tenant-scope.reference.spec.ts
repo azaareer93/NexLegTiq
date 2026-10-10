@@ -45,7 +45,7 @@ function ctx(officeId: string | null = A): ScopeContext {
   return {
     tenantModels: new Set(['LegalFile']),
     referenceModels: new Set(['Court', 'Judge']),
-    toOneRelations: new Set(['Judge.court', 'LegalFile.court', 'LegalFile.judge']),
+    trustedReferenceRelations: new Set(['Judge.court', 'LegalFile.court', 'LegalFile.judge']),
     relations,
     officeId: () => officeId ?? undefined,
   };
