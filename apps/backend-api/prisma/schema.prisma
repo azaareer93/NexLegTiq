@@ -234,6 +234,7 @@ model Office {
   auditLogs           AuditLog[]
   notifications       Notification[]
   clients             Client[]
+  contactPersons      ContactPerson[]
   legalFiles          LegalFile[]
   fileClients         FileClient[]
   fileTeamMembers     FileTeamMember[]
@@ -509,7 +510,7 @@ model Subscription {
 // Composite relations are Restrict on update (ids and office_id never change; a cascade would carry rows into another
 // office) and, when optional, on delete (SetNull would also null office_id).
 
-/// Created here because FileClient needs it; contact persons and the API come with MVP-53.
+/// Clients API: MVP-53 (D-108). Soft-deleted only; national id and tax id are ciphertext (D-056).
 model Client {
   id              String     @id @default(uuid(7)) @db.Uuid
   officeId        String     @map("office_id") @db.Uuid
@@ -535,10 +536,36 @@ model Client {
   primaryLawyer User?        @relation("ClientPrimaryLawyer", fields: [primaryLawyerId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
   files         FileClient[]
   notes         FileNote[]
+  contacts      ContactPerson[]
 
   @@unique([id, officeId])
   @@index([officeId, displayName])
+  // Trigram indexes for the `search` filter (ILIKE '%term%', D-059).
+  @@index([displayName(ops: raw("gin_trgm_ops"))], type: Gin, map: "clients_display_name_trgm_idx")
+  @@index([fullName(ops: raw("gin_trgm_ops"))], type: Gin, map: "clients_full_name_trgm_idx")
+  @@index([companyName(ops: raw("gin_trgm_ops"))], type: Gin, map: "clients_company_name_trgm_idx")
+  @@index([phone(ops: raw("gin_trgm_ops"))], type: Gin, map: "clients_phone_trgm_idx")
   @@map("clients")
+}
+
+/// A contact person of a client (MVP-53). A client with contacts has exactly one primary (partial unique index + service).
+model ContactPerson {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  officeId  String   @map("office_id") @db.Uuid
+  clientId  String   @map("client_id") @db.Uuid
+  fullName  String   @map("full_name")
+  position  String?
+  email     String?  @db.Citext
+  phone     String?
+  isPrimary Boolean  @default(false) @map("is_primary")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office Office @relation(fields: [officeId], references: [id])
+  client Client @relation(fields: [clientId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+
+  @@index([officeId, clientId])
+  @@map("contact_persons")
 }
 
 /// A case. Open-file and list indexes are partial/covering SQL indexes in the migration.

@@ -163,11 +163,18 @@ describe('parseEnv', () => {
     ['BULL_BOARD_ENABLED', 'true'],
     ['OFFICE_APP_URL', 'http://app.nexlegtiq.test'],
     ['RESEND_API_KEY', 'ci-only-resend-key'],
+    ['ENCRYPTION_KEY', '0'.repeat(64)],
   ])('should reject %s=%s in production (plaintext transport or dev credential)', (key, value) => {
     expect(() => parseEnv(testEnv({ NODE_ENV: 'production', [key]: value }))).toThrow(
       new RegExp(key),
     );
     expect(() => parseEnv(testEnv({ NODE_ENV: 'development', [key]: value }))).not.toThrow();
+  });
+
+  it('should require ENCRYPTION_KEY as 64 hexadecimal characters', () => {
+    expect(() => parseEnv(testEnv({ ENCRYPTION_KEY: undefined }))).toThrow(/ENCRYPTION_KEY/);
+    expect(() => parseEnv(testEnv({ ENCRYPTION_KEY: 'z'.repeat(64) }))).toThrow(/ENCRYPTION_KEY/);
+    expect(() => parseEnv(testEnv({ ENCRYPTION_KEY: 'ab'.repeat(16) }))).toThrow(/ENCRYPTION_KEY/);
   });
 
   it('should require RESEND_API_KEY when EMAIL_PROVIDER=resend', () => {

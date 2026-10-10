@@ -15,6 +15,7 @@ import { HealthModule } from '../health/health.module';
 import { MetricsModule } from '../metrics/metrics.module';
 import { AuthModule } from '../modules/auth/auth.module';
 import { JwtAuthGuard } from '../modules/auth/jwt-auth.guard';
+import { ClientsModule } from '../modules/clients/clients.module';
 import { LegalFilesModule } from '../modules/legal-files/legal-files.module';
 import { TasksModule } from '../modules/tasks/tasks.module';
 
@@ -30,6 +31,7 @@ import { TasksModule } from '../modules/tasks/tasks.module';
     HealthModule,
     MetricsModule,
     AuthModule,
+    ClientsModule,
     LegalFilesModule,
     TasksModule,
     // Default 100 requests/min per IP (api-conventions.md); auth routes set stricter limits with @Throttle.
