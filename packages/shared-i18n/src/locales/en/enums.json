@@ -89,5 +89,11 @@
     "FIXED_FEE": "Fixed fee",
     "RETAINER": "Retainer",
     "CONTINGENCY": "Contingency fee"
+  },
+  "taskStatus": {
+    "TODO": "To do",
+    "IN_PROGRESS": "In progress",
+    "BLOCKED": "Blocked",
+    "DONE": "Done"
   }
 }

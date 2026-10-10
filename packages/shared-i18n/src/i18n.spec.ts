@@ -24,6 +24,7 @@ const ENUM_LABELS = {
   FILE_TEAM_ROLES: 'fileTeamRole',
   PARTY_TYPES: 'partyType',
   BILLING_METHODS: 'billingMethod',
+  TASK_STATUSES: 'taskStatus',
 } as const;
 /** Value lists translated elsewhere (`errors.*`, `common.language.*`), or not shown to users yet (permissions, D-087). */
 const LABELLED_ELSEWHERE = ['ERROR_CODES', 'SUPPORTED_LOCALES', 'PERMISSIONS'];

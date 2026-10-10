@@ -29,7 +29,7 @@ import { truncateUserAgent } from '../auth/client-info';
 const LAWYER_ROLES = ['OFFICE_MANAGER', 'SENIOR_LAWYER', 'LAWYER'] as const;
 
 /** The office's calendar date in its time zone (D-092): a file opened at 01:00 in Hebron is opened that day. */
-function todayIn(timeZone: string, now: Date): string {
+export function todayIn(timeZone: string, now: Date): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone,
     year: 'numeric',

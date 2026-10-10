@@ -34,5 +34,8 @@
   },
   "feedback": {
     "saved": "Saved"
+  },
+  "notifications": {
+    "taskAssigned": "New task assigned to you: {{title}}"
   }
 }

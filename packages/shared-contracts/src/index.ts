@@ -39,6 +39,26 @@ export type {
   UpdateCaseRequest,
 } from './case.contract.js';
 export {
+  BulkAssignResultSchema,
+  BulkAssignTasksSchema,
+  ChangeTaskStatusSchema,
+  CreateTaskSchema,
+  ReorderTasksSchema,
+  TaskQuerySchema,
+  TaskSchema,
+  UpdateTaskSchema,
+} from './task.contract.js';
+export type {
+  BulkAssignResult,
+  BulkAssignTasksRequest,
+  ChangeTaskStatusRequest,
+  CreateTaskRequest,
+  ReorderTasksRequest,
+  Task,
+  TaskQuery,
+  UpdateTaskRequest,
+} from './task.contract.js';
+export {
   CLIENT_SORT_FIELDS,
   ClientListItemSchema,
   ClientQuerySchema,
