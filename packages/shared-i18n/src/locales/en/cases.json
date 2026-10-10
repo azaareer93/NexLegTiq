@@ -1,0 +1,44 @@
+{
+  "list": {
+    "title": "Cases",
+    "newFile": "New case",
+    "searchPlaceholder": "Search by number, title, court number or client",
+    "searchLabel": "Search cases",
+    "views": {
+      "label": "Views",
+      "all": "All",
+      "mine": "Mine",
+      "litigation": "Litigation",
+      "contracts": "Contracts",
+      "archived": "Archived",
+      "urgent": "Urgent"
+    },
+    "filters": {
+      "status": "Status",
+      "fileType": "Type",
+      "priority": "Priority",
+      "client": "Filtered by client",
+      "lawyer": "Filtered by responsible lawyer",
+      "clear": "Clear filters"
+    },
+    "columns": {
+      "fileNumber": "Case number",
+      "title": "Title",
+      "status": "Status",
+      "priority": "Priority",
+      "fileType": "Type",
+      "client": "Client",
+      "responsible": "Responsible lawyer",
+      "updatedAt": "Last updated"
+    },
+    "confidential": "Confidential",
+    "total_one": "{{count}} case",
+    "total_other": "{{count}} cases",
+    "empty": {
+      "title": "No cases yet",
+      "body": "Cases you open or are assigned to appear here.",
+      "filteredTitle": "No matching cases",
+      "filteredBody": "Try another search or clear the filters."
+    }
+  }
+}

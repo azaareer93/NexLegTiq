@@ -1,0 +1,48 @@
+{
+  "list": {
+    "title": "الملفات",
+    "newFile": "ملف جديد",
+    "searchPlaceholder": "ابحث برقم الملف أو العنوان أو رقم الدعوى أو الموكل",
+    "searchLabel": "البحث في الملفات",
+    "views": {
+      "label": "طرق العرض",
+      "all": "الكل",
+      "mine": "ملفاتي",
+      "litigation": "التقاضي",
+      "contracts": "العقود",
+      "archived": "المؤرشفة",
+      "urgent": "العاجلة"
+    },
+    "filters": {
+      "status": "الحالة",
+      "fileType": "النوع",
+      "priority": "الأولوية",
+      "client": "مصفّاة حسب الموكل",
+      "lawyer": "مصفّاة حسب المحامي المسؤول",
+      "clear": "مسح عوامل التصفية"
+    },
+    "columns": {
+      "fileNumber": "رقم الملف",
+      "title": "العنوان",
+      "status": "الحالة",
+      "priority": "الأولوية",
+      "fileType": "النوع",
+      "client": "الموكل",
+      "responsible": "المحامي المسؤول",
+      "updatedAt": "آخر تحديث"
+    },
+    "confidential": "سرّي",
+    "total_zero": "لا توجد ملفات",
+    "total_one": "ملف واحد",
+    "total_two": "ملفان",
+    "total_few": "{{count}} ملفات",
+    "total_many": "{{count}} ملفًا",
+    "total_other": "{{count}} ملف",
+    "empty": {
+      "title": "لا توجد ملفات بعد",
+      "body": "تظهر هنا الملفات التي تفتحها أو تُكلَّف بها.",
+      "filteredTitle": "لا توجد ملفات مطابقة",
+      "filteredBody": "جرّب بحثًا آخر أو امسح عوامل التصفية."
+    }
+  }
+}

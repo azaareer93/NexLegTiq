@@ -2,6 +2,7 @@ import { LoadingSkeleton } from '@nexlegtiq/shared-ui';
 import type { RouteObject } from 'react-router';
 
 import { authRoutes, RequireAuth } from '../features/auth';
+import { casesRoutes } from '../features/cases';
 import {
   AppShell,
   NAV_ITEMS,
@@ -19,6 +20,9 @@ const placeholder = (navKey: NavKey | 'profile'): Pick<RouteObject, 'lazy'> => (
   },
 });
 
+/** Menu items whose feature is built: their pages replace the placeholder. */
+const FEATURE_ROUTES: Partial<Record<NavKey, RouteObject[]>> = { cases: casesRoutes };
+
 /**
  * One route per menu item, generated from `NAV_ITEMS`: each page requires exactly the permission its menu item does, and
  * shows the 403 page otherwise (D-051, D-091).
@@ -27,7 +31,7 @@ const menuRoutes: RouteObject[] = NAV_ITEMS.map((item) => ({
   // The dashboard's guard is a pathless layout around the index page (an index route has no children).
   ...(item.path === '/' ? {} : { path: item.path.slice(1) }),
   element: <RequirePermission perform={item.perform} />,
-  children: [{ index: true, ...placeholder(item.key) }],
+  children: FEATURE_ROUTES[item.key] ?? [{ index: true, ...placeholder(item.key) }],
 }));
 
 export const routes: RouteObject[] = [
