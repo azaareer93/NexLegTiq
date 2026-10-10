@@ -3,7 +3,7 @@ const { join } = require('path');
 const { NxAppWebpackPlugin } = require('@nx/webpack/app-plugin');
 const nodeExternals = require('webpack-node-externals');
 
-// Two entrypoints from one codebase: `main` (HTTP API) and `worker` (BullMQ consumers, D-011).
+// Entrypoints from one codebase: `main` (HTTP API), `worker` (BullMQ consumers, D-011) and `seed` (plans, D-103).
 module.exports = {
   output: {
     path: join(__dirname, 'dist'),
@@ -27,7 +27,11 @@ module.exports = {
       target: 'node',
       compiler: 'swc',
       main: './src/main.ts',
-      additionalEntryPoints: [{ entryName: 'worker', entryPath: './src/worker.ts' }],
+      // seed: the plan seed for the migrate image (D-103).
+      additionalEntryPoints: [
+        { entryName: 'worker', entryPath: './src/worker.ts' },
+        { entryName: 'seed', entryPath: './prisma/seed-entry.ts' },
+      ],
       tsConfig: './tsconfig.app.json',
       assets: ['./src/assets'],
       externalDependencies: 'none',

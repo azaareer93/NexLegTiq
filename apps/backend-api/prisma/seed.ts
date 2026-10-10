@@ -119,7 +119,7 @@ export function createSeedClient(): PrismaClient {
   return new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 }
 
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   const prisma = createSeedClient();
   try {
     await seedPlans(prisma);

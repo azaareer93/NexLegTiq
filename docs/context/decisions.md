@@ -960,3 +960,35 @@ promoted, `promotedContactId` when the primary is deleted. The number of contact
 **Known limits:** a file opened for a client at the instant it is deleted can still link it (file creation does not lock the
 client row). Why: the AC's encryption lands once, reusable by parties and confidential notes, and clients get the list the UI
 needs without inventing billing data.
+
+**D-103 — Staging images, compose rollout and CD; provider choices left to the owner** · Accepted (MVP-111, 2026-10-09)
+The ticket asks for a staging VPS, managed services, Terraform and Sentry releases, but no VPS/database/Redis provider or
+region is chosen (D-020 gives examples, D-021 is Proposed) and that choice commits spend. → The **repo side** ships now and
+is provider-agnostic (any host with Docker and SSH): `apps/backend-api/Dockerfile` builds **one runtime image for the API
+and the worker** (`node main.js` / `node worker.js`: same bundle, two commands — a separate worker image arrives with the
+first worker-only system dependency) and a **migrate image** (`prisma migrate deploy` + the create-only plan seed, run
+with the `nexlegtiq_migrator` role) = the runtime image plus schema and migrations: `prisma` became a runtime dependency
+of backend-api (`@prisma/client` already installed it as a peer; now its bin is linked) and the plan seed is bundled by
+webpack as `dist/seed.js` (`prisma/seed-entry.ts`), so no dev dependencies or TypeScript runner ship. Node 22
+bookworm-slim, Nx `prune` output installed with `--prod`, root-owned files, `USER node`; compose runs both with a
+read-only root filesystem, `tmpfs /tmp`, `cap_drop: ALL`, `no-new-privileges`. **Tesseract and Chromium are not in the
+image yet** (the ticket lists them): nothing calls them, and the OCR/PDF stories add them with the code that uses them.
+`infra/staging/` = `compose.yml` (Caddy TLS → api; worker; ClamAV sidecar; `migrate` as a one-off profile service),
+`Caddyfile` (the **IP allow-list** `STAGING_ALLOWED_IPS` → 403 for everyone else; basic auth is not used because it would
+take the `Authorization` header the SPA's bearer token needs), `deploy.sh` (validates every input, pull → migrate →
+`up --wait` → `/health/ready` smoke test inside the api container, records `deployed-tag`/`previous-tag`) and
+`app.env.example`. **CD:** `deploy-staging.yml` is a reusable workflow that `ci.yml` calls **after** the workspace and
+secret-scan jobs pass on a push to `develop` (a red develop is never deployed); images are tagged with the full commit SHA
+only (`ghcr.io/<owner>/nexlegtiq/backend-api[-migrate]:<sha>`). CI on `develop`/`main` no longer cancels in progress
+(queued instead), so a rollout is never cut off mid-migration. Deploy job: GitHub Environment `staging` (secrets
+`STAGING_SSH_KEY`, `STAGING_SSH_KNOWN_HOSTS` — pinned host key, no trust on first use —, `STAGING_APP_ENV` = the whole
+app env as one secret, rendered on the host as `app.env` with umask 077, `STAGING_MIGRATE_DATABASE_URL`), the host logs
+in to GHCR with the job's own `GITHUB_TOKEN` and logs out afterwards (no long-lived registry credential on the host); it
+is **off until the repository variable `STAGING_DEPLOY=true`**. **Rollback** = `workflow_dispatch` with `tag` = an older
+SHA (no build) or `deploy.sh` by hand; migrations are forward-only (expand/contract). **SPAs:** Cloudflare Pages' own Git
+integration builds develop and a preview per PR — no workflow code; Cloudflare Access keeps them private. Staging runs
+`NODE_ENV=production`, so the D-078 TLS and placeholder rules apply. **Not done here (owner's call, posted on the
+ticket):** VPS provider/size/region, managed Postgres/Redis/bucket providers and region (D-021), domain names, the
+Cloudflare account, Terraform (written once the providers are known), Sentry releases (with the monitoring story), and
+demo data on staging (`seed-demo` refuses production and has no usable password — sign up instead). Why: every merge can
+reach a production-like environment the day the host exists, without committing money or a region on the owner's behalf.

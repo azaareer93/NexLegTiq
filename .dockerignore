@@ -1,0 +1,18 @@
+# Build context of apps/backend-api/Dockerfile (repository root). Never send secrets or local state to the daemon.
+.git
+.env
+.env.*
+!.env.example
+**/node_modules
+**/dist
+**/coverage
+**/*.tsbuildinfo
+apps/backend-api/src/generated
+.nx
+.claude
+.swarm
+.hive-mind
+.serena
+graphify-out
+tmp
+infra
