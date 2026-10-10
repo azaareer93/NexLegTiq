@@ -925,3 +925,25 @@ waits at 6 open PRs; a stop file ends it. **Usage limits:** a session cannot res
 failed run (also gives each ticket a clean context). Headless runs use the permission mode the owner starts them with — the
 script sets none. Why: the backlog moves while the owner only reviews and merges, without unreviewed code reaching
 `develop`.
+
+**D-113 — Cases list page: URL state, views and what waits for other stories** · Accepted (MVP-58, 2026-10-10)
+The ticket asks for columns, filters and a create modal whose data or endpoints do not exist yet (next hearing, document
+count, sub-type, client and user pickers, client selection for a new file). → `/cases` (`apps/office-app/src/features/cases`)
+keeps its whole state in the URL **under the API's own parameter names** (`search`, `status`, `fileType`, `priority`,
+`scope`, `clientId`, `responsibleLawyerId`, `sort`, `page`, `limit`); each parameter is checked on its own with the
+contract's field schema and an invalid one is dropped (a bookmarked or hand-edited URL never breaks the page), and the
+query sent is exactly what remains. Changing a filter or the search returns to page 1. **Views** are presets of filters,
+not a separate parameter: All (none), Mine (`scope=mine`), Litigation (`fileType=LITIGATION`), Contracts (the four
+contract types), Archived (`status=ARCHIVED`), Urgent (`priority=URGENT`); a view replaces the filters and keeps search,
+sort and page size, and is shown as pressed only while the filters equal it. **Contract change:** `GET /cases?fileType=`
+accepts a comma-separated list (`fileType IN (…)`), so "Contracts" needs no special case; one value still works.
+**Shared API client:** `requestPage(req, itemSchema)` returns `{items, pagination}` with both checked (a missing
+`meta.pagination` is SYS-001 like any contract mismatch); `casesApi(client).list(query, signal)` uses it. Table on ≥ 768 px
+(sortable number, title, status, priority, last update; page sizes 20/50/100), cards with a pager below; the previous page
+stays on screen while the next loads (`keepPreviousData`); first load skeleton, empty states for "no files" and "nothing
+matches" (with "clear filters", which keeps sort and page size), a page past the end replaced by the last one, `ErrorState` with retry (reference per D-093). Row click and the title link open `/cases/:id`,
+a placeholder until the legal-file page story. **Deferred to their stories:** next-hearing and document-count columns
+(sessions, documents), sub-type (not in the list contract), **client and responsible-lawyer pickers** (no clients or team
+endpoints yet — both filters already work from the URL and show as removable tags), and the **quick-create form**: "New
+case" (only with `create:case`) opens the same "coming soon" dialog as the shell's quick action until client selection
+exists. Why: a shareable, refresh-safe list today, built only on data the API really returns.
