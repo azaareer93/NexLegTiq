@@ -1049,6 +1049,50 @@ endpoints yet — both filters already work from the URL and show as removable t
 case" (only with `create:case`) opens the same "coming soon" dialog as the shell's quick action until client selection
 exists. Why: a shareable, refresh-safe list today, built only on data the API really returns.
 
+**D-115 — Courts, judges and prosecutors: reference rows, permissions and the platform seed** · Accepted (MVP-66, 2026-10-10) · Amends D-080, D-037
+MVP-66 needed the third tenant-extension category D-080 left open, a permission the RBAC matrix lacks, and a seed whose
+names the owner reviews. → **Reference models** (`REFERENCE_MODELS` = Court, Judge, next to `TENANT_MODELS`): on the
+scoped client a read sees platform rows (`officeId` null) and the office's own — the condition is ANDed after the
+caller's `where`, a caller's `officeId` may only be null or the current office; creates, updates, deletes and upserts
+behave like a tenant model (own rows only, so a platform row is never writable without `unscoped()`); relation writes into
+them are rejected like tenant ones (scalar FKs); relation filters, `_count` and list includes into them get the same
+visibility; a to-one include takes no `where` (Prisma refuses one), so only the trigger-backed relations listed in
+`TRUSTED_REFERENCE_RELATIONS` (`LegalFile.court`, `LegalFile.judge`, `Judge.court`) are included unfiltered — any other
+to-one include into a reference model gets a `where` and fails loudly (a future `Session.court` needs its trigger first);
+ordering by a relation into a reference model is rejected; raw SQL on `courts`/`judges` must take the officeId like a tenant table. **Integrity:** a platform row cannot be the
+target of a composite `(…, office_id)` FK, so **triggers** give the same guarantee — a judge sits at a court its office
+can see (a platform judge at a platform court), a file names a court its office can see and a judge of that court (judge
+requires court) — and a court never changes office, a judge never changes court or office (so a check made on write
+stays true); the API checks first (400 VAL-001 `validation.unknownCourt|unknownJudge`), the triggers are the backstop (a
+race past the API check is a 500 DB-001).
+`courts`/`judges.office_id` FKs are RESTRICT (SetNull would turn an office's rows into platform rows). Uniqueness: platform
+rows by (jurisdiction, nameEn) — the seed key, nameEn required by CHECK —, office rows by (office, jurisdiction, nameAr),
+English optional for them (409 RES-002 on a duplicate). **API** (api-conventions.md#courts): `GET /courts?jurisdiction&
+courtType&search` (Arabic/English name or city, paginated, by Arabic name), `GET /courts/:id`, `POST/PATCH/DELETE /courts`
+(jurisdiction defaults to the office's), `GET/POST /courts/:id/judges`, `PATCH/DELETE /courts/:id/judges/:judgeId` (an
+office may add its own judge to a platform court; a judge never changes court; `isActive` retires one), CRUD
+`/prosecutors` (tenant model `PublicProsecutor`, hard delete). Platform rows → **403 AUTH-100** on write (the ticket's
+rule); another office's row → 404. Delete is hard and refused with **422 BIZ-011** (new code: "still referenced") while a
+file or judge points at the row (the FK decides; files keep their court after a soft delete) — this tells the caller a
+file uses it even if it is confidential, accepted; deletes are conditional (a concurrent second delete is 404, no second
+audit row). Every write has an audit row (changed fields only). **Permissions** (no matrix row exists, none added): read with ANY of `view:all|assigned:cases`
+(every role), write with ANY of `create:case|create:session` (OM, SL, L, P) — whoever opens files or schedules hearings
+can add, edit or delete the office's courts, judges and prosecutors (also ones used by files they cannot see); TRAINEE,
+ADMIN and EXTERNAL_COLLABORATOR read only. Owner may narrow edit/delete to `manage:office` later. **Files:** `POST /cases`
+takes `courtId?`/`judgeId?`, `PATCH /cases/:id` both nullable (a new court without a judge clears the old court's judge);
+the detail returns `court {id, nameAr, nameEn, courtType}` and `judge {id, fullName}`. A newly assigned judge must be
+active; a retired judge stays on the files that already name them. **Seed** (`prisma/courts.seed.ts`,
+run by `seed.ts` and the migrate image): 67 platform courts — for each of the ten West Bank governorate seats a magistrate,
+first-instance and Sharia court, the Ramallah and Jerusalem courts of appeal, cassation, administrative, supreme
+administrative, supreme constitutional, corruption crimes, Sharia appeal and supreme Sharia courts; Jordan's and Egypt's
+main courts. Re-running it updates platform rows' Arabic name, type and city by key and never touches office rows.
+**Deviations:** the names are **for the owner to review** (asked on the ticket, not via the `needs-decision` label, which
+would stop the autopilot). To check: first-instance courts in Salfit, Tubas and Jericho (may be magistrate only); the
+Jerusalem court of appeal's seat; a Hebron court of appeal; the High Court of Justice (محكمة العدل العليا) next to the
+2020 administrative courts; administrative courts outside Ramallah; the seat of the Sharia appeal and supreme courts
+(city empty); Gaza's courts (left out); the Jordan and Egypt selections; MSA labels such as مدنية vs حقوق. Judges are not seeded; the "inline add court/judge" UI belongs to the quick-create and session-drawer stories
+(the API is ready for them); prosecutors are not yet linked to files or sessions. Why: one platform list every office
+shares without ever seeing another office's additions, enforced in the extension and in the database.
 **D-114 — Autopilot hardening after the first runs** · Accepted (MVP-155, 2026-10-10)
 **Amends D-097.** → **Decision log merges:** `docs/context/decisions.md` is `merge=union` in `.gitattributes` — every ticket
 appends its entry at the end, so two open PRs always "conflicted" there and the resolution was always "keep both" (five times

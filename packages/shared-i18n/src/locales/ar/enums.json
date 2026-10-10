@@ -95,5 +95,20 @@
     "IN_PROGRESS": "قيد التنفيذ",
     "BLOCKED": "متوقفة",
     "DONE": "منجزة"
+  },
+  "courtType": {
+    "CIVIL": "مدنية",
+    "CRIMINAL": "جزائية",
+    "COMMERCIAL": "تجارية",
+    "LABOR": "عمالية",
+    "FAMILY": "أحوال شخصية",
+    "ADMINISTRATIVE": "إدارية",
+    "SHARIA": "شرعية",
+    "MAGISTRATE": "صلح",
+    "FIRST_INSTANCE": "بداية",
+    "APPEAL": "استئناف",
+    "CASSATION": "نقض",
+    "SUPREME": "عليا",
+    "ARBITRATION": "تحكيم"
   }
 }

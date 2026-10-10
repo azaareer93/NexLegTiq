@@ -28,5 +28,7 @@
     "currentWrong": "The current password is incorrect."
   },
   "assignee": "Choose an active colleague who can work on this case.",
-  "taskColumn": "All the tasks must be in the chosen column."
+  "taskColumn": "All the tasks must be in the chosen column.",
+  "unknownCourt": "The selected court does not exist.",
+  "unknownJudge": "The selected judge does not exist or does not sit at the selected court."
 }

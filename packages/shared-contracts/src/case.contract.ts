@@ -1,6 +1,7 @@
 import {
   BILLING_METHODS,
   CLIENT_TYPES,
+  COURT_TYPES,
   FILE_STATUSES,
   FILE_TEAM_ROLES,
   FILE_TYPES,
@@ -13,7 +14,8 @@ import { longText, MoneySchema, plainText, searchText, sortParam } from './field
 
 /**
  * `POST /cases` (W6, D-095/D-096). The number, office, currency, jurisdiction and opening date come from the server;
- * the responsible lawyer and paralegal also join the file's team. The court and judge arrive with the courts story.
+ * the responsible lawyer and paralegal also join the file's team. The court is a platform court or one of the office's;
+ * the judge sits at that court (D-115).
  */
 export const CreateCaseSchema = z
   .object({
@@ -36,17 +38,24 @@ export const CreateCaseSchema = z
     hourlyRate: MoneySchema.optional(),
     fixedFee: MoneySchema.optional(),
     courtCaseNumber: plainText(100).optional(),
+    courtId: z.uuid().optional(),
+    /** Requires `courtId`: a judge of that court. */
+    judgeId: z.uuid().optional(),
     isConfidential: z.boolean().default(false),
   })
   .refine((body) => body.clientIds.includes(body.primaryClientId), {
     message: 'validation.primaryClient',
     path: ['primaryClientId'],
+  })
+  .refine((body) => body.judgeId === undefined || body.courtId !== undefined, {
+    message: 'validation.unknownJudge',
+    path: ['judgeId'],
   });
 export type CreateCaseRequest = z.infer<typeof CreateCaseSchema>;
 
 /**
  * `PATCH /cases/:id`. The number, type, status (close/reopen/archive routes) and the team (team routes) are not edited
- * here; `null` clears an optional field.
+ * here; `null` clears an optional field. A new `courtId` without `judgeId` clears the judge of the old court.
  */
 export const UpdateCaseSchema = z
   .object({
@@ -58,6 +67,8 @@ export const UpdateCaseSchema = z
     hourlyRate: MoneySchema.nullable(),
     fixedFee: MoneySchema.nullable(),
     courtCaseNumber: plainText(100).nullable(),
+    courtId: z.uuid().nullable(),
+    judgeId: z.uuid().nullable(),
     isConfidential: z.boolean(),
   })
   .partial()
@@ -124,6 +135,15 @@ export const CaseSchema = CaseListItemSchema.extend({
   closingDate: DateOnlySchema.nullable(),
   responsibleParalegal: PersonSchema.nullable(),
   courtCaseNumber: z.string().nullable(),
+  court: z
+    .object({
+      id: z.uuid(),
+      nameAr: z.string(),
+      nameEn: z.string().nullable(),
+      courtType: z.enum(COURT_TYPES),
+    })
+    .nullable(),
+  judge: PersonSchema.nullable(),
   jurisdiction: z.enum(JURISDICTIONS),
   /** Billing terms are `null` for a caller without an invoice permission (D-096). */
   billingMethod: z.enum(BILLING_METHODS).nullable(),

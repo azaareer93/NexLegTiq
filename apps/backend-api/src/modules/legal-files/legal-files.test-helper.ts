@@ -96,6 +96,9 @@ export class LegalFilesTestDb {
       ];
       await delegate?.deleteMany({ where });
     }
+    // Reference rows of these offices (D-115), after the files that point at them.
+    await this.raw.judge.deleteMany({ where });
+    await this.raw.court.deleteMany({ where });
     await this.raw.user.deleteMany({ where });
     await this.raw.office.deleteMany({ where: { id: { in: this.officeIds } } });
     await this.prisma.onModuleDestroy();

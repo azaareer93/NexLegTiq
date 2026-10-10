@@ -25,6 +25,7 @@ import type { ScopedTransaction } from '../../database/unit-of-work';
 import { Prisma } from '../../generated/prisma/client';
 import type { ClientInfo } from '../auth/client-info';
 import { truncateUserAgent } from '../auth/client-info';
+import { assertCourtRefs, nextCourtRefs } from '../courts/court-refs';
 
 const LAWYER_ROLES = ['OFFICE_MANAGER', 'SENIOR_LAWYER', 'LAWYER'] as const;
 
@@ -63,7 +64,7 @@ export class CasesService {
           select: { defaultBillingMethod: true, defaultBillingRate: true },
         }),
       ]);
-      await assertParticipants(tx, input);
+      await Promise.all([assertParticipants(tx, input), assertCourtRefs(tx, input)]);
       const openingDate = todayIn(office.timezone, new Date());
       const fileNumber = await this.numbers.next(
         tx,
@@ -124,6 +125,7 @@ export class CasesService {
       if (!before) throw new ResourceNotFoundException();
       const { old, next } = changes(before, {
         ...input,
+        ...(await nextCourtRefs(tx, before, input)),
         description: emptyToNull(input.description),
       });
       if (Object.keys(next).length === 0) return;
@@ -247,6 +249,8 @@ const EDITABLE = {
   hourlyRate: true,
   fixedFee: true,
   courtCaseNumber: true,
+  courtId: true,
+  judgeId: true,
   isConfidential: true,
   responsibleLawyerId: true,
 } satisfies Prisma.LegalFileSelect;
@@ -299,6 +303,8 @@ function fileColumns(
     responsibleLawyerId: input.responsibleLawyerId,
     responsibleParalegalId: orNull(input.responsibleParalegalId),
     courtCaseNumber: orNull(input.courtCaseNumber),
+    courtId: orNull(input.courtId),
+    judgeId: orNull(input.judgeId),
     jurisdiction: office.jurisdiction,
     billingMethod,
     hourlyRate: input.hourlyRate ?? defaultRate ?? null,

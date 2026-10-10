@@ -1,5 +1,6 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 
+import { COURTS, seedCourts } from './courts.seed';
 import { PrismaClient } from '../src/generated/prisma/client';
 import type { Prisma } from '../src/generated/prisma/client';
 
@@ -124,6 +125,8 @@ export async function main(): Promise<void> {
   try {
     await seedPlans(prisma);
     console.info(`Seeded ${PLANS.length} plans`);
+    await seedCourts(prisma);
+    console.info(`Seeded ${COURTS.length} platform courts`);
   } finally {
     await prisma.$disconnect();
   }

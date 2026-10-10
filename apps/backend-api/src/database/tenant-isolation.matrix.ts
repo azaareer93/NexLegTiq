@@ -274,4 +274,11 @@ export const TENANT_ISOLATION_MATRIX: readonly TenantResource[] = [
     update: { title: 'Renamed' },
     http: { list: 'tasks', item: (id) => `tasks/${id}` },
   },
+  {
+    model: 'PublicProsecutor',
+    create: (db, { officeId }) =>
+      db.publicProsecutor.create({ data: { officeId, fullName: 'Isolation prosecutor' } }),
+    update: { fullName: 'Renamed' },
+    http: { list: 'prosecutors', item: (id) => `prosecutors/${id}` },
+  },
 ];

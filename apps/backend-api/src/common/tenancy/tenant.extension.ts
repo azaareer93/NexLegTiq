@@ -42,22 +42,37 @@ export function relationMap(models: Readonly<Record<string, RuntimeModel>>): Rel
 export interface TenantExtensionOptions {
   readonly models: Readonly<Record<string, RuntimeModel>>;
   readonly tenantModels: readonly string[];
+  /** Platform-or-office models (D-037, D-115); see ScopeContext.referenceModels. */
+  readonly referenceModels?: readonly string[];
+  /** To-one relations into reference models whose visibility a database trigger guarantees (D-115). */
+  readonly trustedReferenceRelations?: readonly string[];
   /** The current office from CLS, or undefined outside a tenant context. */
   readonly officeId: () => string | undefined;
 }
 
 /** Prisma client extension enforcing D-018 on every model operation and raw query (rules in tenant-scope.ts). */
-export function tenantExtension({ models, tenantModels, officeId }: TenantExtensionOptions) {
-  const unknown = tenantModels.filter((model) => !(model in models));
+export function tenantExtension({
+  models,
+  tenantModels,
+  referenceModels = [],
+  trustedReferenceRelations = [],
+  officeId,
+}: TenantExtensionOptions) {
+  const unknown = [...tenantModels, ...referenceModels].filter((model) => !(model in models));
   if (unknown.length > 0)
     throw new Error(`TENANT_MODELS lists unknown models: ${unknown.join(', ')}`);
 
   const ctx: ScopeContext = {
     tenantModels: new Set(tenantModels),
+    referenceModels: new Set(referenceModels),
+    trustedReferenceRelations: new Set(trustedReferenceRelations),
     relations: relationMap(models),
     officeId,
   };
-  const tenantTables = tenantModels.map((model) => models[model]?.dbName ?? model);
+  // Raw SQL on a reference table must take the officeId too (`office_id IS NULL OR office_id = $1`).
+  const tenantTables = [...tenantModels, ...referenceModels].map(
+    (model) => models[model]?.dbName ?? model,
+  );
 
   return Prisma.defineExtension({
     name: 'tenant',

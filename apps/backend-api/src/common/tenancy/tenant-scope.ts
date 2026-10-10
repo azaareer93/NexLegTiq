@@ -1,3 +1,4 @@
+import { visibleWhere, withField } from './tenant-where';
 import { TenantContextMissingError, TenantViolationError } from './tenant.errors';
 
 type Json = Record<string, unknown>;
@@ -8,6 +9,17 @@ export type RelationMap = ReadonlyMap<string, ReadonlyMap<string, string>>;
 export interface ScopeContext {
   readonly tenantModels: ReadonlySet<string>;
   readonly relations: RelationMap;
+  /**
+   * Reference models (D-037, D-115): `officeId` null = a platform row every office reads, set = one office's own row.
+   * Reads see platform rows and the office's own; writes behave like a tenant model (own rows only).
+   */
+  readonly referenceModels?: ReadonlySet<string>;
+  /**
+   * `Model.field` of to-one relations into reference models whose visibility a database trigger guarantees (Prisma
+   * accepts no `where` on a to-one include). Any other to-one include into a reference model gets a `where` and Prisma
+   * rejects the query: loud, never a silent leak.
+   */
+  readonly trustedReferenceRelations?: ReadonlySet<string>;
   /** The current office, or undefined outside a tenant context. */
   readonly officeId: () => string | undefined;
 }
@@ -45,6 +57,8 @@ export function requireOfficeId(officeId: string | undefined, target: string): s
  * Rewrites the arguments of one Prisma model operation so it cannot leave the current office (D-018, D-080):
  * - tenant models: `officeId` is added to every `where` and every created row; a different `officeId` is rejected;
  * - Office (the tenant root): reads and updates of the current office's row only;
+ * - reference models (Court, Judge): reads see platform rows (`officeId` null) and the office's own; writes, like a
+ *   tenant model, only the office's own rows — platform rows are written with `PrismaService.unscoped()` (the seed);
  * - global models (Plan, PlatformAdmin, LoginAttempt): read-only — their writes need `PrismaService.unscoped()`.
  * Relation writes into tenant models or Office are rejected at any depth (tenant rows are written with scalar foreign
  * keys, checked by the composite (…, office_id) FKs, D-079); into global models only connect/disconnect are allowed.
@@ -59,7 +73,16 @@ export function scopeArgs(
 ): Json {
   const scoped: Json = isObject(args) ? { ...args } : {};
   const target = `${model}.${operation}`;
-  if (ctx.tenantModels.has(model)) scopeTenantModel(model, operation, scoped, ctx, target);
+  const reference = ctx.referenceModels?.has(model) ?? false;
+  // Reference models write like tenant models (own rows only) and read platform rows too.
+  if (ctx.tenantModels.has(model) || (reference && !READS.has(operation)))
+    scopeTenantModel(model, operation, scoped, ctx, target);
+  else if (reference)
+    scoped['where'] = visibleWhere(
+      scoped['where'],
+      requireOfficeId(ctx.officeId(), target),
+      target,
+    );
   else if (model === OFFICE) scopeOffice(operation, scoped, ctx, target);
   else if (!READS.has(operation)) {
     throw new TenantViolationError(
@@ -98,6 +121,22 @@ function scopeTenantModel(
   }
 }
 
+/** `where` with the office condition a relation from `model` into `related` needs (unchanged when none). */
+function scopeRelated(
+  model: string,
+  related: string,
+  where: unknown,
+  ctx: ScopeContext,
+  target: string,
+): unknown {
+  if (ctx.referenceModels?.has(related)) {
+    return visibleWhere(where, requireOfficeId(ctx.officeId(), target), target);
+  }
+  return leaksAcrossOffices(model, related, ctx)
+    ? withField(where, 'officeId', requireOfficeId(ctx.officeId(), target), target)
+    : where;
+}
+
 function scopeOffice(operation: string, scoped: Json, ctx: ScopeContext, target: string): void {
   if (!READS.has(operation) && !UPDATES.has(operation)) {
     throw new TenantViolationError(
@@ -111,16 +150,6 @@ function scopeOffice(operation: string, scoped: Json, ctx: ScopeContext, target:
     target,
   );
   if (UPDATES.has(operation)) rejectRelationWrites(OFFICE, scoped['data'], ctx);
-}
-
-/** `where.<field> = value`; a caller-supplied different value (or filter object) is a violation, never overridden. */
-function withField(where: unknown, field: string, value: string, target: string): Json {
-  const scoped: Json = isObject(where) ? { ...where } : {};
-  if (field in scoped && scoped[field] !== value) {
-    throw new TenantViolationError(`${target}: where.${field} does not match the current office`);
-  }
-  scoped[field] = value;
-  return scoped;
 }
 
 function mapRows(data: unknown, target: string, fn: (row: Json) => Json): unknown {
@@ -151,13 +180,20 @@ function updateRow(model: string, data: unknown, officeId: string, ctx: ScopeCon
   return data;
 }
 
+/** Rows that belong to an office: tenant models, reference models (own rows) and the Office itself. */
+function isOfficeBound(model: string, ctx: ScopeContext): boolean {
+  return (
+    ctx.tenantModels.has(model) || (ctx.referenceModels?.has(model) ?? false) || model === OFFICE
+  );
+}
+
 function rejectRelationWrites(model: string, data: unknown, ctx: ScopeContext): void {
   if (!isObject(data)) return;
   const relations = ctx.relations.get(model);
   for (const [field, value] of Object.entries(data)) {
     const related = relations?.get(field);
     if (related === undefined || value === undefined) continue;
-    if (ctx.tenantModels.has(related) || related === OFFICE) {
+    if (isOfficeBound(related, ctx)) {
       throw new TenantViolationError(
         `${model}.${field}: relation writes into ${related} are not allowed on the scoped client; ` +
           'write the row with scalar foreign keys',
@@ -205,29 +241,26 @@ function scopeRelationFilter(
   ctx: ScopeContext,
 ): unknown {
   if (!isObject(filter)) return filter; // e.g. `{ plan: null }`
-  const leaks = leaksAcrossOffices(model, related, ctx);
+  const scope = needsScope(model, related, ctx);
   const target = `${model}.${field}`;
   if (!RELATION_FILTERS.some((op) => op in filter)) {
     // To-one shorthand: `{ user: { email } }` filters the related row directly.
     const inner = scopeWhere(related, filter, ctx);
-    return leaks
-      ? withField(inner, 'officeId', requireOfficeId(ctx.officeId(), target), target)
-      : inner;
+    return scope ? scopeRelated(model, related, inner, ctx, target) : inner;
   }
   const scoped: Json = { ...filter };
   for (const op of RELATION_FILTERS) {
     if (!(op in filter)) continue;
     const inner = scopeWhere(related, filter[op], ctx);
-    if (!leaks || inner === null) {
+    if (!scope || inner === null) {
       scoped[op] = inner;
       continue;
     }
-    const officeId = requireOfficeId(ctx.officeId(), target);
-    // `every` must only judge the current office's rows: rows of other offices pass vacuously.
+    // `every` must only judge the rows the office may see: other rows pass vacuously.
     scoped[op] =
       op === 'every'
-        ? { OR: [{ NOT: { officeId } }, inner ?? {}] }
-        : withField(inner, 'officeId', officeId, target);
+        ? { OR: [{ NOT: scopeRelated(model, related, {}, ctx, target) }, inner ?? {}] }
+        : scopeRelated(model, related, inner, ctx, target);
   }
   return scoped;
 }
@@ -239,7 +272,7 @@ function assertOrderByScoped(model: string, orderBy: unknown, ctx: ScopeContext)
     for (const [field, value] of Object.entries(item)) {
       const related = ctx.relations.get(model)?.get(field);
       if (related === undefined) continue;
-      if (leaksAcrossOffices(model, related, ctx)) {
+      if (needsScope(model, related, ctx)) {
         throw new TenantViolationError(
           `${model}.orderBy.${field}: ordering by ${related} would count every office`,
         );
@@ -259,20 +292,27 @@ function scopeFields(model: string, fields: Json, ctx: ScopeContext): Json {
     }
     const related = relations.get(field);
     if (related === undefined || value === false || value === undefined) continue;
-    const nested: Json = isObject(value) ? { ...value } : {};
-    scopeShape(related, nested, ctx);
-    if (leaksAcrossOffices(model, related, ctx)) {
-      const target = `${model}.${field}`;
-      nested['where'] = withField(
-        nested['where'],
-        'officeId',
-        requireOfficeId(ctx.officeId(), target),
-        target,
-      );
-    }
-    scoped[field] = Object.keys(nested).length > 0 ? nested : true;
+    scoped[field] = scopeIncluded(model, field, related, value, ctx);
   }
   return scoped;
+}
+
+/** One included/selected relation: its own shape scoped, and the office condition when the relation needs it. */
+function scopeIncluded(
+  model: string,
+  field: string,
+  related: string,
+  value: unknown,
+  ctx: ScopeContext,
+): Json | true {
+  const nested: Json = isObject(value) ? { ...value } : {};
+  scopeShape(related, nested, ctx);
+  // A trigger-backed to-one relation into a reference model takes no `where` (D-115).
+  const trusted = ctx.trustedReferenceRelations?.has(`${model}.${field}`) ?? false;
+  if (needsScope(model, related, ctx) && !trusted) {
+    nested['where'] = scopeRelated(model, related, nested['where'], ctx, `${model}.${field}`);
+  }
+  return Object.keys(nested).length > 0 ? nested : true;
 }
 
 /** The `_count.select` to scope: `true` counts every relation, `{ select }` the listed ones; anything else is left alone. */
@@ -304,14 +344,18 @@ function scopeCountField(
   ctx: ScopeContext,
 ): unknown {
   const where = scopeWhere(related, isObject(current) ? current['where'] : undefined, ctx);
-  if (leaksAcrossOffices(model, related, ctx)) {
-    const target = `${model}._count.${field}`;
-    return { where: withField(where, 'officeId', requireOfficeId(ctx.officeId(), target), target) };
+  if (needsScope(model, related, ctx)) {
+    return { where: scopeRelated(model, related, where, ctx, `${model}._count.${field}`) };
   }
   return where === undefined ? current : { where };
 }
 
-/** Rows reached from a global model (Plan, PlatformAdmin) into a tenant relation could belong to any office. */
+/** Rows reached from a global or reference model (Plan, Court) into a tenant relation could belong to any office. */
 function leaksAcrossOffices(model: string, related: string, ctx: ScopeContext): boolean {
   return ctx.tenantModels.has(related) && !ctx.tenantModels.has(model) && model !== OFFICE;
+}
+
+/** Rows of a reference model are limited to the visible ones wherever they are reached from. */
+function needsScope(model: string, related: string, ctx: ScopeContext): boolean {
+  return (ctx.referenceModels?.has(related) ?? false) || leaksAcrossOffices(model, related, ctx);
 }

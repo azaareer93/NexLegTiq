@@ -28,7 +28,7 @@ AUTH-100 permission denied · 101 insufficient role · 102 plan feature not avai
 VAL-001 invalid input · 002 email · 003 phone · 004 date · 005 file type · 006 file too large · 007 required
 RES-001 not found (incl. cross-tenant) · 002 already exists · 003 conflict/version · 004 deleted
 BIZ-001 last office manager · 002 case already closed · 003 open tasks block close · 004 session conflict ·
-005 retainer insufficient · 006 invoice immutable · 007 file archived · 008 user limit reached · 009 party conflict of interest · 010 client has open files
+005 retainer insufficient · 006 invoice immutable · 007 file archived · 008 user limit reached · 009 party conflict of interest · 010 client has open files · 011 court or judge still referenced
 AI-001 provider unavailable · 002 rate limited · 003 input too large · 004 output invalid · 005 AI disabled for office
 STO-001 upload failed · 002 download failed · 003 delete failed · 004 malware detected
 EXT-001 email provider · 002 OCR provider
@@ -59,7 +59,7 @@ POST `cases/:id/close` · POST `cases/:id/reopen` · POST `cases/:id/archive` ·
 `cases/:id/clients` · `cases/:id/team` · `cases/:id/parties` (POST returns conflicts) · `cases/:id/witnesses` (+statements) ·
 GET `cases/:id/timeline` · `cases/:id/notes` · GET `cases/:id/audit` · GET `conflicts` · PATCH `conflicts/:id/resolve` ·
 GET `parties?search=` (reuse) · CRUD `task-templates`
-**courts**: GET `courts?jurisdiction&search` (global+office) · POST/PATCH `courts` (office-owned) · `courts/:id/judges` · `prosecutors`
+**courts**: GET `courts?jurisdiction&courtType&search` (global+office) · GET `courts/:id` · POST/PATCH/DELETE `courts` (office-owned; global → 403) · GET/POST `courts/:id/judges`, PATCH/DELETE `courts/:id/judges/:judgeId` · CRUD `prosecutors` (D-115)
 **sessions**: POST `sessions` (409 BIZ-004 unless `acknowledgeConflict`) · GET `sessions?from&to&lawyerId&fileId` (calendar) ·
 GET/PATCH `sessions/:id` · POST `sessions/:id/cancel` · POST `sessions/:id/outcome` (outcome+minutes → optional AI) ·
 POST `sessions/reminders/:id/ack`
