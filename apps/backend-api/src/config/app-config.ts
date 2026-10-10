@@ -118,6 +118,11 @@ export class AppConfig {
     };
   }
 
+  /** Key of the field cipher (D-056), 32 bytes as hex. */
+  get encryptionKey(): string {
+    return this.#env.ENCRYPTION_KEY;
+  }
+
   get clamav(): { readonly host: string; readonly port: number } {
     return { host: this.#env.CLAMAV_HOST, port: this.#env.CLAMAV_PORT };
   }
