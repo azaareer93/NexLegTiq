@@ -7,11 +7,10 @@ import {
 } from '@nexlegtiq/shared-types';
 import { z } from 'zod';
 
-import { plainText } from './fields.js';
+import { EmailSchema, PhoneSchema, plainText } from './fields.js';
 import { NewPasswordSchema, passwordIsNotEmail } from './password.contract.js';
 
 // Normalise first, then validate: users paste emails with spaces and capitals; the column is citext anyway (D-032).
-const EmailSchema = z.string().trim().toLowerCase().max(254).pipe(z.email('validation.email'));
 
 /** ISO-4217 codes the runtime knows (Node and every supported browser ship the list). */
 const CURRENCIES = new Set(Intl.supportedValuesOf('currency'));
@@ -46,11 +45,7 @@ export const RegisterRequestSchema = z
       .trim()
       .toUpperCase()
       .refine((code) => CURRENCIES.has(code), 'validation.currency'),
-    phone: z
-      .string()
-      .trim()
-      .regex(/^\+?[0-9][0-9 ()-]{6,19}$/, 'validation.phone')
-      .optional(),
+    phone: PhoneSchema.optional(),
     acceptTerms: z.literal(true, 'validation.mustAcceptTerms'),
     acceptPrivacy: z.literal(true, 'validation.mustAcceptPrivacy'),
   })

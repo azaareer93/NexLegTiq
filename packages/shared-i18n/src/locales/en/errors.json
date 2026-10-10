@@ -33,6 +33,7 @@
   "BIZ-007": "This case is archived and read-only.",
   "BIZ-008": "Your office has reached its user limit.",
   "BIZ-009": "Possible conflict of interest with an existing party.",
+  "BIZ-010": "This client has open cases. Close them before deleting the client.",
   "AI-001": "The AI service is unavailable right now. Try again later.",
   "AI-002": "Too many AI requests. Try again in a moment.",
   "AI-003": "The text is too long for the AI to process.",

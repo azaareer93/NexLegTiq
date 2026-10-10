@@ -38,4 +38,26 @@ export type {
   CreateCaseRequest,
   UpdateCaseRequest,
 } from './case.contract.js';
-export { longText, MoneySchema, plainText } from './fields.js';
+export {
+  CLIENT_SORT_FIELDS,
+  ClientListItemSchema,
+  ClientQuerySchema,
+  ClientSchema,
+  ContactPersonSchema,
+  CreateClientSchema,
+  CreateContactPersonSchema,
+  UpdateClientSchema,
+  UpdateContactPersonSchema,
+} from './client.contract.js';
+export type {
+  Client,
+  ClientListItem,
+  ClientQuery,
+  ClientSortField,
+  ContactPerson,
+  CreateClientRequest,
+  CreateContactPersonRequest,
+  UpdateClientRequest,
+  UpdateContactPersonRequest,
+} from './client.contract.js';
+export { EmailSchema, longText, MoneySchema, PhoneSchema, plainText } from './fields.js';
