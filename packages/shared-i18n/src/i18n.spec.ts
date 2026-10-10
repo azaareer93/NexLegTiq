@@ -23,6 +23,7 @@ const ENUM_LABELS = {
   CLIENT_TYPES: 'clientType',
   FILE_TEAM_ROLES: 'fileTeamRole',
   PARTY_TYPES: 'partyType',
+  BILLING_METHODS: 'billingMethod',
 } as const;
 /** Value lists translated elsewhere (`errors.*`, `common.language.*`), or not shown to users yet (permissions, D-087). */
 const LABELLED_ELSEWHERE = ['ERROR_CODES', 'SUPPORTED_LOCALES', 'PERMISSIONS'];

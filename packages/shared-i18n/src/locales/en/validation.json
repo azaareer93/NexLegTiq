@@ -9,6 +9,13 @@
   "invalidToken": "This link is not valid.",
   "mustAcceptTerms": "You must accept the Terms of Service.",
   "mustAcceptPrivacy": "You must accept the Privacy Policy.",
+  "duplicate": "Each item can be chosen only once.",
+  "primaryClient": "The primary client must be one of the selected clients.",
+  "amount": "Enter an amount with at most two decimals.",
+  "sort": "This sort order is not supported.",
+  "unknownClient": "One of the selected clients does not exist or is inactive.",
+  "responsibleLawyer": "Choose an active lawyer from your office.",
+  "responsibleParalegal": "Choose an active paralegal from your office.",
   "password": {
     "tooShort": "Use at least 10 characters.",
     "weak": "Use upper- and lower-case letters and at least one digit.",

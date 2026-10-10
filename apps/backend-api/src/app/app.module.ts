@@ -15,6 +15,7 @@ import { HealthModule } from '../health/health.module';
 import { MetricsModule } from '../metrics/metrics.module';
 import { AuthModule } from '../modules/auth/auth.module';
 import { JwtAuthGuard } from '../modules/auth/jwt-auth.guard';
+import { LegalFilesModule } from '../modules/legal-files/legal-files.module';
 
 /** Root module of the HTTP API. */
 @Module({
@@ -28,6 +29,7 @@ import { JwtAuthGuard } from '../modules/auth/jwt-auth.guard';
     HealthModule,
     MetricsModule,
     AuthModule,
+    LegalFilesModule,
     // Default 100 requests/min per IP (api-conventions.md); auth routes set stricter limits with @Throttle.
     // ponytail: counters live in process memory, fine for one API container (D-020); move to Redis storage when a
     // second API instance runs.

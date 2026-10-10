@@ -1,4 +1,5 @@
 import {
+  BILLING_METHODS,
   CLIENT_TYPES,
   FILE_STATUSES,
   FILE_TEAM_ROLES,
@@ -21,6 +22,7 @@ describe('enum value lists', () => {
       CLIENT_TYPES,
       FILE_TEAM_ROLES,
       PARTY_TYPES,
+      BILLING_METHODS,
     }),
   )('%s should hold unique UPPER_SNAKE values', (_name, values) => {
     expect(values.length).toBeGreaterThan(0);
