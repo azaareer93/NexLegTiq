@@ -10,6 +10,7 @@ import {
   PARTY_TYPES,
   PRIORITIES,
   ROLES,
+  TASK_STATUSES,
 } from '@nexlegtiq/shared-types';
 
 import {
@@ -24,6 +25,7 @@ import {
   PartyType,
   Priority,
   Role,
+  TaskStatus,
 } from '../generated/prisma/enums';
 
 /** The enums in shared-types are hand-written copies of the Prisma enums used by the apps and contracts. */
@@ -40,6 +42,7 @@ describe('shared-types enums match the Prisma schema', () => {
     ['FileTeamRole', FILE_TEAM_ROLES, FileTeamRole],
     ['PartyType', PARTY_TYPES, PartyType],
     ['BillingMethod', BILLING_METHODS, BillingMethod],
+    ['TaskStatus', TASK_STATUSES, TaskStatus],
   ] as const)('%s', (_name, shared, prisma) => {
     expect([...shared].sort()).toEqual(Object.values(prisma).sort());
   });

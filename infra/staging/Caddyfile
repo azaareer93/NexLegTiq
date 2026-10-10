@@ -1,0 +1,10 @@
+# Staging API behind Caddy (automatic HTTPS). The backend runs with TRUST_PROXY_HOPS=1: Caddy is the only proxy, so
+# nothing may sit in front of it (no CDN proxying) or client IPs (lockout, rate limits, audit) would be wrong.
+{$API_DOMAIN} {
+	# Staging is not public (D-103): only the listed client ranges reach the API; everyone else gets 403.
+	@outsider not remote_ip {$STAGING_ALLOWED_IPS}
+	respond @outsider 403
+
+	# No `encode`: the API compresses its own responses.
+	reverse_proxy api:3000
+}

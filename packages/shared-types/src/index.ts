@@ -33,6 +33,8 @@ export type {
 } from './legal-file.js';
 export { PRIORITIES } from './priority.js';
 export type { Priority } from './priority.js';
+export { TASK_STATUSES } from './task.js';
+export type { TaskStatus } from './task.js';
 export {
   conditionFor,
   hasAllPermissions,

@@ -26,5 +26,7 @@
     "mismatch": "The passwords do not match.",
     "unchanged": "Choose a password different from the current one.",
     "currentWrong": "The current password is incorrect."
-  }
+  },
+  "assignee": "Choose an active colleague who can work on this case.",
+  "taskColumn": "All the tasks must be in the chosen column."
 }

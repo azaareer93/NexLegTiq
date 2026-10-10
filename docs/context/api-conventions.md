@@ -67,7 +67,7 @@ POST `sessions/reminders/:id/ack`
 GET `cases/:id/documents?folderId&type&search` · GET/PATCH/DELETE `documents/:id` · GET `documents/:id/download` →
 `{downloadUrl, expiresIn: 300}` · POST `documents/:id/versions` · GET `documents/:id/versions` · GET `documents/:id/text` ·
 POST `documents/:id/share` / `unshare` · POST `documents/:id/ocr/retry` · CRUD `cases/:id/folders`
-**tasks**: CRUD `tasks` (`?fileId, assignee=me, status, dueBefore`) · PATCH `tasks/:id/status` · PATCH `tasks/reorder` · POST `tasks/bulk-assign`
+**tasks**: CRUD `tasks` (`?fileId, assignee=me|<userId>, status, priority, dueBefore, overdue`, page/limit) · PATCH `tasks/:id/status` · PATCH `tasks/reorder` (204) · POST `tasks/bulk-assign` (200 `{updated}`) — D-098
 **billing**: CRUD `time-entries` · POST `time-entries/timer/start|stop` · POST `invoices` (from time entries, `fileId?` null=consolidated) ·
 GET `invoices` · GET/PATCH `invoices/:id` · POST `invoices/:id/send` · POST `invoices/:id/mark-paid` · POST `invoices/:id/void` · GET `invoices/:id/pdf`
 **search**: GET `search?q&type=all|cases|clients|documents|parties|tasks&limit` (grouped)

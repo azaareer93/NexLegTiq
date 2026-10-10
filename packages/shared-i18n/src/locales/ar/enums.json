@@ -89,5 +89,11 @@
     "FIXED_FEE": "أتعاب مقطوعة",
     "RETAINER": "دفعة مقدمة",
     "CONTINGENCY": "أتعاب مشروطة بالنتيجة"
+  },
+  "taskStatus": {
+    "TODO": "للتنفيذ",
+    "IN_PROGRESS": "قيد التنفيذ",
+    "BLOCKED": "متوقفة",
+    "DONE": "منجزة"
   }
 }

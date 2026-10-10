@@ -1,0 +1,117 @@
+# Staging CD (D-020, D-103). Called by ci.yml after a green CI run on a push to develop; run by hand (Actions → Deploy
+# staging → tag) to redeploy an image already in GHCR, which is the rollback. Runbook: docs/runbooks/deploy.md.
+name: Deploy staging
+
+on:
+  workflow_call:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Full commit SHA of images already in GHCR to redeploy (rollback). Empty = build this commit.
+        required: false
+        default: ''
+
+# Never cancel a rollout halfway (a migration may be running); a newer push waits for it.
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  # GHCR names must be lowercase.
+  IMAGE_REPO: ghcr.io/${{ github.repository_owner }}/nexlegtiq
+
+jobs:
+  images:
+    name: Build and push images
+    # Only develop reaches staging: a manual run on another branch must not migrate staging with unreviewed code.
+    if: ${{ !inputs.tag && github.ref == 'refs/heads/develop' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Lowercase the image repository
+        run: echo "IMAGE_REPO=${IMAGE_REPO,,}" >> "$GITHUB_ENV"
+      - name: backend-api (API and worker)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/backend-api/Dockerfile
+          target: runtime
+          push: true
+          tags: ${{ env.IMAGE_REPO }}/backend-api:${{ github.sha }}
+          labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha,scope=backend-api
+          cache-to: type=gha,scope=backend-api,mode=max
+      - name: backend-api-migrate
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/backend-api/Dockerfile
+          target: migrate
+          push: true
+          tags: ${{ env.IMAGE_REPO }}/backend-api-migrate:${{ github.sha }}
+          labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha,scope=backend-api
+
+  deploy:
+    name: Deploy to the staging host
+    needs: images
+    # Off until the host exists: set the repository variable STAGING_DEPLOY=true (runbook, "First setup").
+    if: ${{ always() && vars.STAGING_DEPLOY == 'true' && github.ref == 'refs/heads/develop' && (needs.images.result == 'success' || (needs.images.result == 'skipped' && inputs.tag)) }}
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: https://${{ vars.STAGING_API_DOMAIN }}/health/ready
+    env:
+      TAG: ${{ inputs.tag || github.sha }}
+      SSH_TARGET: ${{ vars.STAGING_SSH_TARGET }}
+      DEPLOY_DIR: /opt/nexlegtiq/staging
+      API_DOMAIN: ${{ vars.STAGING_API_DOMAIN }}
+      ALLOWED_IPS: ${{ vars.STAGING_ALLOWED_IPS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: infra/staging
+      - name: Check inputs
+        run: |
+          echo "IMAGE_REPO=${IMAGE_REPO,,}" >> "$GITHUB_ENV"
+          [[ "$TAG" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::tag must be a full commit SHA"; exit 1; }
+          # These end up in a remote shell command: plain shapes only (no quotes, no spaces beyond the IP list).
+          [[ "$API_DOMAIN" =~ ^[a-z0-9.-]+$ ]] || { echo "::error::STAGING_API_DOMAIN must be a host name"; exit 1; }
+          [[ "$ALLOWED_IPS" =~ ^[0-9a-fA-F.:/\ ]+$ ]] || { echo "::error::STAGING_ALLOWED_IPS must be CIDRs separated by spaces"; exit 1; }
+          [[ "$SSH_TARGET" =~ ^[a-z_][a-z0-9_-]*@[A-Za-z0-9.-]+$ ]] || { echo "::error::STAGING_SSH_TARGET must be user@host"; exit 1; }
+      - name: Configure SSH (pinned host key, no trust on first use)
+        env:
+          SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.STAGING_SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Upload compose files and render env files on the host
+        env:
+          APP_ENV: ${{ secrets.STAGING_APP_ENV }}
+          MIGRATE_DATABASE_URL: ${{ secrets.STAGING_MIGRATE_DATABASE_URL }}
+        run: |
+          scp -q infra/staging/compose.yml infra/staging/Caddyfile infra/staging/deploy.sh "$SSH_TARGET:$DEPLOY_DIR/"
+          printf '%s\n' "$APP_ENV" | ssh "$SSH_TARGET" "umask 077 && cat > $DEPLOY_DIR/app.env"
+          printf 'DATABASE_URL=%s\n' "$MIGRATE_DATABASE_URL" | ssh "$SSH_TARGET" "umask 077 && cat > $DEPLOY_DIR/migrate.env"
+      - name: Log the host in to GHCR (this job's token, valid only while the job runs)
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        run: printf '%s' "$GHCR_TOKEN" | ssh "$SSH_TARGET" "docker login ghcr.io -u '$GHCR_USER' --password-stdin"
+      - name: Pull, migrate, start, smoke test
+        run: ssh "$SSH_TARGET" "API_DOMAIN='$API_DOMAIN' STAGING_ALLOWED_IPS='$ALLOWED_IPS' sh $DEPLOY_DIR/deploy.sh '$IMAGE_REPO' '$TAG'"
+      - name: Log the host out of GHCR
+        if: always()
+        run: ssh "$SSH_TARGET" "docker logout ghcr.io" || true

@@ -6,9 +6,10 @@ on:
   push:
     branches: [develop, main]
 
+# PR runs are superseded by newer pushes; develop/main runs queue instead, so a staging rollout is never cut off.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -107,6 +108,17 @@ jobs:
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Only a green develop is deployed (D-103).
+  deploy-staging:
+    name: Deploy staging
+    needs: [workspace, secrets]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/deploy-staging.yml
+    secrets: inherit
 
   claude-config:
     name: Claude Code config sanity
