@@ -1126,8 +1126,8 @@ overlapping `[startsAt, endsAt ?? startsAt + 1h)` (touching intervals allowed; h
 `acknowledgeConflict` (recorded in the audit row). Checked on create, next session and any PATCH of start, end or lawyer,
 under a per-lawyer transaction advisory lock so two overlapping writes cannot both pass. The error lists up to five
 conflicting sessions as `details[]` `{field: 'startsAt', message: 'validation.sessionConflict', params: {sessionId,
-startsAt, endsAt, fileNumber}}` — `fileNumber` null when the caller cannot see that file (a confidential file is never
-named). **`ApiErrorDetail` gains optional `params`** (shared-types) for such facts. **Edits:** PATCH only while SCHEDULED;
+startsAt, endsAt, fileNumber}}` — `sessionId` and `fileNumber` null when the caller cannot see that file (only the busy
+time is shown). **`ApiErrorDetail` gains optional `params`** (shared-types) for such facts. **Edits:** PATCH only while SCHEDULED;
 a cancelled or held session is **422 BIZ-012** (new code: "session not scheduled"); only changed fields are written and
 audited (instants compared as instants, reminder days as sets; a new court without a judge drops the judge, audited too);
 `null` clears end, court, judge, room. **Cancel** (`reason?`) is idempotent; a held session cannot be cancelled (BIZ-012).
@@ -1150,3 +1150,19 @@ past latest first). `GET/PATCH /sessions/:id`, `POST /sessions/:id/cancel|outcom
 attendance API (with the parties story), AI on minutes (session summary story), prosecutors on sessions. The HTTP isolation
 matrix covers `sessions`. Why: double-booking is refused at the source, reminders exist as data the engine can trust, and
 a hearing never leaks a confidential file through a conflict message.
+Review additions (same PR): **writes lock the session row** (`SELECT … FOR UPDATE`) and read it again inside the
+transaction — PATCH, cancel and outcome work on the current state, write only the slot fields that changed, and a file
+archived (BIZ-007) or deleted (404) meanwhile is caught there; a cancel racing an outcome gives BIZ-012. **Sessions last at
+most 24 hours** (`validation.sessionTooLong`, CHECK `sessions_duration_check`), so the conflict query looks back one day
+only. Sessions of a **soft-deleted file** never conflict; their reminders stay PENDING — the reminder engine must skip
+sessions whose file is deleted or archived (and its sweep over `(status, scheduled_for)` runs `unscoped()` with each job's
+office from the row). The advisory-lock key is namespaced (`session-slot:<lawyerId>`). Error fields of a next session are
+prefixed (`nextSession.startsAt`, `nextSession.courtId`; `assertCourtRefs` takes a prefix). **Lists leave out the
+minutes** (`SessionListItemSchema`: calendar and a file's sessions); the calendar refuses more than 2000 rows with 400
+`validation.dateRange` instead of cutting them. An acknowledged conflict on PATCH is audited; every Session audit row
+carries `fileId` (the audit viewer must hide rows of files its reader cannot see, as for LegalFile in D-096 — minutes and
+reasons are stored in full); the CREATE row holds every field and, for a next session, `previousSessionId`. A reschedule's
+SESSION_UPDATED payload adds `previousStartsAt`. Also: `sessionType` defaults to HEARING; a file's "upcoming" list and the
+calendar include cancelled sessions with their status; the calendar's `from` defaults to now (the office app always
+sends its range). **Known limits:** nothing in the database ties a next session to the same file (the service builds it
+from the current one); deleting a file does not cancel its sessions.

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { Session } from '@nexlegtiq/shared-contracts';
+import type { Session, SessionListItem } from '@nexlegtiq/shared-contracts';
 
 import { sessionStatus } from './session-rules';
 import { PrismaService } from '../../database/prisma.service';
@@ -7,7 +7,7 @@ import type { Prisma } from '../../generated/prisma/client';
 
 const PERSON = { select: { id: true, fullName: true } } as const;
 
-const SESSION_SELECT = {
+const LIST_SELECT = {
   id: true,
   sessionType: true,
   startsAt: true,
@@ -15,7 +15,6 @@ const SESSION_SELECT = {
   courtRoom: true,
   reminderDays: true,
   outcome: true,
-  minutes: true,
   nextSessionId: true,
   isCancelled: true,
   cancellationReason: true,
@@ -28,25 +27,28 @@ const SESSION_SELECT = {
   previousSession: { select: { id: true } },
 } satisfies Prisma.SessionSelect;
 
-type SessionRow = Prisma.SessionGetPayload<{ select: typeof SESSION_SELECT }>;
+const SESSION_SELECT = { ...LIST_SELECT, minutes: true } satisfies Prisma.SessionSelect;
+
+type ListRow = Prisma.SessionGetPayload<{ select: typeof LIST_SELECT }>;
 
 /** Reads of sessions on the scoped client; callers pass the access `where` from SessionsService. */
 @Injectable()
 export class SessionsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Lists leave the minutes out (SessionListItem). */
   async findMany(
     where: Prisma.SessionWhereInput,
     orderBy: Prisma.SessionOrderByWithRelationInput[],
-    page?: { skip: number; take: number },
-  ): Promise<Session[]> {
+    page: { skip: number; take: number },
+  ): Promise<SessionListItem[]> {
     const rows = await this.prisma.db.session.findMany({
       where,
-      select: SESSION_SELECT,
+      select: LIST_SELECT,
       orderBy,
       ...page,
     });
-    return rows.map(toSession);
+    return rows.map(toListItem);
   }
 
   count(where: Prisma.SessionWhereInput): Promise<number> {
@@ -54,13 +56,15 @@ export class SessionsRepository {
   }
 
   async get(id: string): Promise<Session> {
-    return toSession(
-      await this.prisma.db.session.findFirstOrThrow({ where: { id }, select: SESSION_SELECT }),
-    );
+    const { minutes, ...row } = await this.prisma.db.session.findFirstOrThrow({
+      where: { id },
+      select: SESSION_SELECT,
+    });
+    return { ...toListItem(row), minutes };
   }
 }
 
-function toSession({ isCancelled, previousSession, ...row }: SessionRow): Session {
+function toListItem({ isCancelled, previousSession, ...row }: ListRow): SessionListItem {
   return {
     ...row,
     status: sessionStatus({ isCancelled, outcome: row.outcome }),

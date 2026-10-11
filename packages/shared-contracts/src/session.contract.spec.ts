@@ -36,6 +36,9 @@ describe('CreateSessionSchema', () => {
       'validation.endsBeforeStart',
     ]);
     expect(messages(create({ judgeId: USER }))).toEqual(['validation.unknownJudge']);
+    expect(messages(create({ endsAt: '2026-11-03T09:30:01+02:00' }))).toEqual([
+      'validation.sessionTooLong',
+    ]);
   });
 
   it('should limit reminder days to 0–365, each once', () => {

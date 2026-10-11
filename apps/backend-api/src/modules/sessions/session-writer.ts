@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { ApiErrorDetail, UserId } from '@nexlegtiq/shared-types';
 import { ClsService } from 'nestjs-cls';
 
-import { effectiveEnd, reminderRows } from './session-rules';
+import { effectiveEnd, MAX_SESSION_MS, reminderRows } from './session-rules';
 import type { RequestContext } from '../../common/context/request-context';
 import { BusinessRuleException, ValidationException } from '../../common/errors/app.exception';
 import type { ScopedTransaction } from '../../database/unit-of-work';
@@ -11,9 +11,6 @@ import type { ClientInfo } from '../auth/client-info';
 import { truncateUserAgent } from '../auth/client-info';
 import { assertCourtRefs } from '../courts/court-refs';
 import { CaseAccessService } from '../legal-files/case-access.service';
-
-/** Nil UUID: "exclude no session" in the conflict query. */
-const NO_SESSION = '00000000-0000-0000-0000-000000000000';
 
 export const STATE_SELECT = {
   id: true,
@@ -30,6 +27,7 @@ export const STATE_SELECT = {
   minutes: true,
   nextSessionId: true,
   isCancelled: true,
+  file: { select: { status: true, deletedAt: true } },
 } satisfies Prisma.SessionSelect;
 /** What the write routes read of a session before changing it. */
 export type SessionState = Prisma.SessionGetPayload<{ select: typeof STATE_SELECT }>;
@@ -71,11 +69,11 @@ export class SessionWriter {
     tx: ScopedTransaction,
     input: NewSession,
     client: ClientInfo,
-    { fieldPrefix = '', keepRetiredJudge = false } = {},
+    { fieldPrefix = '', keepRetiredJudge = false, previousSessionId = '' } = {},
   ): Promise<string> {
     await assertAttendingLawyer(tx, input.attendingLawyerId, input.fileId, fieldPrefix);
-    await assertCourtRefs(tx, input, !keepRetiredJudge);
-    if (!input.acknowledgeConflict) await this.assertNoConflict(tx, input, null);
+    await assertCourtRefs(tx, input, !keepRetiredJudge, fieldPrefix);
+    if (!input.acknowledgeConflict) await this.assertNoConflict(tx, input, null, fieldPrefix);
     const reminderDays =
       input.reminderDays ??
       (await tx.officeSettings.findFirstOrThrow({ select: { courtReminderDays: true } }))
@@ -101,41 +99,47 @@ export class SessionWriter {
       sessionType: input.sessionType,
       startsAt: input.startsAt.toISOString(),
     });
-    await this.audit(tx, client, id, null, {
-      fileId: input.fileId,
-      sessionType: input.sessionType,
-      startsAt: input.startsAt.toISOString(),
-      endsAt: input.endsAt?.toISOString() ?? null,
-      attendingLawyerId: input.attendingLawyerId,
-      ...(input.acknowledgeConflict && { acknowledgeConflict: true }),
-    });
+    await this.audit(
+      tx,
+      client,
+      { id, fileId: input.fileId },
+      null,
+      createdValues(input, reminderDays, previousSessionId),
+    );
     return id;
   }
 
   /**
-   * 409 BIZ-004 when the attending lawyer has another live session overlapping [startsAt, end) — end = endsAt or one
-   * hour; touching intervals do not overlap. Concurrent writes for the same lawyer queue on a transaction-scoped
-   * advisory lock, so two overlapping creates cannot both pass. Details name each conflicting session (at most 5); its
-   * file number only when the caller can see that file.
+   * 409 BIZ-004 when the attending lawyer has another live session (not cancelled, file not deleted) overlapping
+   * [startsAt, end) — end = endsAt or one hour; touching intervals do not overlap. Concurrent writes for the same lawyer
+   * queue on a transaction-scoped advisory lock, so two overlapping writes cannot both pass. Details list up to 5
+   * conflicting sessions; one on a file the caller cannot see shows only its time (no id, no file number).
    */
   async assertNoConflict(
     tx: ScopedTransaction,
     slot: Slot,
     excludeId: string | null,
+    fieldPrefix = '',
   ): Promise<void> {
     const end = effectiveEnd(slot.startsAt, slot.endsAt);
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${slot.attendingLawyerId}, 0))`;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`session-slot:${slot.attendingLawyerId}`}, 0))`;
+    // Sessions last at most MAX_SESSION_HOURS (CHECK), so earlier starts cannot overlap: the index range stays short.
     const rows = await tx.$queryRaw<
       { id: string; starts_at: Date; ends_at: Date | null; file_id: string }[]
     >`
-      SELECT id, starts_at, ends_at, file_id FROM sessions
-      WHERE office_id = ${this.officeId()}::uuid
-        AND attending_lawyer_id = ${slot.attendingLawyerId}::uuid
-        AND NOT is_cancelled
-        AND id <> ${excludeId ?? NO_SESSION}::uuid
-        AND starts_at < ${end}
-        AND COALESCE(ends_at, starts_at + interval '1 hour') > ${slot.startsAt}
-      ORDER BY starts_at, id
+      SELECT s.id, s.starts_at, s.ends_at, s.file_id FROM sessions s
+      WHERE s.office_id = ${this.officeId()}::uuid
+        AND s.attending_lawyer_id = ${slot.attendingLawyerId}::uuid
+        AND NOT s.is_cancelled
+        AND (${excludeId}::uuid IS NULL OR s.id <> ${excludeId}::uuid)
+        AND s.starts_at < ${end}
+        AND s.starts_at > ${new Date(slot.startsAt.getTime() - MAX_SESSION_MS)}
+        AND COALESCE(s.ends_at, s.starts_at + interval '1 hour') > ${slot.startsAt}
+        AND EXISTS (
+          SELECT 1 FROM legal_files f
+          WHERE f.id = s.file_id AND f.office_id = s.office_id AND f.deleted_at IS NULL
+        )
+      ORDER BY s.starts_at, s.id
       LIMIT 5`;
     if (rows.length === 0) return;
     const visible = await tx.legalFile.findMany({
@@ -143,21 +147,33 @@ export class SessionWriter {
       select: { id: true, fileNumber: true },
     });
     const numbers = new Map(visible.map((file) => [file.id, file.fileNumber]));
-    const details: ApiErrorDetail[] = rows.map((row) => ({
-      field: 'startsAt',
-      message: 'validation.sessionConflict',
-      params: {
-        sessionId: row.id,
-        startsAt: row.starts_at.toISOString(),
-        endsAt: row.ends_at?.toISOString() ?? null,
-        fileNumber: numbers.get(row.file_id) ?? null,
-      },
-    }));
+    const details: ApiErrorDetail[] = rows.map((row) => {
+      const fileNumber = numbers.get(row.file_id);
+      return {
+        field: `${fieldPrefix}startsAt`,
+        message: 'validation.sessionConflict',
+        params: {
+          sessionId: fileNumber ? row.id : null,
+          startsAt: row.starts_at.toISOString(),
+          endsAt: row.ends_at?.toISOString() ?? null,
+          fileNumber: fileNumber ?? null,
+        },
+      };
+    });
     throw new BusinessRuleException(
       'BIZ-004',
       'The attending lawyer has another session at that time',
       details,
     );
+  }
+
+  /**
+   * Locks the session row until the transaction ends and reads it again, so a write works on the current state and
+   * concurrent writes to one session queue (D-116). Null when it is gone.
+   */
+  async lockState(tx: ScopedTransaction, id: string): Promise<SessionState | null> {
+    await tx.$queryRaw`SELECT 1 FROM sessions WHERE id = ${id}::uuid AND office_id = ${this.officeId()}::uuid FOR UPDATE`;
+    return tx.session.findFirst({ where: { id }, select: STATE_SELECT });
   }
 
   /** Pending reminders end (CANCELLED) — the engine drops their jobs; sent ones stay as history. */
@@ -199,11 +215,14 @@ export class SessionWriter {
     });
   }
 
-  /** A CREATE row without old values, else an UPDATE row. */
+  /**
+   * A CREATE row without old values, else an UPDATE row. `newValues` always carries the file, so an audit viewer can
+   * hide the rows of files its reader cannot see (minutes of a confidential file, D-096).
+   */
   async audit(
     tx: ScopedTransaction,
     client: ClientInfo,
-    entityId: string,
+    session: { readonly id: string; readonly fileId: string },
     oldValues: object | null,
     newValues: object,
   ): Promise<void> {
@@ -212,10 +231,10 @@ export class SessionWriter {
         officeId: this.officeId(),
         userId: this.actorId(),
         entityType: 'Session',
-        entityId,
+        entityId: session.id,
         action: oldValues ? 'UPDATE' : 'CREATE',
         ...(oldValues && { oldValues: JSON.parse(JSON.stringify(oldValues)) as object }),
-        newValues: JSON.parse(JSON.stringify(newValues)) as object,
+        newValues: JSON.parse(JSON.stringify({ fileId: session.fileId, ...newValues })) as object,
         ipAddress: client.ip,
         userAgent: truncateUserAgent(client.userAgent),
         requestId: client.requestId,
@@ -265,4 +284,24 @@ export async function assertAttendingLawyer(
       { field: `${fieldPrefix}attendingLawyerId`, message: 'validation.attendingLawyer' },
     ]);
   }
+}
+
+/** The CREATE audit row of a session: everything it was created with. */
+function createdValues(
+  input: NewSession,
+  reminderDays: readonly number[],
+  previousSessionId: string,
+): Record<string, unknown> {
+  return {
+    sessionType: input.sessionType,
+    startsAt: input.startsAt.toISOString(),
+    endsAt: input.endsAt?.toISOString() ?? null,
+    courtId: input.courtId,
+    judgeId: input.judgeId,
+    courtRoom: input.courtRoom,
+    attendingLawyerId: input.attendingLawyerId,
+    reminderDays,
+    ...(previousSessionId && { previousSessionId }),
+    ...(input.acknowledgeConflict && { acknowledgeConflict: true }),
+  };
 }

@@ -135,9 +135,11 @@ ALTER TABLE "session_party_attendances" ADD CONSTRAINT "session_party_attendance
 
 -- ─── Raw SQL Prisma cannot express ──────────────────────────────────────────────────────────────────────────────
 
--- A session ends after it starts; a cancelled session has no outcome; a session is not adjourned to itself; reminder
+-- A session ends after it starts (D-116); a cancelled session has no outcome; a session is not adjourned to itself; reminder
 -- offsets are 0–365 days, at most 10 (D-116).
 ALTER TABLE "sessions" ADD CONSTRAINT "sessions_ends_after_start_check" CHECK ("ends_at" IS NULL OR "ends_at" > "starts_at");
+-- At most 24 hours: the conflict query only looks back one day for overlapping sessions.
+ALTER TABLE "sessions" ADD CONSTRAINT "sessions_duration_check" CHECK ("ends_at" IS NULL OR "ends_at" <= "starts_at" + interval '24 hours');
 ALTER TABLE "sessions" ADD CONSTRAINT "sessions_cancelled_without_outcome_check" CHECK (NOT ("is_cancelled" AND "outcome" IS NOT NULL));
 ALTER TABLE "sessions" ADD CONSTRAINT "sessions_next_not_self_check" CHECK ("next_session_id" IS NULL OR "next_session_id" <> "id");
 ALTER TABLE "sessions" ADD CONSTRAINT "sessions_reminder_days_check" CHECK (

@@ -18,11 +18,18 @@ const ReminderDaysSchema = z
 const endsAfterStart = (body: { startsAt?: string; endsAt?: string | null }) =>
   !body.startsAt || !body.endsAt || Date.parse(body.endsAt) > Date.parse(body.startsAt);
 const END_ISSUE = { message: 'validation.endsBeforeStart', path: ['endsAt'] };
+/** A session lasts at most 24 hours (CHECK `sessions_duration_check`). */
+const MAX_SESSION_MS = 24 * 3_600_000;
+const notTooLong = (body: { startsAt?: string; endsAt?: string | null }) =>
+  !body.startsAt ||
+  !body.endsAt ||
+  Date.parse(body.endsAt) - Date.parse(body.startsAt) <= MAX_SESSION_MS;
+const LENGTH_ISSUE = { message: 'validation.sessionTooLong', path: ['endsAt'] };
 
 const sessionFields = {
   sessionType: z.enum(SESSION_TYPES),
   startsAt: InstantSchema,
-  /** Without an end the conflict check counts one hour. */
+  /** Without an end the conflict check counts one hour; at most 24 hours after the start. */
   endsAt: InstantSchema,
   courtId: z.uuid(),
   /** Requires `courtId`: a judge of that court. */
@@ -50,6 +57,7 @@ export const CreateSessionSchema = z
     acknowledgeConflict,
   })
   .refine(endsAfterStart, END_ISSUE)
+  .refine(notTooLong, LENGTH_ISSUE)
   .refine((body) => body.judgeId === undefined || body.courtId !== undefined, {
     message: 'validation.unknownJudge',
     path: ['judgeId'],
@@ -74,7 +82,8 @@ export const UpdateSessionSchema = z
     ({ acknowledgeConflict: _ack, ...body }) => Object.keys(body).length > 0,
     'validation.required',
   )
-  .refine(endsAfterStart, END_ISSUE);
+  .refine(endsAfterStart, END_ISSUE)
+  .refine(notTooLong, LENGTH_ISSUE);
 export type UpdateSessionRequest = z.infer<typeof UpdateSessionSchema>;
 
 /** `POST /sessions/:id/cancel`: cancels the session and its pending reminders. */
@@ -97,7 +106,8 @@ export const NextSessionSchema = z
     reminderDays: sessionFields.reminderDays.optional(),
     acknowledgeConflict,
   })
-  .refine(endsAfterStart, END_ISSUE);
+  .refine(endsAfterStart, END_ISSUE)
+  .refine(notTooLong, LENGTH_ISSUE);
 
 /**
  * `POST /sessions/:id/outcome`: records (or corrects) what happened; only once the session has started and while it is
@@ -167,3 +177,7 @@ export const SessionSchema = z.object({
   updatedAt: z.iso.datetime(),
 });
 export type Session = z.infer<typeof SessionSchema>;
+
+/** A session in the calendar and a file's list: without the minutes (up to 20,000 characters each). */
+export const SessionListItemSchema = SessionSchema.omit({ minutes: true });
+export type SessionListItem = z.infer<typeof SessionListItemSchema>;

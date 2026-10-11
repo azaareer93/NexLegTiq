@@ -16,7 +16,6 @@ import type { RequestContext } from '../../common/context/request-context';
 import {
   BusinessRuleException,
   PermissionDeniedException,
-  ResourceConflictException,
   ResourceNotFoundException,
   ValidationException,
 } from '../../common/errors/app.exception';
@@ -49,6 +48,7 @@ const state = (overrides: Partial<SessionState> = {}): SessionState => ({
   minutes: null,
   nextSessionId: null,
   isCancelled: false,
+  file: { status: 'OPEN', deletedAt: null },
   ...overrides,
 });
 
@@ -72,7 +72,9 @@ function setup(row: SessionState = state(), role: Role = 'LAWYER') {
     },
     session: {
       create: jest.fn().mockResolvedValue({ id: NEXT }),
-      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      update: jest.fn().mockResolvedValue({ id: ID }),
+      // lockState: the row read again under its lock.
+      findFirst: jest.fn().mockResolvedValue(row),
     },
     sessionReminder: { createMany: jest.fn(), updateMany: jest.fn() },
     caseTimelineEvent: { create: jest.fn() },
@@ -175,7 +177,8 @@ describe('SessionsService', () => {
             field: 'startsAt',
             params: { sessionId: 'a', fileNumber: '2026-LIT-00001', endsAt: null },
           },
-          { field: 'startsAt', params: { sessionId: 'b', fileNumber: null } },
+          // On a file the caller cannot see: only the time.
+          { field: 'startsAt', params: { sessionId: null, fileNumber: null } },
         ],
       });
       expect(tx.session.create).not.toHaveBeenCalled();
@@ -227,7 +230,7 @@ describe('SessionsService', () => {
     it('should do nothing when nothing changes', async () => {
       const { service, tx } = setup();
       await service.update(ID, patch({ reminderDays: [1, 3, 7] }), CLIENT);
-      expect(tx.session.updateMany).not.toHaveBeenCalled();
+      expect(tx.session.update).not.toHaveBeenCalled();
     });
 
     it('should reschedule: re-check conflicts, replace pending reminders and audit old and new values', async () => {
@@ -235,9 +238,15 @@ describe('SessionsService', () => {
       const startsAt = inDays(20).toISOString();
       await service.update(ID, patch({ startsAt }), CLIENT);
       expect(tx.$queryRaw).toHaveBeenCalled();
-      expect(tx.session.updateMany).toHaveBeenCalledWith({
-        where: { id: ID, isCancelled: false, outcome: null },
-        data: expect.objectContaining({ startsAt: new Date(startsAt) }),
+      expect(tx.session.update).toHaveBeenCalledWith({
+        where: { id: ID },
+        data: { startsAt: new Date(startsAt) },
+        select: { id: true },
+      });
+      expect(tx.caseTimelineEvent.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          payload: expect.objectContaining({ startsAt: new Date(startsAt).toISOString() }),
+        }),
       });
       expect(tx.sessionReminder.updateMany).toHaveBeenCalledWith({
         where: { sessionId: ID, status: 'PENDING' },
@@ -247,7 +256,7 @@ describe('SessionsService', () => {
       expect(tx.auditLog.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           action: 'UPDATE',
-          newValues: { startsAt },
+          newValues: { fileId: FILE, startsAt },
         }),
       });
     });
@@ -255,11 +264,15 @@ describe('SessionsService', () => {
     it('should audit a judge dropped with a new court, and not re-check conflicts for the room', async () => {
       const { service, tx } = setup(state({ courtId: 'c1', judgeId: 'j1' }));
       await service.update(ID, patch({ courtId: '01920000-0000-7000-8000-0000000000c2' }), CLIENT);
-      expect(tx.$queryRaw).not.toHaveBeenCalled();
+      expect(tx.$executeRaw).not.toHaveBeenCalled(); // no conflict check, so no lawyer lock
       expect(tx.auditLog.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           oldValues: { courtId: 'c1', judgeId: 'j1' },
-          newValues: { courtId: '01920000-0000-7000-8000-0000000000c2', judgeId: null },
+          newValues: {
+            fileId: FILE,
+            courtId: '01920000-0000-7000-8000-0000000000c2',
+            judgeId: null,
+          },
         }),
       });
     });
@@ -282,11 +295,44 @@ describe('SessionsService', () => {
           code: 'BIZ-012',
         });
       }
+      // Read again under the lock: a session cancelled meanwhile is refused too.
       const { service, tx } = setup();
-      tx.session.updateMany.mockResolvedValue({ count: 0 });
+      tx.session.findFirst.mockResolvedValue(state({ isCancelled: true }));
       await expect(service.update(ID, patch({ courtRoom: 'x' }), CLIENT)).rejects.toMatchObject({
         code: 'BIZ-012',
       });
+    });
+
+    it('should audit an acknowledged conflict and refuse a session that is too long', async () => {
+      const { service, tx } = setup();
+      const startsAt = inDays(20).toISOString();
+      await service.update(ID, patch({ startsAt, acknowledgeConflict: true }), CLIENT);
+      expect(tx.$executeRaw).not.toHaveBeenCalled();
+      expect(tx.auditLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          newValues: { fileId: FILE, startsAt, acknowledgeConflict: true },
+        }),
+      });
+      await expect(
+        service.update(ID, patch({ endsAt: inDays(11.5).toISOString() }), CLIENT),
+      ).rejects.toMatchObject({ details: [{ message: 'validation.sessionTooLong' }] });
+    });
+
+    it('should refuse when the file was archived or deleted meanwhile', async () => {
+      const archived = setup();
+      archived.tx.session.findFirst.mockResolvedValue(
+        state({ file: { status: 'ARCHIVED', deletedAt: null } }),
+      );
+      await expect(
+        archived.service.update(ID, patch({ courtRoom: 'x' }), CLIENT),
+      ).rejects.toMatchObject({ code: 'BIZ-007' });
+      const deleted = setup();
+      deleted.tx.session.findFirst.mockResolvedValue(
+        state({ file: { status: 'OPEN', deletedAt: new Date() } }),
+      );
+      await expect(
+        deleted.service.update(ID, patch({ courtRoom: 'x' }), CLIENT),
+      ).rejects.toBeInstanceOf(ResourceNotFoundException);
     });
   });
 
@@ -294,9 +340,10 @@ describe('SessionsService', () => {
     it('should cancel the session and its pending reminders', async () => {
       const { service, tx } = setup();
       await service.cancel(ID, { reason: 'Strike' }, CLIENT);
-      expect(tx.session.updateMany).toHaveBeenCalledWith({
-        where: { id: ID, isCancelled: false, outcome: null },
+      expect(tx.session.update).toHaveBeenCalledWith({
+        where: { id: ID },
         data: { isCancelled: true, cancellationReason: 'Strike' },
+        select: { id: true },
       });
       expect(tx.sessionReminder.updateMany).toHaveBeenCalled();
       expect(tx.caseTimelineEvent.create).toHaveBeenCalledWith({
@@ -309,14 +356,14 @@ describe('SessionsService', () => {
     it('should change nothing when already cancelled and refuse a held session', async () => {
       const cancelled = setup(state({ isCancelled: true }));
       await cancelled.service.cancel(ID, {}, CLIENT);
-      expect(cancelled.tx.session.updateMany).not.toHaveBeenCalled();
+      expect(cancelled.tx.session.update).not.toHaveBeenCalled();
       const held = setup(state({ outcome: 'DECIDED' }));
       await expect(held.service.cancel(ID, {}, CLIENT)).rejects.toMatchObject({ code: 'BIZ-012' });
-      const raced = setup();
-      raced.tx.session.updateMany.mockResolvedValue({ count: 0 });
-      await expect(raced.service.cancel(ID, {}, CLIENT)).rejects.toMatchObject({
-        code: 'BIZ-012',
-      });
+      const gone = setup();
+      gone.tx.session.findFirst.mockResolvedValue(null);
+      await expect(gone.service.cancel(ID, {}, CLIENT)).rejects.toBeInstanceOf(
+        ResourceNotFoundException,
+      );
     });
   });
 
@@ -338,9 +385,17 @@ describe('SessionsService', () => {
       });
       // The carried-over judge need not be active any more.
       expect(tx.judge.count).toHaveBeenCalledWith({ where: { id: 'j1', courtId: 'c1' } });
-      expect(tx.session.updateMany).toHaveBeenCalledWith({
-        where: { id: ID, isCancelled: false, nextSessionId: null },
+      expect(tx.session.update).toHaveBeenCalledWith({
+        where: { id: ID },
         data: { outcome: 'ADJOURNED', minutes: 'Adjourned.', nextSessionId: NEXT },
+        select: { id: true },
+      });
+      // The next session's audit row names the session it continues.
+      expect(tx.auditLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          action: 'CREATE',
+          newValues: expect.objectContaining({ previousSessionId: ID }),
+        }),
       });
       expect(tx.sessionReminder.updateMany).toHaveBeenCalled();
     });
@@ -350,7 +405,7 @@ describe('SessionsService', () => {
       await service.recordOutcome(ID, SessionOutcomeSchema.parse({ outcome: 'DECIDED' }), CLIENT);
       await service.recordOutcome(ID, body({ minutes: '' }), CLIENT);
       expect(
-        tx.session.updateMany.mock.calls.map((call) => (call[0] as { data: object }).data),
+        tx.session.update.mock.calls.map((call) => (call[0] as { data: object }).data),
       ).toEqual([
         { outcome: 'DECIDED', minutes: 'Old' },
         { outcome: 'ADJOURNED', minutes: null },
@@ -390,11 +445,12 @@ describe('SessionsService', () => {
           CLIENT,
         ),
       ).rejects.toBeInstanceOf(PermissionDeniedException);
+      // Cancelled between the access check and the lock.
       const raced = setup(held());
-      raced.tx.session.updateMany.mockResolvedValue({ count: 0 });
-      await expect(raced.service.recordOutcome(ID, body(), CLIENT)).rejects.toBeInstanceOf(
-        ResourceConflictException,
-      );
+      raced.tx.session.findFirst.mockResolvedValue({ ...held(), isCancelled: true });
+      await expect(raced.service.recordOutcome(ID, body(), CLIENT)).rejects.toMatchObject({
+        code: 'BIZ-012',
+      });
     });
   });
 });

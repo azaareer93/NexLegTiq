@@ -33,6 +33,7 @@
   "unknownJudge": "The selected judge does not exist or does not sit at the selected court.",
   "dateTime": "Enter a valid date and time.",
   "endsBeforeStart": "The end must be after the start.",
+  "sessionTooLong": "A hearing can last at most 24 hours.",
   "dateRange": "Choose an end after the start, at most 92 days later.",
   "reminderDays": "Reminders can be 0 to 365 days before the hearing.",
   "attendingLawyer": "Choose an active lawyer who can see this case.",

@@ -1,4 +1,14 @@
-import { changes, continuation, effectiveEnd, reminderRows, sessionStatus } from './session-rules';
+import {
+  changes,
+  continuation,
+  durationProblem,
+  effectiveEnd,
+  nextSlot,
+  reminderRows,
+  sessionStatus,
+  slotChanges,
+  updatedPayload,
+} from './session-rules';
 import type { SessionState } from './session-writer';
 
 const DAY_MS = 86_400_000;
@@ -18,6 +28,7 @@ const state = (overrides: Partial<SessionState> = {}): SessionState => ({
   minutes: null,
   nextSessionId: null,
   isCancelled: false,
+  file: { status: 'OPEN', deletedAt: null },
   ...overrides,
 });
 
@@ -130,5 +141,60 @@ describe('session rules', () => {
         },
       });
     });
+  });
+
+  it('should keep reminders whole days of 24 h across the daylight-saving change', () => {
+    // Asia/Hebron leaves summer time on 24 Oct 2026: 07:00 local on the 26th is 05:00Z, three days earlier is 72 h,
+    // which reads 08:00 on the 23rd in local summer time (D-116: instants, not wall-clock times).
+    const startsAt = new Date('2026-10-26T07:00:00+02:00');
+    const [row] = reminderRows(startsAt, [3], new Date('2026-10-01T00:00:00Z'));
+    expect(row?.scheduledFor).toEqual(new Date('2026-10-23T05:00:00Z'));
+    expect(startsAt.getTime() - (row?.scheduledFor.getTime() ?? 0)).toBe(72 * 3_600_000);
+  });
+
+  it('should accept an end after the start, by at most 24 hours', () => {
+    const start = new Date('2026-11-02T07:00:00Z');
+    expect(durationProblem(start, null)).toBeNull();
+    expect(durationProblem(start, new Date('2026-11-03T07:00:00Z'))).toBeNull();
+    expect(durationProblem(start, start)).toBe('validation.endsBeforeStart');
+    expect(durationProblem(start, new Date('2026-11-03T07:00:01Z'))).toBe(
+      'validation.sessionTooLong',
+    );
+  });
+
+  it('should build the slot after a PATCH and write only the slot fields it changed', () => {
+    const slot = nextSlot(state(), {
+      endsAt: '2026-11-02T08:00:00Z',
+      acknowledgeConflict: false,
+    });
+    expect(slot).toEqual({
+      startsAt: new Date('2026-11-02T07:00:00Z'),
+      endsAt: new Date('2026-11-02T08:00:00Z'),
+      attendingLawyerId: 'lawyer',
+    });
+    expect(slotChanges(slot, { endsAt: 'x', courtRoom: 'y' })).toEqual({
+      endsAt: new Date('2026-11-02T08:00:00Z'),
+    });
+    expect(() =>
+      nextSlot(state(), { endsAt: '2026-11-02T06:00:00Z', acknowledgeConflict: false }),
+    ).toThrow();
+  });
+
+  it('should name the previous start in the timeline only when the session moved', () => {
+    const moved = {
+      startsAt: new Date('2026-11-03T07:00:00Z'),
+      endsAt: null,
+      attendingLawyerId: 'l',
+    };
+    expect(updatedPayload(state(), { acknowledgeConflict: false }, moved)).toEqual({
+      change: 'UPDATED',
+      sessionType: 'HEARING',
+      startsAt: '2026-11-03T07:00:00.000Z',
+      previousStartsAt: '2026-11-02T07:00:00.000Z',
+    });
+    const same = { ...moved, startsAt: new Date('2026-11-02T07:00:00Z') };
+    expect(updatedPayload(state(), { acknowledgeConflict: false }, same)).not.toHaveProperty(
+      'previousStartsAt',
+    );
   });
 });

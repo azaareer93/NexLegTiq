@@ -15,14 +15,16 @@ export async function assertCourtRefs(
   tx: ScopedTransaction,
   { courtId = null, judgeId = null }: Partial<CourtRefs>,
   newJudge = true,
+  /** Prepended to the error fields, e.g. `nextSession.` for a nested object. */
+  fieldPrefix = '',
 ): Promise<void> {
   const [courtOk, judgeOk] = await Promise.all([
     courtId === null || tx.court.count({ where: { id: courtId } }).then((n) => n === 1),
     judgeId === null || judgeAt(tx, judgeId, courtId, newJudge),
   ]);
   const details = [
-    ...(courtOk ? [] : [{ field: 'courtId', message: 'validation.unknownCourt' }]),
-    ...(judgeOk ? [] : [{ field: 'judgeId', message: 'validation.unknownJudge' }]),
+    ...(courtOk ? [] : [{ field: `${fieldPrefix}courtId`, message: 'validation.unknownCourt' }]),
+    ...(judgeOk ? [] : [{ field: `${fieldPrefix}judgeId`, message: 'validation.unknownJudge' }]),
   ];
   if (details.length > 0) throw new ValidationException(details);
 }

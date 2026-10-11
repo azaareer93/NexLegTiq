@@ -262,21 +262,43 @@ describe('sessions API (HTTP + PostgreSQL)', () => {
       await session({ startsAt: at(8), endsAt: at(9) });
     });
 
-    it('should compare instants across the daylight-saving change (offsets differ, instants match)', async () => {
-      // Asia/Hebron leaves summer time in late October: 01:30+03:00 and 00:30+02:00 are the same instant.
-      const year = new Date().getUTCFullYear() + 1;
-      await session({ startsAt: `${year}-10-31T01:30:00+03:00` });
+    it('should judge the night summer time ends by instants, not wall-clock times', async () => {
+      // Asia/Hebron leaves summer time on 24 Oct 2026 (01:00 → 00:00, D-092): 00:30 happens twice, an hour apart.
+      await session({ startsAt: '2026-10-24T00:30:00+03:00' }); // 21:30Z, no end: until 22:30Z
+      await session({ startsAt: '2026-10-24T00:30:00+02:00' }); // 22:30Z: touches the first
       expectError(
         await create('lawyer', {
           fileId,
           attendingLawyerId: user('lawyer').userId,
-          startsAt: `${year}-10-31T00:30:00+02:00`,
+          startsAt: '2026-10-24T00:15:00+02:00', // 22:15Z: inside both
         }),
         409,
         'BIZ-004',
       );
-      // One hour later in UTC: touches the first (no end = one hour).
-      await session({ startsAt: `${year}-10-31T01:30:00+02:00` });
+    });
+
+    it('should let only one of two concurrent overlapping creates through', async () => {
+      for (let round = 0; round < 5; round++) {
+        const at = freshDay();
+        const results = await Promise.all(
+          [at(9), at(9, 30)].map((startsAt) =>
+            create('lawyer', { fileId, attendingLawyerId: user('lawyer').userId, startsAt }),
+          ),
+        );
+        expect(results.map((res) => res.status).sort()).toEqual([201, 409]);
+      }
+    });
+
+    it('should not count sessions of a deleted file', async () => {
+      const at = freshDay();
+      const file = await seedFile('lawyer');
+      await create('lawyer', {
+        fileId: file.id,
+        attendingLawyerId: user('lawyer').userId,
+        startsAt: at(9),
+      }).expect(201);
+      await raw.legalFile.update({ where: { id: file.id }, data: { deletedAt: new Date() } });
+      await session({ startsAt: at(9) });
     });
 
     it('should ignore cancelled sessions and other lawyers in the conflict check', async () => {
@@ -306,7 +328,8 @@ describe('sessions API (HTTP + PostgreSQL)', () => {
       });
       expectError(res, 409, 'BIZ-004');
       expect((res.body as ErrorBody).error.details?.[0]?.params).toMatchObject({
-        sessionId: (secret.body as { data: { id: string } }).data.id,
+        // Neither the hidden file nor the session id: only the busy time.
+        sessionId: null,
         fileNumber: null,
       });
     });

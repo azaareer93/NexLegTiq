@@ -4,6 +4,7 @@ import type {
   CreateSessionRequest,
   FileSessionsQuery,
   Session,
+  SessionListItem,
   SessionOutcomeRequest,
   SessionQuery,
   UpdateSessionRequest,
@@ -11,30 +12,39 @@ import type {
 import type { UserId } from '@nexlegtiq/shared-types';
 import { ClsService } from 'nestjs-cls';
 
-import { changes, continuation, toDate } from './session-rules';
+import {
+  auditJudge,
+  changes,
+  continuation,
+  nextSlot,
+  SLOT_FIELDS,
+  slotChanges,
+  toDate,
+  updatedPayload,
+} from './session-rules';
 import { assertAttendingLawyer, SessionWriter, STATE_SELECT } from './session-writer';
-import type { SessionState } from './session-writer';
+import type { SessionState, Slot } from './session-writer';
 import { SessionsRepository } from './sessions.repository';
 import type { RequestContext } from '../../common/context/request-context';
 import {
   BusinessRuleException,
   PermissionDeniedException,
-  ResourceConflictException,
   ResourceNotFoundException,
   ValidationException,
 } from '../../common/errors/app.exception';
 import { PaginatedResult } from '../../common/http/paginated-result';
 import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
+import type { ScopedTransaction } from '../../database/unit-of-work';
 import type { Prisma } from '../../generated/prisma/client';
 import type { ClientInfo } from '../auth/client-info';
 import { nextCourtRefs } from '../courts/court-refs';
 import { CaseAccessService } from '../legal-files/case-access.service';
 
+/** Most rows one calendar answer holds (a quarter of a large office's hearings stays far below). */
+const CALENDAR_MAX = 2000;
 /** Calendar default window (SessionQuerySchema). */
 const DEFAULT_RANGE_MS = 31 * 86_400_000;
-/** Changing any of these re-runs the conflict check. */
-const SLOT_FIELDS = ['startsAt', 'endsAt', 'attendingLawyerId'];
 
 /**
  * Hearings (MVP-67, D-116). A session follows its file: visible when the file is (CaseAccessService), changed only with
@@ -63,6 +73,7 @@ export class SessionsService {
           courtId: input.courtId ?? null,
           judgeId: input.judgeId ?? null,
           courtRoom: input.courtRoom ?? null,
+          // Spelled out: an optional key is not "possibly undefined" under exactOptionalPropertyTypes.
           reminderDays: input.reminderDays,
         },
         client,
@@ -71,12 +82,15 @@ export class SessionsService {
     return this.sessions.get(id);
   }
 
-  /** The calendar: sessions starting in [from, to) on files the caller can see. */
-  list(query: SessionQuery): Promise<Session[]> {
+  /**
+   * The calendar: sessions starting in [from, to) on files the caller can see. More than CALENDAR_MAX rows is refused
+   * (400 `validation.dateRange` on `to`: ask for a shorter range) rather than silently cut.
+   */
+  async list(query: SessionQuery): Promise<SessionListItem[]> {
     const from = query.from ? new Date(query.from) : new Date();
     const to = query.to ? new Date(query.to) : new Date(from.getTime() + DEFAULT_RANGE_MS);
     const lawyerId = query.lawyerId === 'me' ? this.actorId() : query.lawyerId;
-    return this.sessions.findMany(
+    const rows = await this.sessions.findMany(
       {
         AND: [
           this.visibleWhere(),
@@ -86,13 +100,19 @@ export class SessionsService {
         ],
       },
       [{ startsAt: 'asc' }, { id: 'asc' }],
-      // ponytail: a 92-day window of one office stays far below this; paginate if an office ever reaches it.
-      { skip: 0, take: 2000 },
+      { skip: 0, take: CALENDAR_MAX + 1 },
     );
+    if (rows.length > CALENDAR_MAX) {
+      throw new ValidationException([{ field: 'to', message: 'validation.dateRange' }]);
+    }
+    return rows;
   }
 
   /** A file's sessions: upcoming soonest first, or past latest first. */
-  async listForFile(fileId: string, query: FileSessionsQuery): Promise<PaginatedResult<Session>> {
+  async listForFile(
+    fileId: string,
+    query: FileSessionsQuery,
+  ): Promise<PaginatedResult<SessionListItem>> {
     await this.files.assertFileAccess(fileId, 'read');
     const upcoming = query.when === 'upcoming';
     const now = new Date();
@@ -121,63 +141,75 @@ export class SessionsService {
    * conflict check; a new time or new offsets replace the pending reminders.
    */
   async update(id: string, input: UpdateSessionRequest, client: ClientInfo): Promise<Session> {
-    const session = await this.findForWrite(id);
-    if (session.isCancelled || session.outcome) throw notScheduled();
-    const { acknowledgeConflict, ...wanted } = input;
-    const { old, next } = changes(session, wanted);
-    if (Object.keys(next).length === 0) return this.sessions.get(id);
-    const slot = {
-      startsAt: input.startsAt ? new Date(input.startsAt) : session.startsAt,
-      endsAt: input.endsAt === undefined ? session.endsAt : toDate(input.endsAt),
-      attendingLawyerId: input.attendingLawyerId ?? session.attendingLawyerId,
-    };
-    if (slot.endsAt && slot.endsAt <= slot.startsAt) {
-      throw new ValidationException([{ field: 'endsAt', message: 'validation.endsBeforeStart' }]);
-    }
+    await this.findForWrite(id);
     await this.uow.run(async (tx) => {
-      if ('attendingLawyerId' in next) {
-        await assertAttendingLawyer(tx, slot.attendingLawyerId, session.fileId);
-      }
-      const courtRefs = await nextCourtRefs(tx, session, input);
-      if (!acknowledgeConflict && SLOT_FIELDS.some((field) => field in next)) {
-        await this.writer.assertNoConflict(tx, slot, id);
-      }
-      const { count } = await tx.session.updateMany({
-        where: { id, isCancelled: false, outcome: null },
-        data: { ...(next as Prisma.SessionUpdateManyMutationInput), ...courtRefs, ...slot },
+      const session = await this.lockForWrite(tx, id);
+      if (session.isCancelled || session.outcome) throw notScheduled();
+      const { acknowledgeConflict, ...wanted } = input;
+      const { old, next } = changes(session, wanted);
+      if (Object.keys(next).length === 0) return;
+      const slot = nextSlot(session, input);
+      const moved = SLOT_FIELDS.some((field) => field in next);
+      const courtRefs = await this.checkUpdate(tx, session, input, slot, moved, next);
+      await tx.session.update({
+        where: { id },
+        data: {
+          ...(next as Prisma.SessionUncheckedUpdateInput),
+          ...courtRefs,
+          ...slotChanges(slot, next),
+        },
+        select: { id: true },
       });
-      if (count === 0) throw notScheduled();
       if ('startsAt' in next || 'reminderDays' in next) {
-        await this.writer.resetReminders(
-          tx,
-          id,
-          slot.startsAt,
-          input.reminderDays ?? session.reminderDays,
-        );
+        const days = input.reminderDays ?? session.reminderDays;
+        await this.writer.resetReminders(tx, id, slot.startsAt, days);
       }
       auditJudge(old, next, session.judgeId, courtRefs.judgeId);
-      await this.writer.event(tx, session.fileId, id, 'SESSION_UPDATED', {
-        change: 'UPDATED',
-        sessionType: input.sessionType ?? session.sessionType,
-        startsAt: slot.startsAt.toISOString(),
-      });
-      await this.writer.audit(tx, client, id, old, next);
+      await this.writer.event(
+        tx,
+        session.fileId,
+        id,
+        'SESSION_UPDATED',
+        updatedPayload(session, input, slot),
+      );
+      const acknowledged = moved && acknowledgeConflict && { acknowledgeConflict: true };
+      await this.writer.audit(tx, client, session, old, { ...next, ...acknowledged });
     });
     return this.sessions.get(id);
   }
 
+  /** A PATCH's checks: a new attending lawyer, the court and judge it leaves (returned), and conflicts when moved. */
+  private async checkUpdate(
+    tx: ScopedTransaction,
+    session: SessionState,
+    input: UpdateSessionRequest,
+    slot: Slot,
+    moved: boolean,
+    next: Record<string, unknown>,
+  ) {
+    if ('attendingLawyerId' in next) {
+      await assertAttendingLawyer(tx, slot.attendingLawyerId, session.fileId);
+    }
+    const courtRefs = await nextCourtRefs(tx, session, input);
+    if (moved && !input.acknowledgeConflict) {
+      await this.writer.assertNoConflict(tx, slot, session.id);
+    }
+    return courtRefs;
+  }
+
   /** Cancels a scheduled session and its pending reminders; cancelling again changes nothing. */
   async cancel(id: string, input: CancelSessionRequest, client: ClientInfo): Promise<Session> {
-    const session = await this.findForWrite(id);
-    if (session.isCancelled) return this.sessions.get(id);
-    if (session.outcome) throw notScheduled();
+    await this.findForWrite(id);
     const reason = input.reason ?? null;
     await this.uow.run(async (tx) => {
-      const { count } = await tx.session.updateMany({
-        where: { id, isCancelled: false, outcome: null },
+      const session = await this.lockForWrite(tx, id);
+      if (session.isCancelled) return;
+      if (session.outcome) throw notScheduled();
+      await tx.session.update({
+        where: { id },
         data: { isCancelled: true, cancellationReason: reason },
+        select: { id: true },
       });
-      if (count === 0) throw notScheduled();
       await this.writer.cancelReminders(tx, id);
       await this.writer.event(tx, session.fileId, id, 'SESSION_UPDATED', {
         change: 'CANCELLED',
@@ -187,7 +219,7 @@ export class SessionsService {
       await this.writer.audit(
         tx,
         client,
-        id,
+        session,
         { isCancelled: false },
         { isCancelled: true, cancellationReason: reason },
       );
@@ -204,23 +236,25 @@ export class SessionsService {
     input: SessionOutcomeRequest,
     client: ClientInfo,
   ): Promise<Session> {
-    const session = await this.findForWrite(id);
-    this.assertOutcomeAllowed(session, input);
+    await this.findForWrite(id);
     const next = input.nextSession;
     await this.uow.run(async (tx) => {
+      const session = await this.lockForWrite(tx, id);
+      this.assertOutcomeAllowed(session, input);
       const nextSessionId =
         next &&
         (await this.writer.insert(tx, continuation(session, next), client, {
           fieldPrefix: 'nextSession.',
           // A judge carried over from this session may have retired since; they stay on the continuation.
           keepRetiredJudge: next.judgeId === undefined,
+          previousSessionId: id,
         }));
       const minutes = input.minutes === undefined ? session.minutes : input.minutes || null;
-      const { count } = await tx.session.updateMany({
-        where: { id, isCancelled: false, ...(nextSessionId && { nextSessionId: null }) },
+      await tx.session.update({
+        where: { id },
         data: { outcome: input.outcome, minutes, ...(nextSessionId && { nextSessionId }) },
+        select: { id: true },
       });
-      if (count === 0) throw new ResourceConflictException('RES-003');
       await this.writer.cancelReminders(tx, id);
       await this.writer.event(tx, session.fileId, id, 'SESSION_UPDATED', {
         change: 'OUTCOME',
@@ -231,7 +265,7 @@ export class SessionsService {
       await this.writer.audit(
         tx,
         client,
-        id,
+        session,
         { outcome: session.outcome, minutes: session.minutes },
         { outcome: input.outcome, minutes, ...(nextSessionId && { nextSessionId }) },
       );
@@ -286,23 +320,24 @@ export class SessionsService {
     return session;
   }
 
+  /**
+   * Inside the write's transaction: the session locked and read again (concurrent writes to it queue and see each
+   * other's result), and its file still live and not archived.
+   */
+  private async lockForWrite(tx: ScopedTransaction, id: string): Promise<SessionState> {
+    const session = await this.writer.lockState(tx, id);
+    if (!session || session.file.deletedAt) throw new ResourceNotFoundException();
+    if (session.file.status === 'ARCHIVED') {
+      throw new BusinessRuleException('BIZ-007', 'The file is archived and read-only');
+    }
+    return session;
+  }
+
   private actorId(): UserId {
     const userId = this.cls.get('userId');
     if (!userId) throw new Error('No caller in the request context');
     return userId;
   }
-}
-
-/** A new court without a judge also drops the old court's judge (nextCourtRefs): the audit row says so too. */
-function auditJudge(
-  old: Record<string, unknown>,
-  next: Record<string, unknown>,
-  before: string | null,
-  after: string | null | undefined,
-): void {
-  if (after === undefined || after === before) return;
-  old['judgeId'] = before;
-  next['judgeId'] = after;
 }
 
 const notScheduled = () =>

@@ -16,6 +16,7 @@ import {
   CancelSessionSchema,
   CreateSessionSchema,
   FileSessionsQuerySchema,
+  SessionListItemSchema,
   SessionOutcomeSchema,
   SessionQuerySchema,
   SessionSchema,
@@ -26,6 +27,7 @@ import type {
   CreateSessionRequest,
   FileSessionsQuery,
   Session,
+  SessionListItem,
   SessionOutcomeRequest,
   SessionQuery,
   UpdateSessionRequest,
@@ -74,8 +76,10 @@ export class SessionsController {
   @RequireAnyPermission('view:all:cases', 'view:assigned:cases')
   @ApiOperation({ summary: 'Calendar: sessions in a time range on files the caller can see' })
   @ApiZodQuery(SessionQuerySchema)
-  @ApiZodResponse(HttpStatus.OK, SessionSchema.array())
-  list(@Query(new ZodValidationPipe(SessionQuerySchema)) query: SessionQuery): Promise<Session[]> {
+  @ApiZodResponse(HttpStatus.OK, SessionListItemSchema.array())
+  list(
+    @Query(new ZodValidationPipe(SessionQuerySchema)) query: SessionQuery,
+  ): Promise<SessionListItem[]> {
     return this.sessions.list(query);
   }
 
@@ -147,11 +151,11 @@ export class FileSessionsController {
   @RequireAnyPermission('view:all:cases', 'view:assigned:cases')
   @ApiOperation({ summary: "A file's upcoming or past sessions" })
   @ApiZodQuery(FileSessionsQuerySchema)
-  @ApiZodResponse(HttpStatus.OK, SessionSchema, { paginated: true })
+  @ApiZodResponse(HttpStatus.OK, SessionListItemSchema, { paginated: true })
   listForFile(
     @Param('id', uuid) id: string,
     @Query(new ZodValidationPipe(FileSessionsQuerySchema)) query: FileSessionsQuery,
-  ): Promise<PaginatedResult<Session>> {
+  ): Promise<PaginatedResult<SessionListItem>> {
     return this.sessions.listForFile(id, query);
   }
 }

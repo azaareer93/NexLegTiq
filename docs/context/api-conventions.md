@@ -14,12 +14,13 @@
 { "success": false, "error": { "code": "VAL-001", "message": "…", "details": [{ "field": "title", "message": "…" }] },
   "meta": { "timestamp": "…", "requestId": "…" } }
 ```
+- A detail may carry `params` (string values) with facts for the UI, e.g. the conflicting session of BIZ-004 (D-116).
 - Pagination `?page=1&limit=20` (max 100); cursor (`?cursor=`) for timeline/audit/notifications.
   Sorting `?sort=createdAt:desc,priority:asc` (allow-listed fields). Filters as query params validated by `XQuerySchema`;
   a multi-value filter is comma-separated (`?fileType=NDA_REVIEW,RENTAL_AGREEMENT`, D-113).
 - Async work → `202 { jobId, status }`; poll `GET /jobs/:id` or listen to WS.
 - `error.message` is an English developer message; the FE maps `code` → i18n key `errors.<CODE>`.
-- Idempotency: `Idempotency-Key` header honored on POST create endpoints for uploads, invoices, sessions (Redis 24h).
+- Idempotency: `Idempotency-Key` header honored on POST create endpoints for uploads, invoices, sessions (Redis 24h; not built yet — sessions ship without it, D-116).
 
 ## Error codes
 AUTH-001 invalid credentials · 002 token expired · 003 token invalid · 004 refresh expired · 005 refresh invalid ·
