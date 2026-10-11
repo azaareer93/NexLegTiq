@@ -1104,3 +1104,49 @@ default (`--parallel 2` stays available): two worktrees each running the pre-pus
 of memory twice; branches are pushed one at a time. **Merge style:** the owner merges with GitHub's button; the stacking
 rules of D-097 work for squash and merge commits alike (merging `develop` into a child resolves either). Why: the loop stops
 spending rounds on mechanical conflicts and on memory failures.
+
+**D-116 — Sessions (hearings) API: conflicts, reminders rows, outcomes and the calendar** · Accepted (MVP-67, 2026-10-11)
+MVP-67 left the reminder hand-off, the conflict details, edits of cancelled or held sessions and the calendar window open.
+→ **Schema** (`Session`, `SessionReminder`, `SessionPartyAttendance`, tenant models): domain-model.md's Session plus
+`cancellationReason` and `createdById`; composite `(…, office_id)` FKs (file cascade, users restrict, `nextSessionId` → the
+next session, NO ACTION so a file's sessions can be purged together, unique per office); CHECKs: ends after it starts, a
+cancelled session has no outcome, not its own next session, 0–365 reminder days (≤ 10). Court and judge: a trigger like the
+file's (D-115) — a court the office sees, a judge of that court — so `Session.court`/`.judge` join
+`TRUSTED_REFERENCE_RELATIONS`; a court or judge used by a session is BIZ-011 to delete. Indexes: lawyer + start (conflicts,
+calendar by lawyer), office + start (calendar), file + start (Sessions tab). **Status is derived:** CANCELLED when cancelled,
+COMPLETED once an outcome is recorded, else SCHEDULED (`SESSION_STATUSES`, labels `enums.sessionStatus.*`; `SESSION_TYPES`,
+`SESSION_OUTCOMES` with AR/EN labels). **Access** follows the file (D-096): reads ANY of `view:all|assigned:cases` and a
+visible file; `POST /sessions` `create:session`; PATCH, cancel and outcome `edit:session` + write access to the file (404
+otherwise, BIZ-007 once archived); scheduling the next session from an outcome also needs `create:session`. **Attending
+lawyer:** an active colleague whose role holds `create:session` (OM, SL, L) and who sees the file by their own scope, else
+400 VAL-001 `validation.attendingLawyer` (`CaseAccessService.colleagueMay`, now also behind the tasks' assignee rule).
+**Times** are instants with an offset (`validation.dateTime`), stored UTC and returned with `Z`; the office app sends and
+shows the office's wall clock. **Conflicts** (invariant 5): another non-cancelled session of the same attending lawyer
+overlapping `[startsAt, endsAt ?? startsAt + 1h)` (touching intervals allowed; held sessions count) → **409 BIZ-004** unless
+`acknowledgeConflict` (recorded in the audit row). Checked on create, next session and any PATCH of start, end or lawyer,
+under a per-lawyer transaction advisory lock so two overlapping writes cannot both pass. The error lists up to five
+conflicting sessions as `details[]` `{field: 'startsAt', message: 'validation.sessionConflict', params: {sessionId,
+startsAt, endsAt, fileNumber}}` — `fileNumber` null when the caller cannot see that file (a confidential file is never
+named). **`ApiErrorDetail` gains optional `params`** (shared-types) for such facts. **Edits:** PATCH only while SCHEDULED;
+a cancelled or held session is **422 BIZ-012** (new code: "session not scheduled"); only changed fields are written and
+audited (instants compared as instants, reminder days as sets; a new court without a judge drops the judge, audited too);
+`null` clears end, court, judge, room. **Cancel** (`reason?`) is idempotent; a held session cannot be cancelled (BIZ-012).
+**Outcome** (`outcome`, `minutes?`, `nextSession?`): only once the session has started (400 `validation.sessionNotHeld`) and
+not cancelled; may be posted again to correct outcome or minutes; `nextSession` (once — `validation.nextSessionExists`;
+after this one — `validation.nextSessionBefore`) creates and links the next session in the same transaction, defaulting
+type, court, room and attending lawyer to the current one, and the judge when the court stays (a carried-over judge may
+have retired since). **Reminders — deviation from the ticket's "domain events":** no event bus or queue job yet. The
+session writes `SessionReminder` rows, one per `reminderDays` entry (office `courtReminderDays` by default): `scheduledFor`
+= start − N × 24 h, skipped when already past, `jobId` null. Reschedule or new offsets → PENDING rows become CANCELLED and
+new ones are added; cancel and outcome cancel PENDING rows; sent ones stay as history. The reminder engine story enqueues
+the delayed jobs from these rows (and a sweep for PENDING rows without `jobId`), and decides channels and recipients (D-036's
+`channel` column is left to it). **Timeline:** SESSION_CREATED (payload `{sessionType, startsAt}`) and SESSION_UPDATED
+(`{change: UPDATED|CANCELLED|OUTCOME, sessionType, startsAt, outcome?}`); every write has an audit row (`Session`).
+**Calendar** `GET /sessions?from&to&lawyerId|me&fileId`: sessions starting in `[from, to)` on visible files, cancelled
+ones included (with their status); `from` defaults to now, `to` to 31 days later, at most 92 days (`validation.dateRange`);
+not paginated (capped at 2000 rows). `GET /cases/:id/sessions?when=upcoming|past` is paginated (upcoming soonest first,
+past latest first). `GET/PATCH /sessions/:id`, `POST /sessions/:id/cancel|outcome` (200). **Not done here:** the
+`Idempotency-Key` on `POST /sessions` (api-conventions.md lists it; no idempotency store exists yet), the party
+attendance API (with the parties story), AI on minutes (session summary story), prosecutors on sessions. The HTTP isolation
+matrix covers `sessions`. Why: double-booking is refused at the source, reminders exist as data the engine can trust, and
+a hearing never leaks a confidential file through a conflict message.
