@@ -40,5 +40,79 @@
       "filteredTitle": "No matching cases",
       "filteredBody": "Try another search or clear the filters."
     }
+  },
+  "file": {
+    "responsible": "Responsible lawyer:",
+    "notSet": "—",
+    "no": "No",
+    "primaryClient": "Primary",
+    "noClients": "No clients linked.",
+    "noTeam": "No team members.",
+    "deleted": "Case deleted",
+    "archivedBanner": "This case is archived and read-only.",
+    "actions": {
+      "more": "More actions",
+      "reassign": "Reassign",
+      "changeStatus": "Change status",
+      "archive": "Archive"
+    },
+    "tabs": {
+      "details": "Details",
+      "sessions": "Hearings",
+      "documents": "Documents",
+      "parties": "Parties",
+      "timeline": "Timeline",
+      "tasks": "Tasks",
+      "billing": "Billing",
+      "ai": "AI",
+      "notes": "Notes",
+      "audit": "Audit"
+    },
+    "cards": {
+      "overview": "Case details",
+      "clients": "Clients",
+      "court": "Court",
+      "billing": "Billing",
+      "team": "Team",
+      "counts": "At a glance",
+      "nextHearing": "Next hearing"
+    },
+    "fields": {
+      "title": "Title",
+      "fileType": "Type",
+      "subType": "Sub-type",
+      "priority": "Priority",
+      "openingDate": "Opened on",
+      "closingDate": "Closed on",
+      "jurisdiction": "Jurisdiction",
+      "confidential": "Confidential",
+      "description": "Description",
+      "courtType": "Court type"
+    },
+    "billing": {
+      "method": "Billing method",
+      "rate": "Hourly rate",
+      "fee": "Fixed fee",
+      "hourlyRate": "Hourly rate ({{currency}})",
+      "fixedFee": "Fixed fee ({{currency}})"
+    },
+    "counts": {
+      "clients": "Clients",
+      "team": "Team",
+      "parties": "Parties",
+      "notes": "Notes"
+    },
+    "nextHearing": {
+      "none": "No hearing scheduled",
+      "soon": "Hearings will appear here once they can be scheduled from the Hearings tab."
+    },
+    "edit": {
+      "title": "Edit case",
+      "confidentialHint": "A confidential case is visible only to the office manager and the people assigned to it."
+    },
+    "delete": {
+      "title": "Delete this case?",
+      "body": "Case {{number}} will be removed from every list. Its number is never reused."
+    }
   }
 }
