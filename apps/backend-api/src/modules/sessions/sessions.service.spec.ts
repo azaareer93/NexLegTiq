@@ -8,6 +8,7 @@ import type { Role } from '@nexlegtiq/shared-types';
 import { permissionsFor } from '@nexlegtiq/shared-types';
 import type { ClsService } from 'nestjs-cls';
 
+import type { ReminderScheduler } from './reminder-scheduler';
 import { SessionWriter } from './session-writer';
 import type { SessionState } from './session-writer';
 import type { SessionsRepository } from './sessions.repository';
@@ -76,14 +77,13 @@ function setup(row: SessionState = state(), role: Role = 'LAWYER') {
       // lockState: the row read again under its lock.
       findFirst: jest.fn().mockResolvedValue(row),
     },
-    sessionReminder: { createMany: jest.fn(), updateMany: jest.fn() },
     caseTimelineEvent: { create: jest.fn() },
     auditLog: { create: jest.fn() },
     $executeRaw: jest.fn().mockResolvedValue(1),
     $queryRaw: jest.fn().mockResolvedValue([]),
   };
   const uow = {
-    run: jest.fn((work: (t: typeof tx) => unknown) => work(tx)),
+    run: jest.fn((work: (t: typeof tx, afterCommit: jest.Mock) => unknown) => work(tx, jest.fn())),
   } as unknown as UnitOfWork;
   const cls = {
     get: (key: keyof RequestContext) => context[key],
@@ -100,15 +100,18 @@ function setup(row: SessionState = state(), role: Role = 'LAWYER') {
     findMany: jest.fn().mockResolvedValue([]),
     count: jest.fn().mockResolvedValue(0),
   };
+  const reminders = { schedule: jest.fn(), cancel: jest.fn(), reset: jest.fn() };
+  const scheduler = reminders as unknown as ReminderScheduler;
   const service = new SessionsService(
     cls,
     uow,
     prisma,
     files,
-    new SessionWriter(cls, files),
+    new SessionWriter(cls, files, scheduler),
     repo as unknown as SessionsRepository,
+    scheduler,
   );
-  return { service, tx, files, repo, prisma, context };
+  return { service, tx, files, repo, prisma, context, reminders };
 }
 
 const createBody = (overrides: object = {}) =>
@@ -122,7 +125,7 @@ const createBody = (overrides: object = {}) =>
 describe('SessionsService', () => {
   describe('create', () => {
     it('should write the session with the office reminder days, its reminders, event and audit row', async () => {
-      const { service, tx, files } = setup();
+      const { service, tx, files, reminders } = setup();
       await service.create(createBody(), CLIENT);
       expect(files.assertFileAccess).toHaveBeenCalledWith(FILE, 'write');
       expect(tx.$executeRaw).toHaveBeenCalled();
@@ -137,11 +140,12 @@ describe('SessionsService', () => {
         }),
         select: { id: true },
       });
-      expect(tx.sessionReminder.createMany).toHaveBeenCalledWith({
-        data: [7, 3, 1].map((daysBefore) =>
-          expect.objectContaining({ daysBefore, officeId: OFFICE, sessionId: NEXT }),
-        ),
-      });
+      expect(reminders.schedule).toHaveBeenCalledWith(
+        tx,
+        expect.any(Function),
+        expect.objectContaining({ id: NEXT, fileId: FILE, attendingLawyerId: LAWYER }),
+        [7, 3, 1],
+      );
       expect(tx.caseTimelineEvent.create).toHaveBeenCalledWith({
         data: expect.objectContaining({ eventType: 'SESSION_CREATED', sourceType: 'Session' }),
       });
@@ -150,14 +154,10 @@ describe('SessionsService', () => {
       });
     });
 
-    it('should write no reminder when every offset is past, and skip the conflict check when acknowledged', async () => {
+    it('should skip the conflict check when acknowledged', async () => {
       const { service, tx } = setup();
-      await service.create(
-        createBody({ startsAt: inDays(-1).toISOString(), acknowledgeConflict: true }),
-        CLIENT,
-      );
+      await service.create(createBody({ acknowledgeConflict: true }), CLIENT);
       expect(tx.$queryRaw).not.toHaveBeenCalled();
-      expect(tx.sessionReminder.createMany).not.toHaveBeenCalled();
     });
 
     it('should refuse an overlapping session with BIZ-004 naming visible files only', async () => {
@@ -234,7 +234,7 @@ describe('SessionsService', () => {
     });
 
     it('should reschedule: re-check conflicts, replace pending reminders and audit old and new values', async () => {
-      const { service, tx } = setup();
+      const { service, tx, reminders } = setup();
       const startsAt = inDays(20).toISOString();
       await service.update(ID, patch({ startsAt }), CLIENT);
       expect(tx.$queryRaw).toHaveBeenCalled();
@@ -248,11 +248,12 @@ describe('SessionsService', () => {
           payload: expect.objectContaining({ startsAt: new Date(startsAt).toISOString() }),
         }),
       });
-      expect(tx.sessionReminder.updateMany).toHaveBeenCalledWith({
-        where: { sessionId: ID, status: 'PENDING' },
-        data: { status: 'CANCELLED' },
-      });
-      expect(tx.sessionReminder.createMany).toHaveBeenCalled();
+      expect(reminders.reset).toHaveBeenCalledWith(
+        tx,
+        expect.any(Function),
+        expect.objectContaining({ id: ID, fileId: FILE, startsAt: new Date(startsAt) }),
+        [7, 3, 1],
+      );
       expect(tx.auditLog.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           action: 'UPDATE',
@@ -275,6 +276,20 @@ describe('SessionsService', () => {
           },
         }),
       });
+    });
+
+    it('should replace the reminders for a new attending lawyer, not for a new room', async () => {
+      const { service, tx, reminders } = setup();
+      tx.user.findFirst.mockResolvedValue({ id: ME, role: 'LAWYER' });
+      await service.update(ID, patch({ courtRoom: 'Hall 9' }), CLIENT);
+      expect(reminders.reset).not.toHaveBeenCalled();
+      await service.update(ID, patch({ attendingLawyerId: ME }), CLIENT);
+      expect(reminders.reset).toHaveBeenCalledWith(
+        tx,
+        expect.any(Function),
+        expect.objectContaining({ id: ID, attendingLawyerId: ME }),
+        [7, 3, 1],
+      );
     });
 
     it('should check a new attending lawyer and refuse an end before the start', async () => {
@@ -338,14 +353,14 @@ describe('SessionsService', () => {
 
   describe('cancel', () => {
     it('should cancel the session and its pending reminders', async () => {
-      const { service, tx } = setup();
+      const { service, tx, reminders } = setup();
       await service.cancel(ID, { reason: 'Strike' }, CLIENT);
       expect(tx.session.update).toHaveBeenCalledWith({
         where: { id: ID },
         data: { isCancelled: true, cancellationReason: 'Strike' },
         select: { id: true },
       });
-      expect(tx.sessionReminder.updateMany).toHaveBeenCalled();
+      expect(reminders.cancel).toHaveBeenCalledWith(tx, expect.any(Function), ID);
       expect(tx.caseTimelineEvent.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           payload: expect.objectContaining({ change: 'CANCELLED' }),
@@ -373,7 +388,7 @@ describe('SessionsService', () => {
       SessionOutcomeSchema.parse({ outcome: 'ADJOURNED', minutes: 'Adjourned.', ...overrides });
 
     it('should record the outcome, end the pending reminders and link a new next session', async () => {
-      const { service, tx } = setup(held());
+      const { service, tx, reminders } = setup(held());
       await service.recordOutcome(
         ID,
         body({ nextSession: { startsAt: inDays(30).toISOString() } }),
@@ -397,7 +412,13 @@ describe('SessionsService', () => {
           newValues: expect.objectContaining({ previousSessionId: ID }),
         }),
       });
-      expect(tx.sessionReminder.updateMany).toHaveBeenCalled();
+      expect(reminders.cancel).toHaveBeenCalledWith(tx, expect.any(Function), ID);
+      expect(reminders.schedule).toHaveBeenCalledWith(
+        tx,
+        expect.any(Function),
+        expect.objectContaining({ id: NEXT }),
+        [7, 3, 1],
+      );
     });
 
     it('should keep the minutes when none are sent and clear them when empty', async () => {

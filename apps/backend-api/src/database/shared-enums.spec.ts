@@ -10,6 +10,7 @@ import {
   OFFICE_LANGUAGES,
   PARTY_TYPES,
   PRIORITIES,
+  REMINDER_STATUSES,
   ROLES,
   SESSION_OUTCOMES,
   SESSION_TYPES,
@@ -28,6 +29,7 @@ import {
   OfficeLanguage,
   PartyType,
   Priority,
+  ReminderStatus,
   Role,
   SessionOutcome,
   SessionType,
@@ -52,6 +54,7 @@ describe('shared-types enums match the Prisma schema', () => {
     ['CourtType', COURT_TYPES, CourtType],
     ['SessionType', SESSION_TYPES, SessionType],
     ['SessionOutcome', SESSION_OUTCOMES, SessionOutcome],
+    ['ReminderStatus', REMINDER_STATUSES, ReminderStatus],
   ] as const)('%s', (_name, shared, prisma) => {
     expect([...shared].sort()).toEqual(Object.values(prisma).sort());
   });

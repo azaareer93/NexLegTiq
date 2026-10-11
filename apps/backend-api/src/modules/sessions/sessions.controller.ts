@@ -19,6 +19,7 @@ import {
   SessionListItemSchema,
   SessionOutcomeSchema,
   SessionQuerySchema,
+  SessionReminderSchema,
   SessionSchema,
   UpdateSessionSchema,
 } from '@nexlegtiq/shared-contracts';
@@ -30,11 +31,13 @@ import type {
   SessionListItem,
   SessionOutcomeRequest,
   SessionQuery,
+  SessionReminder,
   UpdateSessionRequest,
 } from '@nexlegtiq/shared-contracts';
 import type { Request } from 'express';
 import { ClsService } from 'nestjs-cls';
 
+import { SessionRemindersService } from './session-reminders.service';
 import { SessionsService } from './sessions.service';
 import type { RequestContext } from '../../common/context/request-context';
 import { ResourceNotFoundException } from '../../common/errors/app.exception';
@@ -55,6 +58,7 @@ const uuid = new ParseUUIDPipe({ exceptionFactory: () => new ResourceNotFoundExc
 export class SessionsController {
   constructor(
     private readonly sessions: SessionsService,
+    private readonly reminders: SessionRemindersService,
     private readonly cls: ClsService<RequestContext>,
   ) {}
 
@@ -133,6 +137,14 @@ export class SessionsController {
     @Req() req: Request,
   ): Promise<Session> {
     return this.sessions.recordOutcome(id, body, this.client(req));
+  }
+
+  @Post('reminders/:id/ack')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Acknowledge one of my hearing reminders (404 if it is not mine)' })
+  @ApiZodResponse(HttpStatus.OK, SessionReminderSchema)
+  acknowledgeReminder(@Param('id', uuid) id: string): Promise<SessionReminder> {
+    return this.reminders.acknowledge(id);
   }
 
   private client(req: Request): ClientInfo {

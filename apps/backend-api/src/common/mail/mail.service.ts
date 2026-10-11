@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import type { MailLocale, MailTemplateName, MailTemplates } from './templates';
 import { QueueProducer } from '../queue/queue-producer';
+import type { EnqueueOptions } from '../queue/queue-producer';
 import { QUEUE } from '../queue/queues';
 
 export const SEND_EMAIL_JOB = 'send-email';
@@ -20,7 +21,9 @@ export class MailService {
     template: T,
     locale: MailLocale,
     vars: MailTemplates[T],
+    /** A `jobId` makes a repeated send of the same message a no-op while the first is kept (de-duplication). */
+    options: Pick<EnqueueOptions, 'jobId'> = {},
   ): Promise<void> {
-    await this.queues.enqueue(QUEUE.EMAIL, SEND_EMAIL_JOB, { to, template, locale, vars });
+    await this.queues.enqueue(QUEUE.EMAIL, SEND_EMAIL_JOB, { to, template, locale, vars }, options);
   }
 }

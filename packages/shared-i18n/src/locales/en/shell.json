@@ -28,7 +28,8 @@
   },
   "notifications": {
     "open": "Notifications",
-    "empty": "No notifications yet."
+    "empty": "No notifications yet.",
+    "hearingReminder": "Upcoming hearing in file {{fileNumber}}"
   },
   "profile": {
     "menu": "Account menu",

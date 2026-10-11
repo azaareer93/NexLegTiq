@@ -11,8 +11,6 @@ import {
 } from './session-rules';
 import type { SessionState } from './session-writer';
 
-const DAY_MS = 86_400_000;
-
 const state = (overrides: Partial<SessionState> = {}): SessionState => ({
   id: 'session',
   fileId: 'file',
@@ -47,14 +45,51 @@ describe('session rules', () => {
     expect(sessionStatus({ isCancelled: true, outcome: null })).toBe('CANCELLED');
   });
 
-  it('should plan reminders as whole days before the instant, latest offset first, skipping past ones', () => {
-    const startsAt = new Date('2026-10-30T07:00:00Z');
-    const now = new Date('2026-10-25T00:00:00Z');
-    expect(reminderRows(startsAt, [1, 7, 3], now)).toEqual([
-      { daysBefore: 3, scheduledFor: new Date(startsAt.getTime() - 3 * DAY_MS) },
-      { daysBefore: 1, scheduledFor: new Date(startsAt.getTime() - DAY_MS) },
-    ]);
-    expect(reminderRows(startsAt, [], now)).toEqual([]);
+  describe('reminderRows', () => {
+    const tz = 'Asia/Hebron';
+    // Hebron is UTC+2 in winter, UTC+3 in summer (DST ends 24 October 2026).
+    const startsAt = new Date('2026-11-12T08:30:00Z'); // 10:30 in Hebron
+
+    it('should be due at 09:00 office time N calendar days before the hearing', () => {
+      const now = new Date('2026-10-01T00:00:00Z');
+      expect(reminderRows(startsAt, [1, 7, 3], now, tz)).toEqual([
+        { daysBefore: 7, scheduledFor: new Date('2026-11-05T07:00:00Z') },
+        { daysBefore: 3, scheduledFor: new Date('2026-11-09T07:00:00Z') },
+        { daysBefore: 1, scheduledFor: new Date('2026-11-11T07:00:00Z') },
+      ]);
+      expect(reminderRows(startsAt, [], now, tz)).toEqual([]);
+    });
+
+    it('should follow the zone across a DST change', () => {
+      // 30 October 10:30 local is after the change; 7 days earlier is still summer time (09:00 = 06:00Z).
+      const now = new Date('2026-10-01T00:00:00Z');
+      expect(reminderRows(new Date('2026-10-30T08:30:00Z'), [7, 0], now, tz)).toEqual([
+        { daysBefore: 7, scheduledFor: new Date('2026-10-23T06:00:00Z') },
+        { daysBefore: 0, scheduledFor: new Date('2026-10-30T07:00:00Z') },
+      ]);
+    });
+
+    it('should use the local date of the hearing, not the UTC one', () => {
+      // 00:30 on 12 November in Hebron is still 11 November in UTC.
+      const lateNight = new Date('2026-11-11T22:30:00Z');
+      expect(reminderRows(lateNight, [1], new Date('2026-10-01T00:00:00Z'), tz)).toEqual([
+        { daysBefore: 1, scheduledFor: new Date('2026-11-11T07:00:00Z') },
+      ]);
+    });
+
+    it('should collapse reminders already due into one due now, while the hearing is ahead', () => {
+      const now = new Date('2026-11-10T12:00:00Z');
+      expect(reminderRows(startsAt, [7, 3, 1], now, tz)).toEqual([
+        { daysBefore: 3, scheduledFor: now },
+        { daysBefore: 1, scheduledFor: new Date('2026-11-11T07:00:00Z') },
+      ]);
+      expect(reminderRows(startsAt, [7, 3, 1], startsAt, tz)).toEqual([]);
+    });
+
+    it('should drop a reminder due after the hearing has started', () => {
+      const early = new Date('2026-11-12T06:00:00Z'); // 08:00 in Hebron, before the 09:00 same-day reminder
+      expect(reminderRows(early, [0], new Date('2026-11-01T00:00:00Z'), tz)).toEqual([]);
+    });
   });
 
   describe('continuation', () => {
@@ -141,15 +176,6 @@ describe('session rules', () => {
         },
       });
     });
-  });
-
-  it('should keep reminders whole days of 24 h across the daylight-saving change', () => {
-    // Asia/Hebron leaves summer time on 24 Oct 2026: 07:00 local on the 26th is 05:00Z, three days earlier is 72 h,
-    // which reads 08:00 on the 23rd in local summer time (D-116: instants, not wall-clock times).
-    const startsAt = new Date('2026-10-26T07:00:00+02:00');
-    const [row] = reminderRows(startsAt, [3], new Date('2026-10-01T00:00:00Z'));
-    expect(row?.scheduledFor).toEqual(new Date('2026-10-23T05:00:00Z'));
-    expect(startsAt.getTime() - (row?.scheduledFor.getTime() ?? 0)).toBe(72 * 3_600_000);
   });
 
   it('should accept an end after the start, by at most 24 hours', () => {

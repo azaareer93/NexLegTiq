@@ -12,6 +12,7 @@ import type {
 import type { UserId } from '@nexlegtiq/shared-types';
 import { ClsService } from 'nestjs-cls';
 
+import { ReminderScheduler } from './reminder-scheduler';
 import {
   auditJudge,
   changes,
@@ -43,6 +44,8 @@ import { CaseAccessService } from '../legal-files/case-access.service';
 
 /** Most rows one calendar answer holds (a quarter of a large office's hearings stays far below). */
 const CALENDAR_MAX = 2000;
+/** A change to any of these replaces the pending reminders (time, recipient, offsets). */
+const REMINDER_FIELDS = ['startsAt', 'attendingLawyerId', 'reminderDays'];
 /** Calendar default window (SessionQuerySchema). */
 const DEFAULT_RANGE_MS = 31 * 86_400_000;
 
@@ -59,13 +62,15 @@ export class SessionsService {
     private readonly files: CaseAccessService,
     private readonly writer: SessionWriter,
     private readonly sessions: SessionsRepository,
+    private readonly reminders: ReminderScheduler,
   ) {}
 
   async create(input: CreateSessionRequest, client: ClientInfo): Promise<Session> {
     await this.files.assertFileAccess(input.fileId, 'write');
-    const id = await this.uow.run((tx) =>
+    const id = await this.uow.run((tx, afterCommit) =>
       this.writer.insert(
         tx,
+        afterCommit,
         {
           ...input,
           startsAt: new Date(input.startsAt),
@@ -142,7 +147,7 @@ export class SessionsService {
    */
   async update(id: string, input: UpdateSessionRequest, client: ClientInfo): Promise<Session> {
     await this.findForWrite(id);
-    await this.uow.run(async (tx) => {
+    await this.uow.run(async (tx, afterCommit) => {
       const session = await this.lockForWrite(tx, id);
       if (session.isCancelled || session.outcome) throw notScheduled();
       const { acknowledgeConflict, ...wanted } = input;
@@ -160,9 +165,9 @@ export class SessionsService {
         },
         select: { id: true },
       });
-      if ('startsAt' in next || 'reminderDays' in next) {
+      if (REMINDER_FIELDS.some((field) => field in next)) {
         const days = input.reminderDays ?? session.reminderDays;
-        await this.writer.resetReminders(tx, id, slot.startsAt, days);
+        await this.reminders.reset(tx, afterCommit, { ...slot, id, fileId: session.fileId }, days);
       }
       auditJudge(old, next, session.judgeId, courtRefs.judgeId);
       await this.writer.event(
@@ -201,7 +206,7 @@ export class SessionsService {
   async cancel(id: string, input: CancelSessionRequest, client: ClientInfo): Promise<Session> {
     await this.findForWrite(id);
     const reason = input.reason ?? null;
-    await this.uow.run(async (tx) => {
+    await this.uow.run(async (tx, afterCommit) => {
       const session = await this.lockForWrite(tx, id);
       if (session.isCancelled) return;
       if (session.outcome) throw notScheduled();
@@ -210,7 +215,7 @@ export class SessionsService {
         data: { isCancelled: true, cancellationReason: reason },
         select: { id: true },
       });
-      await this.writer.cancelReminders(tx, id);
+      await this.reminders.cancel(tx, afterCommit, id);
       await this.writer.event(tx, session.fileId, id, 'SESSION_UPDATED', {
         change: 'CANCELLED',
         sessionType: session.sessionType,
@@ -238,12 +243,12 @@ export class SessionsService {
   ): Promise<Session> {
     await this.findForWrite(id);
     const next = input.nextSession;
-    await this.uow.run(async (tx) => {
+    await this.uow.run(async (tx, afterCommit) => {
       const session = await this.lockForWrite(tx, id);
       this.assertOutcomeAllowed(session, input);
       const nextSessionId =
         next &&
-        (await this.writer.insert(tx, continuation(session, next), client, {
+        (await this.writer.insert(tx, afterCommit, continuation(session, next), client, {
           fieldPrefix: 'nextSession.',
           // A judge carried over from this session may have retired since; they stay on the continuation.
           keepRetiredJudge: next.judgeId === undefined,
@@ -255,7 +260,7 @@ export class SessionsService {
         data: { outcome: input.outcome, minutes, ...(nextSessionId && { nextSessionId }) },
         select: { id: true },
       });
-      await this.writer.cancelReminders(tx, id);
+      await this.reminders.cancel(tx, afterCommit, id);
       await this.writer.event(tx, session.fileId, id, 'SESSION_UPDATED', {
         change: 'OUTCOME',
         sessionType: session.sessionType,

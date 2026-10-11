@@ -34,8 +34,7 @@ export class QueueProducer {
     data: T,
     options: EnqueueOptions = {},
   ): Promise<Job<T & TenantJobData>> {
-    const officeId = this.cls.isActive() ? this.cls.get('officeId') : undefined;
-    if (!officeId) throw new TenantContextMissingError(`enqueue ${queue}/${name}`);
+    const officeId = this.officeId(`enqueue ${queue}/${name}`);
     // Spread first: a caller that smuggles officeId/requestId past the types is overwritten by the context.
     const payload = { ...data, officeId, requestId: this.cls.getId() } as T & TenantJobData;
     const { jobId, ...rest } = options;
@@ -49,6 +48,25 @@ export class QueueProducer {
     // ENQUEUE_TIMEOUT_MS instead of a hanging request. The queued command may still run once Redis is back — fine for
     // after-commit enqueues, whose data is already committed. (BullMQ's own setup breaks with enableOfflineQueue: false.)
     return (await withTimeout(add, ENQUEUE_TIMEOUT_MS)) as Job<T & TenantJobData>;
+  }
+
+  /**
+   * Removes a job of the current office enqueued with `jobId` (e.g. a delayed reminder that no longer applies). False when
+   * there is no such job or it is running (BullMQ keeps a locked job) — handlers re-check their data, so this is cleanup.
+   */
+  async remove(queue: QueueName, jobId: string): Promise<boolean> {
+    const officeId = this.officeId(`remove ${queue}/${jobId}`);
+    const removed = await withTimeout(
+      () => getQueue(this.moduleRef, queue).remove(`${officeId}_${jobId}`),
+      ENQUEUE_TIMEOUT_MS,
+    );
+    return removed === 1;
+  }
+
+  private officeId(action: string): string {
+    const officeId = this.cls.isActive() ? this.cls.get('officeId') : undefined;
+    if (!officeId) throw new TenantContextMissingError(action);
+    return officeId;
   }
 }
 
