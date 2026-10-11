@@ -1204,3 +1204,14 @@ responsible lawyer (the reassign story must call `reset`); a job of an office su
 stays in Redis 7 days, so its row stays PENDING until the office is active again and the reconciliation runs after that.
 Why: every lawyer on a hearing is reminded at a sensible hour in their own language, never twice, and a lost Redis does
 not lose a court date.
+Review additions (same PR): **a recipient who can no longer see the file** (made confidential, taken off the team, role
+lowered) is not reminded — delivery runs the attending-lawyer check (`CaseAccessService.colleagueMay`, by the recipient's
+own scope) and cancels the row (`RECIPIENT_NO_ACCESS`), so a confidential file's number and title never reach someone who
+gets 404 on it. **No repeated reminders:** when a session keeps its time (new offsets or a new attending lawyer), a
+recipient gets no new reminder for a day no later than one already SENT to them; a new time reminds everyone again.
+Enqueues after the commit run in parallel (a Redis outage costs one 2 s timeout, not one per row). **Acknowledging** a
+reminder not yet sent returns it unchanged (200, `acknowledgedAt` null). **Left to the file lifecycle story:** closing or
+archiving a file must call `ReminderScheduler.cancelForFile` (until then delivery cancels those reminders when due, and
+their jobs stay in Redis until then), and reopening must schedule its upcoming sessions again (`reset`); changing a file's
+confidentiality or team does not reset reminders (delivery is the backstop). **Accepted race:** a reschedule committed
+while a reminder is being handed over can still let the old reminder out once.

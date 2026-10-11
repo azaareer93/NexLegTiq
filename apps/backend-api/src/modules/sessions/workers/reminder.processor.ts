@@ -79,6 +79,7 @@ export class ReminderProcessor
 
   /** Re-adds the job of every PENDING reminder, office by office in that office's context. */
   async reconcile(): Promise<{ readonly enqueued: number; readonly pending: number }> {
+    // ponytail: one read of every PENDING row (a few per upcoming hearing); page by id if offices grow to many thousands.
     // unscoped: the daily sweep covers every office; each office's rows are then enqueued in that office's context.
     const rows = await this.prisma.unscoped().sessionReminder.findMany({
       where: { status: 'PENDING', office: { isActive: true } },
@@ -86,8 +87,11 @@ export class ReminderProcessor
       orderBy: [{ officeId: 'asc' }, { scheduledFor: 'asc' }],
     });
     const byOffice = new Map<string, typeof rows>();
-    for (const row of rows)
-      byOffice.set(row.officeId, [...(byOffice.get(row.officeId) ?? []), row]);
+    for (const row of rows) {
+      const batch = byOffice.get(row.officeId);
+      if (batch) batch.push(row);
+      else byOffice.set(row.officeId, [row]);
+    }
     let enqueued = 0;
     for (const [officeId, reminders] of byOffice) {
       enqueued += await this.tenant.run({ officeId: officeId as OfficeId }, () =>

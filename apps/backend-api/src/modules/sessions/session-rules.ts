@@ -70,16 +70,22 @@ function localDate(instant: Date, timeZone: string): [number, number, number] {
   return [year, month, day];
 }
 
+const zoneFormats = new Map<string, Intl.DateTimeFormat>();
 function zonedParts(instant: Date, timeZone: string) {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    hourCycle: 'h23',
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: 'numeric',
-  }).formatToParts(instant);
+  let format = zoneFormats.get(timeZone);
+  if (!format) {
+    format = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+    });
+    zoneFormats.set(timeZone, format);
+  }
+  const parts = format.formatToParts(instant);
   const get = (type: Intl.DateTimeFormatPartTypes) =>
     Number(parts.find((part) => part.type === type)?.value);
   return {

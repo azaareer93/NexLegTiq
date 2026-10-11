@@ -28,6 +28,7 @@ function setup({ responsible = RESPONSIBLE, active = [LAWYER, RESPONSIBLE] } = {
         data.map((row, index) => ({ ...row, id: `r${index}` })),
       ),
       updateManyAndReturn: jest.fn().mockResolvedValue([{ id: 'old1' }, { id: 'old2' }]),
+      findMany: jest.fn().mockResolvedValue([{ recipientId: LAWYER, daysBefore: 3 }]),
     },
   };
   const db = { sessionReminder: { updateMany: jest.fn() } };
@@ -143,11 +144,31 @@ describe('ReminderScheduler', () => {
     );
   });
 
-  it('should replace pending reminders on reset', async () => {
-    const { scheduler, tx, t, afterCommit } = setup();
-    await scheduler.reset(t, afterCommit, session(), [3]);
-    expect(tx.sessionReminder.updateManyAndReturn).toHaveBeenCalled();
-    expect(tx.sessionReminder.createManyAndReturn).toHaveBeenCalled();
+  it('should replace pending reminders on reset, never repeating one already sent for the same time', async () => {
+    const days = (call: unknown) =>
+      (call as [{ data: { recipientId: string; daysBefore: number }[] }])[0].data.map((row) => [
+        row.recipientId,
+        row.daysBefore,
+      ]);
+    // Same time (new offsets or lawyer): the lawyer already had the 3-day reminder, so only the 1-day one is new.
+    const kept = setup();
+    await kept.scheduler.reset(kept.t, kept.afterCommit, session(), [7, 3, 1], false);
+    expect(kept.tx.sessionReminder.updateManyAndReturn).toHaveBeenCalled();
+    expect(kept.tx.sessionReminder.findMany).toHaveBeenCalledWith({
+      where: { sessionId: SESSION, status: 'SENT' },
+      select: { recipientId: true, daysBefore: true },
+    });
+    expect(days(kept.tx.sessionReminder.createManyAndReturn.mock.calls[0])).toEqual([
+      [LAWYER, 1],
+      [RESPONSIBLE, 7],
+      [RESPONSIBLE, 3],
+      [RESPONSIBLE, 1],
+    ]);
+    // A new time: everyone is reminded again.
+    const moved = setup();
+    await moved.scheduler.reset(moved.t, moved.afterCommit, session(), [7, 3, 1], true);
+    expect(moved.tx.sessionReminder.findMany).not.toHaveBeenCalled();
+    expect(days(moved.tx.sessionReminder.createManyAndReturn.mock.calls[0])).toHaveLength(6);
   });
 
   it('should keep enqueueing after one failure and report how many were handed over', async () => {

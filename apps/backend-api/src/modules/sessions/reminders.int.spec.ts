@@ -25,6 +25,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { TENANT_MODELS } from '../../database/tenant-models';
 import type { PrismaClient } from '../../generated/prisma/client';
 import { bearerFor } from '../auth/auth.test-helper';
+import { NotificationProcessor } from '../notifications/workers/notification.processor';
 
 type Delegate = { deleteMany(args: unknown): Promise<unknown> };
 interface SeededUser {
@@ -296,6 +297,11 @@ describe('hearing reminders (HTTP + PostgreSQL + Redis)', () => {
       const ack = (key: string, id = mine?.id ?? '') =>
         http().post(`/api/v1/sessions/reminders/${id}/ack`).set(as(key));
 
+      // Not sent yet: returned unchanged.
+      const early = await ack('attending').expect(200);
+      expect((early.body as { data: { acknowledgedAt: null } }).data.acknowledgedAt).toBeNull();
+      await inOffice(() => delivery.deliver(mine?.id ?? ''));
+
       const first = await ack('attending').expect(200);
       const body = (first.body as { data: { id: string; acknowledgedAt: string } }).data;
       expect(body).toMatchObject({ id: mine?.id, recipient: { id: user('attending').userId } });
@@ -312,5 +318,149 @@ describe('hearing reminders (HTTP + PostgreSQL + Redis)', () => {
       await ack('attending', randomUUID()).expect(404);
       await ack('attending', 'not-a-uuid').expect(404);
     });
+  });
+
+  it('should not remind a recipient who can no longer see the file (made confidential)', async () => {
+    users['senior'] = await seedUser(officeId, 'SENIOR_LAWYER');
+    const file = await raw.legalFile.create({
+      data: {
+        officeId,
+        fileNumber: `R-${randomUUID().slice(0, 8)}`,
+        title: 'Soon confidential',
+        fileType: 'LITIGATION',
+        responsibleLawyerId: user('responsible').userId,
+        jurisdiction: 'PALESTINE',
+        currency: 'ILS',
+      },
+    });
+    // A senior lawyer sees every non-confidential file, so may attend without being on the team.
+    const created = await schedule({
+      fileId: file.id,
+      attendingLawyerId: user('senior').userId,
+      startsAt: freshStart(),
+      reminderDays: [1],
+    });
+    await raw.legalFile.update({ where: { id: file.id }, data: { isConfidential: true } });
+    const senior = (await rows(created.id)).find(
+      (row) => row.recipientId === user('senior').userId,
+    );
+    expect(await inOffice(() => delivery.deliver(senior?.id ?? ''))).toEqual({
+      cancelled: 'RECIPIENT_NO_ACCESS',
+    });
+    expect(await job(QUEUE.EMAIL, `reminder-${senior?.id}-email`)).toBeFalsy();
+  });
+
+  it('should write no reminder when the session is refused (rolled back), and none for a past one', async () => {
+    const startsAt = freshStart();
+    await schedule({ startsAt });
+    const before = await raw.sessionReminder.count({ where: { officeId } });
+    await http()
+      .post('/api/v1/sessions')
+      .set(as('responsible'))
+      .send({ fileId, attendingLawyerId: user('attending').userId, startsAt })
+      .expect(409);
+    expect(await raw.sessionReminder.count({ where: { officeId } })).toBe(before);
+  });
+
+  it('should schedule the next session reminders when an outcome adjourns a hearing', async () => {
+    const held = await schedule({ startsAt: new Date(Date.now() - 3_600_000).toISOString() });
+    expect(await rows(held.id)).toEqual([]);
+    const res = await http()
+      .post(`/api/v1/sessions/${held.id}/outcome`)
+      .set(as('responsible'))
+      .send({ outcome: 'ADJOURNED', nextSession: { startsAt: freshStart(), reminderDays: [2] } })
+      .expect(200);
+    const nextId = (res.body as { data: { nextSessionId: string } }).data.nextSessionId;
+    const next = await rows(nextId);
+    expect(next).toHaveLength(2);
+    for (const row of next) {
+      expect(await (await job(QUEUE.REMINDER, `reminder-${row.id}`))?.getState()).toBe('delayed');
+    }
+  });
+
+  it("should reconcile each office in its own context, skip inactive offices and never deliver another office's reminder", async () => {
+    async function pendingIn(office: string, userId: string) {
+      const file = await raw.legalFile.create({
+        data: {
+          officeId: office,
+          fileNumber: `R-${randomUUID().slice(0, 8)}`,
+          title: 'Other office file',
+          fileType: 'LITIGATION',
+          responsibleLawyerId: userId,
+          jurisdiction: 'PALESTINE',
+          currency: 'ILS',
+        },
+      });
+      const startsAt = new Date(freshStart());
+      const sessionRow = await raw.session.create({
+        data: {
+          officeId: office,
+          fileId: file.id,
+          startsAt,
+          attendingLawyerId: userId,
+          reminderDays: [1],
+          createdById: userId,
+        },
+      });
+      return raw.sessionReminder.create({
+        data: {
+          officeId: office,
+          sessionId: sessionRow.id,
+          recipientId: userId,
+          daysBefore: 1,
+          scheduledFor: new Date(startsAt.getTime() - DAY_MS),
+        },
+      });
+    }
+    const other = await pendingIn(otherOffice.officeId, otherOffice.userId);
+    const inactiveOffice = await seedOffice('Suspended reminders office');
+    const suspended = await seedUser(inactiveOffice, 'OFFICE_MANAGER');
+    const dormant = await pendingIn(inactiveOffice, suspended.userId);
+    await raw.office.update({ where: { id: inactiveOffice }, data: { isActive: false } });
+
+    await processor.reconcile();
+    const otherJob = await job(QUEUE.REMINDER, `reminder-${other.id}`, otherOffice.officeId);
+    expect(otherJob?.data).toMatchObject({ reminderId: other.id, officeId: otherOffice.officeId });
+    expect(await job(QUEUE.REMINDER, `reminder-${dormant.id}`, inactiveOffice)).toBeFalsy();
+    // Run in this office, another office's reminder does not exist.
+    expect(await inOffice(() => delivery.deliver(other.id))).toEqual({ skipped: 'MISSING' });
+    expect((await raw.sessionReminder.findUnique({ where: { id: other.id } }))?.status).toBe(
+      'PENDING',
+    );
+  });
+
+  it('should write the in-app notification row in the job office', async () => {
+    const notifications = new NotificationProcessor(
+      tenant,
+      app.get(PrismaService),
+      await app.resolve(PinoLogger),
+    );
+    const fields = {
+      userId: user('attending').userId,
+      type: 'SESSION_REMINDER',
+      titleKey: 'shell.notifications.hearingReminder',
+      params: { fileNumber: 'R-1' },
+      link: '/calendar?session=x',
+    };
+    const fake = (office: string, userId = fields.userId) =>
+      ({
+        id: randomUUID(),
+        name: 'create-notification',
+        queueName: 'notification',
+        attemptsMade: 0,
+        opts: { attempts: 3 },
+        data: { ...fields, userId, officeId: office, requestId: null },
+      }) as never;
+    const result = (await notifications.process(fake(officeId))) as { notificationId: string };
+    expect(
+      await raw.notification.findUnique({ where: { id: result.notificationId } }),
+    ).toMatchObject({
+      officeId,
+      userId: fields.userId,
+      titleKey: fields.titleKey,
+      channel: 'IN_APP',
+    });
+    // A user of another office cannot be named (composite foreign key).
+    await expect(notifications.process(fake(otherOffice.officeId))).rejects.toThrow();
   });
 });

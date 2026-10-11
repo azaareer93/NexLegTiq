@@ -8,10 +8,11 @@ import { QUEUE } from '../../common/queue/queues';
 import { AppConfig } from '../../config/app-config';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
+import { CaseAccessService } from '../legal-files/case-access.service';
 import { CREATE_NOTIFICATION_JOB } from '../notifications/notification-job';
 import type { NotificationJob } from '../notifications/notification-job';
 
-const REMINDER_SELECT = {
+const DELIVERY_SELECT = {
   id: true,
   status: true,
   daysBefore: true,
@@ -39,7 +40,7 @@ const REMINDER_SELECT = {
     },
   },
 } satisfies Prisma.SessionReminderSelect;
-type ReminderRow = Prisma.SessionReminderGetPayload<{ select: typeof REMINDER_SELECT }>;
+type ReminderRow = Prisma.SessionReminderGetPayload<{ select: typeof DELIVERY_SELECT }>;
 
 /** What a delivery attempt did (the job's result). */
 export type DeliveryResult =
@@ -55,7 +56,8 @@ export const sessionPath = (sessionId: string): string => `/calendar?session=${s
  * sent once: email (recipient's language and zone) and in-app notification are enqueued under ids derived from the
  * reminder — a second run, or a retry after a partial one, adds nothing — and only then is the row marked SENT. A row that
  * is no longer PENDING does nothing; one whose session was cancelled, held or has started, whose file is closed, archived
- * or deleted, or whose recipient was deactivated becomes CANCELLED.
+ * or deleted, or whose recipient was deactivated or can no longer see the file becomes CANCELLED. A reschedule committed
+ * between the read and the hand-off can still let the old reminder out (the row then stays CANCELLED); rare, accepted.
  */
 @Injectable()
 export class ReminderDelivery {
@@ -69,11 +71,11 @@ export class ReminderDelivery {
   async deliver(reminderId: string, now = new Date()): Promise<DeliveryResult> {
     const reminder = await this.prisma.db.sessionReminder.findFirst({
       where: { id: reminderId },
-      select: REMINDER_SELECT,
+      select: DELIVERY_SELECT,
     });
     if (!reminder) return { skipped: 'MISSING' };
     if (reminder.status !== 'PENDING') return { skipped: 'NOT_PENDING' };
-    const stale = staleReason(reminder, now);
+    const stale = staleReason(reminder, now) ?? (await this.noAccess(reminder));
     if (stale) {
       await this.setStatus(reminderId, 'CANCELLED');
       return { cancelled: stale };
@@ -86,6 +88,20 @@ export class ReminderDelivery {
   /** After the last attempt failed: the reminder is FAILED (unless something else ended it meanwhile). */
   async markFailed(reminderId: string): Promise<void> {
     await this.setStatus(reminderId, 'FAILED');
+  }
+
+  /**
+   * A recipient who can no longer see the file (made confidential, taken off the team, role lowered) is not told about
+   * its hearing (D-096): the same check as for an attending lawyer, by the recipient's own scope.
+   */
+  private async noAccess(reminder: ReminderRow): Promise<string | null> {
+    const allowed = await CaseAccessService.colleagueMay(
+      this.prisma.db,
+      reminder.recipient.id,
+      'view:assigned:cases',
+      reminder.session.file.id,
+    );
+    return allowed ? null : 'RECIPIENT_NO_ACCESS';
   }
 
   private async send(reminder: ReminderRow): Promise<void> {

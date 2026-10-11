@@ -167,7 +167,8 @@ export class SessionsService {
       });
       if (REMINDER_FIELDS.some((field) => field in next)) {
         const days = input.reminderDays ?? session.reminderDays;
-        await this.reminders.reset(tx, afterCommit, { ...slot, id, fileId: session.fileId }, days);
+        const target = { ...slot, id, fileId: session.fileId };
+        await this.reminders.reset(tx, afterCommit, target, days, 'startsAt' in next);
       }
       auditJudge(old, next, session.judgeId, courtRefs.judgeId);
       await this.writer.event(

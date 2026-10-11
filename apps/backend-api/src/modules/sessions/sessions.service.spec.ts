@@ -253,6 +253,7 @@ describe('SessionsService', () => {
         expect.any(Function),
         expect.objectContaining({ id: ID, fileId: FILE, startsAt: new Date(startsAt) }),
         [7, 3, 1],
+        true,
       );
       expect(tx.auditLog.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -289,6 +290,7 @@ describe('SessionsService', () => {
         expect.any(Function),
         expect.objectContaining({ id: ID, attendingLawyerId: ME }),
         [7, 3, 1],
+        false,
       );
     });
 

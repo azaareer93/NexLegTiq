@@ -16,15 +16,15 @@ export class SessionRemindersService {
   ) {}
 
   /**
-   * The recipient acknowledges one of their reminders ("seen"); acknowledging again keeps the first time. Someone else's
-   * reminder is 404 (D-019).
+   * The recipient acknowledges one of their sent reminders ("seen"); acknowledging again keeps the first time, and a
+   * reminder not sent (yet) is returned unchanged. Someone else's reminder is 404 (D-019).
    */
   async acknowledge(id: string): Promise<SessionReminder> {
     const userId = this.cls.get('userId');
     if (!userId) throw new Error('No caller in the request context');
     const where = { id, recipientId: userId };
     await this.prisma.db.sessionReminder.updateMany({
-      where: { ...where, acknowledgedAt: null },
+      where: { ...where, status: 'SENT', acknowledgedAt: null },
       data: { acknowledgedAt: new Date() },
     });
     const reminder = await this.prisma.db.sessionReminder.findFirst({

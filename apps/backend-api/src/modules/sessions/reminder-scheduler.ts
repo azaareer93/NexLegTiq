@@ -50,13 +50,16 @@ export class ReminderScheduler {
 
   /**
    * Rows for each day of `days` and each recipient — the attending lawyer and the file's responsible lawyer, if active —
-   * due at 09:00 office time (`reminderRows`); jobs are enqueued after the commit.
+   * due at 09:00 office time (`reminderRows`); jobs are enqueued after the commit. `sent` (same hearing time) leaves out,
+   * per recipient, the days no later than one already sent: new offsets or a new attending lawyer never repeat a
+   * reminder someone already had.
    */
   async schedule(
     tx: ScopedTransaction,
     afterCommit: AfterCommit,
     session: ReminderTarget,
     days: readonly number[],
+    sent: readonly { recipientId: string; daysBefore: number }[] = [],
   ): Promise<void> {
     const { timezone } = await tx.office.findFirstOrThrow({ select: { timezone: true } });
     const rows = reminderRows(session.startsAt, days, new Date(), timezone);
@@ -72,10 +75,17 @@ export class ReminderScheduler {
     });
     const recipients = wanted.filter((id) => active.some((user) => user.id === id));
     const officeId = this.officeId();
+    const data = recipients.flatMap((recipientId) => {
+      const latestSent = Math.min(
+        ...sent.filter((row) => row.recipientId === recipientId).map((row) => row.daysBefore),
+      );
+      return rows
+        .filter((row) => row.daysBefore < latestSent)
+        .map((row) => ({ ...row, officeId, sessionId: session.id, recipientId }));
+    });
+    if (data.length === 0) return;
     const created = await tx.sessionReminder.createManyAndReturn({
-      data: recipients.flatMap((recipientId) =>
-        rows.map((row) => ({ ...row, officeId, sessionId: session.id, recipientId })),
-      ),
+      data,
       select: { id: true, scheduledFor: true },
     });
     afterCommit(() => this.enqueue(created), 'enqueue session reminders');
@@ -95,15 +105,25 @@ export class ReminderScheduler {
     await this.cancelWhere(tx, afterCommit, { session: { is: { fileId } } });
   }
 
-  /** After a reschedule, a new attending lawyer or new offsets: the pending reminders are replaced. */
+  /**
+   * After a reschedule, a new attending lawyer or new offsets: the pending reminders are replaced. When the hearing kept
+   * its time (`moved` false), reminders already sent count: nobody gets the same reminder twice.
+   */
   async reset(
     tx: ScopedTransaction,
     afterCommit: AfterCommit,
     session: ReminderTarget,
     days: readonly number[],
+    moved: boolean,
   ): Promise<void> {
     await this.cancel(tx, afterCommit, session.id);
-    await this.schedule(tx, afterCommit, session, days);
+    const sent = moved
+      ? []
+      : await tx.sessionReminder.findMany({
+          where: { sessionId: session.id, status: 'SENT' },
+          select: { recipientId: true, daysBefore: true },
+        });
+    await this.schedule(tx, afterCommit, session, days, sent);
   }
 
   /**
@@ -112,10 +132,10 @@ export class ReminderScheduler {
    * are logged per row: the daily reconciliation retries them. Returns how many were handed to the queue.
    */
   async enqueue(reminders: readonly DueReminder[]): Promise<number> {
-    let enqueued = 0;
-    for (const reminder of reminders) {
-      const jobId = reminderJobId(reminder.id);
-      try {
+    // In parallel: while Redis is down every add waits for the enqueue timeout, once rather than once per row.
+    const results = await Promise.allSettled(
+      reminders.map(async (reminder) => {
+        const jobId = reminderJobId(reminder.id);
         await this.queues.enqueue<SessionReminderJob>(
           QUEUE.REMINDER,
           SEND_SESSION_REMINDER_JOB,
@@ -126,12 +146,17 @@ export class ReminderScheduler {
           where: { id: reminder.id, jobId: null },
           data: { jobId },
         });
-        enqueued += 1;
-      } catch (error) {
-        this.logger.error({ err: error, reminderId: reminder.id }, 'Reminder not enqueued');
+      }),
+    );
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        this.logger.error(
+          { err: result.reason as unknown, reminderId: reminders[index]?.id },
+          'Reminder not enqueued',
+        );
       }
-    }
-    return enqueued;
+    });
+    return results.filter((result) => result.status === 'fulfilled').length;
   }
 
   private async cancelWhere(

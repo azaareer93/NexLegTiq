@@ -48,6 +48,9 @@ function setup(found: unknown = row()) {
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     office: { findFirstOrThrow: jest.fn().mockResolvedValue({ timezone: 'Asia/Hebron' }) },
+    // CaseAccessService.colleagueMay: the recipient is active and sees the file.
+    user: { findFirst: jest.fn().mockResolvedValue({ id: 'u1', role: 'LAWYER' }) },
+    legalFile: { count: jest.fn().mockResolvedValue(1) },
   };
   const mail = { send: jest.fn().mockResolvedValue(undefined) };
   const queues = { enqueue: jest.fn().mockResolvedValue({}) };
@@ -160,6 +163,20 @@ describe('ReminderDelivery', () => {
     const { delivery, mail, db } = setup(found);
     await expect(delivery.deliver('rem1', NOW)).resolves.toEqual({ cancelled: reason });
     expect(mail.send).not.toHaveBeenCalled();
+    expect(db.sessionReminder.updateMany).toHaveBeenCalledWith({
+      where: { id: 'rem1', status: 'PENDING' },
+      data: { status: 'CANCELLED' },
+    });
+  });
+
+  it('should cancel, not send, when the recipient can no longer see the file (made confidential)', async () => {
+    const { delivery, mail, queues, db } = setup();
+    db.legalFile.count.mockResolvedValue(0);
+    await expect(delivery.deliver('rem1', NOW)).resolves.toEqual({
+      cancelled: 'RECIPIENT_NO_ACCESS',
+    });
+    expect(mail.send).not.toHaveBeenCalled();
+    expect(queues.enqueue).not.toHaveBeenCalled();
     expect(db.sessionReminder.updateMany).toHaveBeenCalledWith({
       where: { id: 'rem1', status: 'PENDING' },
       data: { status: 'CANCELLED' },
