@@ -1109,15 +1109,15 @@ spending rounds on mechanical conflicts and on memory failures.
 MVP-60 asks for header actions, tabs and cards whose endpoints are not built yet (lifecycle routes, sessions, documents,
 tasks). → `/cases/:id` (`apps/office-app/src/features/cases`, lazy page) loads `GET /cases/:id` (shared API client gains
 `casesApi.get|update|remove`); **404 RES-001** (missing, deleted, another office's or a confidential file the user may not
-see) shows the 404 page inside the shell and is never retried; other failures `ErrorState` with retry. **Tab** in
-`?tab=` (`details` is the default and leaves the URL clean; switching tabs pushes history); an unknown tab, or one the user
+see), and a malformed id without asking the API, show the 404 page inside the shell, also when a refetch finds the file gone; no 4xx is retried, other failures `ErrorState` with retry (one automatic retry). **Tab** in
+`?tab=` (`details` is the default and leaves the URL clean; switching tabs **replaces** the history entry, so back leaves the file); an unknown tab, or one the user
 may not open, falls back to Details, so a shared link never breaks. Tabs Billing (`view:all|assigned:invoices`), AI (`use:ai`)
 and Audit (`view:audit`) are shown only to holders, the others to everyone; every tab but Details is a "coming soon" state
 until its story ships. **Header:** back (history, else `/cases`), `number • title` (number in `<Ltr>`), status, priority,
 confidential tag, responsible lawyer; an Edit button and a ⋮ menu offering only what the user may do (`fileActions`, UI only,
 the API re-checks): Edit = `edit:any:case`, or `edit:assigned:case` when assigned (D-051); Reassign = `edit:any:case`;
 Change status / Archive = `close:case` or `reopen:case`, a LAWYER only as the responsible lawyer (D-052, D-081); Delete =
-`delete:case`. **Archived files offer nothing** and show a read-only banner (D-052). Reassign, Change status and Archive
+`delete:case` and `edit:any:case` (the API checks a delete as a write, D-096). **Archived files offer nothing** and show a read-only banner (D-052). Reassign, Change status and Archive
 open a "coming soon" dialog until the lifecycle story adds their routes. **Edit** is a drawer (not inline) over
 `PATCH /cases/:id` with title, priority, sub-type, court case number, description, billing terms (only with
 `generate:invoice`) and confidentiality (only the office manager or the responsible lawyer, D-096); it sends **only the

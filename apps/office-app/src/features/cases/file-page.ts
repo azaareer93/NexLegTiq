@@ -87,7 +87,8 @@ export function fileActions(file: Case, user: FileUser): FileActions {
     reassign: can('edit:any:case'),
     changeStatus: lifecycle,
     archive: lifecycle,
-    delete: can('delete:case'),
+    // The API checks a delete as a write too (D-096).
+    delete: can('delete:case') && can('edit:any:case'),
     confidentiality:
       edit && (user.role === 'OFFICE_MANAGER' || file.responsibleLawyer.id === user.id),
     billing: edit && can('generate:invoice'),

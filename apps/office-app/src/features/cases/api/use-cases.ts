@@ -22,12 +22,17 @@ export const useCasesList = (query: CaseListParams) =>
     placeholderData: keepPreviousData,
   });
 
-/** `GET /cases/:id`. A missing, invisible or other office's file is 404 RES-001 (D-019): never retried. */
-export const useCase = (id: string) =>
+/**
+ * `GET /cases/:id`. A missing, invisible or other office's file is 404 RES-001 (D-019); like every 4xx it is final, so
+ * only a network or server failure is retried (once, as the app default).
+ */
+export const useCase = (id: string, enabled = true) =>
   useQuery({
     queryKey: caseKeys.detail(id),
     queryFn: ({ signal }) => cases.get(id, signal),
-    retry: (count, error) => count < 2 && !(error instanceof ApiError && error.status === 404),
+    enabled,
+    retry: (count, error) =>
+      count < 1 && !(error instanceof ApiError && error.status >= 400 && error.status < 500),
   });
 
 /** `PATCH /cases/:id`: the answer replaces the cached file; lists refetch. */
@@ -42,14 +47,14 @@ export function useUpdateCase(id: string) {
   });
 }
 
-/** `DELETE /cases/:id` (soft delete): the file leaves every cached list. */
+/**
+ * `DELETE /cases/:id` (soft delete): the file leaves every cached list. The page drops the detail itself once it has
+ * navigated away (dropping it here would refetch it while the page still watches it).
+ */
 export function useDeleteCase(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => cases.remove(id),
-    onSuccess: () => {
-      queryClient.removeQueries({ queryKey: caseKeys.detail(id) });
-      void queryClient.invalidateQueries({ queryKey: caseKeys.lists() });
-    },
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: caseKeys.lists() }),
   });
 }

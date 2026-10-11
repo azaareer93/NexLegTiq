@@ -42,10 +42,10 @@
     }
   },
   "file": {
-    "responsible": "Responsible lawyer:",
+    "responsible": "Responsible lawyer: <name>{{name}}</name>",
     "notSet": "—",
     "no": "No",
-    "primaryClient": "Primary",
+    "primaryClient": "Primary client",
     "noClients": "No clients linked.",
     "noTeam": "No team members.",
     "deleted": "Case deleted",
@@ -92,9 +92,7 @@
     "billing": {
       "method": "Billing method",
       "rate": "Hourly rate",
-      "fee": "Fixed fee",
-      "hourlyRate": "Hourly rate ({{currency}})",
-      "fixedFee": "Fixed fee ({{currency}})"
+      "fee": "Fixed fee"
     },
     "counts": {
       "clients": "Clients",
@@ -112,7 +110,7 @@
     },
     "delete": {
       "title": "Delete this case?",
-      "body": "Case {{number}} will be removed from every list. Its number is never reused."
+      "body": "Case <number>{{number}}</number> will be removed from every list. Its number is never reused."
     }
   }
 }

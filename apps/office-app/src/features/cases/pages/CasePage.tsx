@@ -1,5 +1,7 @@
 import { EditOutlined, LockOutlined, MoreOutlined } from '@ant-design/icons';
+import { CaseSchema } from '@nexlegtiq/shared-contracts';
 import type { Case } from '@nexlegtiq/shared-contracts';
+import type { AuthUser } from '@nexlegtiq/shared-contracts';
 import { isErrorCode } from '@nexlegtiq/shared-types';
 import {
   Bdi,
@@ -12,23 +14,34 @@ import {
   PageHeader,
   PriorityTag,
   useApiErrorHandler,
+  useCan,
 } from '@nexlegtiq/shared-ui';
+import { useQueryClient } from '@tanstack/react-query';
 import { Alert, App, Button, Dropdown, Flex, Modal, Tabs, Tag, Typography } from 'antd';
 import type { MenuProps } from 'antd';
 import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 
 import { useSession } from '../../auth';
 import { NotFoundPage } from '../../shell/components/status-pages';
-import { useCase, useDeleteCase } from '../api/use-cases';
+import { caseKeys, useCase, useDeleteCase } from '../api/use-cases';
 import { FileStatusTag } from '../components/case-cells';
 import { CaseDetailsTab } from '../components/CaseDetailsTab';
 import { EditCaseDrawer } from '../components/EditCaseDrawer';
 import { fileActions, readTab, visibleTabs } from '../file-page';
-import type { FileActions, FileTab } from '../file-page';
+import type { FileActions } from '../file-page';
 
 type Dialog = 'edit' | 'delete' | 'comingSoon' | null;
+type MenuKey = 'edit' | 'reassign' | 'status' | 'archive' | 'delete';
+// Reassign, status and archive arrive with the file lifecycle story.
+const DIALOG_OF: Record<MenuKey, Dialog> = {
+  edit: 'edit',
+  reassign: 'comingSoon',
+  status: 'comingSoon',
+  archive: 'comingSoon',
+  delete: 'delete',
+};
 
 /** The ⋮ menu: only the actions the user may take (UI only; the API re-checks, D-051). */
 function ActionsMenu({
@@ -39,24 +52,23 @@ function ActionsMenu({
   readonly onPick: (dialog: Dialog) => void;
 }): React.JSX.Element | null {
   const { t } = useTranslation();
+  const item = (key: MenuKey, label: string) => ({
+    key,
+    label: <span data-testid={`case-action-${key}`}>{label}</span>,
+  });
   const items: MenuProps['items'] = [
-    actions.edit && { key: 'edit', label: t('common.actions.edit') },
-    actions.reassign && { key: 'reassign', label: t('cases.file.actions.reassign') },
-    actions.changeStatus && { key: 'status', label: t('cases.file.actions.changeStatus') },
-    actions.archive && { key: 'archive', label: t('cases.file.actions.archive') },
+    actions.edit && item('edit', t('common.actions.edit')),
+    actions.reassign && item('reassign', t('cases.file.actions.reassign')),
+    actions.changeStatus && item('status', t('cases.file.actions.changeStatus')),
+    actions.archive && item('archive', t('cases.file.actions.archive')),
     actions.delete && { type: 'divider' as const },
-    actions.delete && { key: 'delete', label: t('common.actions.delete'), danger: true },
-  ].filter((item) => item !== false);
+    actions.delete && { ...item('delete', t('common.actions.delete')), danger: true },
+  ].filter((entry) => entry !== false);
   if (items.length === 0) return null;
   return (
     <Dropdown
       trigger={['click']}
-      menu={{
-        items,
-        onClick: ({ key }) =>
-          // Reassign, status and archive arrive with the file lifecycle story.
-          onPick(key === 'edit' ? 'edit' : key === 'delete' ? 'delete' : 'comingSoon'),
-      }}
+      menu={{ items, onClick: ({ key }) => onPick(DIALOG_OF[key as MenuKey]) }}
     >
       <Button
         icon={<MoreOutlined />}
@@ -81,12 +93,15 @@ function Header({
   const location = useLocation();
   return (
     <PageHeader
-      // Back to wherever the user came from (the list keeps its filters in the URL), else the list.
+      // Back to wherever the user came from (the list keeps its filters in the URL; tab switches replace the entry),
+      // else the list.
       onBack={() => void (location.key === 'default' ? navigate('/cases') : navigate(-1))}
       title={
-        <span data-testid="case-heading">
-          <Ltr>{file.fileNumber}</Ltr> • <Bdi>{file.title}</Bdi>
-        </span>
+        <Flex component="span" gap={8} wrap data-testid="case-heading">
+          <Ltr>{file.fileNumber}</Ltr>
+          <span aria-hidden>•</span>
+          <Bdi>{file.title}</Bdi>
+        </Flex>
       }
       subtitle={
         <Flex gap={8} align="center" wrap component="span">
@@ -96,7 +111,11 @@ function Header({
             <Tag icon={<LockOutlined aria-hidden />}>{t('cases.list.confidential')}</Tag>
           ) : null}
           <Typography.Text type="secondary">
-            {t('cases.file.responsible')} <Bdi>{file.responsibleLawyer.fullName}</Bdi>
+            <Trans
+              i18nKey="cases.file.responsible"
+              values={{ name: file.responsibleLawyer.fullName }}
+              components={{ name: <bdi /> }}
+            />
           </Typography.Text>
         </Flex>
       }
@@ -122,34 +141,52 @@ function ComingSoonTab(): React.JSX.Element {
   );
 }
 
-function FileView({ file }: { readonly file: Case }): React.JSX.Element {
+function FileView({
+  file,
+  user,
+}: {
+  readonly file: Case;
+  readonly user: AuthUser;
+}): React.JSX.Element {
   const { t } = useTranslation();
   const { message } = App.useApp();
   const { notify } = useApiErrorHandler();
   const navigate = useNavigate();
-  const user = useSession((state) => state.user);
+  const queryClient = useQueryClient();
   const [params, setParams] = useSearchParams();
   const [dialog, setDialog] = useState<Dialog>(null);
   const remove = useDeleteCase(file.id);
+  const held = {
+    'view:all:invoices': useCan('view:all:invoices'),
+    'view:assigned:invoices': useCan('view:assigned:invoices'),
+    'use:ai': useCan('use:ai'),
+    'view:audit': useCan('view:audit'),
+  };
 
-  const tabs = visibleTabs((permission) => user?.permissions.includes(permission) ?? false);
+  const tabs = visibleTabs(
+    (permission) => permission in held && held[permission as keyof typeof held],
+  );
   const tab = readTab(params, tabs);
-  // Inside the shell a user is always signed in; without one nothing is offered.
-  const actions = fileActions(file, user ?? { id: '', role: 'TRAINEE', permissions: [] });
+  const actions = fileActions(file, user);
 
+  // Replace, not push: the back button leaves the file instead of walking through its tabs.
   const selectTab = (key: string) =>
-    setParams((prev) => {
-      const next = new URLSearchParams(prev);
-      if (key === 'details') next.delete('tab');
-      else next.set('tab', key);
-      return next;
-    });
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (key === 'details') next.delete('tab');
+        else next.set('tab', key);
+        return next;
+      },
+      { replace: true },
+    );
 
   const confirmDelete = () =>
     remove.mutate(undefined, {
       onSuccess: () => {
         void message.success(t('cases.file.deleted'));
         void navigate('/cases', { replace: true });
+        queryClient.removeQueries({ queryKey: caseKeys.detail(file.id) });
       },
       onError: (error) => {
         setDialog(null);
@@ -172,7 +209,7 @@ function FileView({ file }: { readonly file: Case }): React.JSX.Element {
         <Tabs
           activeKey={tab}
           onChange={selectTab}
-          items={tabs.map((key: FileTab) => ({
+          items={tabs.map((key) => ({
             key,
             label: <span data-testid={`tab-${key}`}>{t(`cases.file.tabs.${key}`)}</span>,
             children: key === 'details' ? <CaseDetailsTab file={file} /> : <ComingSoonTab />,
@@ -196,7 +233,11 @@ function FileView({ file }: { readonly file: Case }): React.JSX.Element {
         onConfirm={confirmDelete}
         onCancel={() => setDialog(null)}
       >
-        {t('cases.file.delete.body', { number: file.fileNumber })}
+        <Trans
+          i18nKey="cases.file.delete.body"
+          values={{ number: file.fileNumber }}
+          components={{ number: <bdi dir="ltr" /> }}
+        />
       </ConfirmModal>
       <Modal
         open={dialog === 'comingSoon'}
@@ -213,19 +254,24 @@ function FileView({ file }: { readonly file: Case }): React.JSX.Element {
 
 /**
  * `/cases/:id?tab=` (frontend.md#legal-file-page): header with the file's actions, tabs kept in the URL, the Details tab;
- * a file the user cannot see is the 404 page (RES-001, D-019).
+ * a file the user cannot see (or a malformed id) is the 404 page (RES-001, D-019).
  */
 export function CasePage(): React.JSX.Element {
   const { id = '' } = useParams();
-  const file = useCase(id);
+  const valid = CaseSchema.shape.id.safeParse(id).success;
+  const file = useCase(id, valid);
+  const user = useSession((state) => state.user);
   const { referenceOf } = useApiErrorHandler();
+  const code = isApiError(file.error) ? file.error.code : undefined;
 
-  if (file.data) {
-    return <FileView file={file.data} />;
+  // Also after a refetch: a file deleted or hidden meanwhile is gone, even with older data in the cache.
+  if (!valid || code === 'RES-001') {
+    return <NotFoundPage />;
+  }
+  if (file.data && user) {
+    return <FileView file={file.data} user={user} />;
   }
   if (file.isError) {
-    const code = isApiError(file.error) ? file.error.code : undefined;
-    if (code === 'RES-001') return <NotFoundPage />;
     return (
       <div data-testid="case-error">
         <ErrorState

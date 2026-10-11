@@ -179,7 +179,9 @@ describe('file page', () => {
         within(screen.getByTestId('case-card-court')).getByText('Ramallah Court of First Instance'),
       ).toBeTruthy();
       expect(within(screen.getByTestId('case-card-billing')).getByText('₪150.00')).toBeTruthy();
-      expect(within(screen.getByTestId('case-card-clients')).getByText('Primary')).toBeTruthy();
+      expect(
+        within(screen.getByTestId('case-card-clients')).getByText('Primary client'),
+      ).toBeTruthy();
       expect(screen.getByTestId('case-card-next-hearing')).toBeTruthy();
       expect(screen.getByTestId('case-edit')).toBeTruthy();
     },
@@ -202,6 +204,43 @@ describe('file page', () => {
       expect(await screen.findByText('Coming soon')).toBeTruthy();
       fireEvent.click(screen.getByTestId('tab-details'));
       await waitFor(() => expect(router.state.location.search).toBe(''));
+      // Tab switches replace the history entry, so "back" leaves the file.
+      expect(router.state.historyAction).toBe('REPLACE');
+    },
+    SLOW,
+  );
+
+  it(
+    'should offer a responsible lawyer the lifecycle actions but not reassign or delete',
+    async () => {
+      setViewport(1280);
+      asRole('LAWYER', LAWYER_ID);
+      serveFile();
+      renderApp(`/cases/${ID}`);
+      await page();
+      fireEvent.click(screen.getByTestId('case-actions'));
+      expect(await screen.findByTestId('case-action-status')).toBeTruthy();
+      expect(screen.getByTestId('case-action-archive')).toBeTruthy();
+      expect(screen.getByTestId('case-action-edit')).toBeTruthy();
+      expect(screen.queryByTestId('case-action-reassign')).toBeNull();
+      expect(screen.queryByTestId('case-action-delete')).toBeNull();
+      // Lifecycle routes arrive with their own story.
+      fireEvent.click(screen.getByTestId('case-action-status'));
+      expect(await screen.findByTestId('case-coming-soon')).toBeTruthy();
+    },
+    SLOW,
+  );
+
+  it(
+    'should offer nothing to a lawyer not assigned to the file',
+    async () => {
+      setViewport(1280);
+      asRole('LAWYER');
+      serveFile();
+      renderApp(`/cases/${ID}`);
+      await page();
+      expect(screen.queryByTestId('case-actions')).toBeNull();
+      expect(screen.queryByTestId('case-edit')).toBeNull();
     },
     SLOW,
   );
@@ -234,6 +273,44 @@ describe('file page', () => {
       server.use(http.get(api(`cases/${ID}`), () => fail(404, 'RES-001')));
       renderApp(`/cases/${ID}`);
       expect(await screen.findByTestId('page-not-found', {}, { timeout: COLD })).toBeTruthy();
+    },
+    SLOW,
+  );
+
+  it(
+    'should show the 404 page for a malformed id without asking the API',
+    async () => {
+      asRole('OFFICE_MANAGER');
+      let asked = false;
+      server.use(
+        http.get(api('cases/not-a-uuid'), () => {
+          asked = true;
+          return fail(404, 'RES-001');
+        }),
+      );
+      renderApp('/cases/not-a-uuid');
+      expect(await screen.findByTestId('page-not-found', {}, { timeout: COLD })).toBeTruthy();
+      expect(asked).toBe(false);
+    },
+    SLOW,
+  );
+
+  it(
+    'should show an error with a reference and retry when the file cannot load',
+    async () => {
+      asRole('OFFICE_MANAGER');
+      let calls = 0;
+      server.use(
+        http.get(api(`cases/${ID}`), () => {
+          calls += 1;
+          return calls <= 2 ? fail(500, 'SYS-001') : ok(FILE);
+        }),
+      );
+      renderApp(`/cases/${ID}`);
+      const error = await screen.findByTestId('case-error', {}, { timeout: COLD });
+      expect(within(error).getByText(/req-12345678/)).toBeTruthy();
+      fireEvent.click(within(error).getByRole('button'));
+      expect(await page()).toBeTruthy();
     },
     SLOW,
   );
@@ -282,6 +359,57 @@ describe('file page', () => {
   );
 
   it(
+    'should put API field errors on the form and start clean after a cancel',
+    async () => {
+      setViewport(1280);
+      asRole('OFFICE_MANAGER');
+      serveFile();
+      server.use(
+        http.patch(api(`cases/${ID}`), () =>
+          fail(400, 'VAL-001', [{ field: 'title', message: 'validation.tooLong' }]),
+        ),
+      );
+      renderApp(`/cases/${ID}`);
+      await page();
+      fireEvent.click(screen.getByTestId('case-edit'));
+      fireEvent.change(await screen.findByTestId('case-title-input'), {
+        target: { value: 'Rejected title' },
+      });
+      fireEvent.click(screen.getByTestId('case-edit-save'));
+      const drawer = screen.getByTestId('case-edit-drawer');
+      expect(await within(drawer).findByText('This is too long.')).toBeTruthy();
+      expect(within(screen.getByTestId('case-heading')).getByText('Land dispute')).toBeTruthy();
+
+      fireEvent.click(screen.getByTestId('case-edit-cancel'));
+      await waitFor(() => expect(screen.queryByTestId('case-title-input')).toBeNull());
+      fireEvent.click(screen.getByTestId('case-edit'));
+      expect(((await screen.findByTestId('case-title-input')) as HTMLInputElement).value).toBe(
+        'Land dispute',
+      );
+    },
+    SLOW,
+  );
+
+  it(
+    'should stay on the file and explain a refused delete',
+    async () => {
+      setViewport(1280);
+      asRole('OFFICE_MANAGER');
+      serveFile();
+      server.use(http.delete(api(`cases/${ID}`), () => fail(422, 'BIZ-007')));
+      const { router } = renderApp(`/cases/${ID}`);
+      await page();
+      fireEvent.click(screen.getByTestId('case-actions'));
+      fireEvent.click(await screen.findByTestId('case-action-delete'));
+      fireEvent.click(await screen.findByTestId('confirm-ok'));
+      await waitFor(() => expect(document.querySelector('.ant-notification-notice')).toBeTruthy());
+      expect(router.state.location.pathname).toBe(`/cases/${ID}`);
+      expect(screen.getByTestId('page-case')).toBeTruthy();
+    },
+    SLOW,
+  );
+
+  it(
     'should delete after confirmation and go back to the list',
     async () => {
       setViewport(1280);
@@ -308,10 +436,10 @@ describe('file page', () => {
       const { router } = renderApp(`/cases/${ID}`);
       await page();
       fireEvent.click(screen.getByTestId('case-actions'));
-      fireEvent.click(await screen.findByText('Delete'));
+      fireEvent.click(await screen.findByTestId('case-action-delete'));
       fireEvent.click(await screen.findByTestId('confirm-ok'));
+      await waitFor(() => expect(deleted).toBe(true));
       await waitFor(() => expect(router.state.location.pathname).toBe('/cases'));
-      expect(deleted).toBe(true);
     },
     SLOW,
   );

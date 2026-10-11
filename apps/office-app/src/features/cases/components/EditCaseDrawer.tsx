@@ -1,7 +1,7 @@
-import type { Case, UpdateCaseRequest } from '@nexlegtiq/shared-contracts';
+import type { Case } from '@nexlegtiq/shared-contracts';
 import { UpdateCaseSchema } from '@nexlegtiq/shared-contracts';
 import { BILLING_METHODS, PRIORITIES } from '@nexlegtiq/shared-types';
-import { ApiErrorAlert, useApiErrorHandler } from '@nexlegtiq/shared-ui';
+import { ApiErrorAlert, Ltr, useApiErrorHandler } from '@nexlegtiq/shared-ui';
 import { App, Button, Drawer, Flex, Form, Input, Select, Switch } from 'antd';
 import { useTranslation } from 'react-i18next';
 
@@ -89,7 +89,7 @@ export function EditCaseDrawer({
     }
     const body = parseForm(UpdateCaseSchema, changes, form, translateKey);
     if (body) {
-      update.mutate(body as UpdateCaseRequest, {
+      update.mutate(body, {
         onSuccess: () => {
           void message.success(t('common.feedback.saved'));
           close();
@@ -132,11 +132,13 @@ export function EditCaseDrawer({
           noValidate
           requiredMark={false}
           initialValues={valuesOf(file)}
+          // A cancelled edit leaves nothing behind: the next opening starts from the file as it is.
+          clearOnDestroy
           onFinish={submit}
           disabled={update.isPending}
         >
           <Form.Item name="title" label={t('cases.file.fields.title')} rules={rules('title')}>
-            <Input data-testid="case-title-input" />
+            <Input dir="auto" data-testid="case-title-input" />
           </Form.Item>
           <Form.Item name="priority" label={t('cases.file.fields.priority')}>
             <Select
@@ -148,7 +150,7 @@ export function EditCaseDrawer({
             />
           </Form.Item>
           <Form.Item name="subType" label={t('cases.file.fields.subType')} rules={rules('subType')}>
-            <Input data-testid="case-subtype-input" />
+            <Input dir="auto" data-testid="case-subtype-input" />
           </Form.Item>
           <Form.Item
             name="courtCaseNumber"
@@ -163,6 +165,7 @@ export function EditCaseDrawer({
             rules={rules('description')}
           >
             <Input.TextArea
+              dir="auto"
               autoSize={{ minRows: 3, maxRows: 10 }}
               data-testid="case-description-input"
             />
@@ -180,17 +183,27 @@ export function EditCaseDrawer({
               </Form.Item>
               <Form.Item
                 name="hourlyRate"
-                label={t('cases.file.billing.hourlyRate', { currency: file.currency })}
+                label={t('cases.file.billing.rate')}
                 rules={rules('hourlyRate')}
               >
-                <Input dir="ltr" inputMode="decimal" data-testid="case-rate-input" />
+                <Input
+                  dir="ltr"
+                  inputMode="decimal"
+                  suffix={<Ltr>{file.currency}</Ltr>}
+                  data-testid="case-rate-input"
+                />
               </Form.Item>
               <Form.Item
                 name="fixedFee"
-                label={t('cases.file.billing.fixedFee', { currency: file.currency })}
+                label={t('cases.file.billing.fee')}
                 rules={rules('fixedFee')}
               >
-                <Input dir="ltr" inputMode="decimal" data-testid="case-fee-input" />
+                <Input
+                  dir="ltr"
+                  inputMode="decimal"
+                  suffix={<Ltr>{file.currency}</Ltr>}
+                  data-testid="case-fee-input"
+                />
               </Form.Item>
             </>
           ) : null}

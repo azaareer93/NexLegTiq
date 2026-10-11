@@ -46,8 +46,11 @@ function OverviewCard({ file }: { readonly file: Case }): React.JSX.Element {
         <Descriptions.Item label={t('cases.file.fields.description')}>
           <Value>
             {file.description ? (
-              <Typography.Paragraph style={{ whiteSpace: 'pre-wrap', marginBlockEnd: 0 }}>
-                <Bdi>{file.description}</Bdi>
+              <Typography.Paragraph
+                dir="auto"
+                style={{ whiteSpace: 'pre-wrap', marginBlockEnd: 0 }}
+              >
+                {file.description}
               </Typography.Paragraph>
             ) : null}
           </Value>
