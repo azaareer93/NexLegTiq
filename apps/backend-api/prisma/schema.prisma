@@ -182,6 +182,31 @@ enum TaskStatus {
   DONE
 }
 
+enum SessionType {
+  HEARING
+  MEDIATION
+  ARBITRATION
+  PRE_TRIAL
+  STATUS_CONFERENCE
+  APPEAL_HEARING
+  JUDGMENT_PRONOUNCEMENT
+}
+
+enum SessionOutcome {
+  ADJOURNED
+  DECIDED
+  SETTLED
+  DISMISSED
+  POSTPONED
+}
+
+enum ReminderStatus {
+  PENDING
+  SENT
+  FAILED
+  CANCELLED
+}
+
 enum FileTeamRole {
   RESPONSIBLE_LAWYER
   PARALEGAL
@@ -266,6 +291,9 @@ model Office {
   courts              Court[]
   judges              Judge[]
   publicProsecutors   PublicProsecutor[]
+  sessions            Session[]
+  sessionReminders    SessionReminder[]
+  sessionAttendances  SessionPartyAttendance[]
 
   @@map("offices")
 }
@@ -331,6 +359,8 @@ model User {
   fileNotes           FileNote[]
   assignedTasks       Task[]                   @relation("TaskAssignee")
   createdTasks        Task[]                   @relation("TaskCreator")
+  attendedSessions    Session[]                @relation("SessionAttendingLawyer")
+  createdSessions     Session[]                @relation("SessionCreator")
 
   /// Target of the composite (user_id, office_id) FKs: a child row can never name a user of another office (D-079).
   @@unique([id, officeId])
@@ -552,8 +582,8 @@ model Client {
   createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  office        Office       @relation(fields: [officeId], references: [id])
-  primaryLawyer User?        @relation("ClientPrimaryLawyer", fields: [primaryLawyerId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
+  office        Office          @relation(fields: [officeId], references: [id])
+  primaryLawyer User?           @relation("ClientPrimaryLawyer", fields: [primaryLawyerId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
   files         FileClient[]
   notes         FileNote[]
   contacts      ContactPerson[]
@@ -634,6 +664,7 @@ model LegalFile {
   timeline             CaseTimelineEvent[]
   notes                FileNote[]
   tasks                Task[]
+  sessions             Session[]
 
   @@unique([officeId, fileNumber])
   @@unique([id, officeId])
@@ -721,9 +752,10 @@ model Party {
   createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  office    Office               @relation(fields: [officeId], references: [id])
+  office    Office                   @relation(fields: [officeId], references: [id])
   files     FileParty[]
   conflicts ConflictOfInterest[]
+  sessions  SessionPartyAttendance[]
 
   @@unique([id, officeId])
   @@index([officeId, fullName])
@@ -854,6 +886,7 @@ model Court {
   office     Office?     @relation(fields: [officeId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   judges     Judge[]
   legalFiles LegalFile[]
+  sessions   Session[]
 
   @@index([jurisdiction, officeId])
   @@index([officeId])
@@ -875,6 +908,7 @@ model Judge {
   office     Office?     @relation(fields: [officeId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   court      Court       @relation(fields: [courtId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   legalFiles LegalFile[]
+  sessions   Session[]
 
   @@index([courtId])
   @@index([officeId])
@@ -896,6 +930,113 @@ model PublicProsecutor {
 
   @@index([officeId, fullName])
   @@map("public_prosecutors")
+}
+
+// ─── Hearings (D-036, D-116) ────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * A hearing (or mediation, arbitration session…) of a file. Times are UTC instants (`timestamptz`), shown in the
+ * office's time zone. Status is derived: CANCELLED when `isCancelled`, COMPLETED once an outcome is recorded, else
+ * SCHEDULED. CHECKs: ends after it starts, a cancelled session has no outcome, a session is not its own next one.
+ * The court and judge are checked by a trigger like a file's (D-115).
+ */
+model Session {
+  id                 String          @id @default(uuid(7)) @db.Uuid
+  officeId           String          @map("office_id") @db.Uuid
+  fileId             String          @map("file_id") @db.Uuid
+  sessionType        SessionType     @default(HEARING) @map("session_type")
+  startsAt           DateTime        @map("starts_at") @db.Timestamptz(3)
+  /// Null = one hour for the conflict check (domain-model invariant 5).
+  endsAt             DateTime?       @map("ends_at") @db.Timestamptz(3)
+  courtId            String?         @map("court_id") @db.Uuid
+  judgeId            String?         @map("judge_id") @db.Uuid
+  courtRoom          String?         @map("court_room")
+  attendingLawyerId  String          @map("attending_lawyer_id") @db.Uuid
+  /// Days before the hearing a reminder is due (office default `courtReminderDays`).
+  reminderDays       Int[]           @map("reminder_days")
+  outcome            SessionOutcome?
+  minutes            String?
+  /// The session this one was adjourned to (set by POST /sessions/:id/outcome).
+  nextSessionId      String?         @map("next_session_id") @db.Uuid
+  isCancelled        Boolean         @default(false) @map("is_cancelled")
+  cancellationReason String?         @map("cancellation_reason")
+  createdById        String          @map("created_by_id") @db.Uuid
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office          Office                   @relation(fields: [officeId], references: [id])
+  file            LegalFile                @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  court           Court?                   @relation(fields: [courtId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  judge           Judge?                   @relation(fields: [judgeId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  attendingLawyer User                     @relation("SessionAttendingLawyer", fields: [attendingLawyerId, officeId], references: [id, officeId], onUpdate: Restrict)
+  createdBy       User                     @relation("SessionCreator", fields: [createdById, officeId], references: [id, officeId], onUpdate: Restrict)
+  nextSession     Session?                 @relation("SessionNext", fields: [nextSessionId, officeId], references: [id, officeId], onDelete: NoAction, onUpdate: Restrict)
+  previousSession Session?                 @relation("SessionNext")
+  reminders       SessionReminder[]
+  attendances     SessionPartyAttendance[]
+
+  @@unique([id, officeId])
+  // A session is adjourned to at most one next session, which follows at most one.
+  @@unique([nextSessionId, officeId])
+  // Conflict check (same attending lawyer, overlapping time) and the calendar filtered by lawyer.
+  @@index([officeId, attendingLawyerId, startsAt])
+  // Calendar of the whole office.
+  @@index([officeId, startsAt])
+  // A file's Sessions tab.
+  @@index([officeId, fileId, startsAt])
+  // Foreign-key lookups when a court or judge is deleted (BIZ-011).
+  @@index([courtId])
+  @@index([judgeId])
+  @@map("sessions")
+}
+
+/**
+ * One reminder of a session per `reminderDays` entry (D-036). Rescheduling cancels the PENDING rows and adds new ones;
+ * cancelling the session cancels them. The reminder engine enqueues and delivers them (`jobId` null = not enqueued yet).
+ */
+model SessionReminder {
+  id             String         @id @default(uuid(7)) @db.Uuid
+  officeId       String         @map("office_id") @db.Uuid
+  sessionId      String         @map("session_id") @db.Uuid
+  daysBefore     Int            @map("days_before")
+  scheduledFor   DateTime       @map("scheduled_for") @db.Timestamptz(3)
+  status         ReminderStatus @default(PENDING)
+  jobId          String?        @map("job_id")
+  sentAt         DateTime?      @map("sent_at") @db.Timestamptz(3)
+  acknowledgedAt DateTime?      @map("acknowledged_at") @db.Timestamptz(3)
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office  Office  @relation(fields: [officeId], references: [id])
+  session Session @relation(fields: [sessionId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+
+  @@index([officeId, sessionId])
+  // The engine's sweep: due PENDING reminders.
+  @@index([status, scheduledFor])
+  @@map("session_reminders")
+}
+
+/**
+ * Whether a party of the file attended a session (recorded with the minutes; API with the parties story).
+ */
+model SessionPartyAttendance {
+  id            String   @id @default(uuid(7)) @db.Uuid
+  officeId      String   @map("office_id") @db.Uuid
+  sessionId     String   @map("session_id") @db.Uuid
+  partyId       String   @map("party_id") @db.Uuid
+  attended      Boolean?
+  representedBy String?  @map("represented_by")
+  notes         String?
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office  Office  @relation(fields: [officeId], references: [id])
+  session Session @relation(fields: [sessionId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  party   Party   @relation(fields: [partyId, officeId], references: [id, officeId], onUpdate: Restrict)
+
+  @@unique([sessionId, partyId])
+  @@index([officeId, partyId])
+  @@map("session_party_attendances")
 }
 
 /// Tasks created when a file of `fileType` (or any type when null) is opened; applied by the Tasks epic.
