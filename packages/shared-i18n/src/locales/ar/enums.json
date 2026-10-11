@@ -110,5 +110,26 @@
     "CASSATION": "نقض",
     "SUPREME": "عليا",
     "ARBITRATION": "تحكيم"
+  },
+  "sessionType": {
+    "HEARING": "جلسة",
+    "MEDIATION": "وساطة",
+    "ARBITRATION": "تحكيم",
+    "PRE_TRIAL": "جلسة تمهيدية",
+    "STATUS_CONFERENCE": "جلسة متابعة",
+    "APPEAL_HEARING": "جلسة استئناف",
+    "JUDGMENT_PRONOUNCEMENT": "النطق بالحكم"
+  },
+  "sessionOutcome": {
+    "ADJOURNED": "مؤجلة",
+    "DECIDED": "صدر الحكم",
+    "SETTLED": "تمت التسوية",
+    "DISMISSED": "رُدّت الدعوى",
+    "POSTPONED": "أُرجئت"
+  },
+  "sessionStatus": {
+    "SCHEDULED": "مجدولة",
+    "COMPLETED": "منعقدة",
+    "CANCELLED": "ملغاة"
   }
 }

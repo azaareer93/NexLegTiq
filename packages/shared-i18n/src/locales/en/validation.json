@@ -30,5 +30,14 @@
   "assignee": "Choose an active colleague who can work on this case.",
   "taskColumn": "All the tasks must be in the chosen column.",
   "unknownCourt": "The selected court does not exist.",
-  "unknownJudge": "The selected judge does not exist or does not sit at the selected court."
+  "unknownJudge": "The selected judge does not exist or does not sit at the selected court.",
+  "dateTime": "Enter a valid date and time.",
+  "endsBeforeStart": "The end must be after the start.",
+  "dateRange": "Choose an end after the start, at most 92 days later.",
+  "reminderDays": "Reminders can be 0 to 365 days before the hearing.",
+  "attendingLawyer": "Choose an active lawyer who can see this case.",
+  "sessionConflict": "The lawyer has another hearing at this time.",
+  "sessionNotHeld": "The outcome can be recorded once the hearing has started.",
+  "nextSessionExists": "The next hearing has already been scheduled.",
+  "nextSessionBefore": "The next hearing must start after this one."
 }

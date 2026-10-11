@@ -106,4 +106,23 @@ export type {
   UpdateJudgeRequest,
   UpdateProsecutorRequest,
 } from './court.contract.js';
+export {
+  CancelSessionSchema,
+  CreateSessionSchema,
+  FileSessionsQuerySchema,
+  NextSessionSchema,
+  SessionOutcomeSchema,
+  SessionQuerySchema,
+  SessionSchema,
+  UpdateSessionSchema,
+} from './session.contract.js';
+export type {
+  CancelSessionRequest,
+  CreateSessionRequest,
+  FileSessionsQuery,
+  Session,
+  SessionOutcomeRequest,
+  SessionQuery,
+  UpdateSessionRequest,
+} from './session.contract.js';
 export { EmailSchema, longText, MoneySchema, PhoneSchema, plainText } from './fields.js';

@@ -26,6 +26,9 @@ const ENUM_LABELS = {
   BILLING_METHODS: 'billingMethod',
   TASK_STATUSES: 'taskStatus',
   COURT_TYPES: 'courtType',
+  SESSION_TYPES: 'sessionType',
+  SESSION_OUTCOMES: 'sessionOutcome',
+  SESSION_STATUSES: 'sessionStatus',
 } as const;
 /** Value lists translated elsewhere (`errors.*`, `common.language.*`), or not shown to users yet (permissions, D-087). */
 const LABELLED_ELSEWHERE = ['ERROR_CODES', 'SUPPORTED_LOCALES', 'PERMISSIONS'];
