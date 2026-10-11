@@ -63,8 +63,8 @@
   `outcome?: ADJOURNED|DECIDED|SETTLED|DISMISSED|POSTPONED`, nextSessionId?, minutes (text), isCancelled,
   cancellationReason?, reminderDays int[], attendingLawyerId, createdById. Derived status SCHEDULED/COMPLETED/CANCELLED
   (D-116); the court/judge trigger of a file (D-115) also guards a session's.
-- **SessionReminder** 🔒 — D-036 without `channel` (the engine picks channels): daysBefore, scheduledFor, status, jobId?,
-  sentAt?, acknowledgedAt? (D-116). **SessionPartyAttendance** 🔒 — sessionId, partyId, attended?, representedBy?, notes?.
+- **SessionReminder** 🔒 — D-036 without `channel` (every reminder is email + in-app): recipientId (attending or responsible
+  lawyer, one row each), daysBefore, scheduledFor (09:00 office time), status, jobId?, sentAt?, acknowledgedAt? (D-116, D-117). **SessionPartyAttendance** 🔒 — sessionId, partyId, attended?, representedBy?, notes?.
 - **Witness** 🔒 / **WitnessStatement** 🔒 — as Notion, statement.aiSummaryId?.
 
 ## Documents & OCR
