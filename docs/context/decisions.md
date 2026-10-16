@@ -1241,3 +1241,38 @@ until the sessions API is merged (its PR is still open); document and task count
 team/lawyer pickers (court and judge are changed by `PATCH` already, but there is no picker UI yet — the quick-create and
 session stories build one); inline edit. Why: one page every later tab plugs into, with nothing offered that the API would
 refuse.
+
+**D-119 — Documents data model, folders and storage accounting** · Accepted (MVP-71, 2026-10-17) · Amends D-035
+MVP-71 left the folder rules, who may change folders, the status list and how storage is counted open; the
+`uploadedBy user|clientUser` column needs the portal's `ClientUser`, which does not exist yet. → **Models** (tenant, every
+reference a composite `(…, office_id)` FK, D-079/D-095): `DocumentFolder` (file, `parentId?`, `name?`, `systemKey?`),
+`Document` (mirrors its current version: storage key, size, checksum, MIME type; `documentType`, `status`, `ocrStatus`,
+`language?`, `isConfidential`, `sharedWithClient`, `folderId?` and `sessionId?` of the **same file** — the FKs include
+`file_id` —, `uploadedById`, soft delete), `DocumentVersion` (every stored upload including the first, append-only: no
+`updatedAt`, UPDATE revoked from the app role) and `DocumentText` (one row per version, kept out of `Document`).
+**Amends D-035:** `DocumentStatus` = `UPLOADED, SCANNING, PROCESSING, READY, FAILED, QUARANTINED` (the malware scan and a
+positive result are states of their own); `OcrStatus` = `NOT_NEEDED, PENDING, DONE, FAILED`. Storage keys must start with
+the row's `office_id/` and checksums are lower-case hex (CHECKs). Portal uploads add `uploadedByClientUserId` with the
+Client Portal; the API that uploads, versions and downloads documents is the upload story's.
+**Search:** a trigger (not generated columns: `unaccent` is STABLE) fills `search_vector_simple` (`simple` over
+`nlq_normalize_ar(unaccent(text))`) and `search_vector_english` (D-059), GIN-indexed; only the first 500,000 characters are
+indexed (a tsvector is capped at 1 MB). The read-only role cannot read `document_texts` (migration and `db-roles.sql`).
+**Folders:** every file gets six root **system folders** (`FolderSystemKey` = PLEADINGS, EVIDENCE, COURT_ORDERS, CONTRACTS,
+CORRESPONDENCE, CLIENT_UPLOADS) from an `AFTER INSERT` trigger on `legal_files`, so files created any way (API, import,
+seed) have them; existing files were backfilled by the migration. A system folder has a key and no name (the UI shows
+`enums.folderSystemKey.<KEY>` in the reader's language), sits at the root and cannot be renamed, moved or deleted
+(**422 BIZ-014**, new). Custom folders: a name of 1–100 characters, unique among siblings case-insensitively and
+Arabic-normalised (unique index, 409 RES-002), at most **5 levels** deep, never moved into themselves or their subtree
+(400 VAL-001 `validation.folderDepth|folderMove|unknownFolder`). Changes lock the file row (`FOR NO KEY UPDATE`, which
+does not block inserts referencing the file) so concurrent moves cannot build a cycle; the database refuses a folder as its
+own parent. Delete is hard and refused with **422 BIZ-013** (new) while the folder has subfolders or live documents; its
+soft-deleted documents move to the file's root; a document uploaded meanwhile makes the FK refuse it (also BIZ-013). Rows
+created by the database use `nlq_uuid_v7()` (PostgreSQL 17 has no `uuidv7()`). **API** `GET/POST /cases/:id/folders`,
+`PATCH/DELETE /cases/:id/folders/:folderId`: list with ANY of `view:all|assigned:cases`; create, rename and move with
+`upload:document`; delete with `delete:document` (no matrix row exists for folders, none added). Access follows the file:
+`CaseAccessService.assertFileAccess` gains a **`contribute`** mode — the caller sees the file and it is not archived
+(BIZ-007) — because adding to a file needs no `edit:*:case` (a paralegal files documents on a lawyer's case). Every write has
+an audit row (changed fields only). **Storage quota:** `StorageUsageService.usedBytes()` = the sum of every stored version's
+size in the office, soft-deleted documents included (their objects stay until purged); the entitlement check reads it when
+uploads exist. Why: folders and searchable text land once with their integrity in the database, before the upload, OCR and
+portal stories build on them.

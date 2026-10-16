@@ -67,7 +67,8 @@ GET `cases/:id/sessions?when=upcoming|past` · POST `sessions/reminders/:id/ack`
 **documents**: POST `documents` (multipart: file, fileId, documentType, folderId?, sessionId?) → 202 ·
 GET `cases/:id/documents?folderId&type&search` · GET/PATCH/DELETE `documents/:id` · GET `documents/:id/download` →
 `{downloadUrl, expiresIn: 300}` · POST `documents/:id/versions` · GET `documents/:id/versions` · GET `documents/:id/text` ·
-POST `documents/:id/share` / `unshare` · POST `documents/:id/ocr/retry` · CRUD `cases/:id/folders`
+POST `documents/:id/share` / `unshare` · POST `documents/:id/ocr/retry` · GET/POST `cases/:id/folders`,
+PATCH/DELETE `cases/:id/folders/:folderId` (system folders fixed → 422 BIZ-014; non-empty → 422 BIZ-013) — D-119
 **tasks**: CRUD `tasks` (`?fileId, assignee=me|<userId>, status, priority, dueBefore, overdue`, page/limit) · PATCH `tasks/:id/status` · PATCH `tasks/reorder` (204) · POST `tasks/bulk-assign` (200 `{updated}`) — D-098
 **billing**: CRUD `time-entries` · POST `time-entries/timer/start|stop` · POST `invoices` (from time entries, `fileId?` null=consolidated) ·
 GET `invoices` · GET/PATCH `invoices/:id` · POST `invoices/:id/send` · POST `invoices/:id/mark-paid` · POST `invoices/:id/void` · GET `invoices/:id/pdf`
