@@ -7,8 +7,10 @@ import { ThrottlerGuard } from '@nestjs/throttler';
 import type { Role } from '@nexlegtiq/shared-types';
 import request from 'supertest';
 
+import { zonedInstant } from './session-rules';
 import { AppModule } from '../../app/app.module';
 import { configureApp } from '../../app/configure-app';
+import { getQueue, QUEUE } from '../../common/queue/queues';
 import { integrationEnv } from '../../config/env.fixture';
 import { PrismaService } from '../../database/prisma.service';
 import { TENANT_MODELS } from '../../database/tenant-models';
@@ -39,6 +41,18 @@ const freshDay = () => {
   const day = TODAY + nextDay++ * DAY_MS;
   return (hour: number, minute = 0) =>
     new Date(day + hour * 3_600_000 + minute * 60_000).toISOString();
+};
+
+/** 09:00 Hebron time `days` calendar days before the UTC date of `startsAt` (a daytime hearing: same local date). */
+const nineAm = (startsAt: string, days: number) => {
+  const date = new Date(startsAt);
+  return zonedInstant(
+    date.getUTCFullYear(),
+    date.getUTCMonth() + 1,
+    date.getUTCDate() - days,
+    9,
+    'Asia/Hebron',
+  );
 };
 
 /** MVP-67 through HTTP on real PostgreSQL: hearings, conflicts, reminders, outcomes, calendar, access (D-116). */
@@ -126,7 +140,11 @@ describe('sessions API (HTTP + PostgreSQL)', () => {
     });
 
   beforeAll(async () => {
-    Object.assign(process.env, integrationEnv(), { EMAIL_VERIFICATION_ENFORCED: 'false' });
+    Object.assign(process.env, integrationEnv(), {
+      EMAIL_VERIFICATION_ENFORCED: 'false',
+      // Reminder jobs are enqueued for real; a prefix of its own keeps them away from a running worker.
+      BULLMQ_PREFIX: `test-ses-${randomUUID().slice(0, 8)}`,
+    });
     const module = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(ThrottlerGuard)
       .useValue({ canActivate: () => true })
@@ -163,6 +181,7 @@ describe('sessions API (HTTP + PostgreSQL)', () => {
   }, 60_000);
 
   afterAll(async () => {
+    if (app) await getQueue(app, QUEUE.REMINDER).obliterate({ force: true });
     if (raw) {
       const where = { officeId: { in: officeIds } };
       for (const model of [...TENANT_MODELS].filter((name) => name !== 'User').reverse()) {
@@ -196,11 +215,12 @@ describe('sessions API (HTTP + PostgreSQL)', () => {
         nextSessionId: null,
         previousSessionId: null,
       });
+      // 09:00 office time (Asia/Hebron) on the days before; one recipient, who is attending and responsible (D-117).
       expect(await reminders(created.id)).toEqual(
         [7, 3, 1].map((days) => ({
           daysBefore: days,
           status: 'PENDING',
-          scheduledFor: new Date(Date.parse(at(7)) - days * DAY_MS),
+          scheduledFor: nineAm(at(7), days),
         })),
       );
       const event = await raw.caseTimelineEvent.findFirst({ where: { sourceId: created.id } });
@@ -214,12 +234,16 @@ describe('sessions API (HTTP + PostgreSQL)', () => {
       expect(audit).toMatchObject({ entityType: 'Session', action: 'CREATE' });
     });
 
-    it('should store the instant whatever offset it was sent with, and skip reminders already due', async () => {
-      // Tomorrow, sent as +00:00: the 7- and 3-day reminders are already past.
+    it('should store the instant whatever offset it was sent with, and send reminders already due at once', async () => {
+      // Tomorrow 06:00Z, sent as +00:00: the 7- and 3-day reminders are past (one reminder due now), and 09:00 on the
+      // day itself is after the start (none).
       const local = new Date(TODAY + DAY_MS + 6 * 3_600_000).toISOString().replace('Z', '+00:00');
       const created = await session({ startsAt: local, reminderDays: [7, 3, 0] });
       expect(created.startsAt).toBe(new Date(local).toISOString());
-      expect((await reminders(created.id)).map((row) => row.daysBefore)).toEqual([0]);
+      const [due, ...rest] = await reminders(created.id);
+      expect(rest).toEqual([]);
+      expect(due?.daysBefore).toBe(3);
+      expect(due?.scheduledFor.getTime()).toBeLessThanOrEqual(Date.now());
     });
 
     it('should refuse an overlapping session of the same lawyer with BIZ-004 and its details', async () => {
@@ -406,7 +430,7 @@ describe('sessions API (HTTP + PostgreSQL)', () => {
       const rows = await reminders(moved.id);
       expect(rows.filter((row) => row.status === 'CANCELLED')).toHaveLength(3);
       expect(rows.filter((row) => row.status === 'PENDING').map((row) => row.scheduledFor)).toEqual(
-        [7, 3, 1].map((days) => new Date(Date.parse(at(12)) - days * DAY_MS)),
+        [7, 3, 1].map((days) => nineAm(at(12), days)),
       );
       const audit = await raw.auditLog.findFirst({
         where: { entityId: moved.id, action: 'UPDATE' },

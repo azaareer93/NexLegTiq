@@ -7,12 +7,24 @@ export type MailLocale = 'AR' | 'EN';
 const name = z.string().trim().min(1).max(200);
 const link = z.url({ protocol: /^https?$/ });
 const count = z.number().int().min(1).max(10_000);
+/** Text formatted by the sender (dates, times, court names); may be empty where the template checks it. */
+const shortText = (max: number) => z.string().trim().max(max);
 
 /** Variables of each template, validated in the worker before rendering (D-085). Links are built by the sender. */
 export const MAIL_TEMPLATE_SCHEMAS = {
   'verify-email': z.object({ name, link, days: count }),
   invite: z.object({ officeName: name, inviterName: name, link, days: count }),
   'password-reset': z.object({ name, link, minutes: count }),
+  'hearing-reminder': z.object({
+    name,
+    link,
+    fileNumber: shortText(64).min(1),
+    fileTitle: shortText(500).min(1),
+    date: shortText(100).min(1),
+    time: shortText(50).min(1),
+    court: shortText(300),
+    courtRoom: shortText(100),
+  }),
 } as const;
 export type MailTemplateName = keyof typeof MAIL_TEMPLATE_SCHEMAS;
 export type MailTemplates = { [K in MailTemplateName]: z.infer<(typeof MAIL_TEMPLATE_SCHEMAS)[K]> };
@@ -142,10 +154,49 @@ We received a request to reset the password of your NexLegTiq account:
 This link expires in {{period}}. If you did not ask for this, ignore this email; your password stays the same.`,
     },
   },
+  'hearing-reminder': {
+    AR: {
+      subject: `تذكير بجلسة الملف ${iso('fileNumber')} يوم ${iso('date')}`,
+      html: `<p>مرحبًا <bdi>{{name}}</bdi>،</p>
+<p>نذكّرك بجلسة في الملف <bdi dir="ltr">{{fileNumber}}</bdi> — <bdi>{{fileTitle}}</bdi>.</p>
+<p>الموعد: <bdi>{{date}}</bdi>، الساعة <bdi>{{time}}</bdi>{{#if court}}<br>المحكمة: <bdi>{{court}}</bdi>{{/if}}{{#if courtRoom}}<br>القاعة: <bdi>{{courtRoom}}</bdi>{{/if}}</p>
+<p>{{> button label="عرض الجلسة"}}</p>
+{{> fallback}}`,
+      text: `مرحبًا ${iso('name')}،
+
+نذكّرك بجلسة في الملف ${iso('fileNumber')} — ${iso('fileTitle')}.
+الموعد: ${iso('date')}، الساعة ${iso('time')}{{#if court}}
+المحكمة: ${iso('court')}{{/if}}{{#if courtRoom}}
+القاعة: ${iso('courtRoom')}{{/if}}
+
+عرض الجلسة:
+{{link}}`,
+    },
+    EN: {
+      subject: `Hearing reminder: file ${iso('fileNumber')} on ${iso('date')}`,
+      html: `<p>Hello <bdi>{{name}}</bdi>,</p>
+<p>This is a reminder of a hearing in file <bdi dir="ltr">{{fileNumber}}</bdi> — <bdi>{{fileTitle}}</bdi>.</p>
+<p>When: <bdi>{{date}}</bdi> at <bdi>{{time}}</bdi>{{#if court}}<br>Court: <bdi>{{court}}</bdi>{{/if}}{{#if courtRoom}}<br>Room: <bdi>{{courtRoom}}</bdi>{{/if}}</p>
+<p>{{> button label="View the hearing"}}</p>
+{{> fallback}}`,
+      text: `Hello ${iso('name')},
+
+This is a reminder of a hearing in file ${iso('fileNumber')} — ${iso('fileTitle')}.
+When: ${iso('date')} at ${iso('time')}{{#if court}}
+Court: ${iso('court')}{{/if}}{{#if courtRoom}}
+Room: ${iso('courtRoom')}{{/if}}
+
+View the hearing:
+{{link}}`,
+    },
+  },
 };
 
+/** Templates whose copy says how long a link lasts (`{{period}}`). */
 const PERIOD_OF: Readonly<
-  Record<MailTemplateName, { readonly key: 'days' | 'minutes'; readonly unit: 'day' | 'minute' }>
+  Partial<
+    Record<MailTemplateName, { readonly key: 'days' | 'minutes'; readonly unit: 'day' | 'minute' }>
+  >
 > = {
   'verify-email': { key: 'days', unit: 'day' },
   invite: { key: 'days', unit: 'day' },
@@ -259,7 +310,9 @@ export function renderMail<T extends MailTemplateName>(
   const period = PERIOD_OF[template];
   const context = {
     ...vars,
-    period: duration(Number((vars as Record<string, unknown>)[period.key]), period.unit, locale),
+    ...(period && {
+      period: duration(Number((vars as Record<string, unknown>)[period.key]), period.unit, locale),
+    }),
     fallbackLabel: FOOTER[locale].fallback,
   };
   const subject = parts.subject(context);

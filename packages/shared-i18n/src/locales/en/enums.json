@@ -175,5 +175,11 @@
     "CONTRACTS": "Contracts",
     "CORRESPONDENCE": "Correspondence",
     "CLIENT_UPLOADS": "Client uploads"
+  },
+  "reminderStatus": {
+    "PENDING": "Pending",
+    "SENT": "Sent",
+    "FAILED": "Failed",
+    "CANCELLED": "Cancelled"
   }
 }

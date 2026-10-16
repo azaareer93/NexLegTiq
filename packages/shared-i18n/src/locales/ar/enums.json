@@ -175,5 +175,11 @@
     "CONTRACTS": "العقود",
     "CORRESPONDENCE": "المراسلات",
     "CLIENT_UPLOADS": "مرفوعات الموكل"
+  },
+  "reminderStatus": {
+    "PENDING": "بانتظار الإرسال",
+    "SENT": "أُرسل",
+    "FAILED": "تعذّر الإرسال",
+    "CANCELLED": "أُلغي"
   }
 }

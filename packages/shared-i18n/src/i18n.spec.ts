@@ -34,6 +34,7 @@ const ENUM_LABELS = {
   OCR_STATUSES: 'ocrStatus',
   DOCUMENT_LANGUAGES: 'documentLanguage',
   FOLDER_SYSTEM_KEYS: 'folderSystemKey',
+  REMINDER_STATUSES: 'reminderStatus',
 } as const;
 /** Value lists translated elsewhere (`errors.*`, `common.language.*`), or not shown to users yet (permissions, D-087). */
 const LABELLED_ELSEWHERE = ['ERROR_CODES', 'SUPPORTED_LOCALES', 'PERMISSIONS'];

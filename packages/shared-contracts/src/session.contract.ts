@@ -1,4 +1,9 @@
-import { SESSION_OUTCOMES, SESSION_STATUSES, SESSION_TYPES } from '@nexlegtiq/shared-types';
+import {
+  REMINDER_STATUSES,
+  SESSION_OUTCOMES,
+  SESSION_STATUSES,
+  SESSION_TYPES,
+} from '@nexlegtiq/shared-types';
 import { z } from 'zod';
 
 import { longText, plainText } from './fields.js';
@@ -155,7 +160,23 @@ export type FileSessionsQuery = z.infer<typeof FileSessionsQuerySchema>;
 
 const PersonSchema = z.object({ id: z.uuid(), fullName: z.string() });
 
-/** A session, in lists and alone. Instants are UTC (`Z`). */
+/**
+ * One reminder of a session for one recipient (D-117): due at 09:00 office time `daysBefore` days ahead, then SENT (email and
+ * in-app notification handed over) or FAILED; CANCELLED when the session moved, was cancelled or held. Acknowledged by its
+ * recipient (`POST /sessions/reminders/:id/ack`).
+ */
+export const SessionReminderSchema = z.object({
+  id: z.uuid(),
+  daysBefore: z.number().int(),
+  scheduledFor: z.iso.datetime(),
+  status: z.enum(REMINDER_STATUSES),
+  recipient: PersonSchema,
+  sentAt: z.iso.datetime().nullable(),
+  acknowledgedAt: z.iso.datetime().nullable(),
+});
+export type SessionReminder = z.infer<typeof SessionReminderSchema>;
+
+/** A session alone, with its reminders (oldest due first). Instants are UTC (`Z`). */
 export const SessionSchema = z.object({
   id: z.uuid(),
   file: z.object({ id: z.uuid(), fileNumber: z.string(), title: z.string() }),
@@ -173,11 +194,12 @@ export const SessionSchema = z.object({
   nextSessionId: z.uuid().nullable(),
   previousSessionId: z.uuid().nullable(),
   cancellationReason: z.string().nullable(),
+  reminders: z.array(SessionReminderSchema),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });
 export type Session = z.infer<typeof SessionSchema>;
 
-/** A session in the calendar and a file's list: without the minutes (up to 20,000 characters each). */
-export const SessionListItemSchema = SessionSchema.omit({ minutes: true });
+/** A session in the calendar and a file's list: without the minutes (up to 20,000 characters each) and reminders. */
+export const SessionListItemSchema = SessionSchema.omit({ minutes: true, reminders: true });
 export type SessionListItem = z.infer<typeof SessionListItemSchema>;

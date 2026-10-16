@@ -114,6 +114,7 @@ export {
   SessionListItemSchema,
   SessionOutcomeSchema,
   SessionQuerySchema,
+  SessionReminderSchema,
   SessionSchema,
   UpdateSessionSchema,
 } from './session.contract.js';
@@ -125,6 +126,7 @@ export type {
   SessionListItem,
   SessionOutcomeRequest,
   SessionQuery,
+  SessionReminder,
   UpdateSessionRequest,
 } from './session.contract.js';
 export { CreateFolderSchema, FolderSchema, UpdateFolderSchema } from './folder.contract.js';

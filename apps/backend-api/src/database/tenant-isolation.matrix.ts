@@ -283,6 +283,7 @@ export const TENANT_ISOLATION_MATRIX: readonly TenantResource[] = [
         data: {
           officeId: office.officeId,
           sessionId: (await sessionIn(db, office)).id,
+          recipientId: office.userId,
           daysBefore: 1,
           scheduledFor: new Date(),
         },

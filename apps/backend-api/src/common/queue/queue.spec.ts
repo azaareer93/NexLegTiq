@@ -194,6 +194,17 @@ describe('QueueProducer', () => {
     expect(add.mock.calls[0][2]).toEqual({ jobId: `${OFFICE}_reminder-1`, delay: 5 });
   });
 
+  it("should remove a job by the office-prefixed id, only in the caller's office", async () => {
+    const remove = jest.fn().mockResolvedValueOnce(1).mockResolvedValueOnce(0);
+    const producer = new QueueProducer({ get: () => ({ remove }) } as never, cls);
+    await expect(inOffice(() => producer.remove(QUEUE.REMINDER, 'reminder-1'))).resolves.toBe(true);
+    expect(remove).toHaveBeenCalledWith(`${OFFICE}_reminder-1`);
+    await expect(inOffice(() => producer.remove(QUEUE.REMINDER, 'gone'))).resolves.toBe(false);
+    await expect(producer.remove(QUEUE.REMINDER, 'reminder-1')).rejects.toThrow(
+      TenantContextMissingError,
+    );
+  });
+
   it('should fail an enqueue after the timeout while Redis is unreachable instead of hanging', async () => {
     jest.useFakeTimers();
     try {

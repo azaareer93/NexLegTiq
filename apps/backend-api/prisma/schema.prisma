@@ -405,6 +405,7 @@ model User {
   legalAcceptances    LegalAcceptance[]
   auditLogs           AuditLog[]
   notifications       Notification[]
+  sessionReminders    SessionReminder[]        @relation("SessionReminderRecipient")
   primaryClients      Client[]                 @relation("ClientPrimaryLawyer")
   responsibleFiles    LegalFile[]              @relation("FileResponsibleLawyer")
   paralegalFiles      LegalFile[]              @relation("FileResponsibleParalegal")
@@ -1053,13 +1054,16 @@ model Session {
 }
 
 /**
- * One reminder of a session per `reminderDays` entry (D-036). Rescheduling cancels the PENDING rows and adds new ones;
- * cancelling the session cancels them. The reminder engine enqueues and delivers them (`jobId` null = not enqueued yet).
+ * One reminder of a session per `reminderDays` entry and recipient (D-036, D-117). Rescheduling cancels the PENDING rows
+ * and adds new ones; cancelling the session cancels them. Each PENDING row is a delayed BullMQ job on the `reminder` queue
+ * (`jobId`, null until enqueued); the daily reconciliation re-adds any that Redis lost.
  */
 model SessionReminder {
   id             String         @id @default(uuid(7)) @db.Uuid
   officeId       String         @map("office_id") @db.Uuid
   sessionId      String         @map("session_id") @db.Uuid
+  /// Who is reminded: the attending lawyer and the file's responsible lawyer get a row each (D-117).
+  recipientId    String         @map("recipient_id") @db.Uuid
   daysBefore     Int            @map("days_before")
   scheduledFor   DateTime       @map("scheduled_for") @db.Timestamptz(3)
   status         ReminderStatus @default(PENDING)
@@ -1069,10 +1073,12 @@ model SessionReminder {
   createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  office  Office  @relation(fields: [officeId], references: [id])
-  session Session @relation(fields: [sessionId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  office    Office  @relation(fields: [officeId], references: [id])
+  session   Session @relation(fields: [sessionId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  recipient User    @relation("SessionReminderRecipient", fields: [recipientId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([officeId, sessionId])
+  @@index([officeId, recipientId])
   // The engine's sweep: due PENDING reminders.
   @@index([status, scheduledFor])
   @@map("session_reminders")
