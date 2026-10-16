@@ -14,12 +14,13 @@
 { "success": false, "error": { "code": "VAL-001", "message": "…", "details": [{ "field": "title", "message": "…" }] },
   "meta": { "timestamp": "…", "requestId": "…" } }
 ```
+- A detail may carry `params` (string values) with facts for the UI, e.g. the conflicting session of BIZ-004 (D-116).
 - Pagination `?page=1&limit=20` (max 100); cursor (`?cursor=`) for timeline/audit/notifications.
   Sorting `?sort=createdAt:desc,priority:asc` (allow-listed fields). Filters as query params validated by `XQuerySchema`;
   a multi-value filter is comma-separated (`?fileType=NDA_REVIEW,RENTAL_AGREEMENT`, D-113).
 - Async work → `202 { jobId, status }`; poll `GET /jobs/:id` or listen to WS.
 - `error.message` is an English developer message; the FE maps `code` → i18n key `errors.<CODE>`.
-- Idempotency: `Idempotency-Key` header honored on POST create endpoints for uploads, invoices, sessions (Redis 24h).
+- Idempotency: `Idempotency-Key` header honored on POST create endpoints for uploads, invoices, sessions (Redis 24h; not built yet — sessions ship without it, D-116).
 
 ## Error codes
 AUTH-001 invalid credentials · 002 token expired · 003 token invalid · 004 refresh expired · 005 refresh invalid ·
@@ -28,7 +29,7 @@ AUTH-100 permission denied · 101 insufficient role · 102 plan feature not avai
 VAL-001 invalid input · 002 email · 003 phone · 004 date · 005 file type · 006 file too large · 007 required
 RES-001 not found (incl. cross-tenant) · 002 already exists · 003 conflict/version · 004 deleted
 BIZ-001 last office manager · 002 case already closed · 003 open tasks block close · 004 session conflict ·
-005 retainer insufficient · 006 invoice immutable · 007 file archived · 008 user limit reached · 009 party conflict of interest · 010 client has open files · 011 court or judge still referenced
+005 retainer insufficient · 006 invoice immutable · 007 file archived · 008 user limit reached · 009 party conflict of interest · 010 client has open files · 011 court or judge still referenced · 012 session not scheduled (cancelled or held)
 AI-001 provider unavailable · 002 rate limited · 003 input too large · 004 output invalid · 005 AI disabled for office
 STO-001 upload failed · 002 download failed · 003 delete failed · 004 malware detected
 EXT-001 email provider · 002 OCR provider
@@ -62,7 +63,7 @@ GET `parties?search=` (reuse) · CRUD `task-templates`
 **courts**: GET `courts?jurisdiction&courtType&search` (global+office) · GET `courts/:id` · POST/PATCH/DELETE `courts` (office-owned; global → 403) · GET/POST `courts/:id/judges`, PATCH/DELETE `courts/:id/judges/:judgeId` · CRUD `prosecutors` (D-115)
 **sessions**: POST `sessions` (409 BIZ-004 unless `acknowledgeConflict`) · GET `sessions?from&to&lawyerId&fileId` (calendar) ·
 GET/PATCH `sessions/:id` · POST `sessions/:id/cancel` · POST `sessions/:id/outcome` (outcome+minutes → optional AI) ·
-POST `sessions/reminders/:id/ack`
+GET `cases/:id/sessions?when=upcoming|past` · POST `sessions/reminders/:id/ack` (reminder engine) — D-116
 **documents**: POST `documents` (multipart: file, fileId, documentType, folderId?, sessionId?) → 202 ·
 GET `cases/:id/documents?folderId&type&search` · GET/PATCH/DELETE `documents/:id` · GET `documents/:id/download` →
 `{downloadUrl, expiresIn: 300}` · POST `documents/:id/versions` · GET `documents/:id/versions` · GET `documents/:id/text` ·

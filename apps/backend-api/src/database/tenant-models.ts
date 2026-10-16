@@ -31,6 +31,9 @@ export const TENANT_MODELS = [
   'TaskTemplate',
   'Task',
   'PublicProsecutor',
+  'Session',
+  'SessionReminder',
+  'SessionPartyAttendance',
 ] as const satisfies readonly Prisma.ModelName[];
 
 export type TenantModel = (typeof TENANT_MODELS)[number];
@@ -43,6 +46,13 @@ export const REFERENCE_MODELS = ['Court', 'Judge'] as const satisfies readonly P
 
 /**
  * To-one relations into reference models that a database trigger keeps visible to the row's office (migration
- * add_courts_judges_prosecutors). Includes through them are not filtered; a new one needs its trigger first (D-115).
+ * add_courts_judges_prosecutors, add_sessions). Includes through them are not filtered; a new one needs its trigger first (D-115).
  */
-export const TRUSTED_REFERENCE_RELATIONS = ['LegalFile.court', 'LegalFile.judge', 'Judge.court'];
+export const TRUSTED_REFERENCE_RELATIONS = [
+  'LegalFile.court',
+  'LegalFile.judge',
+  'Judge.court',
+  // Trigger of migration add_sessions.
+  'Session.court',
+  'Session.judge',
+];

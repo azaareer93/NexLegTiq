@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { clientIn, fileIn, partyIn, sessionIn, soon } from './tenant-isolation.fixtures';
 import type { TenantModel } from './tenant-models';
 import type { PrismaClient } from '../generated/prisma/client';
 
@@ -23,29 +24,6 @@ export interface TenantResource {
   readonly update: Record<string, unknown>;
   readonly http?: { readonly list: string; readonly item: (id: string) => string };
 }
-
-const soon = (): Date => new Date(Date.now() + 3_600_000);
-
-const clientIn = (db: PrismaClient, { officeId }: SeededOffice) =>
-  db.client.create({
-    data: { officeId, clientType: 'INDIVIDUAL', displayName: 'Isolation client' },
-  });
-
-const fileIn = (db: PrismaClient, { officeId, userId }: SeededOffice) =>
-  db.legalFile.create({
-    data: {
-      officeId,
-      fileNumber: `ISO-${randomUUID()}`,
-      title: 'Isolation file',
-      fileType: 'LITIGATION',
-      responsibleLawyerId: userId,
-      jurisdiction: 'PALESTINE',
-      currency: 'ILS',
-    },
-  });
-
-const partyIn = (db: PrismaClient, { officeId }: SeededOffice) =>
-  db.party.create({ data: { officeId, isIndividual: true, fullName: 'Isolation party' } });
 
 export const TENANT_ISOLATION_MATRIX: readonly TenantResource[] = [
   {
@@ -280,5 +258,38 @@ export const TENANT_ISOLATION_MATRIX: readonly TenantResource[] = [
       db.publicProsecutor.create({ data: { officeId, fullName: 'Isolation prosecutor' } }),
     update: { fullName: 'Renamed' },
     http: { list: 'prosecutors', item: (id) => `prosecutors/${id}` },
+  },
+  {
+    model: 'Session',
+    create: (db, office) => sessionIn(db, office),
+    update: { courtRoom: 'Changed' },
+    // The calendar defaults to the next 31 days, which include `soon()`.
+    http: { list: 'sessions', item: (id) => `sessions/${id}` },
+  },
+  {
+    model: 'SessionReminder',
+    create: async (db, office) =>
+      db.sessionReminder.create({
+        data: {
+          officeId: office.officeId,
+          sessionId: (await sessionIn(db, office)).id,
+          recipientId: office.userId,
+          daysBefore: 1,
+          scheduledFor: new Date(),
+        },
+      }),
+    update: { status: 'CANCELLED' },
+  },
+  {
+    model: 'SessionPartyAttendance',
+    create: async (db, office) =>
+      db.sessionPartyAttendance.create({
+        data: {
+          officeId: office.officeId,
+          sessionId: (await sessionIn(db, office)).id,
+          partyId: (await partyIn(db, office)).id,
+        },
+      }),
+    update: { attended: true },
   },
 ];

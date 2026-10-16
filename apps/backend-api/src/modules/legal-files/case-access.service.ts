@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { permissionsFor } from '@nexlegtiq/shared-types';
 import type { Permission, Role, UserId } from '@nexlegtiq/shared-types';
 import { ClsService } from 'nestjs-cls';
 
@@ -10,6 +11,7 @@ import {
 } from '../../common/errors/app.exception';
 import { assignedFilesWhere, caseScope, caseScopeWhere } from '../../common/rbac/case-scope';
 import { PrismaService } from '../../database/prisma.service';
+import type { ScopedTransaction } from '../../database/unit-of-work';
 import type { Prisma } from '../../generated/prisma/client';
 
 export type FileAccessMode = 'read' | 'write';
@@ -54,6 +56,34 @@ export class CaseAccessService {
       throw new BusinessRuleException('BIZ-007', 'The file is archived and read-only');
     }
     return { id: file.id };
+  }
+
+  /**
+   * Whether a colleague (not the caller) is active, holds `permission` and, for a file, sees it by their own scope —
+   * how assignees and attending lawyers are checked (D-098, D-116). Another office's user is never found.
+   */
+  static async colleagueMay(
+    tx: ScopedTransaction,
+    userId: string,
+    permission: Permission,
+    fileId: string | null,
+  ): Promise<boolean> {
+    const user = await tx.user.findFirst({
+      where: { id: userId, isActive: true },
+      select: { id: true, role: true },
+    });
+    if (!user) return false;
+    const permissions = permissionsFor(user.role);
+    if (!permissions.includes(permission)) return false;
+    if (!fileId) return true;
+    const visible = await tx.legalFile.count({
+      where: {
+        id: fileId,
+        deletedAt: null,
+        ...caseScopeWhere(caseScope(permissions, user.id as UserId), user.role),
+      },
+    });
+    return visible === 1;
   }
 
   private caller(): { userId: UserId; role: Role; permissions: readonly Permission[] } {

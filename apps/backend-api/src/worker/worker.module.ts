@@ -8,6 +8,10 @@ import { StorageModule } from '../common/storage/storage.module';
 import { DatabaseModule } from '../database/database.module';
 import { PasswordResetLinks } from '../modules/auth/password-reset-links';
 import { VerificationLinks } from '../modules/auth/verification-links';
+import { NotificationProcessor } from '../modules/notifications/workers/notification.processor';
+import { ReminderDelivery } from '../modules/sessions/reminder-delivery';
+import { ReminderScheduler } from '../modules/sessions/reminder-scheduler';
+import { ReminderProcessor } from '../modules/sessions/workers/reminder.processor';
 
 /**
  * Root module of the worker process (D-011). Processors (`TenantProcessor` subclasses) are registered only here, so
@@ -15,6 +19,14 @@ import { VerificationLinks } from '../modules/auth/verification-links';
  */
 @Module({
   imports: [CoreModule, DatabaseModule, QueueModule, StorageModule, MailModule],
-  providers: [EmailProcessor, VerificationLinks, PasswordResetLinks],
+  providers: [
+    EmailProcessor,
+    VerificationLinks,
+    PasswordResetLinks,
+    NotificationProcessor,
+    ReminderProcessor,
+    ReminderDelivery,
+    ReminderScheduler,
+  ],
 })
 export class WorkerModule {}

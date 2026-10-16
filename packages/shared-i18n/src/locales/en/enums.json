@@ -110,5 +110,32 @@
     "CASSATION": "Cassation",
     "SUPREME": "Supreme",
     "ARBITRATION": "Arbitration"
+  },
+  "sessionType": {
+    "HEARING": "Hearing",
+    "MEDIATION": "Mediation",
+    "ARBITRATION": "Arbitration",
+    "PRE_TRIAL": "Pre-trial",
+    "STATUS_CONFERENCE": "Status conference",
+    "APPEAL_HEARING": "Appeal hearing",
+    "JUDGMENT_PRONOUNCEMENT": "Judgment pronouncement"
+  },
+  "sessionOutcome": {
+    "ADJOURNED": "Adjourned",
+    "DECIDED": "Decided",
+    "SETTLED": "Settled",
+    "DISMISSED": "Dismissed",
+    "POSTPONED": "Postponed"
+  },
+  "sessionStatus": {
+    "SCHEDULED": "Scheduled",
+    "COMPLETED": "Held",
+    "CANCELLED": "Cancelled"
+  },
+  "reminderStatus": {
+    "PENDING": "Pending",
+    "SENT": "Sent",
+    "FAILED": "Failed",
+    "CANCELLED": "Cancelled"
   }
 }

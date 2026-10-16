@@ -43,6 +43,12 @@ const SendEmailSchema = z.discriminatedUnion('template', [
     locale,
     vars: MAIL_TEMPLATE_SCHEMAS['password-reset'],
   }),
+  z.object({
+    to: z.email(),
+    template: z.literal('hearing-reminder'),
+    locale,
+    vars: MAIL_TEMPLATE_SCHEMAS['hearing-reminder'],
+  }),
 ]);
 /** `send-email` (any template, rendered here), or `send-verification-email` / `send-password-reset` (the link is created here). */
 const EmailJobSchema = z.union([SendEmailSchema, z.object({ userId: z.uuid() })]);

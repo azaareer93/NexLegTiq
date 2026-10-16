@@ -18,6 +18,8 @@ export interface ApiMeta {
 export interface ApiErrorDetail {
   readonly field: string;
   readonly message: string;
+  /** Facts the UI shows with the message, e.g. the conflicting session of a 409 BIZ-004 (D-116). */
+  readonly params?: Readonly<Record<string, string | null>>;
 }
 
 export interface ApiError {

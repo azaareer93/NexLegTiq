@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { conditionFor, permissionsFor } from '@nexlegtiq/shared-types';
+import { conditionFor } from '@nexlegtiq/shared-types';
 import type { Role, UserId } from '@nexlegtiq/shared-types';
 import { ClsService } from 'nestjs-cls';
 
@@ -10,7 +10,6 @@ import {
   ResourceNotFoundException,
   ValidationException,
 } from '../../common/errors/app.exception';
-import { caseScope, caseScopeWhere } from '../../common/rbac/case-scope';
 import { PrismaService } from '../../database/prisma.service';
 import type { ScopedTransaction } from '../../database/unit-of-work';
 import type { Prisma } from '../../generated/prisma/client';
@@ -118,23 +117,7 @@ export async function assertAssignable(
   userId: string,
   fileId: string | null,
 ): Promise<void> {
-  const user = await tx.user.findFirst({
-    where: { id: userId, isActive: true },
-    select: { id: true, role: true },
-  });
-  const permissions = user ? permissionsFor(user.role) : [];
-  let allowed = user !== null && permissions.includes('complete:task');
-  if (allowed && user && fileId) {
-    const visible = await tx.legalFile.count({
-      where: {
-        id: fileId,
-        deletedAt: null,
-        ...caseScopeWhere(caseScope(permissions, user.id as UserId), user.role),
-      },
-    });
-    allowed = visible === 1;
-  }
-  if (!allowed) {
+  if (!(await CaseAccessService.colleagueMay(tx, userId, 'complete:task', fileId))) {
     throw new ValidationException([{ field: 'assignedToId', message: 'validation.assignee' }]);
   }
 }

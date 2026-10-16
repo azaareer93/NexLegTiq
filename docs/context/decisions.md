@@ -1105,6 +1105,116 @@ of memory twice; branches are pushed one at a time. **Merge style:** the owner m
 rules of D-097 work for squash and merge commits alike (merging `develop` into a child resolves either). Why: the loop stops
 spending rounds on mechanical conflicts and on memory failures.
 
+**D-116 — Sessions (hearings) API: conflicts, reminders rows, outcomes and the calendar** · Accepted (MVP-67, 2026-10-11)
+MVP-67 left the reminder hand-off, the conflict details, edits of cancelled or held sessions and the calendar window open.
+→ **Schema** (`Session`, `SessionReminder`, `SessionPartyAttendance`, tenant models): domain-model.md's Session plus
+`cancellationReason` and `createdById`; composite `(…, office_id)` FKs (file cascade, users restrict, `nextSessionId` → the
+next session, NO ACTION so a file's sessions can be purged together, unique per office); CHECKs: ends after it starts, a
+cancelled session has no outcome, not its own next session, 0–365 reminder days (≤ 10). Court and judge: a trigger like the
+file's (D-115) — a court the office sees, a judge of that court — so `Session.court`/`.judge` join
+`TRUSTED_REFERENCE_RELATIONS`; a court or judge used by a session is BIZ-011 to delete. Indexes: lawyer + start (conflicts,
+calendar by lawyer), office + start (calendar), file + start (Sessions tab). **Status is derived:** CANCELLED when cancelled,
+COMPLETED once an outcome is recorded, else SCHEDULED (`SESSION_STATUSES`, labels `enums.sessionStatus.*`; `SESSION_TYPES`,
+`SESSION_OUTCOMES` with AR/EN labels). **Access** follows the file (D-096): reads ANY of `view:all|assigned:cases` and a
+visible file; `POST /sessions` `create:session`; PATCH, cancel and outcome `edit:session` + write access to the file (404
+otherwise, BIZ-007 once archived); scheduling the next session from an outcome also needs `create:session`. **Attending
+lawyer:** an active colleague whose role holds `create:session` (OM, SL, L) and who sees the file by their own scope, else
+400 VAL-001 `validation.attendingLawyer` (`CaseAccessService.colleagueMay`, now also behind the tasks' assignee rule).
+**Times** are instants with an offset (`validation.dateTime`), stored UTC and returned with `Z`; the office app sends and
+shows the office's wall clock. **Conflicts** (invariant 5): another non-cancelled session of the same attending lawyer
+overlapping `[startsAt, endsAt ?? startsAt + 1h)` (touching intervals allowed; held sessions count) → **409 BIZ-004** unless
+`acknowledgeConflict` (recorded in the audit row). Checked on create, next session and any PATCH of start, end or lawyer,
+under a per-lawyer transaction advisory lock so two overlapping writes cannot both pass. The error lists up to five
+conflicting sessions as `details[]` `{field: 'startsAt', message: 'validation.sessionConflict', params: {sessionId,
+startsAt, endsAt, fileNumber}}` — `sessionId` and `fileNumber` null when the caller cannot see that file (only the busy
+time is shown). **`ApiErrorDetail` gains optional `params`** (shared-types) for such facts. **Edits:** PATCH only while SCHEDULED;
+a cancelled or held session is **422 BIZ-012** (new code: "session not scheduled"); only changed fields are written and
+audited (instants compared as instants, reminder days as sets; a new court without a judge drops the judge, audited too);
+`null` clears end, court, judge, room. **Cancel** (`reason?`) is idempotent; a held session cannot be cancelled (BIZ-012).
+**Outcome** (`outcome`, `minutes?`, `nextSession?`): only once the session has started (400 `validation.sessionNotHeld`) and
+not cancelled; may be posted again to correct outcome or minutes; `nextSession` (once — `validation.nextSessionExists`;
+after this one — `validation.nextSessionBefore`) creates and links the next session in the same transaction, defaulting
+type, court, room and attending lawyer to the current one, and the judge when the court stays (a carried-over judge may
+have retired since). **Reminders — deviation from the ticket's "domain events":** no event bus or queue job yet. The
+session writes `SessionReminder` rows, one per `reminderDays` entry (office `courtReminderDays` by default): `scheduledFor`
+= start − N × 24 h, skipped when already past, `jobId` null. Reschedule or new offsets → PENDING rows become CANCELLED and
+new ones are added; cancel and outcome cancel PENDING rows; sent ones stay as history. The reminder engine story enqueues
+the delayed jobs from these rows (and a sweep for PENDING rows without `jobId`), and decides channels and recipients (D-036's
+`channel` column is left to it). **Timeline:** SESSION_CREATED (payload `{sessionType, startsAt}`) and SESSION_UPDATED
+(`{change: UPDATED|CANCELLED|OUTCOME, sessionType, startsAt, outcome?}`); every write has an audit row (`Session`).
+**Calendar** `GET /sessions?from&to&lawyerId|me&fileId`: sessions starting in `[from, to)` on visible files, cancelled
+ones included (with their status); `from` defaults to now, `to` to 31 days later, at most 92 days (`validation.dateRange`);
+not paginated (capped at 2000 rows). `GET /cases/:id/sessions?when=upcoming|past` is paginated (upcoming soonest first,
+past latest first). `GET/PATCH /sessions/:id`, `POST /sessions/:id/cancel|outcome` (200). **Not done here:** the
+`Idempotency-Key` on `POST /sessions` (api-conventions.md lists it; no idempotency store exists yet), the party
+attendance API (with the parties story), AI on minutes (session summary story), prosecutors on sessions. The HTTP isolation
+matrix covers `sessions`. Why: double-booking is refused at the source, reminders exist as data the engine can trust, and
+a hearing never leaks a confidential file through a conflict message.
+Review additions (same PR): **writes lock the session row** (`SELECT … FOR UPDATE`) and read it again inside the
+transaction — PATCH, cancel and outcome work on the current state, write only the slot fields that changed, and a file
+archived (BIZ-007) or deleted (404) meanwhile is caught there; a cancel racing an outcome gives BIZ-012. **Sessions last at
+most 24 hours** (`validation.sessionTooLong`, CHECK `sessions_duration_check`), so the conflict query looks back one day
+only. Sessions of a **soft-deleted file** never conflict; their reminders stay PENDING — the reminder engine must skip
+sessions whose file is deleted or archived (and its sweep over `(status, scheduled_for)` runs `unscoped()` with each job's
+office from the row). The advisory-lock key is namespaced (`session-slot:<lawyerId>`). Error fields of a next session are
+prefixed (`nextSession.startsAt`, `nextSession.courtId`; `assertCourtRefs` takes a prefix). **Lists leave out the
+minutes** (`SessionListItemSchema`: calendar and a file's sessions); the calendar refuses more than 2000 rows with 400
+`validation.dateRange` instead of cutting them. An acknowledged conflict on PATCH is audited; every Session audit row
+carries `fileId` (the audit viewer must hide rows of files its reader cannot see, as for LegalFile in D-096 — minutes and
+reasons are stored in full); the CREATE row holds every field and, for a next session, `previousSessionId`. A reschedule's
+SESSION_UPDATED payload adds `previousStartsAt`. Also: `sessionType` defaults to HEARING; a file's "upcoming" list and the
+calendar include cancelled sessions with their status; the calendar's `from` defaults to now (the office app always
+sends its range). **Known limits:** nothing in the database ties a next session to the same file (the service builds it
+from the current one); deleting a file does not cancel its sessions.
+
+**D-117 — Hearing reminder engine: recipients, due times, jobs and delivery** · Accepted (MVP-68, 2026-10-11)
+MVP-68 left the recipient model, what "already past" means for several offsets, the job id format, how "in-app" is delivered
+and what SENT means open. → **Rows per recipient:** `SessionReminder.recipientId` (composite FK to the office's users,
+RESTRICT; migration backfills earlier rows with the attending lawyer): one row per reminder day for the attending lawyer
+and one for the file's responsible lawyer (once when they are the same person; inactive users get none). D-036's
+`channel` stays out: every reminder is email **and** in-app. **Due time:** 09:00 in the office's time zone, N calendar days
+before the hearing's local date (`reminderRows` replaces D-116's start − N × 24 h). Offsets already due when the session is
+written collapse into **one reminder due now** (the nearest offset) while the hearing is ahead — a hearing booked for
+tomorrow gets one immediate reminder, not three; a due time at or after the start (a 0-day reminder of an 08:30 hearing)
+is dropped. **Jobs:** `ReminderScheduler` (sessions module, used by every session write and exported for the file
+lifecycle's close/archive via `cancelForFile`) writes the rows in the session's transaction and, after the commit, adds one
+delayed `reminder/send-session-reminder {reminderId}` per row with job id **`reminder-{id}`** (BullMQ refuses ':' in custom
+ids, so the ticket's `reminder:{id}`; stored office-prefixed, D-084) and records it in `jobId`. Reschedule, a new attending
+lawyer or new offsets cancel the PENDING rows and add new ones; cancel and outcome cancel them; cancelled rows' jobs are
+removed after the commit (`QueueProducer.remove`, best effort: the worker re-checks the row). **Delivery**
+(`ReminderDelivery`, run by `ReminderProcessor` in the reminder's office): a row that is not PENDING does nothing; a
+session cancelled, held or started, a file closed, archived or deleted, or an inactive recipient turns it CANCELLED;
+otherwise the email (`hearing-reminder` AR/EN template, the recipient's `uiLanguage`, date and time via shared-utils in the
+user's zone else the office's — shared-utils and decimal.js are now backend runtime dependencies) and the in-app
+notification are enqueued under ids derived from the reminder (`reminder-{id}-email`, `reminder-{id}-notification`), then
+the row becomes SENT. A second run, or a retry after a partial one, adds nothing. **SENT means handed to the email and
+notification queues**, which retry on their own; the last failed attempt of the reminder job marks it FAILED.
+**In-app:** a new `NotificationProcessor` consumes `notification/create-notification {userId, type, titleKey, params,
+link}` and writes the `Notification` row (titleKey `shell.notifications.hearingReminder`, params fileNumber, startsAt,
+daysBefore, sessionId; link `/calendar?session={id}`; keys and links are pattern-checked); WebSocket push joins with the
+gateway. **Reconciliation:** a BullMQ job scheduler (`reconcile-reminders`, daily 02:00 UTC, registered by the worker at
+boot; a Redis outage there is logged, not fatal) re-adds the job of every PENDING reminder of active offices, `unscoped()`
+then office by office in `TenantRunner`; BullMQ ignores ids it already holds, so only lost jobs come back.
+**Acknowledgement:** `POST /sessions/reminders/:id/ack` (200, the reminder) by its recipient only — anyone else, another
+office or a malformed id is 404; acknowledging again keeps the first time; not audited (no data changes but a "seen"
+mark). `GET /sessions/:id` returns `reminders[]` (day, due time, status, recipient, sent and acknowledged times) for the
+session drawer; lists leave them out. `REMINDER_STATUSES` joins shared-types (labels `enums.reminderStatus.*`).
+**Not done here:** the session drawer itself (office-app calendar story); reminders do not follow a change of the file's
+responsible lawyer (the reassign story must call `reset`); a job of an office suspended when it ran completes skipped and
+stays in Redis 7 days, so its row stays PENDING until the office is active again and the reconciliation runs after that.
+Why: every lawyer on a hearing is reminded at a sensible hour in their own language, never twice, and a lost Redis does
+not lose a court date.
+Review additions (same PR): **a recipient who can no longer see the file** (made confidential, taken off the team, role
+lowered) is not reminded — delivery runs the attending-lawyer check (`CaseAccessService.colleagueMay`, by the recipient's
+own scope) and cancels the row (`RECIPIENT_NO_ACCESS`), so a confidential file's number and title never reach someone who
+gets 404 on it. **No repeated reminders:** when a session keeps its time (new offsets or a new attending lawyer), a
+recipient gets no new reminder for a day no later than one already SENT to them; a new time reminds everyone again.
+Enqueues after the commit run in parallel (a Redis outage costs one 2 s timeout, not one per row). **Acknowledging** a
+reminder not yet sent returns it unchanged (200, `acknowledgedAt` null). **Left to the file lifecycle story:** closing or
+archiving a file must call `ReminderScheduler.cancelForFile` (until then delivery cancels those reminders when due, and
+their jobs stay in Redis until then), and reopening must schedule its upcoming sessions again (`reset`); changing a file's
+confidentiality or team does not reset reminders (delivery is the backstop). **Accepted race:** a reschedule committed
+while a reminder is being handed over can still let the old reminder out once.
 **D-118 — Legal-file page: tabs in the URL, header actions and what waits for other stories** · Accepted (MVP-60, 2026-10-11)
 MVP-60 asks for header actions, tabs and cards whose endpoints are not built yet (lifecycle routes, sessions, documents,
 tasks). → `/cases/:id` (`apps/office-app/src/features/cases`, lazy page) loads `GET /cases/:id` (shared API client gains

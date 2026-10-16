@@ -35,6 +35,7 @@
   "BIZ-009": "Possible conflict of interest with an existing party.",
   "BIZ-010": "This client has open cases. Close them before deleting the client.",
   "BIZ-011": "This record is still used by cases or judges. Remove those references before deleting it.",
+  "BIZ-012": "This hearing was cancelled or its outcome is recorded, so it can no longer be changed.",
   "AI-001": "The AI service is unavailable right now. Try again later.",
   "AI-002": "Too many AI requests. Try again in a moment.",
   "AI-003": "The text is too long for the AI to process.",

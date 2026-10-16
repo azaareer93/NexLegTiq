@@ -19,6 +19,12 @@ const VARS = {
   link: `${APP}/x?token=abc`,
   days: 7,
   minutes: 60,
+  fileNumber: '2026-LIT-00001',
+  fileTitle: 'دعوى إخلاء',
+  date: '12/11/2026',
+  time: '10:30 ص',
+  court: 'محكمة صلح رام الله',
+  courtRoom: '',
 };
 const varsFor = (template: (typeof MAIL_TEMPLATE_NAMES)[number]) =>
   MAIL_TEMPLATE_SCHEMAS[template].parse(VARS) as never;
@@ -87,6 +93,23 @@ describe('renderMail', () => {
     expect(mail.html).toContain('خلال 7 أيام');
   });
 
+  it('should show the hearing with its court and leave out an empty room', () => {
+    const vars = MAIL_TEMPLATE_SCHEMAS['hearing-reminder'].parse(VARS);
+    const ar = renderMail('hearing-reminder', 'AR', vars, APP);
+    expect(ar.subject).toBe('تذكير بجلسة الملف ⁨2026-LIT-00001⁩ يوم ⁨12/11/2026⁩');
+    expect(ar.html).toContain('<bdi dir="ltr">2026-LIT-00001</bdi>');
+    expect(ar.html).toContain('المحكمة: <bdi>محكمة صلح رام الله</bdi>');
+    expect(ar.html).not.toContain('القاعة');
+    const en = renderMail(
+      'hearing-reminder',
+      'EN',
+      { ...vars, court: '', courtRoom: 'Hall 3' },
+      APP,
+    );
+    expect(en.text).toContain('Room: ⁨Hall 3⁩');
+    expect(en.text).not.toContain('Court:');
+  });
+
   it('should escape values in HTML but not in the subject and plain text', () => {
     const mail = renderMail(
       'invite',
@@ -125,11 +148,21 @@ describe('MailService', () => {
       'EN',
       vars,
     );
-    expect(enqueue).toHaveBeenCalledWith('email', SEND_EMAIL_JOB, {
-      to: 'a@b.test',
-      template: 'password-reset',
-      locale: 'EN',
+    expect(enqueue).toHaveBeenCalledWith(
+      'email',
+      SEND_EMAIL_JOB,
+      { to: 'a@b.test', template: 'password-reset', locale: 'EN', vars },
+      {},
+    );
+    await new MailService({ enqueue } as unknown as QueueProducer).send(
+      'a@b.test',
+      'password-reset',
+      'EN',
       vars,
+      { jobId: 'once' },
+    );
+    expect(enqueue).toHaveBeenLastCalledWith('email', SEND_EMAIL_JOB, expect.anything(), {
+      jobId: 'once',
     });
   });
 });

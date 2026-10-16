@@ -66,9 +66,9 @@ timeline event → enqueue async work → audit log → invalidate cache → str
 |---|---|---|---|
 | `ocr` | high | `process-document` | 3× exp 1s, timeout 60s |
 | `ai` | medium | `summarize-document`, `summarize-session` | 2× 10s, timeout 120s |
-| `reminder` | high | `send-session-reminder`, `send-task-reminder` (delayed jobs) | 3× exp |
+| `reminder` | high | `send-session-reminder`, `send-task-reminder` (delayed jobs), `reconcile-reminders` (daily scheduler, D-117) | 3× exp |
 | `email` | low | `send-email` | 3× fixed 5s |
-| `notification` | high | `fan-out` (WS + DB) | 3× |
+| `notification` | high | `create-notification` (DB; WS push later), `fan-out` | 3× |
 | `report` | low | `invoice-pdf`, `office-export` | 2× |
 | `batch-ingest` | medium | Phase 2 (email/voice ingest) | – |
 Defaults: removeOnComplete 7d/1000, removeOnFail 30d. Priority = worker concurrency (high 10, medium 5, low 2); timeouts

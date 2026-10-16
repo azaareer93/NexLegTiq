@@ -37,6 +37,8 @@ export { COURT_TYPES } from './court.js';
 export type { CourtType } from './court.js';
 export { TASK_STATUSES } from './task.js';
 export type { TaskStatus } from './task.js';
+export { REMINDER_STATUSES, SESSION_OUTCOMES, SESSION_STATUSES, SESSION_TYPES } from './session.js';
+export type { ReminderStatus, SessionOutcome, SessionStatus, SessionType } from './session.js';
 export {
   conditionFor,
   hasAllPermissions,

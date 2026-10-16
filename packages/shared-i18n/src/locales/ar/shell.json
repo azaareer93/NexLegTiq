@@ -28,7 +28,8 @@
   },
   "notifications": {
     "open": "الإشعارات",
-    "empty": "لا توجد إشعارات بعد."
+    "empty": "لا توجد إشعارات بعد.",
+    "hearingReminder": "جلسة قادمة في الملف {{fileNumber}}"
   },
   "profile": {
     "menu": "قائمة الحساب",

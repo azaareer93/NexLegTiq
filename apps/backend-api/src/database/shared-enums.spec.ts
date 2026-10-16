@@ -10,7 +10,10 @@ import {
   OFFICE_LANGUAGES,
   PARTY_TYPES,
   PRIORITIES,
+  REMINDER_STATUSES,
   ROLES,
+  SESSION_OUTCOMES,
+  SESSION_TYPES,
   TASK_STATUSES,
 } from '@nexlegtiq/shared-types';
 
@@ -26,7 +29,10 @@ import {
   OfficeLanguage,
   PartyType,
   Priority,
+  ReminderStatus,
   Role,
+  SessionOutcome,
+  SessionType,
   TaskStatus,
 } from '../generated/prisma/enums';
 
@@ -46,6 +52,9 @@ describe('shared-types enums match the Prisma schema', () => {
     ['BillingMethod', BILLING_METHODS, BillingMethod],
     ['TaskStatus', TASK_STATUSES, TaskStatus],
     ['CourtType', COURT_TYPES, CourtType],
+    ['SessionType', SESSION_TYPES, SessionType],
+    ['SessionOutcome', SESSION_OUTCOMES, SessionOutcome],
+    ['ReminderStatus', REMINDER_STATUSES, ReminderStatus],
   ] as const)('%s', (_name, shared, prisma) => {
     expect([...shared].sort()).toEqual(Object.values(prisma).sort());
   });
