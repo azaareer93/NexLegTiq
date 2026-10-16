@@ -242,4 +242,53 @@ describe('casesApi', () => {
     );
     await expect(setup('access-1').cases.list({})).rejects.toMatchObject({ code: 'SYS-001' });
   });
+  const detail = {
+    ...row,
+    description: null,
+    subType: null,
+    closingDate: null,
+    responsibleParalegal: null,
+    courtCaseNumber: null,
+    court: null,
+    judge: null,
+    jurisdiction: 'PALESTINE',
+    billingMethod: null,
+    hourlyRate: null,
+    fixedFee: null,
+    retainerBalance: null,
+    currency: 'ILS',
+    clients: [],
+    team: [],
+    counts: { parties: 0, notes: 0 },
+    createdAt: '2026-10-01T10:00:00.000Z',
+  };
+
+  it('should get, update and delete one file', async () => {
+    const seen: string[] = [];
+    let body: unknown;
+    server.use(
+      http.get(url(`cases/${row.id}`), () => ok(detail)),
+      http.patch(url(`cases/${row.id}`), async ({ request }) => {
+        body = await request.json();
+        return ok({ ...detail, title: 'Renamed' });
+      }),
+      http.delete(url(`cases/${row.id}`), ({ request }) => {
+        seen.push(request.method);
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const { cases } = setup('access-1');
+    await expect(cases.get(row.id)).resolves.toEqual(detail);
+    await expect(cases.update(row.id, { title: 'Renamed' })).resolves.toMatchObject({
+      title: 'Renamed',
+    });
+    expect(body).toEqual({ title: 'Renamed' });
+    await expect(cases.remove(row.id)).resolves.toBeUndefined();
+    expect(seen).toEqual(['DELETE']);
+  });
+
+  it('should refuse a detail that breaks the contract as SYS-001', async () => {
+    server.use(http.get(url(`cases/${row.id}`), () => ok({ ...detail, counts: undefined })));
+    await expect(setup('access-1').cases.get(row.id)).rejects.toMatchObject({ code: 'SYS-001' });
+  });
 });
