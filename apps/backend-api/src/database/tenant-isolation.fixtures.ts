@@ -39,3 +39,50 @@ export const sessionIn = async (db: PrismaClient, office: SeededOffice) =>
       reminderDays: [],
     },
   });
+
+export const folderIn = async (db: PrismaClient, office: SeededOffice) =>
+  db.documentFolder.create({
+    data: {
+      officeId: office.officeId,
+      fileId: (await fileIn(db, office)).id,
+      name: 'Isolation folder',
+    },
+  });
+
+/** A document with its first version; the storage key starts with the office (D-035, CHECK). */
+export const documentIn = async (db: PrismaClient, office: SeededOffice) => {
+  const { officeId, userId } = office;
+  const fileId = (await fileIn(db, office)).id;
+  const stored = {
+    originalFilename: 'isolation.pdf',
+    mimeType: 'application/pdf',
+    sizeBytes: 1024n,
+    checksumSha256: 'a'.repeat(64),
+    storageKey: `${officeId}/${fileId}/${randomUUID()}.pdf`,
+  };
+  return db.document.create({
+    data: {
+      officeId,
+      fileId,
+      name: 'Isolation document',
+      ...stored,
+      uploadedById: userId,
+      versions: { create: { officeId, versionNumber: 1, createdById: userId, ...stored } },
+    },
+  });
+};
+
+export const versionIn = async (db: PrismaClient, office: SeededOffice) =>
+  db.documentVersion.findFirstOrThrow({
+    where: { documentId: (await documentIn(db, office)).id },
+  });
+
+export const documentTextIn = async (db: PrismaClient, office: SeededOffice) =>
+  db.documentText.create({
+    data: {
+      officeId: office.officeId,
+      documentId: (await documentIn(db, office)).id,
+      versionNumber: 1,
+      text: 'Isolation text',
+    },
+  });

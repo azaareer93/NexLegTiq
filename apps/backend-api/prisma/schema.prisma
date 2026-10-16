@@ -243,6 +243,57 @@ enum TimelineEventType {
   INVOICE_PAID
 }
 
+enum DocumentType {
+  PLEADING
+  EVIDENCE
+  CONTRACT_DRAFT
+  FINAL_CONTRACT
+  WILL
+  NDA
+  COURT_ORDER
+  JUDGMENT
+  CLIENT_INSTRUCTION
+  INVOICE
+  LEGAL_NOTICE
+  DEMAND_LETTER
+  POWER_OF_ATTORNEY
+  CORRESPONDENCE
+  OTHER
+}
+
+enum DocumentStatus {
+  UPLOADED
+  SCANNING
+  PROCESSING
+  READY
+  FAILED
+  QUARANTINED
+}
+
+enum OcrStatus {
+  NOT_NEEDED
+  PENDING
+  DONE
+  FAILED
+}
+
+enum DocumentLanguage {
+  AR
+  EN
+  MIXED
+}
+
+/// The default folders every file gets when it is inserted (trigger of migration add_documents, D-119). Their names are
+/// labels, never stored.
+enum FolderSystemKey {
+  PLEADINGS
+  EVIDENCE
+  COURT_ORDERS
+  CONTRACTS
+  CORRESPONDENCE
+  CLIENT_UPLOADS
+}
+
 // ─── Tenancy & identity ─────────────────────────────────────────────────────────────────────────────────────────
 
 /// The tenant. Every tenant-owned row references it.
@@ -294,6 +345,10 @@ model Office {
   sessions            Session[]
   sessionReminders    SessionReminder[]
   sessionAttendances  SessionPartyAttendance[]
+  documentFolders     DocumentFolder[]
+  documents           Document[]
+  documentVersions    DocumentVersion[]
+  documentTexts       DocumentText[]
 
   @@map("offices")
 }
@@ -361,6 +416,8 @@ model User {
   createdTasks        Task[]                   @relation("TaskCreator")
   attendedSessions    Session[]                @relation("SessionAttendingLawyer")
   createdSessions     Session[]                @relation("SessionCreator")
+  uploadedDocuments   Document[]               @relation("DocumentUploader")
+  documentVersions    DocumentVersion[]        @relation("DocumentVersionCreator")
 
   /// Target of the composite (user_id, office_id) FKs: a child row can never name a user of another office (D-079).
   @@unique([id, officeId])
@@ -665,6 +722,8 @@ model LegalFile {
   notes                FileNote[]
   tasks                Task[]
   sessions             Session[]
+  documentFolders      DocumentFolder[]
+  documents            Document[]
 
   @@unique([officeId, fileNumber])
   @@unique([id, officeId])
@@ -974,8 +1033,11 @@ model Session {
   previousSession Session?                 @relation("SessionNext")
   reminders       SessionReminder[]
   attendances     SessionPartyAttendance[]
+  documents       Document[]
 
   @@unique([id, officeId])
+  /// Target of documents' (session_id, file_id, office_id) FK: a document's session belongs to the document's file.
+  @@unique([id, fileId, officeId])
   // A session is adjourned to at most one next session, which follows at most one.
   @@unique([nextSessionId, officeId])
   // Conflict check (same attending lawyer, overlapping time) and the calendar filtered by lawyer.
@@ -1037,6 +1099,140 @@ model SessionPartyAttendance {
   @@unique([sessionId, partyId])
   @@index([officeId, partyId])
   @@map("session_party_attendances")
+}
+
+// ─── Documents ──────────────────────────────────────────────────────────────────────────────────────────────────
+
+/// A folder of one file's documents (D-119). System folders sit at the root, have a `systemKey` and no `name` (the UI
+/// shows the label in the reader's language) and cannot be renamed, moved or deleted. CHECKs and the sibling-name
+/// unique index are in migration add_documents.
+model DocumentFolder {
+  id        String           @id @default(uuid(7)) @db.Uuid
+  officeId  String           @map("office_id") @db.Uuid
+  fileId    String           @map("file_id") @db.Uuid
+  /// Null = at the file's root. Always a folder of the same file (composite FK).
+  parentId  String?          @map("parent_id") @db.Uuid
+  name      String?
+  systemKey FolderSystemKey? @map("system_key")
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office    Office           @relation(fields: [officeId], references: [id])
+  file      LegalFile        @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  // NoAction (checked at the end of the statement) so purging a file can cascade through its whole tree.
+  parent    DocumentFolder?  @relation("FolderTree", fields: [parentId, fileId, officeId], references: [id, fileId, officeId], onDelete: NoAction, onUpdate: Restrict)
+  children  DocumentFolder[] @relation("FolderTree")
+  documents Document[]
+
+  /// Target of the (folder_id, file_id, office_id) FKs: a subfolder or document is always in its folder's file.
+  @@unique([id, fileId, officeId])
+  @@unique([fileId, systemKey])
+  @@index([officeId, fileId])
+  @@map("document_folders")
+}
+
+/// A document of a file (D-035, D-119). Mirrors its current DocumentVersion (storage key, size, checksum, type).
+model Document {
+  id               String            @id @default(uuid(7)) @db.Uuid
+  officeId         String            @map("office_id") @db.Uuid
+  fileId           String            @map("file_id") @db.Uuid
+  /// Null = the file's root. A folder of the same file.
+  folderId         String?           @map("folder_id") @db.Uuid
+  /// The hearing the document belongs to, of the same file.
+  sessionId        String?           @map("session_id") @db.Uuid
+  /// Display name; the uploaded name (Arabic included) is kept as is in `originalFilename`.
+  name             String
+  originalFilename String            @map("original_filename")
+  documentType     DocumentType      @default(OTHER) @map("document_type")
+  mimeType         String            @map("mime_type")
+  sizeBytes        BigInt            @map("size_bytes")
+  checksumSha256   String            @map("checksum_sha256") @db.Char(64)
+  /// `{officeId}/{fileId}/{documentId}/{uuid}.{ext}` (D-035); never derived from the original name.
+  storageKey       String            @unique @map("storage_key")
+  currentVersion   Int               @default(1) @map("current_version")
+  status           DocumentStatus    @default(UPLOADED)
+  ocrStatus        OcrStatus         @default(PENDING) @map("ocr_status")
+  language         DocumentLanguage?
+  isConfidential   Boolean           @default(false) @map("is_confidential")
+  sharedWithClient Boolean           @default(false) @map("shared_with_client")
+  /// The office user who uploaded it; portal uploads add `uploadedByClientUserId` with the Client Portal (D-119).
+  uploadedById     String            @map("uploaded_by_id") @db.Uuid
+  deletedAt        DateTime?         @map("deleted_at") @db.Timestamptz(3)
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office     Office            @relation(fields: [officeId], references: [id])
+  file       LegalFile         @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  // NoAction (end of statement): purging a file cascades to its folders, sessions and documents together.
+  folder     DocumentFolder?   @relation(fields: [folderId, fileId, officeId], references: [id, fileId, officeId], onDelete: NoAction, onUpdate: Restrict)
+  session    Session?          @relation(fields: [sessionId, fileId, officeId], references: [id, fileId, officeId], onDelete: NoAction, onUpdate: Restrict)
+  uploadedBy User              @relation("DocumentUploader", fields: [uploadedById, officeId], references: [id, officeId], onUpdate: Restrict)
+  versions   DocumentVersion[]
+  texts      DocumentText[]
+
+  @@unique([id, officeId])
+  // A file's documents, by folder (the Documents tab).
+  @@index([officeId, fileId, folderId])
+  // Foreign-key lookups for a session and a folder (folder delete, session documents).
+  @@index([sessionId])
+  @@index([folderId])
+  @@map("documents")
+}
+
+/// Every stored upload of a document, the first one included (append-only: no `updatedAt`). Storage use of an office
+/// is the sum of its versions' sizes (D-119).
+model DocumentVersion {
+  id               String   @id @default(uuid(7)) @db.Uuid
+  officeId         String   @map("office_id") @db.Uuid
+  documentId       String   @map("document_id") @db.Uuid
+  versionNumber    Int      @map("version_number")
+  storageKey       String   @unique @map("storage_key")
+  originalFilename String   @map("original_filename")
+  mimeType         String   @map("mime_type")
+  sizeBytes        BigInt   @map("size_bytes")
+  checksumSha256   String   @map("checksum_sha256") @db.Char(64)
+  changeNote       String?  @map("change_note")
+  createdById      String   @map("created_by_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  office    Office         @relation(fields: [officeId], references: [id])
+  document  Document       @relation(fields: [documentId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  createdBy User           @relation("DocumentVersionCreator", fields: [createdById, officeId], references: [id, officeId], onUpdate: Restrict)
+  texts     DocumentText[]
+
+  @@unique([documentId, versionNumber])
+  // Storage quota: an index-only sum per office.
+  @@index([officeId, sizeBytes])
+  @@map("document_versions")
+}
+
+/// Extracted (OCR or embedded) text of one document version, kept out of Document. The two search vectors are set by
+/// a trigger (migration add_documents): `simple` over Arabic-normalised text and `english` with stemming (D-059).
+model DocumentText {
+  id                  String                   @id @default(uuid(7)) @db.Uuid
+  officeId            String                   @map("office_id") @db.Uuid
+  documentId          String                   @map("document_id") @db.Uuid
+  versionNumber       Int                      @map("version_number")
+  text                String
+  searchVectorSimple  Unsupported("tsvector")? @map("search_vector_simple")
+  searchVectorEnglish Unsupported("tsvector")? @map("search_vector_english")
+  pageCount           Int?                     @map("page_count")
+  ocrEngine           String?                  @map("ocr_engine")
+  /// 0–100.
+  ocrConfidence       Decimal?                 @map("ocr_confidence") @db.Decimal(5, 2)
+  extractedAt         DateTime                 @default(now()) @map("extracted_at") @db.Timestamptz(3)
+  createdAt           DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office   Office          @relation(fields: [officeId], references: [id])
+  document Document        @relation(fields: [documentId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  version  DocumentVersion @relation(fields: [documentId, versionNumber], references: [documentId, versionNumber], onDelete: Cascade, onUpdate: Restrict)
+
+  @@unique([documentId, versionNumber])
+  @@index([officeId])
+  @@index([searchVectorSimple], map: "document_texts_search_simple_idx", type: Gin)
+  @@index([searchVectorEnglish], map: "document_texts_search_english_idx", type: Gin)
+  @@map("document_texts")
 }
 
 /// Tasks created when a file of `fileType` (or any type when null) is opened; applied by the Tasks epic.

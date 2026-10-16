@@ -1,6 +1,16 @@
 import { randomUUID } from 'node:crypto';
 
-import { clientIn, fileIn, partyIn, sessionIn, soon } from './tenant-isolation.fixtures';
+import {
+  clientIn,
+  documentIn,
+  documentTextIn,
+  fileIn,
+  folderIn,
+  partyIn,
+  sessionIn,
+  soon,
+  versionIn,
+} from './tenant-isolation.fixtures';
 import type { TenantModel } from './tenant-models';
 import type { PrismaClient } from '../generated/prisma/client';
 
@@ -291,4 +301,9 @@ export const TENANT_ISOLATION_MATRIX: readonly TenantResource[] = [
       }),
     update: { attended: true },
   },
+  // Folders are nested under their file (`cases/:id/folders`); their HTTP isolation is in folders.int.spec.ts.
+  { model: 'DocumentFolder', create: folderIn, update: { name: 'Renamed' } },
+  { model: 'Document', create: documentIn, update: { name: 'Renamed' } },
+  { model: 'DocumentVersion', create: versionIn, update: { changeNote: 'Changed' } },
+  { model: 'DocumentText', create: documentTextIn, update: { text: 'Changed' } },
 ];

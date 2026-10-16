@@ -131,5 +131,49 @@
     "SCHEDULED": "مجدولة",
     "COMPLETED": "منعقدة",
     "CANCELLED": "ملغاة"
+  },
+  "documentType": {
+    "PLEADING": "لائحة",
+    "EVIDENCE": "بيّنة",
+    "CONTRACT_DRAFT": "مسودة عقد",
+    "FINAL_CONTRACT": "عقد نهائي",
+    "WILL": "وصية",
+    "NDA": "اتفاقية عدم إفصاح",
+    "COURT_ORDER": "قرار محكمة",
+    "JUDGMENT": "حكم",
+    "CLIENT_INSTRUCTION": "تعليمات الموكل",
+    "INVOICE": "فاتورة",
+    "LEGAL_NOTICE": "إنذار عدلي",
+    "DEMAND_LETTER": "كتاب مطالبة",
+    "POWER_OF_ATTORNEY": "وكالة",
+    "CORRESPONDENCE": "مراسلات",
+    "OTHER": "أخرى"
+  },
+  "documentStatus": {
+    "UPLOADED": "مرفوع",
+    "SCANNING": "قيد الفحص",
+    "PROCESSING": "قيد المعالجة",
+    "READY": "جاهز",
+    "FAILED": "فشل",
+    "QUARANTINED": "معزول"
+  },
+  "ocrStatus": {
+    "NOT_NEEDED": "غير مطلوب",
+    "PENDING": "بالانتظار",
+    "DONE": "مكتمل",
+    "FAILED": "فشل"
+  },
+  "documentLanguage": {
+    "AR": "العربية",
+    "EN": "الإنجليزية",
+    "MIXED": "العربية والإنجليزية"
+  },
+  "folderSystemKey": {
+    "PLEADINGS": "اللوائح",
+    "EVIDENCE": "البيّنات",
+    "COURT_ORDERS": "القرارات والأحكام",
+    "CONTRACTS": "العقود",
+    "CORRESPONDENCE": "المراسلات",
+    "CLIENT_UPLOADS": "مرفوعات الموكل"
   }
 }

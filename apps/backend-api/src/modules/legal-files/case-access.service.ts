@@ -14,7 +14,11 @@ import { PrismaService } from '../../database/prisma.service';
 import type { ScopedTransaction } from '../../database/unit-of-work';
 import type { Prisma } from '../../generated/prisma/client';
 
-export type FileAccessMode = 'read' | 'write';
+/**
+ * `read`: the caller sees the file. `write`: the caller may also edit it (and it is not archived). `contribute`: the
+ * caller sees it and it is not archived — adding to a file (folders, documents) needs no `edit:*:case` (D-119).
+ */
+export type FileAccessMode = 'read' | 'write' | 'contribute';
 
 /**
  * Which legal files the caller may see and change (D-051, D-081, D-096). Every route on a file goes through
@@ -44,7 +48,7 @@ export class CaseAccessService {
     throw new PermissionDeniedException();
   }
 
-  /** The file if the caller may read (or edit) it; 404 otherwise, BIZ-007 when writing to an archived file. */
+  /** The file if the caller may reach it in `mode`; 404 otherwise, BIZ-007 when changing an archived file. */
   async assertFileAccess(fileId: string, mode: FileAccessMode): Promise<{ id: string }> {
     const where = mode === 'write' ? this.editableWhere() : this.visibleWhere();
     const file = await this.prisma.db.legalFile.findFirst({
@@ -52,7 +56,7 @@ export class CaseAccessService {
       select: { id: true, status: true },
     });
     if (!file) throw new ResourceNotFoundException();
-    if (mode === 'write' && file.status === 'ARCHIVED') {
+    if (mode !== 'read' && file.status === 'ARCHIVED') {
       throw new BusinessRuleException('BIZ-007', 'The file is archived and read-only');
     }
     return { id: file.id };
