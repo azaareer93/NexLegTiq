@@ -71,6 +71,14 @@ BEGIN
   IF to_regclass('public.case_timeline_events') IS NOT NULL THEN
     REVOKE UPDATE, TRUNCATE ON public.case_timeline_events FROM nexlegtiq_app;
   END IF;
+  -- Document versions are append-only as well (D-119); DELETE stays for purges.
+  IF to_regclass('public.document_versions') IS NOT NULL THEN
+    REVOKE UPDATE, TRUNCATE ON public.document_versions FROM nexlegtiq_app;
+  END IF;
+  -- Extracted text is document content: the read-only support role never reads it (D-119).
+  IF to_regclass('public.document_texts') IS NOT NULL THEN
+    REVOKE ALL ON public.document_texts FROM nexlegtiq_readonly;
+  END IF;
   IF to_regclass('public._prisma_migrations') IS NOT NULL THEN
     REVOKE ALL ON public._prisma_migrations FROM nexlegtiq_app, nexlegtiq_readonly;
   END IF;
