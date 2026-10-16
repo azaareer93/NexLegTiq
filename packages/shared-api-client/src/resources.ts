@@ -1,6 +1,7 @@
-import { AuthSessionSchema, CaseListItemSchema } from '@nexlegtiq/shared-contracts';
+import { AuthSessionSchema, CaseListItemSchema, CaseSchema } from '@nexlegtiq/shared-contracts';
 import type {
   AuthSession,
+  Case,
   CaseListItem,
   CaseQuerySchema,
   ChangePasswordRequestSchema,
@@ -9,6 +10,7 @@ import type {
   RegisterRequestSchema,
   ResendVerificationRequestSchema,
   ResetPasswordRequestSchema,
+  UpdateCaseRequest,
   VerifyEmailRequestSchema,
 } from '@nexlegtiq/shared-contracts';
 import type { z } from 'zod';
@@ -85,10 +87,16 @@ export function usersApi(client: ApiClient) {
  */
 export type CaseListParams = Partial<Record<keyof z.input<typeof CaseQuerySchema>, string>>;
 
-/** Legal files (W6, D-096). Create, detail and update join with the screens that use them. */
+/** Legal files (W6, D-096). Create joins with the quick-create form. */
 export function casesApi(client: ApiClient) {
+  const path = (id: string) => `cases/${encodeURIComponent(id)}`;
   return {
     list: (query: CaseListParams, signal?: AbortSignal): Promise<Page<CaseListItem>> =>
       client.requestPage({ method: 'GET', path: 'cases', query, signal }, CaseListItemSchema),
+    get: (id: string, signal?: AbortSignal): Promise<Case> =>
+      client.request({ method: 'GET', path: path(id), signal }, CaseSchema),
+    update: (id: string, body: UpdateCaseRequest): Promise<Case> =>
+      client.request({ method: 'PATCH', path: path(id), body }, CaseSchema),
+    remove: (id: string): Promise<void> => client.request({ method: 'DELETE', path: path(id) }),
   };
 }
