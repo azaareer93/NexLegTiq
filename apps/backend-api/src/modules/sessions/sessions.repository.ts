@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { Session, SessionListItem } from '@nexlegtiq/shared-contracts';
+import type { Session, SessionListItem, SessionReminder } from '@nexlegtiq/shared-contracts';
 
 import { sessionStatus } from './session-rules';
 import { PrismaService } from '../../database/prisma.service';
@@ -27,7 +27,24 @@ const LIST_SELECT = {
   previousSession: { select: { id: true } },
 } satisfies Prisma.SessionSelect;
 
-const SESSION_SELECT = { ...LIST_SELECT, minutes: true } satisfies Prisma.SessionSelect;
+export const REMINDER_SELECT = {
+  id: true,
+  daysBefore: true,
+  scheduledFor: true,
+  status: true,
+  recipient: PERSON,
+  sentAt: true,
+  acknowledgedAt: true,
+} satisfies Prisma.SessionReminderSelect;
+
+const SESSION_SELECT = {
+  ...LIST_SELECT,
+  minutes: true,
+  reminders: {
+    select: REMINDER_SELECT,
+    orderBy: [{ scheduledFor: 'asc' }, { id: 'asc' }],
+  },
+} satisfies Prisma.SessionSelect;
 
 type ListRow = Prisma.SessionGetPayload<{ select: typeof LIST_SELECT }>;
 
@@ -56,12 +73,23 @@ export class SessionsRepository {
   }
 
   async get(id: string): Promise<Session> {
-    const { minutes, ...row } = await this.prisma.db.session.findFirstOrThrow({
+    const { minutes, reminders, ...row } = await this.prisma.db.session.findFirstOrThrow({
       where: { id },
       select: SESSION_SELECT,
     });
-    return { ...toListItem(row), minutes };
+    return { ...toListItem(row), minutes, reminders: reminders.map(toReminder) };
   }
+}
+
+export function toReminder(
+  row: Prisma.SessionReminderGetPayload<{ select: typeof REMINDER_SELECT }>,
+): SessionReminder {
+  return {
+    ...row,
+    scheduledFor: row.scheduledFor.toISOString(),
+    sentAt: row.sentAt?.toISOString() ?? null,
+    acknowledgedAt: row.acknowledgedAt?.toISOString() ?? null,
+  };
 }
 
 function toListItem({ isCancelled, previousSession, ...row }: ListRow): SessionListItem {

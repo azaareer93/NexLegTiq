@@ -5,7 +5,6 @@ import type { NewSession, SessionState, Slot } from './session-writer';
 import { ValidationException } from '../../common/errors/app.exception';
 
 const HOUR_MS = 3_600_000;
-const DAY_MS = 86_400_000;
 
 /** A session without an end counts one hour in the conflict check (domain-model invariant 5). */
 export const effectiveEnd = (startsAt: Date, endsAt: Date | null): Date =>
@@ -33,22 +32,92 @@ export const sessionStatus = (session: {
 }): SessionStatus =>
   session.isCancelled ? 'CANCELLED' : session.outcome ? 'COMPLETED' : 'SCHEDULED';
 
+/** Reminders are due at 09:00 office time (D-117). */
+export const REMINDER_HOUR = 9;
+
 /**
- * The reminders of a session starting at `startsAt`: one per offset, `days` × 24 h before the start, skipping those
- * already due at `now` (a hearing scheduled for tomorrow gets no 7-day reminder). Instants, so DST never shifts them.
+ * The reminders of a session starting at `startsAt` (D-117): one per offset, at 09:00 in the office's time zone `days`
+ * calendar days before the hearing's local date. Offsets already due at `now` collapse into one reminder due now (the
+ * nearest of them), as long as the hearing is still ahead; a due time at or after the start (a 0-day reminder of an
+ * 08:30 hearing) is dropped. Sorted by due time.
  */
 export function reminderRows(
   startsAt: Date,
   days: readonly number[],
   now: Date,
+  timeZone: string,
 ): { daysBefore: number; scheduledFor: Date }[] {
-  return [...days]
-    .sort((a, b) => b - a)
+  if (startsAt <= now) return [];
+  const [year, month, day] = localDate(startsAt, timeZone);
+  const rows = days
     .map((daysBefore) => ({
       daysBefore,
-      scheduledFor: new Date(startsAt.getTime() - daysBefore * DAY_MS),
+      scheduledFor: zonedInstant(year, month, day - daysBefore, REMINDER_HOUR, timeZone),
     }))
-    .filter((row) => row.scheduledFor > now);
+    .filter((row) => row.scheduledFor < startsAt);
+  const due = rows.filter((row) => row.scheduledFor <= now);
+  const ahead = rows.filter((row) => row.scheduledFor > now);
+  const nearest = Math.min(...due.map((row) => row.daysBefore));
+  return [
+    ...(due.length > 0 ? [{ daysBefore: nearest, scheduledFor: now }] : []),
+    ...ahead.sort((a, b) => a.scheduledFor.getTime() - b.scheduledFor.getTime()),
+  ];
+}
+
+/** Calendar date [year, month 1–12, day] of an instant in an IANA zone. */
+function localDate(instant: Date, timeZone: string): [number, number, number] {
+  const { year, month, day } = zonedParts(instant, timeZone);
+  return [year, month, day];
+}
+
+const zoneFormats = new Map<string, Intl.DateTimeFormat>();
+function zonedParts(instant: Date, timeZone: string) {
+  let format = zoneFormats.get(timeZone);
+  if (!format) {
+    format = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+    });
+    zoneFormats.set(timeZone, format);
+  }
+  const parts = format.formatToParts(instant);
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value);
+  return {
+    year: get('year'),
+    month: get('month'),
+    day: get('day'),
+    hour: get('hour'),
+    minute: get('minute'),
+  };
+}
+
+/** Offset of a zone from UTC at an instant, in ms (positive east of Greenwich). */
+function offsetAt(instant: number, timeZone: string): number {
+  const p = zonedParts(new Date(instant), timeZone);
+  const wall = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute);
+  return wall - Math.floor(instant / 60_000) * 60_000;
+}
+
+/**
+ * The instant of a wall-clock time in a zone (`day` may overflow; Date.UTC normalises it). Two passes settle the offset;
+ * DST changes happen at night, far from the 09:00 reminders.
+ */
+export function zonedInstant(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  timeZone: string,
+): Date {
+  const wall = Date.UTC(year, month - 1, day, hour);
+  const first = wall - offsetAt(wall, timeZone);
+  return new Date(wall - offsetAt(first, timeZone));
 }
 
 /**

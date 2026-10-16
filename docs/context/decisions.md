@@ -1166,3 +1166,52 @@ SESSION_UPDATED payload adds `previousStartsAt`. Also: `sessionType` defaults to
 calendar include cancelled sessions with their status; the calendar's `from` defaults to now (the office app always
 sends its range). **Known limits:** nothing in the database ties a next session to the same file (the service builds it
 from the current one); deleting a file does not cancel its sessions.
+
+**D-117 — Hearing reminder engine: recipients, due times, jobs and delivery** · Accepted (MVP-68, 2026-10-11)
+MVP-68 left the recipient model, what "already past" means for several offsets, the job id format, how "in-app" is delivered
+and what SENT means open. → **Rows per recipient:** `SessionReminder.recipientId` (composite FK to the office's users,
+RESTRICT; migration backfills earlier rows with the attending lawyer): one row per reminder day for the attending lawyer
+and one for the file's responsible lawyer (once when they are the same person; inactive users get none). D-036's
+`channel` stays out: every reminder is email **and** in-app. **Due time:** 09:00 in the office's time zone, N calendar days
+before the hearing's local date (`reminderRows` replaces D-116's start − N × 24 h). Offsets already due when the session is
+written collapse into **one reminder due now** (the nearest offset) while the hearing is ahead — a hearing booked for
+tomorrow gets one immediate reminder, not three; a due time at or after the start (a 0-day reminder of an 08:30 hearing)
+is dropped. **Jobs:** `ReminderScheduler` (sessions module, used by every session write and exported for the file
+lifecycle's close/archive via `cancelForFile`) writes the rows in the session's transaction and, after the commit, adds one
+delayed `reminder/send-session-reminder {reminderId}` per row with job id **`reminder-{id}`** (BullMQ refuses ':' in custom
+ids, so the ticket's `reminder:{id}`; stored office-prefixed, D-084) and records it in `jobId`. Reschedule, a new attending
+lawyer or new offsets cancel the PENDING rows and add new ones; cancel and outcome cancel them; cancelled rows' jobs are
+removed after the commit (`QueueProducer.remove`, best effort: the worker re-checks the row). **Delivery**
+(`ReminderDelivery`, run by `ReminderProcessor` in the reminder's office): a row that is not PENDING does nothing; a
+session cancelled, held or started, a file closed, archived or deleted, or an inactive recipient turns it CANCELLED;
+otherwise the email (`hearing-reminder` AR/EN template, the recipient's `uiLanguage`, date and time via shared-utils in the
+user's zone else the office's — shared-utils and decimal.js are now backend runtime dependencies) and the in-app
+notification are enqueued under ids derived from the reminder (`reminder-{id}-email`, `reminder-{id}-notification`), then
+the row becomes SENT. A second run, or a retry after a partial one, adds nothing. **SENT means handed to the email and
+notification queues**, which retry on their own; the last failed attempt of the reminder job marks it FAILED.
+**In-app:** a new `NotificationProcessor` consumes `notification/create-notification {userId, type, titleKey, params,
+link}` and writes the `Notification` row (titleKey `shell.notifications.hearingReminder`, params fileNumber, startsAt,
+daysBefore, sessionId; link `/calendar?session={id}`; keys and links are pattern-checked); WebSocket push joins with the
+gateway. **Reconciliation:** a BullMQ job scheduler (`reconcile-reminders`, daily 02:00 UTC, registered by the worker at
+boot; a Redis outage there is logged, not fatal) re-adds the job of every PENDING reminder of active offices, `unscoped()`
+then office by office in `TenantRunner`; BullMQ ignores ids it already holds, so only lost jobs come back.
+**Acknowledgement:** `POST /sessions/reminders/:id/ack` (200, the reminder) by its recipient only — anyone else, another
+office or a malformed id is 404; acknowledging again keeps the first time; not audited (no data changes but a "seen"
+mark). `GET /sessions/:id` returns `reminders[]` (day, due time, status, recipient, sent and acknowledged times) for the
+session drawer; lists leave them out. `REMINDER_STATUSES` joins shared-types (labels `enums.reminderStatus.*`).
+**Not done here:** the session drawer itself (office-app calendar story); reminders do not follow a change of the file's
+responsible lawyer (the reassign story must call `reset`); a job of an office suspended when it ran completes skipped and
+stays in Redis 7 days, so its row stays PENDING until the office is active again and the reconciliation runs after that.
+Why: every lawyer on a hearing is reminded at a sensible hour in their own language, never twice, and a lost Redis does
+not lose a court date.
+Review additions (same PR): **a recipient who can no longer see the file** (made confidential, taken off the team, role
+lowered) is not reminded — delivery runs the attending-lawyer check (`CaseAccessService.colleagueMay`, by the recipient's
+own scope) and cancels the row (`RECIPIENT_NO_ACCESS`), so a confidential file's number and title never reach someone who
+gets 404 on it. **No repeated reminders:** when a session keeps its time (new offsets or a new attending lawyer), a
+recipient gets no new reminder for a day no later than one already SENT to them; a new time reminds everyone again.
+Enqueues after the commit run in parallel (a Redis outage costs one 2 s timeout, not one per row). **Acknowledging** a
+reminder not yet sent returns it unchanged (200, `acknowledgedAt` null). **Left to the file lifecycle story:** closing or
+archiving a file must call `ReminderScheduler.cancelForFile` (until then delivery cancels those reminders when due, and
+their jobs stay in Redis until then), and reopening must schedule its upcoming sessions again (`reset`); changing a file's
+confidentiality or team does not reset reminders (delivery is the backstop). **Accepted race:** a reschedule committed
+while a reminder is being handed over can still let the old reminder out once.

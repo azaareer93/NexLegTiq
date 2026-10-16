@@ -2,10 +2,11 @@ import { Injectable } from '@nestjs/common';
 import type { ApiErrorDetail, UserId } from '@nexlegtiq/shared-types';
 import { ClsService } from 'nestjs-cls';
 
-import { effectiveEnd, MAX_SESSION_MS, reminderRows } from './session-rules';
+import { ReminderScheduler } from './reminder-scheduler';
+import { effectiveEnd, MAX_SESSION_MS } from './session-rules';
 import type { RequestContext } from '../../common/context/request-context';
 import { BusinessRuleException, ValidationException } from '../../common/errors/app.exception';
-import type { ScopedTransaction } from '../../database/unit-of-work';
+import type { AfterCommit, ScopedTransaction } from '../../database/unit-of-work';
 import type { Prisma } from '../../generated/prisma/client';
 import type { ClientInfo } from '../auth/client-info';
 import { truncateUserAgent } from '../auth/client-info';
@@ -62,11 +63,16 @@ export class SessionWriter {
   constructor(
     private readonly cls: ClsService<RequestContext>,
     private readonly files: CaseAccessService,
+    private readonly reminders: ReminderScheduler,
   ) {}
 
-  /** Checks and writes one session with its reminders, SESSION_CREATED event and audit row; returns its id. */
+  /**
+   * Checks and writes one session with its reminders (jobs enqueued after the commit), SESSION_CREATED event and audit
+   * row; returns its id.
+   */
   async insert(
     tx: ScopedTransaction,
+    afterCommit: AfterCommit,
     input: NewSession,
     client: ClientInfo,
     { fieldPrefix = '', keepRetiredJudge = false, previousSessionId = '' } = {},
@@ -94,7 +100,7 @@ export class SessionWriter {
       },
       select: { id: true },
     });
-    await this.addReminders(tx, id, input.startsAt, reminderDays);
+    await this.reminders.schedule(tx, afterCommit, { ...input, id }, reminderDays);
     await this.event(tx, input.fileId, id, 'SESSION_CREATED', {
       sessionType: input.sessionType,
       startsAt: input.startsAt.toISOString(),
@@ -176,25 +182,6 @@ export class SessionWriter {
     return tx.session.findFirst({ where: { id }, select: STATE_SELECT });
   }
 
-  /** Pending reminders end (CANCELLED) — the engine drops their jobs; sent ones stay as history. */
-  async cancelReminders(tx: ScopedTransaction, sessionId: string): Promise<void> {
-    await tx.sessionReminder.updateMany({
-      where: { sessionId, status: 'PENDING' },
-      data: { status: 'CANCELLED' },
-    });
-  }
-
-  /** After a reschedule or new offsets: the pending reminders are replaced. */
-  async resetReminders(
-    tx: ScopedTransaction,
-    sessionId: string,
-    startsAt: Date,
-    days: readonly number[],
-  ): Promise<void> {
-    await this.cancelReminders(tx, sessionId);
-    await this.addReminders(tx, sessionId, startsAt, days);
-  }
-
   async event(
     tx: ScopedTransaction,
     fileId: string,
@@ -239,19 +226,6 @@ export class SessionWriter {
         userAgent: truncateUserAgent(client.userAgent),
         requestId: client.requestId,
       },
-    });
-  }
-
-  private async addReminders(
-    tx: ScopedTransaction,
-    sessionId: string,
-    startsAt: Date,
-    days: readonly number[],
-  ): Promise<void> {
-    const rows = reminderRows(startsAt, days, new Date());
-    if (rows.length === 0) return;
-    await tx.sessionReminder.createMany({
-      data: rows.map((row) => ({ ...row, officeId: this.officeId(), sessionId })),
     });
   }
 
