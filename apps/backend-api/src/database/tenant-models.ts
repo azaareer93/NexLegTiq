@@ -34,6 +34,10 @@ export const TENANT_MODELS = [
   'Session',
   'SessionReminder',
   'SessionPartyAttendance',
+  'DocumentFolder',
+  'Document',
+  'DocumentVersion',
+  'DocumentText',
 ] as const satisfies readonly Prisma.ModelName[];
 
 export type TenantModel = (typeof TENANT_MODELS)[number];

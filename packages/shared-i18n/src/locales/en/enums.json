@@ -132,6 +132,50 @@
     "COMPLETED": "Held",
     "CANCELLED": "Cancelled"
   },
+  "documentType": {
+    "PLEADING": "Pleading",
+    "EVIDENCE": "Evidence",
+    "CONTRACT_DRAFT": "Contract draft",
+    "FINAL_CONTRACT": "Final contract",
+    "WILL": "Will",
+    "NDA": "Non-disclosure agreement",
+    "COURT_ORDER": "Court order",
+    "JUDGMENT": "Judgment",
+    "CLIENT_INSTRUCTION": "Client instruction",
+    "INVOICE": "Invoice",
+    "LEGAL_NOTICE": "Legal notice",
+    "DEMAND_LETTER": "Demand letter",
+    "POWER_OF_ATTORNEY": "Power of attorney",
+    "CORRESPONDENCE": "Correspondence",
+    "OTHER": "Other"
+  },
+  "documentStatus": {
+    "UPLOADED": "Uploaded",
+    "SCANNING": "Scanning",
+    "PROCESSING": "Processing",
+    "READY": "Ready",
+    "FAILED": "Failed",
+    "QUARANTINED": "Quarantined"
+  },
+  "ocrStatus": {
+    "NOT_NEEDED": "Not needed",
+    "PENDING": "Pending",
+    "DONE": "Done",
+    "FAILED": "Failed"
+  },
+  "documentLanguage": {
+    "AR": "Arabic",
+    "EN": "English",
+    "MIXED": "Arabic and English"
+  },
+  "folderSystemKey": {
+    "PLEADINGS": "Pleadings",
+    "EVIDENCE": "Evidence",
+    "COURT_ORDERS": "Court orders and judgments",
+    "CONTRACTS": "Contracts",
+    "CORRESPONDENCE": "Correspondence",
+    "CLIENT_UPLOADS": "Client uploads"
+  },
   "reminderStatus": {
     "PENDING": "Pending",
     "SENT": "Sent",
