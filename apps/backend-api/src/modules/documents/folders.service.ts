@@ -3,7 +3,7 @@ import type { CreateFolderRequest, Folder, UpdateFolderRequest } from '@nexlegti
 import type { UserId } from '@nexlegtiq/shared-types';
 import { ClsService } from 'nestjs-cls';
 
-import { FolderTree, MAX_FOLDER_DEPTH } from './folder-tree';
+import { FolderTree, MAX_FOLDER_DEPTH, MAX_FOLDERS_PER_FILE } from './folder-tree';
 import type { RequestContext } from '../../common/context/request-context';
 import {
   BusinessRuleException,
@@ -70,6 +70,7 @@ export class FoldersService {
     await this.access.assertFileAccess(fileId, 'contribute');
     const id = await this.uow.run(async (tx) => {
       const tree = await this.lockTree(tx, fileId);
+      if (tree.size >= MAX_FOLDERS_PER_FILE) throw invalid('name', 'validation.folderLimit');
       const parentId = input.parentId ?? null;
       if (parentId !== null) {
         if (!tree.has(parentId)) throw invalid('parentId', 'validation.unknownFolder');
@@ -122,13 +123,12 @@ export class FoldersService {
   async remove(fileId: string, folderId: string, client: ClientInfo): Promise<void> {
     await this.access.assertFileAccess(fileId, 'contribute');
     await this.uow.run(async (tx) => {
-      await this.lockTree(tx, fileId);
+      const tree = await this.lockTree(tx, fileId);
       const before = await this.customFolder(tx, fileId, folderId);
-      const [children, documents] = await Promise.all([
-        tx.documentFolder.count({ where: { parentId: folderId } }),
-        tx.document.count({ where: { folderId, deletedAt: null } }),
-      ]);
-      if (children > 0 || documents > 0) throw notEmpty();
+      if (tree.hasChildren(folderId)) throw notEmpty();
+      if ((await tx.document.count({ where: { fileId, folderId, deletedAt: null } })) > 0) {
+        throw notEmpty();
+      }
       await tx.document.updateMany({ where: { folderId }, data: { folderId: null } });
       // A document uploaded into the folder meanwhile makes the foreign key refuse the delete.
       await tx.documentFolder.delete({ where: { id: folderId } }).catch((error: unknown) => {
@@ -158,13 +158,18 @@ export class FoldersService {
 
   /**
    * Locks the file against concurrent folder changes until the transaction ends, then reads its tree. `FOR NO KEY
-   * UPDATE` does not block inserts that reference the file (sessions, tasks, documents take KEY SHARE locks).
+   * UPDATE` does not block inserts that reference the file (sessions, tasks, documents take KEY SHARE locks). The file
+   * is checked again under the lock: one deleted or archived since `assertFileAccess` is 404 / BIZ-007 (D-096).
    */
   private async lockTree(tx: ScopedTransaction, fileId: string): Promise<FolderTree> {
-    await tx.$queryRaw`
-      SELECT id FROM legal_files
-      WHERE id = ${fileId}::uuid AND office_id = ${this.officeId()}::uuid
+    const [file] = await tx.$queryRaw<{ status: string }[]>`
+      SELECT status::text AS status FROM legal_files
+      WHERE id = ${fileId}::uuid AND office_id = ${this.officeId()}::uuid AND deleted_at IS NULL
       FOR NO KEY UPDATE`;
+    if (!file) throw new ResourceNotFoundException();
+    if (file.status === 'ARCHIVED') {
+      throw new BusinessRuleException('BIZ-007', 'The file is archived and read-only');
+    }
     return new FolderTree(
       await tx.documentFolder.findMany({ where: { fileId }, select: { id: true, parentId: true } }),
     );

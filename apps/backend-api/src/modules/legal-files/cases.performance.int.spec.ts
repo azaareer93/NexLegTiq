@@ -102,7 +102,7 @@ describe('GET /cases with 5k files (performance)', () => {
     }
     await app?.close();
     process.env = savedEnv;
-  });
+  }, 120_000); // every file also has its six default folders (D-119)
 
   async function p95(user: (typeof users)['manager'], query: string): Promise<number> {
     const auth = bearerFor(app.get(JwtService), user);

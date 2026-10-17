@@ -1276,3 +1276,16 @@ an audit row (changed fields only). **Storage quota:** `StorageUsageService.used
 size in the office, soft-deleted documents included (their objects stay until purged); the entitlement check reads it when
 uploads exist. Why: folders and searchable text land once with their integrity in the database, before the upload, OCR and
 portal stories build on them.
+Review additions (same PR): folder writes **re-check the file under the lock** — deleted meanwhile is 404, archived
+meanwhile BIZ-007 (D-096's conditional writes); a file holds at most **200 folders** including the six defaults (400 VAL-001
+`validation.folderLimit` on `name`), which keeps the unpaginated list and the tree checks small. The folder list is ordered
+system folders first (in `FolderSystemKey` order), then by name. **Who organises folders:** holders of `upload:document`
+(TRAINEE and EXTERNAL_COLLABORATOR included, on files they are assigned to) may create, rename and move any custom folder
+of the file, not only their own; owner may narrow rename/move to `edit:*:case` later. A custom folder may carry the same
+name as a system folder's label (the label is per language, so the database cannot compare them). Storage keys are unique
+across the platform, `DocumentText` references its version (`(document_id, version_number)`, cascade), `ocrStatus` defaults
+to PENDING (the upload story sets NOT_NEEDED for files with embedded text) and `currentVersion` is a denormalised copy of the
+newest version number. The read-only role keeps column access to `documents` and `document_versions` (file names may name
+clients, as client and case tables already do). The confidential-document count in `documentCount` and the HTTP isolation
+half for documents belong to the upload story. Migration `tune_document_indexes` drops the redundant `folder_id` index and
+pins `nlq_uuid_v7()`'s `search_path`.

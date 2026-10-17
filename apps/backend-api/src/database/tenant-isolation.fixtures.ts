@@ -60,16 +60,14 @@ export const documentIn = async (db: PrismaClient, office: SeededOffice) => {
     checksumSha256: 'a'.repeat(64),
     storageKey: `${officeId}/${fileId}/${randomUUID()}.pdf`,
   };
-  return db.document.create({
-    data: {
-      officeId,
-      fileId,
-      name: 'Isolation document',
-      ...stored,
-      uploadedById: userId,
-      versions: { create: { officeId, versionNumber: 1, createdById: userId, ...stored } },
-    },
+  const document = await db.document.create({
+    data: { officeId, fileId, name: 'Isolation document', ...stored, uploadedById: userId },
   });
+  // Tenant rows are written with scalar foreign keys, never nested (D-080).
+  await db.documentVersion.create({
+    data: { officeId, documentId: document.id, versionNumber: 1, createdById: userId, ...stored },
+  });
+  return document;
 };
 
 export const versionIn = async (db: PrismaClient, office: SeededOffice) =>

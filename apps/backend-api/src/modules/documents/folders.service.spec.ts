@@ -130,6 +130,16 @@ describe('FoldersService', () => {
       expect(tx.documentFolder.create).not.toHaveBeenCalled();
     });
 
+    it('should refuse a folder past the per-file limit', async () => {
+      const { service, tx } = setup();
+      tx.documentFolder.findMany.mockResolvedValue(
+        Array.from({ length: 200 }, (_, i) => ({ id: `f${i}`, parentId: null })),
+      );
+      await expect(service.create(FILE, { name: 'X' }, CLIENT)).rejects.toMatchObject({
+        details: [{ field: 'name', message: 'validation.folderLimit' }],
+      });
+    });
+
     it('should refuse a folder deeper than the limit', async () => {
       const { service, tx } = setup();
       const chain = ['a', 'b', 'c', 'd', 'e'].map((id, i, all) => ({
@@ -250,14 +260,33 @@ describe('FoldersService', () => {
       });
     });
 
-    it.each([
-      ['subfolders', 'documentFolder'],
-      ['live documents', 'document'],
-    ] as const)('should refuse a folder with %s (BIZ-013)', async (_what, model) => {
+    it('should refuse a folder with subfolders (BIZ-013)', async () => {
       const { service, tx } = setup();
-      tx[model].count.mockResolvedValue(1);
-      await expect(service.remove(FILE, CHILD, CLIENT)).rejects.toMatchObject({ code: 'BIZ-013' });
+      await expect(service.remove(FILE, ROOT, CLIENT)).rejects.toMatchObject({ code: 'BIZ-013' });
       expect(tx.documentFolder.delete).not.toHaveBeenCalled();
+    });
+
+    it('should refuse a folder with live documents (BIZ-013)', async () => {
+      const { service, tx } = setup();
+      tx.document.count.mockResolvedValue(1);
+      await expect(service.remove(FILE, CHILD, CLIENT)).rejects.toMatchObject({ code: 'BIZ-013' });
+      expect(tx.document.count).toHaveBeenCalledWith({
+        where: { fileId: FILE, folderId: CHILD, deletedAt: null },
+      });
+      expect(tx.documentFolder.delete).not.toHaveBeenCalled();
+    });
+
+    it('should re-check the file under the lock: gone is 404, archived meanwhile is BIZ-007', async () => {
+      const { service, tx } = setup();
+      tx.$queryRaw.mockResolvedValueOnce([]);
+      await expect(service.remove(FILE, CHILD, CLIENT)).rejects.toBeInstanceOf(
+        ResourceNotFoundException,
+      );
+      tx.$queryRaw.mockResolvedValueOnce([{ status: 'ARCHIVED' }]);
+      await expect(service.create(FILE, { name: 'X' }, CLIENT)).rejects.toMatchObject({
+        code: 'BIZ-007',
+      });
+      expect(tx.documentFolder.create).not.toHaveBeenCalled();
     });
 
     it('should turn a foreign-key refusal (a document uploaded meanwhile) into BIZ-013 and rethrow others', async () => {

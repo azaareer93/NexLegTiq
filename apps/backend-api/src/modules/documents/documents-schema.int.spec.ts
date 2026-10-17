@@ -176,6 +176,14 @@ describe('documents schema (real PostgreSQL)', () => {
     expect(await found('simple', 'قررت المحكمة تاجيل')).toBe(1);
     expect(await found('english', 'hearing adjourn')).toBe(1);
     expect(await found('simple', 'استئناف')).toBe(0);
+    // Re-extracted text replaces the old vectors.
+    await db.raw.documentText.updateMany({
+      where: { documentId: doc.id },
+      data: { text: 'تم تقديم الاستئناف' },
+    });
+    expect(await found('simple', 'استئناف')).toBe(0); // the bare word, not الاستئناف: simple has no stemming
+    expect(await found('simple', 'الاستئناف')).toBe(1);
+    expect(await found('simple', 'المحكمة')).toBe(0);
   });
 
   it('should sum the stored versions of the current office only', async () => {
@@ -189,6 +197,10 @@ describe('documents schema (real PostgreSQL)', () => {
     const docB = await document(b, fileB.id);
     await version(b, docB.id, fileB.id, 1, 9_999n);
     expect(await db.asOffice(a, () => service.usedBytes())).toBe(before + 3_500n);
+    // A soft-deleted document still occupies storage until it is purged; sizes past 2^31 stay exact.
+    await db.raw.document.update({ where: { id: doc.id }, data: { deletedAt: new Date() } });
+    await version(a, doc.id, fileA.id, 3, 5_000_000_000n);
+    expect(await db.asOffice(a, () => service.usedBytes())).toBe(before + 5_000_003_500n);
   });
 
   it('should take folders, documents, versions and text with a purged file', async () => {
@@ -203,5 +215,7 @@ describe('documents schema (real PostgreSQL)', () => {
     await db.raw.legalFile.delete({ where: { id: fileA.id } });
     expect(await db.raw.documentFolder.count({ where: { fileId: fileA.id } })).toBe(0);
     expect(await db.raw.document.count({ where: { fileId: fileA.id } })).toBe(0);
+    expect(await db.raw.documentVersion.count({ where: { documentId: doc.id } })).toBe(0);
+    expect(await db.raw.documentText.count({ where: { documentId: doc.id } })).toBe(0);
   });
 });

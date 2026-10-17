@@ -159,7 +159,7 @@
   },
   "ocrStatus": {
     "NOT_NEEDED": "غير مطلوب",
-    "PENDING": "بالانتظار",
+    "PENDING": "قيد الانتظار",
     "DONE": "مكتمل",
     "FAILED": "فشل"
   },

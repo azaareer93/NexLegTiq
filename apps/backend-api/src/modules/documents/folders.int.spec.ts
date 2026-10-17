@@ -34,6 +34,8 @@ interface FolderBody {
 
 /** MVP-71 through HTTP on real PostgreSQL: default folders, folder CRUD, rules and access (D-119). */
 describe('folders API (HTTP + PostgreSQL)', () => {
+  // Each test opens a file through the API and makes several calls; the default 5 s is too tight in the full run.
+  jest.setTimeout(30_000);
   let app: NestExpressApplication;
   let raw: PrismaClient;
   let jwt: JwtService;
@@ -143,6 +145,8 @@ describe('folders API (HTTP + PostgreSQL)', () => {
       ['lawyer', 'LAWYER'],
       ['trainee', 'TRAINEE'],
       ['outsider', 'EXTERNAL_COLLABORATOR'],
+      ['admin', 'ADMIN'],
+      ['senior', 'SENIOR_LAWYER'],
     ] as const) {
       users[key] = await seedUser(officeId, role);
     }
@@ -319,6 +323,42 @@ describe('folders API (HTTP + PostgreSQL)', () => {
     await http().delete(path(fileId, created.id)).set(as('lawyer')).expect(204);
   });
 
+  it('should let ADMIN staff list folders but not organise them (no upload:document)', async () => {
+    const fileId = await openFile();
+    const mine = await folder(fileId, { name: 'Lawyer folder' });
+    expect(await list(fileId, 'admin')).toHaveLength(FOLDER_SYSTEM_KEYS.length + 1);
+    expectError(
+      await http().post(path(fileId)).set(as('admin')).send({ name: 'X' }),
+      403,
+      'AUTH-100',
+    );
+    expectError(
+      await http().patch(path(fileId, mine.id)).set(as('admin')).send({ name: 'X' }),
+      403,
+      'AUTH-100',
+    );
+  });
+
+  it('should hide the folders of a confidential file from an unassigned senior lawyer (D-096)', async () => {
+    const fileId = await openFile();
+    await raw.legalFile.update({ where: { id: fileId }, data: { isConfidential: true } });
+    expectError(await http().get(path(fileId)).set(as('senior')), 404, 'RES-001');
+    expectError(
+      await http().post(path(fileId)).set(as('senior')).send({ name: 'X' }),
+      404,
+      'RES-001',
+    );
+    expect(await list(fileId, 'lawyer')).toHaveLength(FOLDER_SYSTEM_KEYS.length);
+  });
+
+  it('should let only one of two concurrent same-name creates win', async () => {
+    const fileId = await openFile();
+    const send = () => http().post(path(fileId)).set(as('lawyer')).send({ name: 'Racing' });
+    const statuses = (await Promise.all([send(), send()])).map((res) => res.status).sort();
+    expect(statuses).toEqual([201, 409]);
+    expect(await raw.documentFolder.count({ where: { fileId, name: 'Racing' } })).toBe(1);
+  });
+
   it('should refuse changes on an archived file (BIZ-007) but still list its folders', async () => {
     const fileId = await openFile();
     const created = await folder(fileId, { name: 'Before archive' });
@@ -371,5 +411,12 @@ describe('folders API (HTTP + PostgreSQL)', () => {
       400,
       'VAL-001',
     );
+    for (const body of [
+      { name: 'x'.repeat(101) },
+      { name: 'a‮b' },
+      { name: 'X', parentId: 'nope' },
+    ]) {
+      expectError(await http().post(path(fileId)).set(as('lawyer')).send(body), 400, 'VAL-001');
+    }
   });
 });

@@ -3,6 +3,9 @@
 /** Root folders are at depth 1; a folder can be at most this deep. */
 export const MAX_FOLDER_DEPTH = 5;
 
+/** Folders per file, the six default ones included: keeps the unpaginated list and the tree checks small. */
+export const MAX_FOLDERS_PER_FILE = 200;
+
 export interface TreeNode {
   readonly id: string;
   readonly parentId: string | null;
@@ -15,8 +18,17 @@ export class FolderTree {
     for (const node of nodes) this.parents.set(node.id, node.parentId);
   }
 
+  get size(): number {
+    return this.parents.size;
+  }
+
   has(id: string): boolean {
     return this.parents.has(id);
+  }
+
+  hasChildren(id: string): boolean {
+    for (const parent of this.parents.values()) if (parent === id) return true;
+    return false;
   }
 
   /** 1 for a root folder. The walk is bounded, so a corrupt (cyclic) tree cannot hang the request. */
