@@ -44,5 +44,7 @@
   "unknownFolder": "The selected folder does not exist in this case.",
   "folderMove": "A folder cannot be moved into itself or one of its subfolders.",
   "folderDepth": "Folders can be nested at most 5 levels deep.",
-  "folderLimit": "A case can have at most 200 folders."
+  "folderLimit": "A case can have at most 200 folders.",
+  "roleHasOpenFiles": "This person is responsible for open files. Reassign them by deactivating the account, or keep a lawyer role.",
+  "reassignAllFiles": "Choose a new responsible lawyer for every open file."
 }

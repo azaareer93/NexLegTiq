@@ -29,7 +29,8 @@
   "notifications": {
     "open": "Notifications",
     "empty": "No notifications yet.",
-    "hearingReminder": "Upcoming hearing in file {{fileNumber}}"
+    "hearingReminder": "Upcoming hearing in file {{fileNumber}}",
+    "fileReassigned": "File {{fileNumber}} is now assigned to you"
   },
   "profile": {
     "menu": "Account menu",

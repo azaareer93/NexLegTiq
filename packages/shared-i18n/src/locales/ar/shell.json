@@ -29,7 +29,8 @@
   "notifications": {
     "open": "الإشعارات",
     "empty": "لا توجد إشعارات بعد.",
-    "hearingReminder": "جلسة قادمة في الملف {{fileNumber}}"
+    "hearingReminder": "جلسة قادمة في الملف {{fileNumber}}",
+    "fileReassigned": "أُسند إليك الملف {{fileNumber}}"
   },
   "profile": {
     "menu": "قائمة الحساب",
