@@ -13,6 +13,7 @@ import { navKeyOf, PRIMARY_KEYS, useNavItems } from '../nav';
 import { NotificationsBell } from './NotificationsBell';
 import { ProfileMenu } from './ProfileMenu';
 import { QuickActions } from './QuickActions';
+import { ReadOnlyBanner } from './ReadOnlyBanner';
 import { SearchOverlay } from './SearchOverlay';
 import { VerifyBanner } from './VerifyBanner';
 
@@ -154,6 +155,7 @@ export function AppShell(): React.JSX.Element {
           </Flex>
         </Layout.Header>
         <OfflineBanner />
+        <ReadOnlyBanner />
         <VerifyBanner />
         <Layout.Content
           style={{
