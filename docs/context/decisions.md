@@ -1332,3 +1332,26 @@ never locks a contact being edited. **`ClientSelect` needs `manage:clients`** (`
 `create:case` holds it (OM, SL, L, P), so the case form can always use it. The ticket's **"RTL snapshot"** is asserted as
 direction, Arabic labels and axe (list and open drawer) instead, as in D-091. Also added: `clientsApi`/`ClientListParams` in
 shared-api-client (D-089's resources) and the `clients` translation namespace (D-087).
+
+**D-123 — Quick-create case and the people directory** · Accepted (MVP-59, 2026-10-19)
+MVP-59 asks for responsible-lawyer and paralegal pickers, but no endpoint lists an office's people (team management is
+its own story), billing defaults "from office settings" while the office settings API does not exist yet, and an entry
+point on the client profile, which has no page yet. → **`GET /users/directory`** (`src/modules/users`): the office's
+**active** users as `{id, fullName, role}` by name — no email, status or invitations (the team-management list adds those)
+— readable with ANY of `view:all|assigned:cases` (every office role: colleagues' names are shown on every file anyway);
+not paginated (capped at 500). **Modal** (`apps/office-app/src/features/cases`): one `QuickCreateCaseModal`, its own lazy
+chunk, mounted once by `QuickCreateCaseHost` in the shell (only for `create:case`), opened from the shell's **+ Case**
+quick action, the cases list's **New case** and **Ctrl+Alt+N** (physical `KeyN`; ignored while typing in a field, since
+Ctrl+Alt is AltGr on Windows layouts that type characters with it). Fields: title, client (`ClientSelect` with inline
+create, D-121; one client at creation, `clientIds = [it]` and primary), type, priority (MEDIUM), sub-type, responsible
+lawyer (the directory's OFFICE_MANAGER/SENIOR_LAWYER/LAWYER — the API's rule — **defaulting to the caller** when eligible),
+optional paralegal (PARALEGAL), optional court (server search, platform and office courts) and judge (active judges of
+that court; changing the court clears it), billing method with rate or fee **only for `generate:invoice`** (D-096) and
+left empty by default — the API applies the office's billing method and rate (the "defaults from office settings" of the
+ticket, without reading them in the browser), and description. Validation from `CreateCaseSchema`; VAL-001 details land
+on their fields. **"Create"** closes the modal where the user is; **"Create & open"** goes to `/cases/:id`; both show
+"Case {number} created" (number isolated). The **+ Client** quick action now opens the client drawer (D-121's "coming
+soon" is gone); + Task stays a placeholder. **Deferred:** the client-profile entry point (no profile page), the Cypress
+journey (the Cypress project arrives with the E2E story; every control has a `data-testid`), confidentiality and court
+case number at creation (edited on the file page, D-118). Why: a case in a few keystrokes from anywhere, using only what
+the API already checks.
