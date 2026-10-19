@@ -1321,3 +1321,14 @@ drawer and picking the created client. **Not done here:** the primary-lawyer pic
 unset from the UI), deleting a client (not in the AC; the API refuses one with open files, BIZ-010), the shell's
 "+ Client" quick action (still "coming soon"), phone-sized cards (one horizontally scrolling table for now). Why: offices can
 add and find their clients today, and the case form gets a ready picker.
+Review additions (same PR): **a type change clears the old type's identification** (a person's national id, an
+organisation's tax id and industry: they could no longer be seen or corrected) and moves the name to the new legal-name
+column; **a rename keeps a separately stored legal name** — the legal name follows the display name only where they were
+equal (or empty). The client detail and the write bodies (which hold national and tax ids) are **not kept in memory after
+use** (`gcTime: 0`); contact writes refresh only that client. The search box follows the URL on back/forward too, and a
+search of only spaces is ignored. Contact buttons' accessible names and the removal sentence are translated keys with the
+name isolated (`isolate`, so office-app now declares shared-utils, D-074); "make primary" has its own request state, so it
+never locks a contact being edited. **`ClientSelect` needs `manage:clients`** (`GET /clients`): every role holding
+`create:case` holds it (OM, SL, L, P), so the case form can always use it. The ticket's **"RTL snapshot"** is asserted as
+direction, Arabic labels and axe (list and open drawer) instead, as in D-091. Also added: `clientsApi`/`ClientListParams` in
+shared-api-client (D-089's resources) and the `clients` translation namespace (D-087).

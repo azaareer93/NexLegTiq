@@ -58,7 +58,9 @@
     "phone": "Phone",
     "empty": "No contact persons yet.",
     "removeTitle": "Remove this contact person?",
-    "removeBody": "{{name}} will be removed from this client."
+    "removeBody": "{{name}} will be removed from the contact persons of this client.",
+    "editLabel": "Edit contact person {{name}}",
+    "removeLabel": "Delete contact person {{name}}"
   },
   "select": {
     "placeholder": "Search clients",

@@ -29,46 +29,56 @@ export const useClientsList = (query: ClientListParams, enabled = true) =>
     enabled,
   });
 
-/** `GET /clients/:id`: the client with its decrypted ids and contact persons (D-108). */
+/**
+ * `GET /clients/:id`: the client with its decrypted ids and contact persons (D-108). Dropped from the cache as soon as
+ * nothing shows it (`gcTime: 0`): national and tax ids are not kept in memory longer than the drawer is open.
+ */
 export const useClient = (id: string | null) =>
   useQuery({
     queryKey: clientKeys.detail(id ?? ''),
     queryFn: ({ signal }) => clients.get(id ?? '', signal),
     enabled: id !== null,
+    gcTime: 0,
   });
 
-/** Every write answers with the client (or touches its contacts): refresh the detail and every list. */
-function useClientMutation<T, R>(mutationFn: (body: T) => Promise<R>, id?: string) {
+/** A write that answers with the client: it replaces the cached detail, and every list refetches. */
+function useClientWrite<T>(mutationFn: (body: T) => Promise<Client>) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn,
-    onSuccess: (answer: R) => {
-      const client = answer as Partial<Client> | undefined;
-      if (client?.id && client.contacts) {
-        queryClient.setQueryData(clientKeys.detail(client.id), client);
-      } else if (id) {
-        void queryClient.invalidateQueries({ queryKey: clientKeys.detail(id) });
-      }
+    // The body may hold national and tax ids: not kept once the call is done.
+    gcTime: 0,
+    onSuccess: (client: Client) => {
+      queryClient.setQueryData(clientKeys.detail(client.id), client);
       void queryClient.invalidateQueries({ queryKey: clientKeys.lists() });
     },
   });
 }
 
+/** A write to a client's contact persons: only that client's detail changes (lists do not show contacts). */
+function useContactWrite<T>(id: string, mutationFn: (body: T) => Promise<unknown>) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn,
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: clientKeys.detail(id) }),
+  });
+}
+
 export const useCreateClient = () =>
-  useClientMutation((body: CreateClientRequest) => clients.create(body));
+  useClientWrite((body: CreateClientRequest) => clients.create(body));
 
 export const useUpdateClient = (id: string) =>
-  useClientMutation((body: UpdateClientRequest) => clients.update(id, body));
+  useClientWrite((body: UpdateClientRequest) => clients.update(id, body));
 
 export const useAddContact = (id: string) =>
-  useClientMutation((body: CreateContactPersonRequest) => clients.addContact(id, body), id);
+  useContactWrite(id, (body: CreateContactPersonRequest) => clients.addContact(id, body));
 
 export const useUpdateContact = (id: string) =>
-  useClientMutation(
+  useContactWrite(
+    id,
     ({ contactId, ...body }: UpdateContactPersonRequest & { contactId: string }) =>
       clients.updateContact(id, contactId, body),
-    id,
   );
 
 export const useRemoveContact = (id: string) =>
-  useClientMutation((contactId: string) => clients.removeContact(id, contactId), id);
+  useContactWrite(id, (contactId: string) => clients.removeContact(id, contactId));

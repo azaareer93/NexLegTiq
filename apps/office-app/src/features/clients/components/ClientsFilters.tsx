@@ -27,9 +27,11 @@ export function ClientsFilters({ state, onChange }: ClientsFiltersProps): React.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
-  // The search left the URL (filters cleared): empty the box. Typing never removes it, so this cannot fight the user.
+  // The URL's search changed on its own (filters cleared, back/forward): show it. While typing, the URL is only written
+  // from the settled text, so the two agree and this never fights the user.
   useEffect(() => {
-    if (state.search === undefined) setText('');
+    if ((state.search ?? '') !== search) setText(state.search ?? '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.search]);
 
   const status: Status = state.isActive === undefined ? 'all' : state.isActive ? 'true' : 'false';

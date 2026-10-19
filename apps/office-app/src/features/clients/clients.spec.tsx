@@ -1,15 +1,17 @@
 import type { Client, ClientListItem, ContactPerson } from '@nexlegtiq/shared-contracts';
+import { permissionsFor } from '@nexlegtiq/shared-types';
 import { LANGUAGE_STORAGE_KEY } from '@nexlegtiq/shared-ui';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import axe from 'axe-core';
 import { HttpResponse } from 'msw';
 
-import { changesOf, createBody } from './client-form';
+import { changesOf, createBody, valuesOf } from './client-form';
 import { ClientSelect } from './components/ClientSelect';
 import { readQuery, withChanges } from './list-params';
 import { AppRoot } from '../../app/app-root';
 import {
   api,
+  fail,
   http,
   ok,
   renderApp,
@@ -189,6 +191,27 @@ describe('list parameters and request bodies', () => {
       fullName: null,
     });
   });
+
+  it('should clear the old type identification on a type change and keep a different legal name', () => {
+    const person = detail({ nationalId: '401234567' });
+    expect(changesOf(person, { ...valuesOf(person), clientType: 'NGO', taxId: '562' })).toEqual({
+      clientType: 'NGO',
+      taxId: '562',
+      nationalId: null,
+      companyName: 'Omar Khalil',
+      fullName: null,
+    });
+    // A legal name stored apart from the display name is not overwritten by a rename.
+    const legal = detail({ displayName: 'Omar', fullName: 'Omar Ahmad Khalil' });
+    expect(changesOf(legal, { ...valuesOf(legal), displayName: 'Omar K.' })).toEqual({
+      displayName: 'Omar K.',
+    });
+    expect(changesOf(person, { ...valuesOf(person), displayName: 'Omar A. Khalil' })).toEqual({
+      displayName: 'Omar A. Khalil',
+      fullName: 'Omar A. Khalil',
+      companyName: null,
+    });
+  });
 });
 
 describe('clients list', () => {
@@ -272,6 +295,52 @@ describe('clients list', () => {
 
       fireEvent.click(await screen.findByTestId('clients-empty-new'));
       expect(await screen.findByTestId('client-name-input')).toBeTruthy();
+    },
+    SLOW,
+  );
+});
+
+describe('clients list states and permissions', () => {
+  it(
+    'should explain a failed load with a reference and recover on retry',
+    async () => {
+      setViewport(1280);
+      signedIn();
+      server.use(http.get(api('clients'), () => fail(503, 'SYS-002')));
+      renderApp('/clients');
+      expect(await screen.findByTestId('clients-error', {}, { timeout: COLD })).toBeTruthy();
+      serveClients([row()]);
+      fireEvent.click(within(screen.getByTestId('clients-error')).getByRole('button'));
+      expect(await table()).toBeTruthy();
+    },
+    SLOW,
+  );
+
+  it(
+    'should write the sort order to the URL and the request',
+    async () => {
+      setViewport(1280);
+      signedIn();
+      const queries = serveClients([row()]);
+      const { router } = renderApp('/clients');
+      const grid = await table();
+      fireEvent.click(within(grid).getByRole('columnheader', { name: /Open cases/ }));
+      await waitFor(() => expect(lastQuery(queries).sort).toBe('openFiles:asc'));
+      expect(new URLSearchParams(router.state.location.search).get('sort')).toBe('openFiles:asc');
+    },
+    SLOW,
+  );
+
+  it(
+    'should show the 403 page, ask nothing and hide the menu item for a role without manage:clients',
+    async () => {
+      setViewport(1280);
+      signedIn({ role: 'TRAINEE', permissions: [...permissionsFor('TRAINEE')] });
+      const queries = serveClients([row()]);
+      renderApp('/clients');
+      expect(await screen.findByTestId('page-forbidden', {}, { timeout: COLD })).toBeTruthy();
+      expect(queries).toHaveLength(0);
+      expect(screen.queryByTestId('nav-clients')).toBeNull();
     },
     SLOW,
   );
@@ -370,7 +439,10 @@ describe('client drawer', () => {
       );
 
       fireEvent.click(screen.getByTestId(`contact-remove-${CONTACT_ID}`));
-      fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+      const confirm = (await screen.findByText('Remove this contact person?')).closest(
+        '.ant-modal',
+      );
+      fireEvent.click(within(confirm as HTMLElement).getByRole('button', { name: 'Delete' }));
       await waitFor(() => expect(writes.at(-1)?.method).toBe('DELETE'));
 
       type('client-phone-input', '+970599111111');
@@ -380,6 +452,54 @@ describe('client drawer', () => {
           method: 'PATCH',
           path: `/api/v1/clients/${ID}`,
           body: { phone: '+970599111111' },
+        }),
+      );
+    },
+    SLOW,
+  );
+});
+
+describe('client drawer errors and contact edits', () => {
+  it(
+    "should put the API's field errors on their fields, without a banner",
+    async () => {
+      setViewport(1280);
+      signedIn();
+      serveClients([]);
+      server.use(
+        http.post(api('clients'), () =>
+          fail(400, 'VAL-001', [{ field: 'phone', message: 'validation.phone' }]),
+        ),
+      );
+      renderApp('/clients');
+      fireEvent.click(await screen.findByTestId('clients-new', {}, { timeout: COLD }));
+      type('client-name-input', 'Omar Khalil');
+      type('client-phone-input', '+970599000000');
+      fireEvent.click(screen.getByTestId('client-save'));
+      expect(await screen.findByText('Enter a valid phone number.')).toBeTruthy();
+      expect(screen.queryByTestId('client-error')).toBeNull();
+    },
+    SLOW,
+  );
+
+  it(
+    'should edit a contact person, sending only the changed fields',
+    async () => {
+      setViewport(1280);
+      signedIn();
+      serveClients([row()]);
+      const writes = serveWrites(detail({ contacts: [contact()] }));
+      renderApp('/clients');
+      fireEvent.click(within(await table()).getByText('Omar Khalil'));
+      fireEvent.click(await screen.findByTestId(`contact-edit-${CONTACT_ID}`));
+      expect(screen.getByTestId('contact-name-input')).toHaveProperty('value', 'Sara Khalil');
+      type('contact-position-input', 'CFO');
+      fireEvent.click(screen.getByTestId('contact-save'));
+      await waitFor(() =>
+        expect(writes.at(-1)).toEqual({
+          method: 'PATCH',
+          path: `/api/v1/clients/${ID}/contacts/${CONTACT_ID}`,
+          body: { position: 'CFO' },
         }),
       );
     },
@@ -434,6 +554,26 @@ describe('client picker', () => {
 });
 
 describe('clients in Arabic', () => {
+  it(
+    'should label the drawer in Arabic and pass axe with it open',
+    async () => {
+      setViewport(1280);
+      signedIn({ uiLanguage: 'AR' });
+      serveClients([]);
+      renderApp('/clients', 'ar');
+      fireEvent.click(await screen.findByTestId('clients-new', {}, { timeout: COLD }));
+      await screen.findByTestId('client-name-input');
+      expect(screen.getByText('الاسم الكامل')).toBeTruthy();
+      expect(screen.getByText('رقم الهوية')).toBeTruthy();
+      const drawer = document.querySelector('.ant-drawer') ?? document.body;
+      const { violations } = await axe.run(drawer, {
+        rules: { 'color-contrast': { enabled: false }, region: { enabled: false } },
+      });
+      expect(violations.map((violation) => violation.id)).toEqual([]);
+    },
+    AXE_SLOW,
+  );
+
   it(
     'should lay the list out right-to-left with Arabic labels and pass axe',
     async () => {

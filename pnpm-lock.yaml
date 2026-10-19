@@ -450,6 +450,9 @@ importers:
       '@nexlegtiq/shared-ui':
         specifier: workspace:*
         version: link:../../packages/shared-ui
+      '@nexlegtiq/shared-utils':
+        specifier: workspace:*
+        version: link:../../packages/shared-utils
       zod:
         specifier: ^4.6.5
         version: 4.6.5

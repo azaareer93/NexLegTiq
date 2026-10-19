@@ -62,7 +62,9 @@
     "phone": "الهاتف",
     "empty": "لا توجد جهات اتصال بعد.",
     "removeTitle": "حذف جهة الاتصال؟",
-    "removeBody": "ستُحذف {{name}} من هذا الموكل."
+    "removeBody": "سيُحذف {{name}} من جهات اتصال هذا الموكل.",
+    "editLabel": "تعديل جهة الاتصال {{name}}",
+    "removeLabel": "حذف جهة الاتصال {{name}}"
   },
   "select": {
     "placeholder": "ابحث عن موكل",

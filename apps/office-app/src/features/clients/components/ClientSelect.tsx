@@ -38,7 +38,7 @@ export function ClientSelect({
   const [text, setText] = useState('');
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [picked, setPicked] = useState<PickedClient | undefined>(initialClient);
+  const [picked, setPicked] = useState<PickedClient | undefined>();
   const search = useDebounced(text.trim());
   const list = useClientsList(
     { isActive: 'true', limit: '20', ...(search ? { search } : {}) },
@@ -49,9 +49,13 @@ export function ClientSelect({
     value: client.id,
     label: client.displayName,
   }));
-  // The picked client stays labelled when the current search no longer lists it.
-  if (picked && value === picked.id && !options.some((option) => option.value === picked.id)) {
-    options.unshift({ value: picked.id, label: picked.displayName });
+  // The current value keeps its name when the search no longer lists it: picked here, or given by the form (also when
+  // the form provides it only after loading).
+  const shown = [picked, initialClient].find(
+    (client) => client !== undefined && client.id === value,
+  );
+  if (shown && !options.some((option) => option.value === shown.id)) {
+    options.unshift({ value: shown.id, label: shown.displayName });
   }
 
   const pick = (client: PickedClient | undefined) => {

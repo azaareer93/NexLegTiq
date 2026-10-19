@@ -2,6 +2,7 @@ import { DeleteOutlined, EditOutlined, StarOutlined } from '@ant-design/icons';
 import type { Client, ContactPerson } from '@nexlegtiq/shared-contracts';
 import { CreateContactPersonSchema } from '@nexlegtiq/shared-contracts';
 import { ApiErrorAlert, Bdi, ConfirmModal, Ltr, useApiErrorHandler } from '@nexlegtiq/shared-ui';
+import { isolate } from '@nexlegtiq/shared-utils';
 import { Button, Card, Flex, Form, Input, Tag, Typography } from 'antd';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -44,6 +45,8 @@ export function ContactsEditor({ client }: { readonly client: Client }): React.J
   const [removing, setRemoving] = useState<ContactPerson | null>(null);
   const add = useAddContact(client.id);
   const update = useUpdateContact(client.id);
+  // Its own mutation: promoting one contact must not lock the form editing another.
+  const promote = useUpdateContact(client.id);
   const remove = useRemoveContact(client.id);
   const save = editing ? update : add;
   const shape = CreateContactPersonSchema.shape;
@@ -74,7 +77,7 @@ export function ContactsEditor({ client }: { readonly client: Client }): React.J
       <Typography.Title level={5} style={{ margin: 0 }}>
         {t('clients.contacts.title')}
       </Typography.Title>
-      <ApiErrorAlert error={remove.error ?? update.error} testId="contact-error" />
+      <ApiErrorAlert error={remove.error ?? promote.error} testId="contact-error" />
       {client.contacts.length === 0 ? (
         <Typography.Text type="secondary">{t('clients.contacts.empty')}</Typography.Text>
       ) : (
@@ -99,10 +102,8 @@ export function ContactsEditor({ client }: { readonly client: Client }): React.J
                   <Button
                     size="small"
                     icon={<StarOutlined />}
-                    loading={
-                      update.isPending && update.variables?.contactId === contact.id && !editing
-                    }
-                    onClick={() => update.mutate({ contactId: contact.id, isPrimary: true })}
+                    loading={promote.isPending && promote.variables?.contactId === contact.id}
+                    onClick={() => promote.mutate({ contactId: contact.id, isPrimary: true })}
                     data-testid={`contact-primary-${contact.id}`}
                   >
                     {t('clients.contacts.makePrimary')}
@@ -111,7 +112,7 @@ export function ContactsEditor({ client }: { readonly client: Client }): React.J
                 <Button
                   size="small"
                   icon={<EditOutlined />}
-                  aria-label={`${t('common.actions.edit')} — ${contact.fullName}`}
+                  aria-label={t('clients.contacts.editLabel', { name: isolate(contact.fullName) })}
                   onClick={() => {
                     setEditing(contact);
                     form.setFieldsValue(valuesOf(contact));
@@ -122,7 +123,9 @@ export function ContactsEditor({ client }: { readonly client: Client }): React.J
                   size="small"
                   danger
                   icon={<DeleteOutlined />}
-                  aria-label={`${t('common.actions.delete')} — ${contact.fullName}`}
+                  aria-label={t('clients.contacts.removeLabel', {
+                    name: isolate(contact.fullName),
+                  })}
                   onClick={() => setRemoving(contact)}
                   data-testid={`contact-remove-${contact.id}`}
                 />
@@ -132,7 +135,7 @@ export function ContactsEditor({ client }: { readonly client: Client }): React.J
         ))
       )}
       <Card size="small" title={editing ? t('common.actions.edit') : t('clients.contacts.add')}>
-        <ApiErrorAlert error={add.error} fields={FIELDS} testId="contact-add-error" />
+        <ApiErrorAlert error={save.error} fields={FIELDS} testId="contact-add-error" />
         <Form
           form={form}
           layout="vertical"
@@ -192,7 +195,7 @@ export function ContactsEditor({ client }: { readonly client: Client }): React.J
           }
         }}
       >
-        {removing ? t('clients.contacts.removeBody', { name: removing.fullName }) : null}
+        {removing ? t('clients.contacts.removeBody', { name: isolate(removing.fullName) }) : null}
       </ConfirmModal>
     </Flex>
   );

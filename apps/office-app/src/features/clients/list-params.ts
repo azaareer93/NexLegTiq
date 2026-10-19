@@ -19,7 +19,8 @@ export function readQuery(params: URLSearchParams): ClientListParams {
   const query: ClientListParams = {};
   for (const key of QUERY_KEYS) {
     const value = params.get(key);
-    if (value !== null && value !== '' && ClientQuerySchema.shape[key].safeParse(value).success) {
+    // A search of only spaces is no search (it would mark the list filtered and be sent as is).
+    if (value?.trim() && ClientQuerySchema.shape[key].safeParse(value).success) {
       query[key] = value;
     }
   }
