@@ -28,13 +28,17 @@ function setup(
 ) {
   const tx = {
     $executeRaw: jest.fn(),
+    $queryRaw: jest.fn(),
     user: {
       findFirst: jest.fn().mockResolvedValue(user),
       count: jest.fn().mockResolvedValue(managers),
       update: jest.fn(),
       findMany: jest.fn().mockResolvedValue(lawyers.map((id) => ({ id }))),
     },
-    legalFile: { findMany: jest.fn().mockResolvedValue(files), update: jest.fn() },
+    legalFile: {
+      findMany: jest.fn().mockResolvedValue(files),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+    },
     refreshToken: { updateMany: jest.fn() },
     fileTeamMember: { deleteMany: jest.fn(), upsert: jest.fn() },
     caseTimelineEvent: { create: jest.fn() },
@@ -134,8 +138,8 @@ describe('TeamService (D-124)', () => {
       { reassignments: [{ fileId: 'f1', newResponsibleLawyerId: ME }] },
       client,
     );
-    expect(tx.legalFile.update).toHaveBeenCalledWith({
-      where: { id: 'f1' },
+    expect(tx.legalFile.updateMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({ id: 'f1', responsibleLawyerId: 'user-1' }) as object,
       data: { responsibleLawyerId: ME },
     });
     expect(tx.notification.create).not.toHaveBeenCalled();
@@ -196,6 +200,29 @@ describe('TeamService (D-124)', () => {
     tx.user.findFirst.mockResolvedValueOnce(row()).mockResolvedValueOnce(row({ role: 'CEO' }));
     await expect(service.changeRole('user-1', 'LAWYER', client)).rejects.toMatchObject({
       code: 'RES-001',
+    });
+  });
+
+  it('should refuse a file that changed since it was listed (409 RES-003)', async () => {
+    const { service, tx } = setup(row(), { files: [{ id: 'f1', fileNumber: 'N1' }] });
+    tx.legalFile.updateMany.mockResolvedValueOnce({ count: 0 }).mockResolvedValue({ count: 0 });
+    await expect(
+      service.deactivate(
+        'user-1',
+        { reassignments: [{ fileId: 'f1', newResponsibleLawyerId: 'lawyer-2' }] },
+        client,
+      ),
+    ).rejects.toMatchObject({ code: 'RES-003' });
+  });
+
+  it('should release the files of a paralegal who changes role, and audit it', async () => {
+    const { service, tx } = setup(row({ role: 'PARALEGAL' }));
+    tx.legalFile.updateMany.mockResolvedValue({ count: 2 });
+    await service.changeRole('user-1', 'LAWYER', client);
+    expect(tx.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        newValues: { role: 'LAWYER', paralegalFilesCleared: 2 },
+      }) as object,
     });
   });
 });

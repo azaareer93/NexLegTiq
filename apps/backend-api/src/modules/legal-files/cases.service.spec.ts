@@ -50,7 +50,8 @@ function setup(context: Partial<RequestContext> = caller('OFFICE_MANAGER')) {
         Promise.resolve(where.id.in.length),
       ),
     },
-    user: { count: jest.fn().mockResolvedValue(1) },
+    // The lawyer and paralegal checks lock the user row (participants.ts): one row = active with the right role.
+    $queryRaw: jest.fn().mockResolvedValue([{ id: 'u' }]),
     legalFile: {
       create: jest.fn().mockResolvedValue({ id: 'f1' }),
       findFirst: jest.fn().mockResolvedValue({
@@ -185,7 +186,7 @@ describe('CasesService', () => {
   it('should report every unknown participant on its field and write nothing', async () => {
     const { service, tx } = setup();
     tx.client.count.mockResolvedValue(1); // one of the two clients is unknown
-    tx.user.count.mockResolvedValue(0);
+    tx.$queryRaw.mockResolvedValue([]);
     const error = await service
       .create(input({ responsibleParalegalId: PARALEGAL }), CLIENT_INFO)
       .catch((caught: unknown) => caught);

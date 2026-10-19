@@ -52,7 +52,9 @@ export function TeamPage(): React.JSX.Element {
           pagination={false}
           // shortcut: one scrolling table on phones, as the clients list (D-121).
           scroll={{ x: 'max-content' }}
-          onRow={(row) => ({ 'data-testid': `team-row-${row.id}` }) as object}
+          onRow={(row) =>
+            ({ 'data-testid': `team-row-${row.id}` }) as React.HTMLAttributes<HTMLElement>
+          }
         />
       )}
       {leaving ? (
@@ -123,6 +125,9 @@ function useColumns(onDeactivate: (member: TeamMember) => void): TableProps<Team
   ];
 }
 
+/** Who may be a file's responsible lawyer (the API's rule, D-096). */
+const LAWYER_ROLES: ReadonlySet<Role> = new Set(['OFFICE_MANAGER', 'SENIOR_LAWYER', 'LAWYER']);
+
 function RoleSelect({
   member,
   readOnly,
@@ -132,7 +137,7 @@ function RoleSelect({
 }): React.JSX.Element {
   const { t } = useTranslation();
   const { message } = App.useApp();
-  const { notify } = useApiErrorHandler();
+  const { notify, translateKey } = useApiErrorHandler();
   const change = useChangeRole();
   if (readOnly) return <>{t(`enums.role.${member.role}`)}</>;
   return (
@@ -142,13 +147,23 @@ function RoleSelect({
       loading={change.isPending}
       disabled={change.isPending}
       popupMatchSelectWidth={false}
-      options={ROLES.map((role) => ({ value: role, label: t(`enums.role.${role}`) }))}
+      // A responsible lawyer of open files keeps a lawyer role until the files are reassigned (D-124).
+      options={ROLES.map((role) => ({
+        value: role,
+        label: t(`enums.role.${role}`),
+        disabled: member.openFiles > 0 && !LAWYER_ROLES.has(role),
+      }))}
       onChange={(role) =>
         change.mutate(
           { id: member.id, role },
           {
             onSuccess: () => void message.success(t('team.roleChanged')),
-            onError: (error) => notify(error),
+            // A VAL-001 detail (validation.roleHasOpenFiles) says what to do; anything else is the generic message.
+            onError: (error) => {
+              const detail = isApiError(error) ? error.details?.[0] : undefined;
+              if (detail) void message.error(translateKey(detail.message));
+              else notify(error);
+            },
           },
         )
       }
@@ -172,6 +187,7 @@ function MemberAction({
     return (
       <Button
         danger
+        aria-label={t('team.deactivate.title', { name: isolate(member.fullName) })}
         onClick={() => onDeactivate(member)}
         data-testid={`team-deactivate-${member.id}`}
       >
@@ -181,6 +197,7 @@ function MemberAction({
   }
   return (
     <Button
+      aria-label={t('team.reactivateTitle', { name: isolate(member.fullName) })}
       loading={reactivate.isPending}
       onClick={() =>
         reactivate.mutate(member.id, {

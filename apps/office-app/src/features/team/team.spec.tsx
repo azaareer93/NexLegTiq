@@ -74,7 +74,7 @@ describe('Team management (D-124)', () => {
       expect(within(me).queryByTestId(`team-role-${USER.id}`)).toBeNull();
       expect(within(me).queryByRole('button')).toBeNull();
       const old = within(table).getByTestId(`team-row-${OLD}`);
-      expect(old.textContent).toContain('Deactivated');
+      expect(old.textContent).toContain('Inactive');
       expect(within(old).getByTestId(`team-reactivate-${OLD}`)).toBeTruthy();
     },
     SLOW,
@@ -146,6 +146,79 @@ describe('Team management (D-124)', () => {
   );
 
   it(
+    'should keep a lawyer role for a responsible lawyer of open files, and say why the API refuses',
+    async () => {
+      serveTeam();
+      server.use(
+        http.patch(api(`users/${SALMA}/role`), () =>
+          fail(400, 'VAL-001', [{ field: 'role', message: 'validation.roleHasOpenFiles' }]),
+        ),
+      );
+      const table = await openTeam();
+      const adel = await within(table).findByTestId(`team-role-${ADEL}`);
+      fireEvent.mouseDown(adel.querySelector('.ant-select-selector') ?? adel);
+      const paralegal = await screen.findByTitle('Paralegal');
+      expect(paralegal.getAttribute('aria-disabled')).toBe('true');
+      fireEvent.mouseDown(adel.querySelector('.ant-select-selector') ?? adel);
+
+      const salma = within(table).getByTestId(`team-role-${SALMA}`);
+      fireEvent.mouseDown(salma.querySelector('.ant-select-selector') ?? salma);
+      await waitFor(() => expect(screen.getAllByTitle('Paralegal').length).toBeGreaterThan(1));
+      const options = screen.getAllByTitle('Paralegal');
+      fireEvent.click(options.at(-1) as HTMLElement);
+      expect(await screen.findByText(/responsible for open files/)).toBeTruthy();
+    },
+    SLOW,
+  );
+
+  it(
+    'should show a refused reassignment on the file, or the whole-list rule, and pass axe with the wizard open',
+    async () => {
+      serveTeam();
+      let calls = 0;
+      server.use(
+        http.get(api(`users/${ADEL}/open-files`), () => ok(FILES)),
+        http.post(api(`users/${ADEL}/deactivate`), () => {
+          calls += 1;
+          return calls === 1
+            ? fail(400, 'VAL-001', [
+                {
+                  field: 'reassignments.1.newResponsibleLawyerId',
+                  message: 'validation.responsibleLawyer',
+                },
+              ])
+            : fail(400, 'VAL-001', [
+                { field: 'reassignments', message: 'validation.reassignAllFiles' },
+              ]);
+        }),
+      );
+      const table = await openTeam();
+      fireEvent.click(await within(table).findByTestId(`team-deactivate-${ADEL}`));
+      const modal = await screen.findByTestId('deactivate-modal');
+      await within(modal).findByText('2026-LIT-00001');
+      const all = within(modal).getByTestId('deactivate-all');
+      fireEvent.mouseDown(all.querySelector('.ant-select-selector') ?? all);
+      fireEvent.click((await screen.findAllByTitle(/Salma Senior/))[0] as HTMLElement);
+
+      fireEvent.click(screen.getByTestId('deactivate-confirm'));
+      expect(
+        await within(modal).findByText('Choose an active lawyer from your office.'),
+      ).toBeTruthy();
+      expect(within(modal).queryByTestId('deactivate-error')).toBeNull();
+
+      fireEvent.click(screen.getByTestId('deactivate-confirm'));
+      expect((await within(modal).findByTestId('deactivate-error')).textContent).toContain(
+        'Choose a new responsible lawyer for every open file.',
+      );
+      const { violations } = await axe.run(document.body, {
+        rules: { 'color-contrast': { enabled: false }, region: { enabled: false } },
+      });
+      expect(violations.map((violation) => violation.id)).toEqual([]);
+    },
+    SLOW,
+  );
+
+  it(
     'should reactivate, and explain a full plan',
     async () => {
       serveTeam();
@@ -173,7 +246,7 @@ describe('Team management (D-124)', () => {
     async () => {
       serveTeam();
       const table = await openTeam('ar');
-      await within(table).findByText('معطّل');
+      await within(table).findByText('غير نشط');
       expect(document.documentElement.dir).toBe('rtl');
       const { violations } = await axe.run(document.body, {
         rules: { 'color-contrast': { enabled: false }, region: { enabled: false } },

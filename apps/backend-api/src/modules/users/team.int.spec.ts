@@ -62,7 +62,11 @@ describe('team management (HTTP + PostgreSQL)', () => {
     return { userId: user.id, officeId, role };
   }
 
-  async function seedFile(lawyer: SeededUser, status: 'OPEN' | 'CLOSED' = 'OPEN') {
+  async function seedFile(
+    lawyer: SeededUser,
+    status: 'OPEN' | 'SUSPENDED' | 'CLOSED' | 'ARCHIVED' = 'OPEN',
+    extra: { deletedAt?: Date; responsibleParalegalId?: string } = {},
+  ) {
     const file = await raw.legalFile.create({
       data: {
         officeId: lawyer.officeId,
@@ -73,6 +77,7 @@ describe('team management (HTTP + PostgreSQL)', () => {
         responsibleLawyerId: lawyer.userId,
         jurisdiction: 'PALESTINE',
         currency: 'ILS',
+        ...extra,
       },
     });
     await raw.fileTeamMember.create({
@@ -128,42 +133,73 @@ describe('team management (HTTP + PostgreSQL)', () => {
   });
 
   it('should list the team with open-file counts, active first, and nobody from another office', async () => {
-    const { manager, lawyer, senior, officeId } = await office();
+    const { manager, lawyer, senior } = await office();
     await seedFile(lawyer);
+    await seedFile(lawyer, 'SUSPENDED');
     await seedFile(lawyer, 'CLOSED');
+    await seedFile(lawyer, 'ARCHIVED');
+    await seedFile(lawyer, 'OPEN', { deletedAt: new Date() });
+    await raw.user.update({
+      where: { id: lawyer.userId },
+      data: { lastLoginAt: new Date('2026-10-01T10:00:00.000Z') },
+    });
     await raw.user.update({ where: { id: senior.userId }, data: { isActive: false } });
     await seedUser(await seedOffice(), 'LAWYER', 'Other Office');
 
     const res = await http().get('/api/v1/users').set(bearerFor(jwt, manager)).expect(200);
     const team = (res.body as { data: TeamMember[] }).data;
     expect(team.map((m) => [m.fullName, m.isActive, m.openFiles])).toEqual([
-      ['Adel Lawyer', true, 1],
+      ['Adel Lawyer', true, 2],
       ['Basma Manager', true, 0],
       ['Salma Senior', false, 0],
     ]);
-    expect(team[0]).toMatchObject({ role: 'LAWYER', lastLoginAt: null });
+    expect(team[0]).toMatchObject({ role: 'LAWYER', lastLoginAt: '2026-10-01T10:00:00.000Z' });
+    expect(team[1]?.lastLoginAt).toBeNull();
     expect(team.every((m) => m.email.endsWith('@example.test'))).toBe(true);
-    expect(officeId).toBeDefined();
   });
 
-  it.each(['SENIOR_LAWYER', 'LAWYER', 'ADMIN'] as const)(
-    'should refuse team management to a %s (403 AUTH-100)',
-    async (role) => {
-      const { lawyer } = await office();
-      const user = await seedUser(lawyer.officeId, role);
-      await http().get('/api/v1/users').set(bearerFor(jwt, user)).expect(403);
-      await http()
+  const routes = (id: string) => [
+    () => http().get('/api/v1/users'),
+    () => http().get(`/api/v1/users/${id}/open-files`),
+    () => http().patch(`/api/v1/users/${id}/role`).send({ role: 'PARALEGAL' }),
+    () => http().post(`/api/v1/users/${id}/deactivate`).send({}),
+    () => http().post(`/api/v1/users/${id}/reactivate`),
+  ];
+
+  it.each([
+    'SENIOR_LAWYER',
+    'LAWYER',
+    'PARALEGAL',
+    'ADMIN',
+    'TRAINEE',
+    'EXTERNAL_COLLABORATOR',
+  ] as const)('should refuse team management to a %s (403 AUTH-100)', async (role) => {
+    const { lawyer } = await office();
+    const user = await seedUser(lawyer.officeId, role);
+    for (const req of routes(lawyer.userId)) {
+      const res = await req().set(bearerFor(jwt, user)).expect(403);
+      expect((res.body as ErrorBody).error.code).toBe('AUTH-100');
+    }
+    expect((await raw.user.findUniqueOrThrow({ where: { id: lawyer.userId } })).role).toBe(
+      'LAWYER',
+    );
+  });
+
+  it('should refuse team management without a token, and an unknown role', async () => {
+    const { manager, lawyer } = await office();
+    for (const req of routes(lawyer.userId)) {
+      const res = await req().expect(401);
+      expect((res.body as ErrorBody).error.code).toBe('AUTH-003');
+    }
+    for (const body of [{ role: 'CEO' }, {}]) {
+      const res = await http()
         .patch(`/api/v1/users/${lawyer.userId}/role`)
-        .set(bearerFor(jwt, user))
-        .send({ role: 'PARALEGAL' })
-        .expect(403);
-      await http()
-        .post(`/api/v1/users/${lawyer.userId}/deactivate`)
-        .set(bearerFor(jwt, user))
-        .send({})
-        .expect(403);
-    },
-  );
+        .set(bearerFor(jwt, manager))
+        .send(body)
+        .expect(400);
+      expect((res.body as ErrorBody).error.code).toBe('VAL-001');
+    }
+  });
 
   it("should answer 404 for another office's user and a malformed id", async () => {
     const { manager } = await office();
@@ -218,6 +254,37 @@ describe('team management (HTTP + PostgreSQL)', () => {
     expect(audit?.newValues).toEqual({ role: 'LAWYER' });
   });
 
+  it('should not count an inactive office manager as the other manager', async () => {
+    const { manager } = await office();
+    const former = await seedUser(manager.officeId, 'OFFICE_MANAGER');
+    await raw.user.update({ where: { id: former.userId }, data: { isActive: false } });
+    const res = await http()
+      .post(`/api/v1/users/${manager.userId}/deactivate`)
+      .set(bearerFor(jwt, manager))
+      .send({})
+      .expect(422);
+    expect((res.body as ErrorBody).error.code).toBe('BIZ-001');
+  });
+
+  it('should let only one of two managers demoting each other at once succeed', async () => {
+    const { manager: a } = await office();
+    const b = await seedUser(a.officeId, 'OFFICE_MANAGER');
+    const demote = (by: SeededUser, target: SeededUser) =>
+      http()
+        .patch(`/api/v1/users/${target.userId}/role`)
+        .set(bearerFor(jwt, by))
+        .send({ role: 'LAWYER' })
+        .then((res) => res.status);
+    const statuses = await Promise.all([demote(a, b), demote(b, a)]);
+    // The loser is refused by the last-manager rule (422) or, demoted already, by the permission guard (403).
+    expect(statuses.filter((status) => status === 200)).toHaveLength(1);
+    expect(
+      await raw.user.count({
+        where: { officeId: a.officeId, role: 'OFFICE_MANAGER', isActive: true },
+      }),
+    ).toBe(1);
+  });
+
   it('should refuse a non-lawyer role for a responsible lawyer with open files', async () => {
     const { manager, lawyer } = await office();
     await seedFile(lawyer);
@@ -267,30 +334,81 @@ describe('team management (HTTP + PostgreSQL)', () => {
     ]);
     const user = await raw.user.findUniqueOrThrow({ where: { id: lawyer.userId } });
     expect(user.isActive).toBe(true);
+    const empty = await http()
+      .post(`/api/v1/users/${lawyer.userId}/deactivate`)
+      .set(bearerFor(jwt, manager))
+      .send({})
+      .expect(400);
+    expect((empty.body as ErrorBody).error.details?.[0]?.message).toBe(
+      'validation.reassignAllFiles',
+    );
+    // Another office's lawyer, or another office's file, is unknown here.
+    const elsewhere = await seedUser(await seedOffice(), 'LAWYER');
+    const foreignFile = await seedFile(elsewhere);
+    const foreignLawyer = await http()
+      .post(`/api/v1/users/${lawyer.userId}/deactivate`)
+      .set(bearerFor(jwt, manager))
+      .send({
+        reassignments: [
+          { fileId: a.id, newResponsibleLawyerId: elsewhere.userId },
+          { fileId: b.id, newResponsibleLawyerId: senior.userId },
+        ],
+      })
+      .expect(400);
+    expect((foreignLawyer.body as ErrorBody).error.details).toEqual([
+      expect.objectContaining({ field: 'reassignments.0.newResponsibleLawyerId' }),
+    ]);
+    const foreign = await http()
+      .post(`/api/v1/users/${lawyer.userId}/deactivate`)
+      .set(bearerFor(jwt, manager))
+      .send({
+        reassignments: [a, b, foreignFile].map((file) => ({
+          fileId: file.id,
+          newResponsibleLawyerId: senior.userId,
+        })),
+      })
+      .expect(400);
+    expect((foreign.body as ErrorBody).error.details?.[0]?.message).toBe(
+      'validation.reassignAllFiles',
+    );
     expect(
       (await raw.legalFile.findUniqueOrThrow({ where: { id: a.id } })).responsibleLawyerId,
     ).toBe(lawyer.userId);
+    expect(
+      (await raw.legalFile.findUniqueOrThrow({ where: { id: foreignFile.id } }))
+        .responsibleLawyerId,
+    ).toBe(elsewhere.userId);
   });
 
   it('should deactivate with reassignment: sessions revoked, team, timeline, notification and reminders', async () => {
     const { manager, lawyer, senior } = await office();
+    const attending = await seedUser(lawyer.officeId, 'LAWYER', 'Attending');
     const file = await seedFile(lawyer);
+    const suspended = await seedFile(lawyer, 'SUSPENDED');
     const closed = await seedFile(lawyer, 'CLOSED');
-    await raw.refreshToken.create({
-      data: {
-        officeId: lawyer.officeId,
-        userId: lawyer.userId,
-        familyId: randomUUID(),
-        tokenHash: randomUUID(),
-        expiresAt: new Date(Date.now() + 86_400_000),
-      },
+    // The new lawyer is already on the team as a member: that row becomes the responsible lawyer's.
+    await raw.fileTeamMember.create({
+      data: { officeId: lawyer.officeId, fileId: file.id, userId: senior.userId, role: 'MEMBER' },
     });
+    // The leaver is also the responsible paralegal of a colleague's file (data from before a role change).
+    const assisted = await seedFile(manager, 'OPEN', { responsibleParalegalId: lawyer.userId });
+    for (const owner of [lawyer, manager]) {
+      await raw.refreshToken.create({
+        data: {
+          officeId: owner.officeId,
+          userId: owner.userId,
+          familyId: randomUUID(),
+          tokenHash: randomUUID(),
+          expiresAt: new Date(Date.now() + 86_400_000),
+        },
+      });
+    }
     const session = await raw.session.create({
       data: {
         officeId: lawyer.officeId,
         fileId: file.id,
         startsAt: new Date(Date.now() + 10 * 86_400_000),
-        attendingLawyerId: senior.userId,
+        attendingLawyerId: attending.userId,
         createdById: manager.userId,
         reminderDays: [1],
       },
@@ -299,7 +417,12 @@ describe('team management (HTTP + PostgreSQL)', () => {
     const res = await http()
       .post(`/api/v1/users/${lawyer.userId}/deactivate`)
       .set(bearerFor(jwt, manager))
-      .send({ reassignments: [{ fileId: file.id, newResponsibleLawyerId: senior.userId }] })
+      .send({
+        reassignments: [file, suspended].map((f) => ({
+          fileId: f.id,
+          newResponsibleLawyerId: senior.userId,
+        })),
+      })
       .expect(200);
     expect((res.body as { data: TeamMember }).data).toMatchObject({
       isActive: false,
@@ -310,8 +433,18 @@ describe('team management (HTTP + PostgreSQL)', () => {
       await raw.refreshToken.count({ where: { userId: lawyer.userId, revokedAt: null } }),
     ).toBe(0);
     expect(
+      await raw.refreshToken.count({ where: { userId: manager.userId, revokedAt: null } }),
+    ).toBe(1);
+    expect(
       (await raw.legalFile.findUniqueOrThrow({ where: { id: file.id } })).responsibleLawyerId,
     ).toBe(senior.userId);
+    expect(
+      (await raw.legalFile.findUniqueOrThrow({ where: { id: suspended.id } })).responsibleLawyerId,
+    ).toBe(senior.userId);
+    expect(
+      (await raw.legalFile.findUniqueOrThrow({ where: { id: assisted.id } }))
+        .responsibleParalegalId,
+    ).toBeNull();
     expect(
       (await raw.legalFile.findUniqueOrThrow({ where: { id: closed.id } })).responsibleLawyerId,
     ).toBe(lawyer.userId);
@@ -329,20 +462,32 @@ describe('team management (HTTP + PostgreSQL)', () => {
       toUserId: senior.userId,
       reason: 'DEACTIVATION',
     });
-    const notification = await raw.notification.findFirstOrThrow({
+    const notifications = await raw.notification.findMany({
       where: { userId: senior.userId },
+      select: { type: true, titleKey: true, link: true },
     });
-    expect(notification).toMatchObject({
+    expect(notifications.map((n) => n.link).sort()).toEqual(
+      [`/cases/${file.id}`, `/cases/${suspended.id}`].sort(),
+    );
+    expect(notifications[0]).toMatchObject({
       type: 'file.reassigned',
       titleKey: 'shell.notifications.fileReassigned',
-      link: `/cases/${file.id}`,
     });
-    expect(
-      await raw.sessionReminder.count({ where: { sessionId: session.id, status: 'PENDING' } }),
-    ).toBe(1);
+    // The attending lawyer and the new responsible lawyer are reminded; the leaver is not.
+    const reminders = await raw.sessionReminder.findMany({
+      where: { sessionId: session.id, status: 'PENDING' },
+      select: { recipientId: true },
+    });
+    expect(reminders.map((r) => r.recipientId).sort()).toEqual(
+      [attending.userId, senior.userId].sort(),
+    );
 
     // The deactivated user's token stops working at once (D-082).
-    await http().get('/api/v1/users/directory').set(bearerFor(jwt, lawyer)).expect(403);
+    const refused = await http()
+      .get('/api/v1/users/directory')
+      .set(bearerFor(jwt, lawyer))
+      .expect(403);
+    expect((refused.body as ErrorBody).error.code).toBe('AUTH-006');
     // Again: nothing to do.
     await http()
       .post(`/api/v1/users/${lawyer.userId}/deactivate`)

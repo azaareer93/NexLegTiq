@@ -19,11 +19,10 @@ export const useTeam = () =>
   useQuery({ queryKey: teamKeys.team, queryFn: ({ signal }) => users.team(signal) });
 
 /** The open files deactivating `id` must reassign; read fresh each time the wizard opens. */
-export const useOpenFiles = (id: string | null) =>
+export const useOpenFiles = (id: string) =>
   useQuery({
-    queryKey: teamKeys.openFiles(id ?? ''),
-    queryFn: ({ signal }) => users.openFiles(id ?? '', signal),
-    enabled: id !== null,
+    queryKey: teamKeys.openFiles(id),
+    queryFn: ({ signal }) => users.openFiles(id, signal),
     gcTime: 0,
   });
 

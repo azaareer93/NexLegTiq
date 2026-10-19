@@ -11,7 +11,7 @@
   },
   "status": {
     "active": "Active",
-    "inactive": "Deactivated"
+    "inactive": "Inactive"
   },
   "you": "You",
   "never": "Never",
@@ -24,10 +24,11 @@
     "title": "Deactivate {{name}}",
     "intro": "{{name}} will be signed out everywhere and can no longer sign in. Choose a new responsible lawyer for each of their open files.",
     "noFiles": "{{name}} will be signed out everywhere and can no longer sign in. They are not responsible for any open file.",
-    "applyAll": "Give every file to",
+    "applyAll": "Reassign all files to",
     "newLawyer": "New responsible lawyer for {{file}}",
     "pickLawyer": "Choose a lawyer",
     "confirm": "Deactivate",
     "done": "{{name}} has been deactivated"
-  }
+  },
+  "reactivateTitle": "Reactivate {{name}}"
 }

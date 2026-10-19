@@ -1441,3 +1441,18 @@ keep pointing at them (delivery cancels their reminders, D-117; the calendar and
 invitations (their own story); a deactivated user's paralegal/member rows on other files stay as history. **Known limit:**
 the reactivate seat check reads usage outside the lock's transaction snapshot (two reactivations at once are serialised by
 the lock, an invitation accepted at that instant is not).
+Review additions (same PR): **opening a case cannot race a deactivation or role change** — case creation now checks the
+responsible lawyer and paralegal with `SELECT … FOR SHARE` (active, right role, the office's id as a parameter) and team
+writes lock the user's row `FOR UPDATE` after the team lock, so either the case commits first and must be reassigned, or
+the check waits and sees the change. Each reassignment is a **conditional update** (still the leaver's, open and live) —
+a file deleted or closed meanwhile is 409 RES-003 and nothing is written. **Responsible paralegal** (D-096: an active
+PARALEGAL): deactivating them, or changing a PARALEGAL's role, clears `responsibleParalegalId` on their open files (audited
+as `paralegalFilesCleared`); their team rows stay, so a promoted paralegal keeps working on those files. The open-file list
+is capped at the contract's 500 reassignments; deactivation runs with a **60 s transaction timeout**
+(`UnitOfWork.run(work, {timeoutMs})`, Prisma's default is 5 s) since every file and upcoming hearing is rewritten.
+**Role changes** leave tasks and attending-lawyer sessions as they are, like deactivation; the API allows a manager to demote
+or deactivate themselves while another active manager exists (only the UI hides it); **reactivating** someone restores their
+old team rows and so their access to those files, confidential ones included. UI: non-lawyer roles are disabled for a
+responsible lawyer of open files, the API's VAL-001 reason is shown in words (role select, the wizard's list rule, and per
+file on its picker), buttons are named per person, statuses read Inactive / غير نشط (as for clients) and Arabic says
+"إيقاف الحساب" for deactivate.

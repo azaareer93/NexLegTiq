@@ -1,14 +1,21 @@
 import { Injectable } from '@nestjs/common';
 import type { DeactivateUserRequest, TeamMember, UserOpenFile } from '@nexlegtiq/shared-contracts';
-import { isRole } from '@nexlegtiq/shared-types';
 import type { Role } from '@nexlegtiq/shared-types';
 import { ClsService } from 'nestjs-cls';
 
+import {
+  assertAnotherManager,
+  assertCoversAll,
+  assertLawyers,
+  assertRoleKeepsFiles,
+  OPEN_FILE,
+  present,
+  releaseParalegalFiles,
+} from './team.rules';
 import type { RequestContext } from '../../common/context/request-context';
 import {
-  BusinessRuleException,
+  ResourceConflictException,
   ResourceNotFoundException,
-  ValidationException,
 } from '../../common/errors/app.exception';
 import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
@@ -18,12 +25,12 @@ import { truncateUserAgent } from '../auth/client-info';
 import { ReminderScheduler } from '../sessions/reminder-scheduler';
 import { EntitlementsService } from '../subscriptions/entitlements.service';
 
-/** Who may be a file's responsible lawyer (D-096). */
-const LAWYER_ROLES: readonly Role[] = ['OFFICE_MANAGER', 'SENIOR_LAWYER', 'LAWYER'];
-/** Files that need a responsible lawyer: live and not closed (as BIZ-010 counts them, D-108). */
-const OPEN_FILE = { deletedAt: null, status: { in: ['OPEN' as const, 'SUSPENDED' as const] } };
 /** shortcut: no paging — offices have tens of users; page it if an office ever passes 500 (as the directory). */
 const MAX_USERS = 500;
+/** The contract's cap on `reassignments`; a lawyer with more open files is reassigned on the file pages first. */
+const MAX_REASSIGNMENTS = 500;
+/** Many files and hearings are rewritten in one transaction: more than Prisma's 5 s default. */
+const DEACTIVATE_TIMEOUT_MS = 60_000;
 
 const MEMBER_SELECT = {
   id: true,
@@ -66,22 +73,28 @@ export class TeamService {
       where: { responsibleLawyerId: userId, ...OPEN_FILE },
       select: { id: true, fileNumber: true, title: true },
       orderBy: { fileNumber: 'asc' },
+      take: MAX_REASSIGNMENTS,
     });
   }
 
   async changeRole(userId: string, role: Role, client: ClientInfo): Promise<TeamMember> {
     await this.uow.run(async (tx) => {
-      await this.lockTeam(tx);
+      await this.lockTeam(tx, userId);
       const user = await this.member(tx, userId);
       if (user.role === role) return;
       if (user.isActive && user.role === 'OFFICE_MANAGER') await assertAnotherManager(tx, userId);
-      // A responsible lawyer must hold a lawyer role (D-096): reassign their files (deactivate wizard) first.
-      if (user.isActive && !LAWYER_ROLES.includes(role) && user._count.responsibleFiles > 0) {
-        throw new ValidationException([{ field: 'role', message: 'validation.roleHasOpenFiles' }]);
-      }
+      if (user.isActive) assertRoleKeepsFiles(user._count, role);
       await tx.user.update({ where: { id: userId }, data: { role } });
+      const paralegalFilesCleared =
+        user.role === 'PARALEGAL' ? await releaseParalegalFiles(tx, userId) : 0;
       await tx.auditLog.create({
-        data: this.audit(client, 'User', userId, { role: user.role }, { role }),
+        data: this.audit(
+          client,
+          'User',
+          userId,
+          { role: user.role },
+          { role, ...(paralegalFilesCleared > 0 && { paralegalFilesCleared }) },
+        ),
       });
     });
     return this.get(userId);
@@ -96,45 +109,53 @@ export class TeamService {
     input: DeactivateUserRequest,
     client: ClientInfo,
   ): Promise<TeamMember> {
-    await this.uow.run(async (tx, afterCommit) => {
-      await this.lockTeam(tx);
-      const user = await this.member(tx, userId);
-      if (!user.isActive) return;
-      if (user.role === 'OFFICE_MANAGER') await assertAnotherManager(tx, userId);
-      const files = await tx.legalFile.findMany({
-        where: { responsibleLawyerId: userId, ...OPEN_FILE },
-        select: { id: true, fileNumber: true },
-      });
-      const reassignments = input.reassignments ?? [];
-      assertCoversAll(files, reassignments);
-      await assertLawyers(tx, userId, reassignments);
-      const now = new Date();
-      await tx.user.update({ where: { id: userId }, data: { isActive: false } });
-      await tx.refreshToken.updateMany({
-        where: { userId, revokedAt: null },
-        data: { revokedAt: now },
-      });
-      for (const file of files) {
-        const to = reassignments.find((row) => row.fileId === file.id)?.newResponsibleLawyerId;
-        if (to) await this.reassign(tx, afterCommit, { ...file, from: userId, to }, client);
-      }
-      await tx.auditLog.create({
-        data: this.audit(
-          client,
-          'User',
-          userId,
-          { isActive: true },
-          { isActive: false, reassignedFiles: files.length },
-        ),
-      });
-    });
+    await this.uow.run(
+      async (tx, afterCommit) => {
+        await this.lockTeam(tx, userId);
+        const user = await this.member(tx, userId);
+        if (!user.isActive) return;
+        if (user.role === 'OFFICE_MANAGER') await assertAnotherManager(tx, userId);
+        const files = await tx.legalFile.findMany({
+          where: { responsibleLawyerId: userId, ...OPEN_FILE },
+          select: { id: true, fileNumber: true },
+        });
+        const reassignments = input.reassignments ?? [];
+        assertCoversAll(files, reassignments);
+        await assertLawyers(tx, userId, reassignments);
+        const now = new Date();
+        await tx.user.update({ where: { id: userId }, data: { isActive: false } });
+        await tx.refreshToken.updateMany({
+          where: { userId, revokedAt: null },
+          data: { revokedAt: now },
+        });
+        const paralegalFilesCleared = await releaseParalegalFiles(tx, userId);
+        for (const file of files) {
+          const to = reassignments.find((row) => row.fileId === file.id)?.newResponsibleLawyerId;
+          if (to) await this.reassign(tx, afterCommit, { ...file, from: userId, to }, client);
+        }
+        await tx.auditLog.create({
+          data: this.audit(
+            client,
+            'User',
+            userId,
+            { isActive: true },
+            {
+              isActive: false,
+              reassignedFiles: files.length,
+              paralegalFilesCleared,
+            },
+          ),
+        });
+      },
+      { timeoutMs: DEACTIVATE_TIMEOUT_MS },
+    );
     return this.get(userId);
   }
 
   /** Reactivates a user when the plan has a free seat (422 BIZ-008). */
   async reactivate(userId: string, client: ClientInfo): Promise<TeamMember> {
     await this.uow.run(async (tx) => {
-      await this.lockTeam(tx);
+      await this.lockTeam(tx, userId);
       const user = await this.member(tx, userId);
       if (user.isActive) return;
       await this.entitlements.assertUserSlot();
@@ -153,7 +174,12 @@ export class TeamService {
     client: ClientInfo,
   ): Promise<void> {
     const officeId = this.officeId();
-    await tx.legalFile.update({ where: { id: file.id }, data: { responsibleLawyerId: file.to } });
+    // Conditional (D-096): a file deleted or closed since it was listed is a conflict, not a silent reassignment.
+    const moved = await tx.legalFile.updateMany({
+      where: { id: file.id, responsibleLawyerId: file.from, ...OPEN_FILE },
+      data: { responsibleLawyerId: file.to },
+    });
+    if (moved.count === 0) throw new ResourceConflictException('RES-003');
     // One responsible lawyer per file (D-095): the leaver leaves the team, the new lawyer takes the role.
     await tx.fileTeamMember.deleteMany({ where: { fileId: file.id, userId: file.from } });
     await tx.fileTeamMember.upsert({
@@ -228,8 +254,14 @@ export class TeamService {
     return user;
   }
 
-  private async lockTeam(tx: ScopedTransaction): Promise<void> {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`team:${this.officeId()}`}, 0))`;
+  /**
+   * The office's team lock (two managers never pass the last-manager check together), then the user's row: a case being
+   * opened for them holds it FOR SHARE (cases.service), so it commits first and is seen here, or waits and sees the change.
+   */
+  private async lockTeam(tx: ScopedTransaction, userId: string): Promise<void> {
+    const officeId = this.officeId();
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`team:${officeId}`}, 0))`;
+    await tx.$queryRaw`SELECT 1 FROM users WHERE id = ${userId}::uuid AND office_id = ${officeId}::uuid FOR UPDATE`;
   }
 
   private audit(
@@ -264,75 +296,4 @@ export class TeamService {
     if (!officeId) throw new Error('No office in the request context');
     return officeId;
   }
-}
-
-type MemberRow = {
-  id: string;
-  fullName: string;
-  email: string;
-  role: string;
-  isActive: boolean;
-  lastLoginAt: Date | null;
-  _count: { responsibleFiles: number };
-};
-
-function present(user: MemberRow): TeamMember | null {
-  if (!isRole(user.role)) return null;
-  return {
-    id: user.id,
-    fullName: user.fullName,
-    email: user.email,
-    role: user.role,
-    isActive: user.isActive,
-    openFiles: user._count.responsibleFiles,
-    lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
-  };
-}
-
-/** 422 BIZ-001: the office must keep an active OFFICE_MANAGER. */
-async function assertAnotherManager(tx: ScopedTransaction, userId: string): Promise<void> {
-  const others = await tx.user.count({
-    where: { role: 'OFFICE_MANAGER', isActive: true, id: { not: userId } },
-  });
-  if (others === 0) {
-    throw new BusinessRuleException('BIZ-001', 'The office must keep an active office manager');
-  }
-}
-
-type Reassignment = { fileId: string; newResponsibleLawyerId: string };
-
-/** Exactly the user's open files: a missing one would be left without a lawyer, an extra one is not theirs. */
-function assertCoversAll(files: readonly { id: string }[], rows: readonly Reassignment[]): void {
-  const open = new Set(files.map((file) => file.id));
-  const covered = rows.filter((row) => open.has(row.fileId)).length;
-  if (covered !== open.size || rows.length !== open.size) {
-    throw new ValidationException([
-      { field: 'reassignments', message: 'validation.reassignAllFiles' },
-    ]);
-  }
-}
-
-/** Every new lawyer: an active OM/SL/L of the office, other than the user leaving. */
-async function assertLawyers(
-  tx: ScopedTransaction,
-  leaving: string,
-  rows: readonly Reassignment[],
-): Promise<void> {
-  const ids = [...new Set(rows.map((row) => row.newResponsibleLawyerId))];
-  const valid = await tx.user.findMany({
-    where: { id: { in: ids, not: leaving }, isActive: true, role: { in: [...LAWYER_ROLES] } },
-    select: { id: true },
-  });
-  const ok = new Set(valid.map((user) => user.id));
-  const details = rows.flatMap((row, index) =>
-    ok.has(row.newResponsibleLawyerId)
-      ? []
-      : [
-          {
-            field: `reassignments.${index}.newResponsibleLawyerId`,
-            message: 'validation.responsibleLawyer',
-          },
-        ],
-  );
-  if (details.length > 0) throw new ValidationException(details);
 }

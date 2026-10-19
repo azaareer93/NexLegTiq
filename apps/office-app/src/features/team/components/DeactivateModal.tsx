@@ -1,8 +1,15 @@
 import type { TeamMember } from '@nexlegtiq/shared-contracts';
 import type { Role } from '@nexlegtiq/shared-types';
-import { ApiErrorAlert, Ltr, LoadingSkeleton, useApiErrorHandler } from '@nexlegtiq/shared-ui';
+import {
+  ApiErrorAlert,
+  Bdi,
+  isApiError,
+  Ltr,
+  LoadingSkeleton,
+  useApiErrorHandler,
+} from '@nexlegtiq/shared-ui';
 import { isolate, isolateLtr } from '@nexlegtiq/shared-utils';
-import { App, Form, Modal, Select, Typography } from 'antd';
+import { Alert, App, Form, Modal, Select, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
 
 import { useDeactivate, useOpenFiles } from '../api/use-team';
@@ -40,6 +47,16 @@ export function DeactivateModal({
   const giveAll = (lawyerId: string) =>
     form.setFieldsValue(Object.fromEntries(list.map((file) => [file.id, lawyerId])));
 
+  /** VAL-001 on `reassignments.<i>.newResponsibleLawyerId` goes on that file's picker. */
+  const showOnPickers = (error: unknown) => {
+    if (!isApiError(error)) return;
+    form.setFields(
+      (error.details ?? []).flatMap((detail) => {
+        const file = list[Number(/^reassignments\.(\d+)\./.exec(detail.field ?? '')?.[1])];
+        return file ? [{ name: file.id, errors: [translateKey(detail.message)] }] : [];
+      }),
+    );
+  };
   const submit = (values: Record<string, string | undefined>) => {
     const reassignments = list.map((file) => ({
       fileId: file.id,
@@ -53,7 +70,10 @@ export function DeactivateModal({
           onClose();
         },
         // The files may have changed meanwhile (VAL-001 on reassignments): show the current list.
-        onError: () => void files.refetch(),
+        onError: (error) => {
+          showOnPickers(error);
+          void files.refetch();
+        },
       },
     );
   };
@@ -75,7 +95,7 @@ export function DeactivateModal({
       data-testid="deactivate-modal"
     >
       {files.isPending ? <LoadingSkeleton rows={3} /> : null}
-      <ApiErrorAlert error={files.error ?? deactivate.error} testId="deactivate-error" />
+      <DeactivateError error={files.error ?? deactivate.error} files={list.length} />
       {files.isSuccess ? (
         <>
           <Typography.Paragraph>
@@ -85,6 +105,7 @@ export function DeactivateModal({
             {list.length > 1 ? (
               <Form.Item label={t('team.deactivate.applyAll')}>
                 <Select
+                  aria-label={t('team.deactivate.applyAll')}
                   options={lawyers}
                   onChange={giveAll}
                   placeholder={t('team.deactivate.pickLawyer')}
@@ -99,7 +120,7 @@ export function DeactivateModal({
                 name={file.id}
                 label={
                   <span>
-                    <Ltr>{file.fileNumber}</Ltr> · {file.title}
+                    <Ltr>{file.fileNumber}</Ltr> · <Bdi>{file.title}</Bdi>
                   </span>
                 }
                 rules={[{ required: true, message: translateKey('validation.responsibleLawyer') }]}
@@ -118,4 +139,30 @@ export function DeactivateModal({
       ) : null}
     </Modal>
   );
+}
+
+/**
+ * A rule about the whole list (`validation.reassignAllFiles`) is said in words, not as the generic VAL-001; errors on a
+ * file's picker are shown on the picker.
+ */
+function DeactivateError({ error, files }: { error: unknown; files: number }): React.JSX.Element {
+  const { translateKey } = useApiErrorHandler();
+  const listError = isApiError(error)
+    ? error.details?.find((detail) => detail.field === 'reassignments')
+    : undefined;
+  if (listError) {
+    return (
+      <Alert
+        type="error"
+        showIcon
+        title={translateKey(listError.message)}
+        data-testid="deactivate-error"
+      />
+    );
+  }
+  const pickers = Array.from(
+    { length: files },
+    (_, index) => `reassignments.${index}.newResponsibleLawyerId`,
+  );
+  return <ApiErrorAlert error={error} fields={pickers} testId="deactivate-error" />;
 }
