@@ -532,8 +532,13 @@ describe('header', () => {
     expect(screen.getByTestId('profile-menu').getAttribute('aria-label')).toBeNull();
     expect(screen.getByTestId('profile-menu').textContent).toContain('Layla Haddad');
 
+    // The submenu arrow points where the submenu opens: right in English, left in Arabic.
+    const languageArrow = () =>
+      screen.getByTestId('menu-language').querySelector('.anticon-right, .anticon-left');
+
     fireEvent.click(screen.getByTestId('profile-menu'));
     fireEvent.click(await screen.findByText('Language'));
+    expect(languageArrow()?.classList.contains('anticon-right')).toBe(true);
     expect((await screen.findByTestId('menu-lang-en')).getAttribute('aria-disabled')).toBe('true');
     fireEvent.click(screen.getByTestId('menu-lang-ar'));
     await waitFor(() => expect(document.documentElement.dir).toBe('rtl'));
@@ -542,8 +547,13 @@ describe('header', () => {
 
     fireEvent.click(screen.getByTestId('profile-menu'));
     fireEvent.click(await screen.findByText('اللغة'));
+    expect(languageArrow()?.classList.contains('anticon-left')).toBe(true);
     fireEvent.click(await screen.findByTestId('menu-lang-en'));
     await waitFor(() => expect(document.documentElement.dir).toBe('ltr'));
+
+    fireEvent.click(screen.getByTestId('profile-menu'));
+    expect(languageArrow()?.classList.contains('anticon-right')).toBe(true);
+    fireEvent.click(screen.getByTestId('profile-menu'));
 
     fireEvent.click(screen.getByTestId('profile-menu'));
     fireEvent.click(await screen.findByText('My account'));
