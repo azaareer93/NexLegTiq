@@ -1332,3 +1332,38 @@ never locks a contact being edited. **`ClientSelect` needs `manage:clients`** (`
 `create:case` holds it (OM, SL, L, P), so the case form can always use it. The ticket's **"RTL snapshot"** is asserted as
 direction, Arabic labels and axe (list and open drawer) instead, as in D-091. Also added: `clientsApi`/`ClientListParams` in
 shared-api-client (D-089's resources) and the `clients` translation namespace (D-087).
+
+**D-122 — Plan entitlements, quota checks and read-only mode** · Accepted (MVP-51, 2026-10-19)
+MVP-51 left open what "expired" means, which code a read-only write gets, which flags a plan has when its `features`
+JSON is empty (every seeded plan's is), and who may read the subscription. → **Entitlements**
+(`src/modules/subscriptions`, global module): `resolveEntitlements` takes the office's live subscription (TRIALING/ACTIVE,
+at most one, D-079) or else its newest, and the plan's `maxUsers`, `storageQuotaMb`, `aiQuotaMonthly` and flags. **Effective
+status:** a TRIALING subscription whose `trialEndsAt` (else `currentPeriodEnd`) has passed, or an ACTIVE one whose
+`currentPeriodEnd` has passed, is **EXPIRED** at once — no job has to update the row; PAST_DUE is a grace period with full
+access until the platform admin ends it; CANCELLED/EXPIRED (and an office without any subscription, which signup never
+leaves) are **read-only**. **Flags:** `ai`, `clientPortal`, `googleVisionOcr`; only boolean values in `Plan.features`
+count (other keys such as `customPricing` are ignored), and a flag a plan does not set defaults to **on for `ai` and
+`clientPortal`** (MVP features of every plan, D-002) and **off for `googleVisionOcr`** (a paid fallback), so no plan row
+had to change; the admin panel can switch flags per plan. Entitlements are cached **per process for 30 s** per office
+(`invalidate(officeId)` drops one) — a plan change applies within 30 s; Redis (`o:{officeId}:entitlements`) when the admin
+panel edits plans or a second API runs. **`SubscriptionGuard`** (global, after PermissionsGuard, office realm only):
+`@RequireFeature(flag)` → 403 **AUTH-102**; while read-only every method but GET/HEAD/OPTIONS → 403 **AUTH-104** (new code:
+"subscription ended, office read-only"), except routes marked `@AllowWhenReadOnly()` — today only `POST
+users/me/password` (the caller's own account); sign-in, refresh, logout and the email links are public routes and keep
+working. Entitlements are loaded only for a gated route or a write. **Quota helpers** on `EntitlementsService` for the
+stories that add users, bytes or AI calls: `assertUserSlot()` → 422 **BIZ-008** when active users plus pending, unexpired
+invitations reach `maxUsers`; `assertStorageFor(bytes)` → 403 **AUTH-103** beyond the quota (usage = every stored version,
+D-119; `StorageUsageService` moved to this module so documents can depend on it without a cycle); `assertAiQuota(used)` →
+AUTH-103 (the AI usage records arrive with the AI quota story, which passes this month's count); `assertFeature(flag)` →
+AUTH-102. Suspended offices were already refused at login, refresh and on every request (AUTH-006, D-082). **`GET
+/offices/me/subscription`** `{plan, status, readOnly, periodEnd, trialEndsAt, limits{users, storageMb, aiMonthly},
+features, usage{users, storageMb, aiThisMonth}}` (null limit = unlimited; storage in MiB rounded up; `aiThisMonth` is 0
+until AI usage is recorded) is readable by **every office user** — the read-only banner depends on it; plan and usage are
+not sensitive inside the office. **Office app:** `/settings` (still `manage:office`) shows the Subscription section — plan,
+status, trial/period end, usage bars (none for an unlimited limit), features and "contact us to upgrade" (no contact address
+in the specs yet); the shell shows a read-only banner to everyone while `readOnly`. `SUBSCRIPTION_STATUSES` joins
+shared-types (labels `enums.subscriptionStatus.*`), the `settings` namespace joins shared-i18n. **Tests:** HTTP integration
+tests' offices now get an unlimited ACTIVE subscription (`liveSubscription()`), since an office without one is read-only.
+**Known limits:** the Palestine freemium ends after 180 days into read-only with no self-service renewal until the admin
+panel ships (D-005: manual payments); a 30 s window after renewal can still refuse writes.
+Why: limits and access follow plan data, not code, and an ended subscription keeps the office's data readable.

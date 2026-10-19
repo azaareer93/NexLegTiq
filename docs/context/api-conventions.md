@@ -25,7 +25,7 @@
 ## Error codes
 AUTH-001 invalid credentials · 002 token expired · 003 token invalid · 004 refresh expired · 005 refresh invalid ·
 006 user inactive · 007 locked · 008 MFA required · 009 MFA invalid · 010 email not verified
-AUTH-100 permission denied · 101 insufficient role · 102 plan feature not available · 103 quota exceeded
+AUTH-100 permission denied · 101 insufficient role · 102 plan feature not available · 103 quota exceeded · 104 subscription ended (office read-only, D-122)
 VAL-001 invalid input · 002 email · 003 phone · 004 date · 005 file type · 006 file too large · 007 required
 RES-001 not found (incl. cross-tenant) · 002 already exists · 003 conflict/version · 004 deleted
 BIZ-001 last office manager · 002 case already closed · 003 open tasks block close · 004 session conflict ·
@@ -51,7 +51,7 @@ GET `auth/invites/:token` (preview)
 **users**: GET/PATCH `users/me` · POST `users/me/password` (204; wrong current password → 400 VAL-001, D-086) · GET `users` (office team) · POST `users/invite` ·
 GET `users/invitations` · DELETE `users/invitations/:id` · PATCH `users/:id/role` · POST `users/:id/deactivate` (with reassignment) ·
 POST `users/:id/reactivate`
-**offices**: GET `offices/me` · PATCH `offices/me` · GET/PATCH `offices/me/settings` · GET `offices/me/subscription` ·
+**offices**: GET `offices/me` · PATCH `offices/me` · GET/PATCH `offices/me/settings` · GET `offices/me/subscription` (every office user, D-122) ·
 GET `offices/me/statistics` · POST `offices/me/export` (202)
 **clients**: CRUD `clients` (+ `?search, clientType, sort`) · `clients/:id/contacts` CRUD · GET `clients/:id/files` ·
 GET `clients/:id/invoices` · `clients/:id/notes` · portal access: POST `clients/:id/portal-invitations`, GET/DELETE `clients/:id/portal-users`
