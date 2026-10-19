@@ -47,8 +47,7 @@ export function ContactsEditor({ client }: { readonly client: Client }): React.J
   const remove = useRemoveContact(client.id);
   const save = editing ? update : add;
   const shape = CreateContactPersonSchema.shape;
-  const rules = (field: Field) =>
-    zodRule(field === 'fullName' ? shape.fullName : shape[field].unwrap(), translateKey);
+  const rules = (field: Field) => zodRule(shape[field], translateKey);
 
   const reset = () => {
     setEditing(null);

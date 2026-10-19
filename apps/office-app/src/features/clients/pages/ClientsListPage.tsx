@@ -122,8 +122,6 @@ export function ClientsListPage(): React.JSX.Element {
   const { t } = useTranslation();
   const [params, setParams] = useSearchParams();
   const [drawer, setDrawer] = useState<DrawerState>({ open: false });
-  // Clearing the filters remounts them, so the search box empties too.
-  const [cleared, setCleared] = useState(0);
 
   const query = useMemo(() => readQuery(params), [params]);
   const state = parseQuery(query);
@@ -151,7 +149,7 @@ export function ClientsListPage(): React.JSX.Element {
         }
       />
       <Flex vertical gap={16}>
-        <ClientsFilters key={cleared} state={state} onChange={change} />
+        <ClientsFilters state={state} onChange={change} />
         <ListBody
           list={list}
           state={state}
@@ -159,12 +157,11 @@ export function ClientsListPage(): React.JSX.Element {
           onChange={change}
           onCreate={create}
           onOpen={(id) => setDrawer({ open: true, clientId: id })}
-          onClear={() => {
+          onClear={() =>
             setParams((prev) =>
               withChanges(prev, { search: undefined, clientType: undefined, isActive: undefined }),
-            );
-            setCleared((count) => count + 1);
-          }}
+            )
+          }
         />
       </Flex>
       <ClientDrawer

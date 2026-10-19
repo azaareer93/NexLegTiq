@@ -80,8 +80,7 @@ function ClientForm({
   // Before the form mounts the watch is empty: start from the initial type (no flash of the other fields).
   const type: unknown = Form.useWatch('clientType', form) ?? initial.clientType;
   const shape = CreateClientSchema.shape;
-  const rules: Rules = (field) =>
-    zodRule(field === 'displayName' ? shape.displayName : shape[field].unwrap(), translateKey);
+  const rules: Rules = (field) => zodRule(shape[field], translateKey);
 
   const submit = (values: Values) => {
     const done = (saved: Client) => {

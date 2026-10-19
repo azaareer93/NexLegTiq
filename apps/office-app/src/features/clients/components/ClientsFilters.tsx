@@ -14,10 +14,7 @@ export interface ClientsFiltersProps {
 
 type Status = 'all' | 'true' | 'false';
 
-/**
- * Search (as you type, debounced) and filters; every control writes the URL. The page remounts this component when the
- * filters are cleared, so the search box never has to follow the URL while the user is typing in it.
- */
+/** Search (as you type, debounced) and filters; every control writes the URL. */
 export function ClientsFilters({ state, onChange }: ClientsFiltersProps): React.JSX.Element {
   const { t } = useTranslation();
   const narrow = Grid.useBreakpoint().md === false;
@@ -29,6 +26,11 @@ export function ClientsFilters({ state, onChange }: ClientsFiltersProps): React.
     // Only a settled change of the text writes the URL; the URL changing on its own does not echo back.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
+
+  // The search left the URL (filters cleared): empty the box. Typing never removes it, so this cannot fight the user.
+  useEffect(() => {
+    if (state.search === undefined) setText('');
+  }, [state.search]);
 
   const status: Status = state.isActive === undefined ? 'all' : state.isActive ? 'true' : 'false';
   return (
