@@ -1404,3 +1404,40 @@ keeps the subscription ACTIVE until that period ends and sets `cancelledAt`; PAS
 acts — the admin-panel story must surface such offices. **Not yet applied:** no route carries `@RequireFeature` (AI,
 portal and OCR stories add it with their endpoints) and `aiThisMonth` stays 0 until the AI quota story records usage and
 calls `assertAiQuota`; user invitations call `assertUserSlot` and uploads `assertStorageFor` in their stories.
+
+**D-124 — Team management: deactivation with reassignment, role changes and reactivation** · Accepted (MVP-50, 2026-10-20)
+MVP-50 left who may change what, what "open file" means, what happens to the leaver's team rows, reminders and their own
+role open. → `src/modules/users` (`TeamService`), all `manage:users` (OFFICE_MANAGER only): **`GET /users`** — every user of
+the office, active first, then by name: id, name, email, role, `isActive`, `openFiles` (live OPEN or SUSPENDED files they
+are the responsible lawyer of — what BIZ-010 counts as open, D-108), `lastLoginAt`; not paginated (500, like the directory,
+D-123). **`GET /users/:id/open-files`** `[{id, fileNumber, title}]` — what the wizard must reassign (the cases list cannot
+filter OPEN + SUSPENDED in one call). **`PATCH /users/:id/role`** `{role}`; **`POST /users/:id/deactivate`**
+`{reassignments: [{fileId, newResponsibleLawyerId}]}` (200, the member); **`POST /users/:id/reactivate`** (200). Another
+office's user or a malformed id → 404 RES-001. **Last manager:** demoting or deactivating the last **active**
+OFFICE_MANAGER → 422 BIZ-001; every team write takes a per-office transaction advisory lock (`team:<officeId>`), so two
+managers cannot demote each other at the same time. **A role without a lawyer role** (PARALEGAL, ADMIN, TRAINEE,
+EXTERNAL_COLLABORATOR) is refused to an active user who is still responsible for open files — 400 VAL-001 on `role`
+(`validation.roleHasOpenFiles`): a file's responsible lawyer must hold a lawyer role (D-096); the manager reassigns through
+the deactivate wizard first. **Deactivate** (one transaction): the reassignments must name **exactly** the user's open files
+(a missing or foreign file → 400 VAL-001 `validation.reassignAllFiles` on `reassignments`, nothing changed); each new lawyer
+an active OFFICE_MANAGER/SENIOR_LAWYER/LAWYER other than the leaver (VAL-001 `validation.responsibleLawyer` on
+`reassignments.<i>.newResponsibleLawyerId`); then `isActive = false`, **every refresh token revoked** (the JWT guard already
+refuses their access token on the next request, D-082), and per file: `responsibleLawyerId` changed, the leaver's
+`FileTeamMember` row removed and the new lawyer's row made (or turned into) RESPONSIBLE_LAWYER (one per file, D-095), a
+`FILE_REASSIGNED` timeline event (`{fromUserId, toUserId, reason: 'DEACTIVATION'}`), an UPDATE audit row on the file, an
+in-app `file.reassigned` notification to the new lawyer (`shell.notifications.fileReassigned`, link `/cases/:id`; not when
+the manager takes the file), and the **reminders of the file's upcoming hearings are reset** (`ReminderScheduler.reset`,
+hearing time unchanged, as D-117 asked of the reassign story); a User UPDATE audit row records `reassignedFiles`.
+Deactivating an inactive user does nothing (200). Closed and archived files keep the leaver as their lawyer (history).
+**Reactivate:** checks a free seat first (`EntitlementsService.assertUserSlot`, 422 BIZ-008, D-122); an active user is a no-op.
+Every change has an audit row with old and new values. **UI** `/team` (`apps/office-app/src/features/team`, `team`
+namespace): table of the team (name, "you" tag, email in `<Ltr>`, role select, status tag, open files, last sign-in relative),
+role changed in place (a toast, or the error as a notification), Deactivate opens the **wizard**: the open files (number
+`<Ltr>` + title) each with a lawyer picker (active lawyers of the team except the leaver) and "give every file to" for more
+than one file; the API's refusal refreshes the list. **Your own row is read-only** (no role select, no deactivate) — a
+manager cannot lock themselves out from this page; another manager can. A change refreshes the team, the directory, the
+cases and the plan usage. **Not done here:** sessions where the leaver is the **attending lawyer** and tasks assigned to them
+keep pointing at them (delivery cancels their reminders, D-117; the calendar and tasks stories can offer a reassignment);
+invitations (their own story); a deactivated user's paralegal/member rows on other files stay as history. **Known limit:**
+the reactivate seat check reads usage outside the lock's transaction snapshot (two reactivations at once are serialised by
+the lock, an invitation accepted at that instant is not).

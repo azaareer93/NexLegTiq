@@ -501,3 +501,51 @@ describe('clientsApi', () => {
     await expect(setup('access-1').clients.get(id)).rejects.toMatchObject({ code: 'SYS-001' });
   });
 });
+
+describe('usersApi team management', () => {
+  const id = '01920000-0000-7000-8000-0000000000a1';
+  const member = {
+    id,
+    fullName: 'Adel Lawyer',
+    email: 'adel@example.test',
+    role: 'LAWYER',
+    isActive: true,
+    openFiles: 1,
+    lastLoginAt: null,
+  };
+
+  it('should list the team, read open files and send role, deactivate and reactivate', async () => {
+    const bodies: unknown[] = [];
+    const record = async ({ request }: { request: Request }) => {
+      bodies.push(
+        request.method === 'POST' && !request.url.endsWith('reactivate')
+          ? await request.json()
+          : request.method,
+      );
+      return ok({ ...member, isActive: !request.url.endsWith('deactivate') });
+    };
+    server.use(
+      http.get(url('users'), () => ok([member])),
+      http.get(url(`users/${id}/open-files`), () =>
+        ok([{ id, fileNumber: '2026-LIT-00001', title: 'Land' }]),
+      ),
+      http.patch(url(`users/${id}/role`), async ({ request }) => {
+        bodies.push(await request.json());
+        return ok({ ...member, role: 'SENIOR_LAWYER' });
+      }),
+      http.post(url(`users/${id}/deactivate`), record),
+      http.post(url(`users/${id}/reactivate`), record),
+    );
+    const { users } = setup('access-1');
+    await expect(users.team()).resolves.toEqual([member]);
+    await expect(users.openFiles(id)).resolves.toHaveLength(1);
+    await expect(users.changeRole(id, { role: 'SENIOR_LAWYER' })).resolves.toMatchObject({
+      role: 'SENIOR_LAWYER',
+    });
+    await expect(users.deactivate(id, { reassignments: [] })).resolves.toMatchObject({
+      isActive: false,
+    });
+    await expect(users.reactivate(id)).resolves.toMatchObject({ isActive: true });
+    expect(bodies).toEqual([{ role: 'SENIOR_LAWYER' }, { reassignments: [] }, 'POST']);
+  });
+});

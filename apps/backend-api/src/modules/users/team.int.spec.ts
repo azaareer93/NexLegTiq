@@ -45,7 +45,11 @@ describe('team management (HTTP + PostgreSQL)', () => {
     return office.id;
   }
 
-  async function seedUser(officeId: string, role: Role, fullName = role): Promise<SeededUser> {
+  async function seedUser(
+    officeId: string,
+    role: Role,
+    fullName: string = role,
+  ): Promise<SeededUser> {
     const user = await raw.user.create({
       data: {
         officeId,
