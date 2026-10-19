@@ -535,6 +535,7 @@ describe('verify email', () => {
         calls += 1;
         return noContent();
       }),
+      http.post(api('auth/refresh'), () => ok(SESSION)),
     );
     if (isSignedIn) signedIn({ emailVerified: false });
     else signedOut();
@@ -543,6 +544,126 @@ describe('verify email', () => {
     expect(screen.getByTestId('verify-continue').getAttribute('href')).toBe('/');
     expect(calls).toBe(1);
     expect(router.state.location.search).toBe('');
+  });
+
+  it.each(['ar', 'en'] as const)(
+    'should drop the banner at once when the signed-in user confirms their own email (%s)',
+    async (locale) => {
+      const tabs = listenToOtherTabs();
+      server.use(
+        http.post(api('auth/verify-email'), noContent),
+        http.post(api('auth/refresh'), () => ok(SESSION)),
+      );
+      signedIn({ emailVerified: false, verifyBy: '2026-10-26T00:00:00.000Z' });
+      try {
+        renderApp(`/verify-email?token=${'h'.repeat(43)}`, locale);
+        expect(await ready('verify-success')).toBeTruthy();
+        await waitFor(() => expect(useSession.getState().user?.emailVerified).toBe(true));
+
+        click('verify-continue');
+        expect(await screen.findByTestId('page-dashboard')).toBeTruthy();
+        expect(screen.queryByTestId('verify-banner')).toBeNull();
+        await waitFor(() => expect(tabs.messages).toContainEqual({ type: 'signedIn' }));
+      } finally {
+        tabs.close();
+      }
+    },
+  );
+
+  it('should re-check once the session of a newly opened tab has been restored', async () => {
+    let refreshes = 0;
+    server.use(
+      http.post(api('auth/verify-email'), noContent),
+      http.post(api('auth/refresh'), () => {
+        refreshes += 1;
+        return ok(SESSION);
+      }),
+    );
+    // The link opens a new tab: the app-start restore is still running when the verify answer arrives.
+    useSession.setState({ status: 'loading', user: null, accessToken: null });
+    renderApp(`/verify-email?token=${'l'.repeat(43)}`);
+    expect(await ready('verify-success')).toBeTruthy();
+    expect(refreshes).toBe(0);
+
+    // The start-up restore settles with the user as it was before the verify call committed.
+    act(() => signedIn({ emailVerified: false, verifyBy: '2026-10-26T00:00:00.000Z' }));
+    await waitFor(() => expect(useSession.getState().user?.emailVerified).toBe(true));
+    expect(refreshes).toBe(1);
+  });
+
+  it("should keep the banner when the link confirmed another account's email", async () => {
+    let refreshes = 0;
+    server.use(
+      http.post(api('auth/verify-email'), noContent),
+      // The server still reports the signed-in user as unverified: the verify answer is never applied to the session.
+      http.post(api('auth/refresh'), () => {
+        refreshes += 1;
+        return ok({
+          ...SESSION,
+          user: { ...USER, emailVerified: false, verifyBy: '2026-10-26T00:00:00.000Z' },
+        });
+      }),
+    );
+    signedIn({ emailVerified: false, verifyBy: '2026-10-26T00:00:00.000Z' });
+    renderApp(`/verify-email?token=${'i'.repeat(43)}`);
+    expect(await ready('verify-success')).toBeTruthy();
+    await waitFor(() => expect(refreshes).toBe(1));
+
+    click('verify-continue');
+    expect(await screen.findByTestId('verify-banner')).toBeTruthy();
+    expect(useSession.getState().user?.emailVerified).toBe(false);
+  });
+
+  it('should not ask for a session when signed out', async () => {
+    let refreshes = 0;
+    server.use(
+      http.post(api('auth/verify-email'), noContent),
+      http.post(api('auth/refresh'), () => {
+        refreshes += 1;
+        return fail(401, 'AUTH-005');
+      }),
+    );
+    signedOut();
+    renderApp(`/verify-email?token=${'j'.repeat(43)}`);
+    expect(await ready('verify-success')).toBeTruthy();
+    // Give a wrongly sent refresh the time to reach the server before asserting it never came.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(refreshes).toBe(0);
+  });
+
+  it('should end the session when the re-check is refused, without telling the other tabs to sign in', async () => {
+    const tabs = listenToOtherTabs();
+    server.use(
+      http.post(api('auth/verify-email'), noContent),
+      http.post(api('auth/refresh'), () => fail(401, 'AUTH-005')),
+    );
+    signedIn({ emailVerified: false });
+    try {
+      renderApp(`/verify-email?token=${'m'.repeat(43)}`);
+      expect(await ready('verify-success')).toBeTruthy();
+      await waitFor(() => expect(useSession.getState().status).toBe('anonymous'));
+      expect(useSession.getState().signOutReason).toBe('expired');
+      expect(tabs.messages).not.toContainEqual({ type: 'signedIn' });
+    } finally {
+      tabs.close();
+    }
+  });
+
+  it('should stay signed in and keep the success page when the re-check cannot reach the API', async () => {
+    let refreshes = 0;
+    server.use(
+      http.post(api('auth/verify-email'), noContent),
+      http.post(api('auth/refresh'), () => {
+        refreshes += 1;
+        return fail(503, 'SYS-002');
+      }),
+    );
+    signedIn({ emailVerified: false });
+    renderApp(`/verify-email?token=${'k'.repeat(43)}`);
+    expect(await ready('verify-success')).toBeTruthy();
+    await waitFor(() => expect(refreshes).toBeGreaterThan(0));
+    expect(useSession.getState().status).toBe('authenticated');
+    expect(screen.getByTestId('verify-success')).toBeTruthy();
   });
 
   it('should let the user retry when the API could not be reached (the link is not lost)', async () => {

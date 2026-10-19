@@ -10,13 +10,33 @@ import { Link } from 'react-router';
 
 import { AuthLayout } from '../components/AuthLayout';
 import { parseForm, zodRule } from '../forms';
-import { auth } from '../session';
+import { auth, broadcast, restoreSession, useSession } from '../session';
 import { useLinkToken } from '../use-link-token';
 
+async function recheck(): Promise<void> {
+  await restoreSession();
+  if (useSession.getState().status === 'authenticated') broadcast({ type: 'signedIn' });
+}
+
 /**
- * The page of the emailed confirmation link (D-083). Works signed in or not; the link may belong to another account than
- * the one signed in here, so the session is left alone (its `emailVerified` updates with the next refresh).
+ * Signed in: ask the server who this session is (D-120). The link may belong to another account than the one signed in
+ * here, so the session is never patched from the verify answer; a refresh reports the signed-in user's own state, and the
+ * other tabs re-check too. A link opened in a new tab answers while its session is still being restored: wait for it.
  */
+function recheckSession(): void {
+  const { status } = useSession.getState();
+  if (status === 'authenticated') {
+    void recheck();
+  } else if (status === 'loading') {
+    const unsubscribe = useSession.subscribe(({ status: settled }) => {
+      if (settled === 'loading') return;
+      unsubscribe();
+      if (settled === 'authenticated') void recheck();
+    });
+  }
+}
+
+/** The page of the emailed confirmation link (D-083). Works signed in or not. */
 export function VerifyEmailPage(): React.JSX.Element {
   const { t } = useTranslation();
   const { translateKey: message } = useApiErrorHandler();
@@ -24,7 +44,10 @@ export function VerifyEmailPage(): React.JSX.Element {
   const [form] = Form.useForm();
   const sent = useRef(false);
 
-  const verify = useMutation({ mutationFn: (value: string) => auth.verifyEmail({ token: value }) });
+  const verify = useMutation({
+    mutationFn: (value: string) => auth.verifyEmail({ token: value }),
+    onSuccess: recheckSession,
+  });
   const resend = useMutation({
     mutationFn: (body: ResendVerificationRequest) => auth.resendVerification(body),
   });
