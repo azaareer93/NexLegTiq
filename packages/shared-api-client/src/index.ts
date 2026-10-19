@@ -7,5 +7,10 @@ export {
 } from './api-client.js';
 export type { ApiClient, ApiClientConfig, ApiRequest, Page, Realm } from './api-client.js';
 export { API_BASE_PATH, buildApiUrl } from './api-url.js';
-export { authApi, casesApi, clientsApi, usersApi } from './resources.js';
-export type { CaseListParams, ClientListParams, ClientSession } from './resources.js';
+export { authApi, casesApi, clientsApi, courtsApi, usersApi } from './resources.js';
+export type {
+  CaseListParams,
+  ClientListParams,
+  ClientSession,
+  CourtListParams,
+} from './resources.js';

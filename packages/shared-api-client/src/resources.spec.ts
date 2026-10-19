@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 
 import { createApiClient } from './api-client.js';
-import { authApi, casesApi, clientsApi, usersApi } from './resources.js';
+import { authApi, casesApi, clientsApi, courtsApi, usersApi } from './resources.js';
 
 const ORIGIN = 'http://api.test';
 const url = (path: string) => `${ORIGIN}/api/v1/${path}`;
@@ -49,6 +49,7 @@ function setup(token: string | null = null) {
     users: usersApi(client),
     cases: casesApi(client),
     clients: clientsApi(client),
+    courts: courtsApi(client),
     store,
     onAuthFailure,
   };
@@ -288,9 +289,88 @@ describe('casesApi', () => {
     expect(seen).toEqual(['DELETE']);
   });
 
+  it('should create a file and return it', async () => {
+    let body: unknown;
+    server.use(
+      http.post(url('cases'), async ({ request }) => {
+        body = await request.json();
+        return ok(detail, 201);
+      }),
+    );
+    const create = {
+      title: 'Land dispute',
+      fileType: 'LITIGATION' as const,
+      clientIds: ['01920000-0000-7000-8000-0000000000c1'],
+      primaryClientId: '01920000-0000-7000-8000-0000000000c1',
+      responsibleLawyerId: '01920000-0000-7000-8000-000000000001',
+    };
+    await expect(setup('access-1').cases.create(create)).resolves.toEqual(detail);
+    expect(body).toEqual(create);
+  });
+
   it('should refuse a detail that breaks the contract as SYS-001', async () => {
     server.use(http.get(url(`cases/${row.id}`), () => ok({ ...detail, counts: undefined })));
     await expect(setup('access-1').cases.get(row.id)).rejects.toMatchObject({ code: 'SYS-001' });
+  });
+});
+
+describe('usersApi.directory and courtsApi', () => {
+  const courtId = '01920000-0000-7000-8000-0000000000e1';
+  const court = {
+    id: courtId,
+    jurisdiction: 'PALESTINE',
+    courtType: 'FIRST_INSTANCE',
+    nameAr: 'محكمة بداية رام الله',
+    nameEn: 'Ramallah First Instance Court',
+    city: 'Ramallah',
+    address: null,
+    phone: null,
+    email: null,
+    isPlatform: true,
+    createdAt: '2026-10-01T10:00:00.000Z',
+    updatedAt: '2026-10-01T10:00:00.000Z',
+  };
+  const judge = {
+    id: '01920000-0000-7000-8000-0000000000e2',
+    courtId,
+    fullName: 'Judge Salem',
+    isActive: true,
+    notes: null,
+    isPlatform: false,
+    createdAt: '2026-10-01T10:00:00.000Z',
+    updatedAt: '2026-10-01T10:00:00.000Z',
+  };
+  const people = [
+    { id: '01920000-0000-7000-8000-000000000001', fullName: 'Layla Haddad', role: 'LAWYER' },
+  ];
+
+  it('should read the directory, search courts and list the judges of a court', async () => {
+    let query = '';
+    server.use(
+      http.get(url('users/directory'), () => ok(people)),
+      http.get(url('courts'), ({ request }) => {
+        query = new URL(request.url).search;
+        return HttpResponse.json({
+          success: true,
+          data: [court],
+          meta: {
+            ...meta,
+            pagination: { page: 1, limit: 20, total: 1, totalPages: 1, hasMore: false },
+          },
+        });
+      }),
+      http.get(url(`courts/${courtId}/judges`), () => ok([judge])),
+    );
+    const { users, courts } = setup('access-1');
+    await expect(users.directory()).resolves.toEqual(people);
+    await expect(courts.list({ search: 'رام' })).resolves.toMatchObject({ items: [court] });
+    expect(new URLSearchParams(query).get('search')).toBe('رام');
+    await expect(courts.judges(courtId)).resolves.toEqual([judge]);
+  });
+
+  it('should refuse a directory entry with an unknown role as SYS-001', async () => {
+    server.use(http.get(url('users/directory'), () => ok([{ ...people[0], role: 'CEO' }])));
+    await expect(setup('access-1').users.directory()).rejects.toMatchObject({ code: 'SYS-001' });
   });
 });
 

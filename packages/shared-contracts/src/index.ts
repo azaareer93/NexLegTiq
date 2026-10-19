@@ -132,3 +132,5 @@ export type {
 export { CreateFolderSchema, FolderSchema, UpdateFolderSchema } from './folder.contract.js';
 export type { CreateFolderRequest, Folder, UpdateFolderRequest } from './folder.contract.js';
 export { EmailSchema, longText, MoneySchema, PhoneSchema, plainText } from './fields.js';
+export { DirectoryUserSchema } from './user.contract.js';
+export type { DirectoryUser } from './user.contract.js';

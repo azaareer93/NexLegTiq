@@ -21,6 +21,7 @@ import { DocumentsModule } from '../modules/documents/documents.module';
 import { LegalFilesModule } from '../modules/legal-files/legal-files.module';
 import { SessionsModule } from '../modules/sessions/sessions.module';
 import { TasksModule } from '../modules/tasks/tasks.module';
+import { UsersModule } from '../modules/users/users.module';
 
 /** Root module of the HTTP API. */
 @Module({
@@ -40,6 +41,7 @@ import { TasksModule } from '../modules/tasks/tasks.module';
     SessionsModule,
     DocumentsModule,
     TasksModule,
+    UsersModule,
     // Default 100 requests/min per IP (api-conventions.md); auth routes set stricter limits with @Throttle.
     // ponytail: counters live in process memory, fine for one API container (D-020); move to Redis storage when a
     // second API instance runs.

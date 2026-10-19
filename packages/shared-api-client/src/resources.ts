@@ -5,6 +5,9 @@ import {
   ClientListItemSchema,
   ClientSchema,
   ContactPersonSchema,
+  CourtSchema,
+  DirectoryUserSchema,
+  JudgeSchema,
 } from '@nexlegtiq/shared-contracts';
 import type {
   AuthSession,
@@ -16,11 +19,16 @@ import type {
   ClientListItem,
   ClientQuerySchema,
   ContactPerson,
+  Court,
+  CourtQuerySchema,
+  CreateCaseSchema,
   CreateClientSchema,
   CreateContactPersonSchema,
   UpdateClientRequest,
   UpdateContactPersonRequest,
+  DirectoryUser,
   ForgotPasswordRequestSchema,
+  Judge,
   LoginRequestSchema,
   RegisterRequestSchema,
   ResendVerificationRequestSchema,
@@ -93,6 +101,12 @@ export function usersApi(client: ApiClient) {
   return {
     changePassword: (body: Input<typeof ChangePasswordRequestSchema>) =>
       client.request({ method: 'POST', path: 'users/me/password', body }),
+    /** Active colleagues (name and role) for pickers (D-123). */
+    directory: (signal?: AbortSignal): Promise<DirectoryUser[]> =>
+      client.request(
+        { method: 'GET', path: 'users/directory', signal },
+        DirectoryUserSchema.array(),
+      ),
   };
 }
 
@@ -110,6 +124,8 @@ export function casesApi(client: ApiClient) {
       client.requestPage({ method: 'GET', path: 'cases', query, signal }, CaseListItemSchema),
     get: (id: string, signal?: AbortSignal): Promise<Case> =>
       client.request({ method: 'GET', path: path(id), signal }, CaseSchema),
+    create: (body: Input<typeof CreateCaseSchema>): Promise<Case> =>
+      client.request({ method: 'POST', path: 'cases', body }, CaseSchema),
     update: (id: string, body: UpdateCaseRequest): Promise<Case> =>
       client.request({ method: 'PATCH', path: path(id), body }, CaseSchema),
     remove: (id: string): Promise<void> => client.request({ method: 'DELETE', path: path(id) }),
@@ -146,5 +162,21 @@ export function clientsApi(client: ApiClient) {
       client.request({ method: 'PATCH', path: contact(id, contactId), body }, ContactPersonSchema),
     removeContact: (id: string, contactId: string): Promise<void> =>
       client.request({ method: 'DELETE', path: contact(id, contactId) }),
+  };
+}
+
+/** `GET /courts` parameters as they travel in the query string (`CourtQuerySchema` input). */
+export type CourtListParams = Partial<Record<keyof z.input<typeof CourtQuerySchema>, string>>;
+
+/** Courts and their judges (D-115): platform rows and the office's own. */
+export function courtsApi(client: ApiClient) {
+  return {
+    list: (query: CourtListParams, signal?: AbortSignal): Promise<Page<Court>> =>
+      client.requestPage({ method: 'GET', path: 'courts', query, signal }, CourtSchema),
+    judges: (courtId: string, signal?: AbortSignal): Promise<Judge[]> =>
+      client.request(
+        { method: 'GET', path: `courts/${encodeURIComponent(courtId)}/judges`, signal },
+        JudgeSchema.array(),
+      ),
   };
 }

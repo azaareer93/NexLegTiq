@@ -116,5 +116,22 @@
       "title": "حذف هذا الملف؟",
       "body": "سيُزال الملف <number>{{number}}</number> من جميع القوائم، ولن يُعاد استخدام رقمه."
     }
+  },
+  "create": {
+    "title": "ملف جديد",
+    "shortcut": "اختصار لوحة المفاتيح: Ctrl+Alt+N",
+    "create": "إنشاء",
+    "createAndOpen": "إنشاء وفتح",
+    "created": "أُنشئ الملف {{number}}.",
+    "client": "الموكل",
+    "lawyer": "المحامي المسؤول",
+    "paralegal": "المساعد القانوني",
+    "noParalegal": "بلا مساعد",
+    "court": "المحكمة",
+    "courtPlaceholder": "ابحث عن محكمة بالاسم أو المدينة",
+    "judge": "القاضي",
+    "judgePickCourt": "اختر المحكمة أولًا",
+    "billingDefault": "افتراضي المكتب",
+    "more": "المحكمة والفوترة والوصف"
   }
 }
