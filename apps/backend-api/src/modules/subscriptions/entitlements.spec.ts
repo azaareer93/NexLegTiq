@@ -50,6 +50,15 @@ describe('resolveEntitlements (D-122)', () => {
     expect(['EXPIRED', 'CANCELLED']).toContain(e.status);
   });
 
+  it('should end a trial exactly at its end and not a millisecond before', () => {
+    expect(resolveEntitlements([row({ trialEndsAt: NOW })], NOW).status).toBe('EXPIRED');
+    const later = new Date(NOW.getTime() + 1);
+    expect(resolveEntitlements([row({ trialEndsAt: later })], NOW)).toMatchObject({
+      status: 'TRIALING',
+      readOnly: false,
+    });
+  });
+
   it('should keep an active subscription without an end, and a past-due grace period, writable', () => {
     expect(
       resolveEntitlements([row({ status: 'ACTIVE', currentPeriodEnd: null })], NOW).readOnly,

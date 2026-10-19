@@ -116,11 +116,29 @@ describe('subscriptions and entitlements (HTTP + PostgreSQL)', () => {
     process.env = savedEnv;
   });
 
-  it('should show the plan, limits, flags and usage to every user of the office', async () => {
+  const subscriptionOf = async (user: SeededUser) =>
+    (
+      (await http().get('/api/v1/offices/me/subscription').set(as(user)).expect(200)).body as {
+        data: OfficeSubscription;
+      }
+    ).data;
+
+  it('should refuse the subscription view without a token (401 AUTH-003)', async () => {
+    const res = await http().get('/api/v1/offices/me/subscription').expect(401);
+    expect((res.body as ErrorBody).error.code).toBe('AUTH-003');
+  });
+
+  it('should show the plan, limits, flags and usage to a manager, the status only to other roles', async () => {
     const manager = await seedOffice(10);
     const trainee = await seedUser(manager.officeId, 'TRAINEE');
-    const res = await http().get('/api/v1/offices/me/subscription').set(as(trainee)).expect(200);
-    expect((res.body as { data: OfficeSubscription }).data).toMatchObject({
+    expect(await subscriptionOf(trainee)).toMatchObject({
+      plan: { code: 'PS_FREE' },
+      status: 'TRIALING',
+      readOnly: false,
+      limits: null,
+      usage: null,
+    });
+    expect(await subscriptionOf(manager)).toMatchObject({
       plan: { code: 'PS_FREE', name: FREE?.name },
       status: 'TRIALING',
       readOnly: false,
@@ -134,6 +152,16 @@ describe('subscriptions and entitlements (HTTP + PostgreSQL)', () => {
     });
   });
 
+  it("should show each office its own subscription and keep one office's end from another", async () => {
+    const ended = await seedOffice(-1);
+    const running = await seedOffice(10);
+    await seedUser(running.officeId, 'LAWYER');
+    expect(await subscriptionOf(ended)).toMatchObject({ readOnly: true, usage: { users: 1 } });
+    expect(await subscriptionOf(running)).toMatchObject({ readOnly: false, usage: { users: 2 } });
+    await createClient(running).expect(201);
+    await createClient(ended).expect(403);
+  });
+
   it('should make an office whose trial ended read-only: reads pass, writes get 403 AUTH-104', async () => {
     const manager = await seedOffice(-1);
     const sub = await http().get('/api/v1/offices/me/subscription').set(as(manager)).expect(200);
@@ -145,6 +173,22 @@ describe('subscriptions and entitlements (HTTP + PostgreSQL)', () => {
     const write = await createClient(manager).expect(403);
     expect((write.body as ErrorBody).error.code).toBe('AUTH-104');
     expect(await raw.client.count({ where: { officeId: manager.officeId } })).toBe(0);
+    const clientId = (
+      await raw.client.create({
+        data: { officeId: manager.officeId, clientType: 'INDIVIDUAL', displayName: 'Kept' },
+      })
+    ).id;
+    for (const call of [
+      () => http().patch(`/api/v1/clients/${clientId}`).send({ displayName: 'Changed' }),
+      () => http().delete(`/api/v1/clients/${clientId}`),
+    ]) {
+      const refused = await call().set(as(manager)).expect(403);
+      expect((refused.body as ErrorBody).error.code).toBe('AUTH-104');
+    }
+    expect(await raw.client.findUniqueOrThrow({ where: { id: clientId } })).toMatchObject({
+      displayName: 'Kept',
+      deletedAt: null,
+    });
     // The caller's own password stays changeable: this fails on the wrong current password, not on AUTH-104.
     const password = await http()
       .post('/api/v1/users/me/password')
@@ -161,6 +205,8 @@ describe('subscriptions and entitlements (HTTP + PostgreSQL)', () => {
       where: { officeId: manager.officeId },
       data: { status: 'ACTIVE', currentPeriodEnd: new Date(Date.now() + 30 * DAY) },
     });
+    // Still the cached (ended) entitlements until they are dropped or expire.
+    await createClient(manager).expect(403);
     entitlements.invalidate(manager.officeId as OfficeId);
     await createClient(manager).expect(201);
   });

@@ -6,9 +6,9 @@ import { ClsService } from 'nestjs-cls';
 import { resolveEntitlements } from './entitlements';
 import type { Entitlements } from './entitlements';
 import { StorageUsageService } from './storage-usage.service';
+import { SubscriptionsRepository } from './subscriptions.repository';
 import type { RequestContext } from '../../common/context/request-context';
 import { AppException, BusinessRuleException } from '../../common/errors/app.exception';
-import { PrismaService } from '../../database/prisma.service';
 
 const CACHE_MS = 30_000;
 const MIB = 1024n * 1024n;
@@ -25,7 +25,7 @@ export class EntitlementsService {
   private readonly cache = new Map<string, { value: Entitlements; until: number }>();
 
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly subscriptions: SubscriptionsRepository,
     private readonly cls: ClsService<RequestContext>,
     private readonly storage: StorageUsageService,
   ) {}
@@ -35,27 +35,8 @@ export class EntitlementsService {
     const now = Date.now();
     const hit = this.cache.get(officeId);
     if (hit && hit.until > now) return hit.value;
-    // unscoped: guards run before TenantInterceptor sets the office; the office id comes from the verified token.
-    const rows = await this.prisma.unscoped().subscription.findMany({
-      where: { officeId },
-      orderBy: [{ currentPeriodStart: 'desc' }, { id: 'desc' }],
-      take: 5,
-      select: {
-        status: true,
-        currentPeriodEnd: true,
-        trialEndsAt: true,
-        plan: {
-          select: {
-            code: true,
-            name: true,
-            maxUsers: true,
-            aiQuotaMonthly: true,
-            storageQuotaMb: true,
-            features: true,
-          },
-        },
-      },
-    });
+    this.cache.delete(officeId);
+    const rows = await this.subscriptions.subscriptionOf(officeId);
     const value = resolveEntitlements(rows, new Date(now));
     this.cache.set(officeId, { value, until: now + CACHE_MS });
     return value;
@@ -104,7 +85,7 @@ export class EntitlementsService {
 
   /** Active users, for the usage view. */
   activeUsers(): Promise<number> {
-    return this.prisma.db.user.count({ where: { isActive: true } });
+    return this.subscriptions.activeUsers();
   }
 
   /** Storage used in whole MiB, rounded up (a 1-byte file counts as 1 MB). */
@@ -116,9 +97,7 @@ export class EntitlementsService {
   private async seatsTaken(): Promise<number> {
     const [users, invitations] = await Promise.all([
       this.activeUsers(),
-      this.prisma.db.officeInvitation.count({
-        where: { status: 'PENDING', expiresAt: { gt: new Date() } },
-      }),
+      this.subscriptions.pendingInvitations(new Date()),
     ]);
     return users + invitations;
   }

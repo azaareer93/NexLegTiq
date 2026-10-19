@@ -10,6 +10,7 @@ import {
   useApiErrorHandler,
   useFormat,
 } from '@nexlegtiq/shared-ui';
+import { isolate } from '@nexlegtiq/shared-utils';
 import { Alert, Card, Descriptions, Flex, Progress, Tag, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
 
@@ -33,8 +34,11 @@ function UsageRow({
   const { t } = useTranslation();
   const text =
     limit === null
-      ? t('settings.subscription.usage.unlimited', { used: show(used) })
-      : t('settings.subscription.usage.of', { used: show(used), limit: show(limit) });
+      ? t('settings.subscription.usage.unlimited', { used: isolate(show(used)) })
+      : t('settings.subscription.usage.of', {
+          used: isolate(show(used)),
+          limit: isolate(show(limit)),
+        });
   return (
     <Flex vertical gap={2} data-testid={testId}>
       <Flex justify="space-between" gap={8} wrap>
@@ -50,6 +54,45 @@ function UsageRow({
         />
       )}
     </Flex>
+  );
+}
+
+function Usage({
+  usage,
+  limits,
+  size,
+}: {
+  readonly usage: NonNullable<OfficeSubscription['usage']>;
+  readonly limits: NonNullable<OfficeSubscription['limits']>;
+  readonly size: (mb: number) => string;
+}): React.JSX.Element {
+  const { t } = useTranslation();
+  const format = useFormat();
+  return (
+    <>
+      <Typography.Text strong>{t('settings.subscription.usage.title')}</Typography.Text>
+      <UsageRow
+        label={t('settings.subscription.usage.users')}
+        used={usage.users}
+        limit={limits.users}
+        show={(n) => format.number(n)}
+        testId="usage-users"
+      />
+      <UsageRow
+        label={t('settings.subscription.usage.storage')}
+        used={usage.storageMb}
+        limit={limits.storageMb}
+        show={size}
+        testId="usage-storage"
+      />
+      <UsageRow
+        label={t('settings.subscription.usage.ai')}
+        used={usage.aiThisMonth}
+        limit={limits.aiMonthly}
+        show={(n) => format.number(n)}
+        testId="usage-ai"
+      />
+    </>
   );
 }
 
@@ -90,28 +133,9 @@ function SubscriptionDetails({ data }: { readonly data: OfficeSubscription }): R
           </Descriptions.Item>
         )}
       </Descriptions>
-      <Typography.Text strong>{t('settings.subscription.usage.title')}</Typography.Text>
-      <UsageRow
-        label={t('settings.subscription.usage.users')}
-        used={data.usage.users}
-        limit={data.limits.users}
-        show={(n) => format.number(n)}
-        testId="usage-users"
-      />
-      <UsageRow
-        label={t('settings.subscription.usage.storage')}
-        used={data.usage.storageMb}
-        limit={data.limits.storageMb}
-        show={size}
-        testId="usage-storage"
-      />
-      <UsageRow
-        label={t('settings.subscription.usage.ai')}
-        used={data.usage.aiThisMonth}
-        limit={data.limits.aiMonthly}
-        show={(n) => format.number(n)}
-        testId="usage-ai"
-      />
+      {data.usage && data.limits ? (
+        <Usage usage={data.usage} limits={data.limits} size={size} />
+      ) : null}
       <Typography.Text strong>{t('settings.subscription.features.title')}</Typography.Text>
       <Flex gap={8} wrap>
         {PLAN_FEATURES.map((feature) => (
@@ -120,10 +144,12 @@ function SubscriptionDetails({ data }: { readonly data: OfficeSubscription }): R
             color={data.features[feature] ? 'green' : 'default'}
             data-testid={`feature-${feature}`}
           >
-            {featureLabel(feature)}:{' '}
-            {data.features[feature]
-              ? t('settings.subscription.features.included')
-              : t('settings.subscription.features.notIncluded')}
+            {t('settings.subscription.features.state', {
+              feature: featureLabel(feature),
+              state: data.features[feature]
+                ? t('settings.subscription.features.included')
+                : t('settings.subscription.features.notIncluded'),
+            })}
           </Tag>
         ))}
       </Flex>

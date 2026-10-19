@@ -27,6 +27,7 @@
       "ai": "AI summaries",
       "clientPortal": "Client portal",
       "googleVisionOcr": "Enhanced OCR for difficult scans",
+      "state": "{{feature}}: {{state}}",
       "included": "Included",
       "notIncluded": "Not included"
     }

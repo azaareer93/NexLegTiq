@@ -1,13 +1,15 @@
-import type { OfficeId } from '@nexlegtiq/shared-types';
+import type { OfficeId, Permission } from '@nexlegtiq/shared-types';
+import { permissionsFor } from '@nexlegtiq/shared-types';
 import type { ClsService } from 'nestjs-cls';
 
 import { EntitlementsService } from './entitlements.service';
 import type { StorageUsageService } from './storage-usage.service';
 import { SubscriptionsController } from './subscriptions.controller';
+import type { SubscriptionsRepository } from './subscriptions.repository';
 import type { RequestContext } from '../../common/context/request-context';
-import type { PrismaService } from '../../database/prisma.service';
 
 const OFFICE = 'office-1' as OfficeId;
+const OTHER = 'office-2' as OfficeId;
 const MIB = 1024n * 1024n;
 
 const plan = {
@@ -19,8 +21,14 @@ const plan = {
   features: {},
 };
 
-function setup({ users = 1, invitations = 0, usedBytes = 0n, maxUsers = 3 as number | null } = {}) {
-  const findMany = jest.fn().mockResolvedValue([
+function setup({
+  users = 1,
+  invitations = 0,
+  usedBytes = 0n,
+  maxUsers = 3 as number | null,
+  permissions = permissionsFor('OFFICE_MANAGER') as readonly Permission[] | undefined,
+} = {}) {
+  const subscriptionOf = jest.fn().mockResolvedValue([
     {
       status: 'TRIALING',
       currentPeriodEnd: new Date(Date.now() + 86_400_000),
@@ -28,29 +36,47 @@ function setup({ users = 1, invitations = 0, usedBytes = 0n, maxUsers = 3 as num
       plan: { ...plan, maxUsers },
     },
   ]);
-  const prisma = {
-    unscoped: () => ({ subscription: { findMany } }),
-    db: {
-      user: { count: jest.fn().mockResolvedValue(users) },
-      officeInvitation: { count: jest.fn().mockResolvedValue(invitations) },
-    },
-  } as unknown as PrismaService;
-  const cls = { get: jest.fn().mockReturnValue(OFFICE) } as unknown as ClsService<RequestContext>;
+  const repository = {
+    subscriptionOf,
+    activeUsers: jest.fn().mockResolvedValue(users),
+    pendingInvitations: jest.fn().mockResolvedValue(invitations),
+  } as unknown as SubscriptionsRepository;
+  const context: Record<string, unknown> = { officeId: OFFICE, permissions };
+  const cls = {
+    get: jest.fn((key: string) => context[key]),
+  } as unknown as ClsService<RequestContext>;
   const storage = {
     usedBytes: jest.fn().mockResolvedValue(usedBytes),
   } as unknown as StorageUsageService;
-  return { service: new EntitlementsService(prisma, cls, storage), findMany, cls };
+  const service = new EntitlementsService(repository, cls, storage);
+  return {
+    service,
+    subscriptionOf,
+    context,
+    controller: new SubscriptionsController(service, cls),
+  };
 }
 
 describe('EntitlementsService (D-122)', () => {
-  it('should cache an office for a while and reload it after invalidate', async () => {
-    const { service, findMany } = setup();
+  afterEach(() => jest.useRealTimers());
+
+  it('should cache each office for 30 s, apart from other offices, and reload after invalidate', async () => {
+    jest.useFakeTimers({ now: new Date('2026-10-19T12:00:00Z') });
+    const { service, subscriptionOf } = setup();
     await service.forOffice(OFFICE);
     await service.current();
-    expect(findMany).toHaveBeenCalledTimes(1);
+    expect(subscriptionOf).toHaveBeenCalledTimes(1);
+    await service.forOffice(OTHER);
+    expect(subscriptionOf).toHaveBeenLastCalledWith(OTHER);
+    jest.advanceTimersByTime(29_999);
+    await service.forOffice(OFFICE);
+    expect(subscriptionOf).toHaveBeenCalledTimes(2);
+    jest.advanceTimersByTime(1);
+    await service.forOffice(OFFICE);
+    expect(subscriptionOf).toHaveBeenCalledTimes(3);
     service.invalidate(OFFICE);
     await service.current();
-    expect(findMany).toHaveBeenCalledTimes(2);
+    expect(subscriptionOf).toHaveBeenCalledTimes(4);
   });
 
   it('should count pending invitations as seats and allow unlimited plans', async () => {
@@ -67,6 +93,7 @@ describe('EntitlementsService (D-122)', () => {
     const { service } = setup({ usedBytes: MIB - 10n });
     await expect(service.assertStorageFor(10n)).resolves.toBeUndefined();
     await expect(service.assertStorageFor(11n)).rejects.toMatchObject({ code: 'AUTH-103' });
+    await expect(service.assertAiQuota(4)).resolves.toBeUndefined();
     await expect(service.assertAiQuota(5)).rejects.toMatchObject({ code: 'AUTH-103' });
     await expect(service.assertFeature('ai')).resolves.toBeUndefined();
     await expect(service.assertFeature('googleVisionOcr')).rejects.toMatchObject({
@@ -81,14 +108,13 @@ describe('EntitlementsService (D-122)', () => {
   });
 
   it('should fail loudly without an office in the request context', () => {
-    const { service, cls } = setup();
-    (cls.get as jest.Mock).mockReturnValue(undefined);
+    const { service, context } = setup();
+    delete context['officeId'];
     expect(() => service.current()).toThrow('No office in the request context');
   });
 
-  it('should answer the subscription view with dates as ISO strings', async () => {
-    const { service } = setup({ users: 2, usedBytes: MIB + 1n });
-    const view = await new SubscriptionsController(service).get();
+  it('should answer the subscription view with limits and usage for a manager', async () => {
+    const view = await setup({ users: 2, usedBytes: MIB + 1n }).controller.get();
     expect(view).toMatchObject({
       plan: { code: 'PS_FREE', name: 'Free' },
       status: 'TRIALING',
@@ -98,5 +124,17 @@ describe('EntitlementsService (D-122)', () => {
       usage: { users: 2, storageMb: 2, aiThisMonth: 0 },
     });
     expect(view.periodEnd).toMatch(/Z$/);
+  });
+
+  it('should leave limits and usage out for anyone without manage:subscription, without counting', async () => {
+    const { controller, service } = setup({ permissions: permissionsFor('EXTERNAL_COLLABORATOR') });
+    const activeUsers = jest.spyOn(service, 'activeUsers');
+    expect(await controller.get()).toMatchObject({
+      status: 'TRIALING',
+      readOnly: false,
+      limits: null,
+      usage: null,
+    });
+    expect(activeUsers).not.toHaveBeenCalled();
   });
 });

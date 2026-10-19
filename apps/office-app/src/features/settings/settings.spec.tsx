@@ -1,4 +1,5 @@
 import type { OfficeSubscription } from '@nexlegtiq/shared-contracts';
+import { permissionsFor } from '@nexlegtiq/shared-types';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import axe from 'axe-core';
 
@@ -32,6 +33,9 @@ const subscription = (extra: Partial<OfficeSubscription> = {}): OfficeSubscripti
   ...extra,
 });
 
+/** The visible text without the Unicode isolates that keep numbers and units in order (D-092). */
+const plain = (element: Element) => (element.textContent ?? '').replace(/[⁦-⁩]/g, '');
+
 function serve(data: OfficeSubscription): void {
   server.use(http.get(api('offices/me/subscription'), () => ok(data)));
 }
@@ -48,12 +52,14 @@ describe('Settings → Subscription (D-122)', () => {
       await within(section).findByText('Free');
       expect(within(section).getByText('Trial')).toBeTruthy();
       expect(within(section).getByText('17 April 2027')).toBeTruthy();
-      expect(within(screen.getByTestId('usage-users')).getByText('2 of 5')).toBeTruthy();
-      expect(within(screen.getByTestId('usage-storage')).getByText('12 MB of 2 GB')).toBeTruthy();
-      expect(within(screen.getByTestId('usage-ai')).getByText('3 (unlimited)')).toBeTruthy();
+      expect(plain(screen.getByTestId('usage-users'))).toContain('2 of 5');
+      expect(plain(screen.getByTestId('usage-storage'))).toContain('12 MB of 2 GB');
+      expect(plain(screen.getByTestId('usage-ai'))).toContain('3 (unlimited)');
       expect(screen.getByTestId('usage-users').querySelector('[aria-label]')).toBeTruthy();
       expect(screen.getByTestId('usage-ai').querySelector('.ant-progress')).toBeNull();
-      expect(screen.getByTestId('feature-googleVisionOcr').textContent).toContain('Not included');
+      expect(screen.getByTestId('feature-googleVisionOcr').textContent).toBe(
+        'Enhanced OCR for difficult scans: Not included',
+      );
       expect(screen.queryByTestId('read-only-banner')).toBeNull();
     },
     SLOW,
@@ -72,6 +78,36 @@ describe('Settings → Subscription (D-122)', () => {
       const section = screen.getByTestId('subscription-section');
       await within(section).findByText('Expired');
       expect(within(section).getByRole('alert')).toBeTruthy();
+    },
+    SLOW,
+  );
+
+  it(
+    'should show the read-only banner on every page to any role, in Arabic too, and pass axe',
+    async () => {
+      setViewport(1280);
+      signedIn({ role: 'LAWYER', permissions: [...permissionsFor('LAWYER')], uiLanguage: 'AR' });
+      serve(subscription({ status: 'EXPIRED', readOnly: true, limits: null, usage: null }));
+      renderApp('/tasks', 'ar');
+      const banner = await screen.findByTestId('read-only-banner', {}, { timeout: COLD });
+      expect(banner.textContent).toContain('للقراءة فقط');
+      const { violations } = await axe.run(document.body, {
+        rules: { 'color-contrast': { enabled: false }, region: { enabled: false } },
+      });
+      expect(violations.map((violation) => violation.id)).toEqual([]);
+    },
+    SLOW,
+  );
+
+  it(
+    'should hide the banner while the subscription is unknown',
+    async () => {
+      setViewport(1280);
+      signedIn();
+      server.use(http.get(api('offices/me/subscription'), () => fail(500, 'SYS-001')));
+      renderApp('/tasks');
+      await screen.findByTestId('page-tasks', {}, { timeout: COLD });
+      await waitFor(() => expect(screen.queryByTestId('read-only-banner')).toBeNull());
     },
     SLOW,
   );
@@ -108,8 +144,7 @@ describe('Settings → Subscription (D-122)', () => {
       await within(section).findByText('فترة تجريبية');
       expect(document.documentElement.dir).toBe('rtl');
       expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('الإعدادات');
-      expect(within(screen.getByTestId('usage-users')).getByText('2 من 5')).toBeTruthy();
-      await waitFor(() => expect(within(section).queryByText('Free')).toBeTruthy());
+      expect(plain(screen.getByTestId('usage-users'))).toContain('2 من 5');
       const { violations } = await axe.run(document.body, {
         rules: { 'color-contrast': { enabled: false }, region: { enabled: false } },
       });

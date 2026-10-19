@@ -19,8 +19,11 @@ export const OfficeSubscriptionSchema = z.object({
   readOnly: z.boolean(),
   periodEnd: z.iso.datetime().nullable(),
   trialEndsAt: z.iso.datetime().nullable(),
-  limits: z.object({ users: count.nullable(), storageMb: count, aiMonthly: count.nullable() }),
+  /** Limits and usage only for `manage:subscription` holders; `null` for everyone else. */
+  limits: z
+    .object({ users: count.nullable(), storageMb: count, aiMonthly: count.nullable() })
+    .nullable(),
   features: z.object({ ai: z.boolean(), clientPortal: z.boolean(), googleVisionOcr: z.boolean() }),
-  usage: z.object({ users: count, storageMb: count, aiThisMonth: count }),
+  usage: z.object({ users: count, storageMb: count, aiThisMonth: count }).nullable(),
 });
 export type OfficeSubscription = z.infer<typeof OfficeSubscriptionSchema>;

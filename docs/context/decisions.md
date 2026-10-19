@@ -1367,3 +1367,16 @@ tests' offices now get an unlimited ACTIVE subscription (`liveSubscription()`), 
 **Known limits:** the Palestine freemium ends after 180 days into read-only with no self-service renewal until the admin
 panel ships (D-005: manual payments); a 30 s window after renewal can still refuse writes.
 Why: limits and access follow plan data, not code, and an ended subscription keeps the office's data readable.
+Review additions (same PR): **limits and usage** (head count, storage) are returned only to `manage:subscription`
+holders — everyone else gets `limits: null, usage: null` with plan, status, `readOnly` and flags, which is all the banner
+needs (an external collaborator learns nothing about the office's size, and the banner costs no counting). **Realms:** the
+guard binds every caller acting for an office — office staff now, portal clients when that realm ships (their uploads
+are writes) — and skips only public routes and the platform realm. `POST sessions/reminders/:id/ack` (a "seen" mark,
+D-117) is also `@AllowWhenReadOnly()`. The live subscription is read by status first (index `(office_id, status)`), then
+the newest row; expired cache entries are dropped on a miss; Prisma access sits in `SubscriptionsRepository`. A write
+refused with AUTH-104 makes the office app reload the subscription, so the banner appears at once. **CANCELLED ends
+access at once** (read-only) whatever `currentPeriodEnd` says: the admin who records a cancellation with paid time left
+keeps the subscription ACTIVE until that period ends and sets `cancelledAt`; PAST_DUE grace has no end until the admin
+acts — the admin-panel story must surface such offices. **Not yet applied:** no route carries `@RequireFeature` (AI,
+portal and OCR stories add it with their endpoints) and `aiThisMonth` stays 0 until the AI quota story records usage and
+calls `assertAiQuota`; user invitations call `assertUserSlot` and uploads `assertStorageFor` in their stories.

@@ -13,7 +13,8 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 /**
  * Global guard after PermissionsGuard (D-122): `@RequireFeature` → 403 AUTH-102 unless the plan has the flag; any other
  * method than GET/HEAD/OPTIONS → 403 AUTH-104 while the office's subscription has ended (read-only mode), unless the
- * route is `@AllowWhenReadOnly()`. Public routes and other realms are not concerned. Entitlements are loaded only when a
+ * route is `@AllowWhenReadOnly()`. Public routes and the platform realm are not concerned; any realm acting for an office
+ * (office staff now, portal clients later) is. Entitlements are loaded only when a
  * check applies (a write or a gated route).
  */
 @Injectable()
@@ -26,7 +27,9 @@ export class SubscriptionGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<{ method?: string; user?: AuthPrincipal }>();
     const user = request.user;
-    if (user?.realm !== 'OFFICE') return true;
+    // Public routes have no caller; platform admins act across offices. Office staff and (later) portal clients are
+    // bound by their office's subscription.
+    if (!user || user.realm === 'PLATFORM') return true;
 
     const targets = [context.getHandler(), context.getClass()];
     const feature = this.reflector.getAllAndOverride<PlanFeature | undefined>(FEATURE_KEY, targets);

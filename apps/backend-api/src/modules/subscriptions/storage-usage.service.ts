@@ -10,7 +10,7 @@ import { PrismaService } from '../../database/prisma.service';
 export class StorageUsageService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // ponytail: a sum per call (index-only scan on office_id, size_bytes); a counter column if uploads ever make it hot.
+  // ponytail: a sum per call (a scan of the office's versions via the office_id index); a counter column if uploads ever make it hot.
   async usedBytes(): Promise<bigint> {
     const { _sum } = await this.prisma.db.documentVersion.aggregate({ _sum: { sizeBytes: true } });
     return _sum.sizeBytes ?? 0n;

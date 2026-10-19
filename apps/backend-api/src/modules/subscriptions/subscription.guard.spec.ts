@@ -76,16 +76,22 @@ describe('SubscriptionGuard (D-122)', () => {
     await expect(run('write', 'POST', ACTIVE, OFFICE).result).resolves.toBe(true);
   });
 
-  it('should not load entitlements for an ungated read, a public route or another realm', async () => {
+  it('should not load entitlements for an ungated read, a public route or a platform admin', async () => {
     for (const [handler, method, user] of [
       ['read', 'GET', OFFICE],
       ['write', 'POST', undefined],
-      ['write', 'POST', { ...OFFICE, realm: 'PORTAL' }],
+      ['write', 'POST', { ...OFFICE, realm: 'PLATFORM' }],
     ] as const) {
       const { result, forOffice } = run(handler, method, ENDED, user);
       await expect(result).resolves.toBe(true);
       expect(forOffice).not.toHaveBeenCalled();
     }
+  });
+
+  it('should bind a portal client to the office subscription too', async () => {
+    await expect(
+      run('write', 'POST', ENDED, { ...OFFICE, realm: 'PORTAL' }).result,
+    ).rejects.toMatchObject({ code: 'AUTH-104' });
   });
 
   it('should refuse a route whose feature the plan lacks with AUTH-102', async () => {

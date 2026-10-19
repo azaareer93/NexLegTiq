@@ -184,7 +184,7 @@
   },
   "subscriptionStatus": {
     "TRIALING": "فترة تجريبية",
-    "ACTIVE": "فعّال",
+    "ACTIVE": "ساري",
     "PAST_DUE": "متأخر السداد",
     "CANCELLED": "مُلغى",
     "EXPIRED": "منتهٍ"
