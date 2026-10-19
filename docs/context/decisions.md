@@ -1357,3 +1357,50 @@ soon" is gone); + Task stays a placeholder. **Deferred:** the client-profile ent
 journey (the Cypress project arrives with the E2E story; every control has a `data-testid`), confidentiality and court
 case number at creation (edited on the file page, D-118). Why: a case in a few keystrokes from anywhere, using only what
 the API already checks.
+**D-122 — Plan entitlements, quota checks and read-only mode** · Accepted (MVP-51, 2026-10-19)
+MVP-51 left open what "expired" means, which code a read-only write gets, which flags a plan has when its `features`
+JSON is empty (every seeded plan's is), and who may read the subscription. → **Entitlements**
+(`src/modules/subscriptions`, global module): `resolveEntitlements` takes the office's live subscription (TRIALING/ACTIVE,
+at most one, D-079) or else its newest, and the plan's `maxUsers`, `storageQuotaMb`, `aiQuotaMonthly` and flags. **Effective
+status:** a TRIALING subscription whose `trialEndsAt` (else `currentPeriodEnd`) has passed, or an ACTIVE one whose
+`currentPeriodEnd` has passed, is **EXPIRED** at once — no job has to update the row; PAST_DUE is a grace period with full
+access until the platform admin ends it; CANCELLED/EXPIRED (and an office without any subscription, which signup never
+leaves) are **read-only**. **Flags:** `ai`, `clientPortal`, `googleVisionOcr`; only boolean values in `Plan.features`
+count (other keys such as `customPricing` are ignored), and a flag a plan does not set defaults to **on for `ai` and
+`clientPortal`** (MVP features of every plan, D-002) and **off for `googleVisionOcr`** (a paid fallback), so no plan row
+had to change; the admin panel can switch flags per plan. Entitlements are cached **per process for 30 s** per office
+(`invalidate(officeId)` drops one) — a plan change applies within 30 s; Redis (`o:{officeId}:entitlements`) when the admin
+panel edits plans or a second API runs. **`SubscriptionGuard`** (global, after PermissionsGuard, office realm only):
+`@RequireFeature(flag)` → 403 **AUTH-102**; while read-only every method but GET/HEAD/OPTIONS → 403 **AUTH-104** (new code:
+"subscription ended, office read-only"), except routes marked `@AllowWhenReadOnly()` — today only `POST
+users/me/password` (the caller's own account); sign-in, refresh, logout and the email links are public routes and keep
+working. Entitlements are loaded only for a gated route or a write. **Quota helpers** on `EntitlementsService` for the
+stories that add users, bytes or AI calls: `assertUserSlot()` → 422 **BIZ-008** when active users plus pending, unexpired
+invitations reach `maxUsers`; `assertStorageFor(bytes)` → 403 **AUTH-103** beyond the quota (usage = every stored version,
+D-119; `StorageUsageService` moved to this module so documents can depend on it without a cycle); `assertAiQuota(used)` →
+AUTH-103 (the AI usage records arrive with the AI quota story, which passes this month's count); `assertFeature(flag)` →
+AUTH-102. Suspended offices were already refused at login, refresh and on every request (AUTH-006, D-082). **`GET
+/offices/me/subscription`** `{plan, status, readOnly, periodEnd, trialEndsAt, limits{users, storageMb, aiMonthly},
+features, usage{users, storageMb, aiThisMonth}}` (null limit = unlimited; storage in MiB rounded up; `aiThisMonth` is 0
+until AI usage is recorded) is readable by **every office user** — the read-only banner depends on it; plan and usage are
+not sensitive inside the office. **Office app:** `/settings` (still `manage:office`) shows the Subscription section — plan,
+status, trial/period end, usage bars (none for an unlimited limit), features and "contact us to upgrade" (no contact address
+in the specs yet); the shell shows a read-only banner to everyone while `readOnly`. `SUBSCRIPTION_STATUSES` joins
+shared-types (labels `enums.subscriptionStatus.*`), the `settings` namespace joins shared-i18n. **Tests:** HTTP integration
+tests' offices now get an unlimited ACTIVE subscription (`liveSubscription()`), since an office without one is read-only.
+**Known limits:** the Palestine freemium ends after 180 days into read-only with no self-service renewal until the admin
+panel ships (D-005: manual payments); a 30 s window after renewal can still refuse writes.
+Why: limits and access follow plan data, not code, and an ended subscription keeps the office's data readable.
+Review additions (same PR): **limits and usage** (head count, storage) are returned only to `manage:subscription`
+holders — everyone else gets `limits: null, usage: null` with plan, status, `readOnly` and flags, which is all the banner
+needs (an external collaborator learns nothing about the office's size, and the banner costs no counting). **Realms:** the
+guard binds every caller acting for an office — office staff now, portal clients when that realm ships (their uploads
+are writes) — and skips only public routes and the platform realm. `POST sessions/reminders/:id/ack` (a "seen" mark,
+D-117) is also `@AllowWhenReadOnly()`. The live subscription is read by status first (index `(office_id, status)`), then
+the newest row; expired cache entries are dropped on a miss; Prisma access sits in `SubscriptionsRepository`. A write
+refused with AUTH-104 makes the office app reload the subscription, so the banner appears at once. **CANCELLED ends
+access at once** (read-only) whatever `currentPeriodEnd` says: the admin who records a cancellation with paid time left
+keeps the subscription ACTIVE until that period ends and sets `cancelledAt`; PAST_DUE grace has no end until the admin
+acts — the admin-panel story must surface such offices. **Not yet applied:** no route carries `@RequireFeature` (AI,
+portal and OCR stories add it with their endpoints) and `aiThisMonth` stays 0 until the AI quota story records usage and
+calls `assertAiQuota`; user invitations call `assertUserSlot` and uploads `assertStorageFor` in their stories.

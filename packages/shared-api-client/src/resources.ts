@@ -8,8 +8,10 @@ import {
   CourtSchema,
   DirectoryUserSchema,
   JudgeSchema,
+  OfficeSubscriptionSchema,
 } from '@nexlegtiq/shared-contracts';
 import type {
+  OfficeSubscription,
   AuthSession,
   Case,
   CaseListItem,
@@ -177,6 +179,17 @@ export function courtsApi(client: ApiClient) {
       client.request(
         { method: 'GET', path: `courts/${encodeURIComponent(courtId)}/judges`, signal },
         JudgeSchema.array(),
+      ),
+  };
+}
+
+/** `offices/me…` (api-conventions.md#offices): the office's subscription and usage (D-122). */
+export function officesApi(client: ApiClient) {
+  return {
+    subscription: (signal?: AbortSignal): Promise<OfficeSubscription> =>
+      client.request(
+        { method: 'GET', path: 'offices/me/subscription', signal },
+        OfficeSubscriptionSchema,
       ),
   };
 }

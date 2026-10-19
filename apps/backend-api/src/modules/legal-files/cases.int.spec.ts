@@ -17,6 +17,7 @@ import { UnitOfWork } from '../../database/unit-of-work';
 import type { ScopedTransaction } from '../../database/unit-of-work';
 import type { PrismaClient } from '../../generated/prisma/client';
 import { bearerFor } from '../auth/auth.test-helper';
+import { liveSubscription } from '../subscriptions/subscription.test-helper';
 
 type Delegate = { deleteMany(args: unknown): Promise<unknown> };
 
@@ -60,7 +61,12 @@ describe('cases API (HTTP + PostgreSQL)', () => {
 
   async function seedOffice(name: string): Promise<string> {
     const office = await raw.office.create({
-      data: { name, currency: 'JOD', settings: { create: { defaultBillingRate: '150' } } },
+      data: {
+        name,
+        currency: 'JOD',
+        settings: { create: { defaultBillingRate: '150' } },
+        subscriptions: liveSubscription(),
+      },
     });
     officeIds.push(office.id);
     return office.id;

@@ -35,6 +35,8 @@ export { PRIORITIES } from './priority.js';
 export type { Priority } from './priority.js';
 export { COURT_TYPES } from './court.js';
 export type { CourtType } from './court.js';
+export { SUBSCRIPTION_STATUSES } from './subscription.js';
+export type { SubscriptionStatus } from './subscription.js';
 export { TASK_STATUSES } from './task.js';
 export type { TaskStatus } from './task.js';
 export { REMINDER_STATUSES, SESSION_OUTCOMES, SESSION_STATUSES, SESSION_TYPES } from './session.js';

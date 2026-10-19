@@ -181,5 +181,12 @@
     "SENT": "Sent",
     "FAILED": "Failed",
     "CANCELLED": "Cancelled"
+  },
+  "subscriptionStatus": {
+    "TRIALING": "Trial",
+    "ACTIVE": "Active",
+    "PAST_DUE": "Payment overdue",
+    "CANCELLED": "Cancelled",
+    "EXPIRED": "Expired"
   }
 }

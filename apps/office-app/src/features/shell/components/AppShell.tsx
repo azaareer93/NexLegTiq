@@ -10,6 +10,7 @@ import { Link, Outlet, useLocation, useNavigation } from 'react-router';
 import { NotificationsBell } from './NotificationsBell';
 import { ProfileMenu } from './ProfileMenu';
 import { QuickActions } from './QuickActions';
+import { ReadOnlyBanner } from './ReadOnlyBanner';
 import { SearchOverlay } from './SearchOverlay';
 import { VerifyBanner } from './VerifyBanner';
 import { APP_NAME } from '../../../app/app-name';
@@ -155,6 +156,7 @@ export function AppShell(): React.JSX.Element {
           </Flex>
         </Layout.Header>
         <OfflineBanner />
+        <ReadOnlyBanner />
         <VerifyBanner />
         <QuickCreateCaseHost />
         <Layout.Content
