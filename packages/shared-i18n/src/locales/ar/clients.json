@@ -1,0 +1,74 @@
+{
+  "list": {
+    "title": "الموكلون",
+    "newClient": "موكل جديد",
+    "searchPlaceholder": "ابحث بالاسم أو رقم الهاتف",
+    "searchLabel": "البحث في الموكلين",
+    "filters": {
+      "clientType": "النوع",
+      "status": "الحالة",
+      "all": "الكل",
+      "active": "نشط",
+      "inactive": "غير نشط",
+      "clear": "مسح عوامل التصفية"
+    },
+    "columns": {
+      "name": "الاسم",
+      "clientType": "النوع",
+      "phone": "الهاتف",
+      "email": "البريد الإلكتروني",
+      "openFiles": "الملفات المفتوحة",
+      "updatedAt": "آخر نشاط"
+    },
+    "inactive": "غير نشط",
+    "total_zero": "لا يوجد موكلون",
+    "total_one": "موكل واحد",
+    "total_two": "موكلان",
+    "total_few": "{{count}} موكلين",
+    "total_many": "{{count}} موكلًا",
+    "total_other": "{{count}} موكل",
+    "empty": {
+      "title": "لا يوجد موكلون بعد",
+      "body": "أضف أول موكل لتتمكن من فتح ملفات له.",
+      "filteredTitle": "لا يوجد موكلون مطابقون",
+      "filteredBody": "جرّب بحثًا آخر أو امسح عوامل التصفية."
+    }
+  },
+  "drawer": {
+    "createTitle": "موكل جديد",
+    "editTitle": "تعديل الموكل"
+  },
+  "fields": {
+    "clientType": "نوع الموكل",
+    "individualName": "الاسم الكامل",
+    "organizationName": "اسم الجهة",
+    "nationalId": "رقم الهوية",
+    "taxId": "الرقم الضريبي",
+    "phone": "الهاتف",
+    "email": "البريد الإلكتروني",
+    "address": "العنوان",
+    "industry": "القطاع",
+    "active": "نشط",
+    "activeHint": "يبقى الموكل غير النشط على ملفاته، لكنه لا يُعرض عند فتح ملفات جديدة."
+  },
+  "contacts": {
+    "title": "جهات الاتصال",
+    "add": "إضافة جهة اتصال",
+    "primary": "رئيسية",
+    "makePrimary": "تعيين كجهة رئيسية",
+    "fullName": "الاسم الكامل",
+    "position": "المنصب",
+    "email": "البريد الإلكتروني",
+    "phone": "الهاتف",
+    "empty": "لا توجد جهات اتصال بعد.",
+    "removeTitle": "حذف جهة الاتصال؟",
+    "removeBody": "سيُحذف {{name}} من جهات اتصال هذا الموكل.",
+    "editLabel": "تعديل جهة الاتصال {{name}}",
+    "removeLabel": "حذف جهة الاتصال {{name}}"
+  },
+  "select": {
+    "placeholder": "ابحث عن موكل",
+    "create": "موكل جديد",
+    "noResults": "لا يوجد موكلون مطابقون"
+  }
+}

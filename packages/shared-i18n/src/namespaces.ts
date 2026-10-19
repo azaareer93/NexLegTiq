@@ -12,6 +12,7 @@ export const I18N_NAMESPACES = [
   'validation',
   'shell',
   'cases',
+  'clients',
 ] as const;
 
 export type I18nNamespace = (typeof I18N_NAMESPACES)[number];

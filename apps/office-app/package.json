@@ -8,6 +8,7 @@
     "@nexlegtiq/shared-i18n": "workspace:*",
     "@nexlegtiq/shared-types": "workspace:*",
     "@nexlegtiq/shared-ui": "workspace:*",
+    "@nexlegtiq/shared-utils": "workspace:*",
     "zod": "^4.6.5"
   }
 }

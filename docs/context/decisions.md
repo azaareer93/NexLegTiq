@@ -1300,3 +1300,35 @@ if it ends signed in (the start-up refresh may have answered before the verifica
 refresh reports the signed-in user's own `emailVerified`, so another account's link leaves the banner in place. A refusal
 ends the session as at start-up; offline, a 5xx or a 429 keeps it and the success page (the banner then clears on the next
 refresh). Signed out: no refresh. Why: the user sees the result of what they just did, without trusting a link's owner.
+
+**D-121 — Clients UI: list, drawer, contacts and the client picker** · Accepted (MVP-54, 2026-10-19)
+MVP-54 asked for a list, a create/edit drawer with a contacts editor and an inline client picker, but no team endpoint
+exists for the primary lawyer and the client profile page is its own story. → `/clients`
+(`apps/office-app/src/features/clients`, behind `manage:clients`, D-091) keeps search, `clientType`, `isActive`, sort and
+paging in the URL **under the API's parameter names**, each checked with the contract field schema as for cases (D-113);
+the search runs **as the user types, debounced 300 ms** (the cases list searches on Enter), and clearing the filters empties
+the box. Columns: name (an "inactive" tag), type, phone and email (`<Ltr>`), open cases, last activity (`updatedAt`);
+sortable by name and open cases (what the API sorts). Empty states: "add your first client" (CTA) or "nothing matches"
+(clear filters). **Drawer:** one form for create and edit; the fields follow the type — a person gets full name and national
+id, an organisation (company, government body, NGO, partnership) its name, tax id and industry; **the name typed is both
+`displayName` and the legal `fullName`/`companyName`** (changing the type moves it and clears the other), so there is one
+name to enter; edits send only changed fields (`''` clears), validation from the contracts. **Contact persons** need the
+client to exist: creating a client keeps the drawer open on it, now in edit mode, to add them; add, edit, make primary
+(the server keeps exactly one, D-108) and remove after a confirm. A row (click or Enter) opens the client in the drawer
+until the client profile page exists. **`ClientSelect`** (exported for the quick-create case form): an AntD `Select` that
+searches active clients on the server (debounced, 20 results) and offers "New client" with what was typed, opening the same
+drawer and picking the created client. **Not done here:** the primary-lawyer picker (no team endpoint yet — the field stays
+unset from the UI), deleting a client (not in the AC; the API refuses one with open files, BIZ-010), the shell's
+"+ Client" quick action (still "coming soon"), phone-sized cards (one horizontally scrolling table for now). Why: offices can
+add and find their clients today, and the case form gets a ready picker.
+Review additions (same PR): **a type change clears the old type's identification** (a person's national id, an
+organisation's tax id and industry: they could no longer be seen or corrected) and moves the name to the new legal-name
+column; **a rename keeps a separately stored legal name** — the legal name follows the display name only where they were
+equal (or empty). The client detail and the write bodies (which hold national and tax ids) are **not kept in memory after
+use** (`gcTime: 0`); contact writes refresh only that client. The search box follows the URL on back/forward too, and a
+search of only spaces is ignored. Contact buttons' accessible names and the removal sentence are translated keys with the
+name isolated (`isolate`, so office-app now declares shared-utils, D-074); "make primary" has its own request state, so it
+never locks a contact being edited. **`ClientSelect` needs `manage:clients`** (`GET /clients`): every role holding
+`create:case` holds it (OM, SL, L, P), so the case form can always use it. The ticket's **"RTL snapshot"** is asserted as
+direction, Arabic labels and axe (list and open drawer) instead, as in D-091. Also added: `clientsApi`/`ClientListParams` in
+shared-api-client (D-089's resources) and the `clients` translation namespace (D-087).
