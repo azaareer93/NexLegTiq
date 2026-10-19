@@ -81,8 +81,13 @@ export function ProfileMenu({
   };
 
   return (
-    // Submenus open on click: hover is unreliable on touch screens.
-    <Dropdown menu={{ items, onClick, triggerSubMenuAction: 'click' }} trigger={['click']}>
+    // Submenus open on click: hover is unreliable on touch screens. Keyed by language: AntD keeps the menu it first
+    // rendered, so its submenu arrow would keep pointing the old reading direction.
+    <Dropdown
+      key={locale}
+      menu={{ items, onClick, triggerSubMenuAction: 'click' }}
+      trigger={['click']}
+    >
       <Button
         type="text"
         // With the name visible, the name is the label (WCAG 2.5.3); icon-only, the menu says what it is and whose it is.
