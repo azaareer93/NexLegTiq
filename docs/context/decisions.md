@@ -1293,8 +1293,10 @@ pins `nlq_uuid_v7()`'s `search_path`.
 **D-120 — Re-check the session after a confirmed email** · Accepted (MVP-158, 2026-10-19) · Amends D-090
 D-090 left the session untouched after a successful verify-email call (the link may be another account's), so the
 "confirm your email" banner stayed until the next refresh, up to 15 minutes. → When the link is confirmed in a **signed-in**
-tab, the page runs `restoreSession()` (a refresh under the cross-tab lock, D-089) and broadcasts `signedIn`, so every tab of
-the browser re-reads its own session from the server. The session is still **never patched from the verify answer**: the
+tab, the page runs `restoreSession()` (a refresh under the cross-tab lock, D-089) and, once that refresh confirms the session,
+broadcasts `signedIn`, so every tab of the browser re-reads its own session from the server. A link opened in a new tab is
+usually confirmed while that tab's start-up restore is still running: the page waits for the restore to settle and re-checks
+if it ends signed in (the start-up refresh may have answered before the verification committed). The session is still **never patched from the verify answer**: the
 refresh reports the signed-in user's own `emailVerified`, so another account's link leaves the banner in place. A refusal
 ends the session as at start-up; offline, a 5xx or a 429 keeps it and the success page (the banner then clears on the next
 refresh). Signed out: no refresh. Why: the user sees the result of what they just did, without trusting a link's owner.

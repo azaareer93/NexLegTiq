@@ -13,15 +13,27 @@ import { parseForm, zodRule } from '../forms';
 import { auth, broadcast, restoreSession, useSession } from '../session';
 import { useLinkToken } from '../use-link-token';
 
+async function recheck(): Promise<void> {
+  await restoreSession();
+  if (useSession.getState().status === 'authenticated') broadcast({ type: 'signedIn' });
+}
+
 /**
  * Signed in: ask the server who this session is (D-120). The link may belong to another account than the one signed in
- * here, so the session is never patched from the verify answer; a refresh reports the signed-in user's own state. The
- * other tabs re-check too.
+ * here, so the session is never patched from the verify answer; a refresh reports the signed-in user's own state, and the
+ * other tabs re-check too. A link opened in a new tab answers while its session is still being restored: wait for it.
  */
 function recheckSession(): void {
-  if (useSession.getState().status !== 'authenticated') return;
-  void restoreSession();
-  broadcast({ type: 'signedIn' });
+  const { status } = useSession.getState();
+  if (status === 'authenticated') {
+    void recheck();
+  } else if (status === 'loading') {
+    const unsubscribe = useSession.subscribe(({ status: settled }) => {
+      if (settled === 'loading') return;
+      unsubscribe();
+      if (settled === 'authenticated') void recheck();
+    });
+  }
 }
 
 /** The page of the emailed confirmation link (D-083). Works signed in or not. */
