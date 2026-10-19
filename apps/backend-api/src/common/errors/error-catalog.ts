@@ -17,6 +17,7 @@ export const ERROR_STATUS: Readonly<Record<ErrorCode, HttpStatus>> = {
   'AUTH-101': HttpStatus.FORBIDDEN,
   'AUTH-102': HttpStatus.FORBIDDEN,
   'AUTH-103': HttpStatus.FORBIDDEN,
+  'AUTH-104': HttpStatus.FORBIDDEN,
   'VAL-001': HttpStatus.BAD_REQUEST,
   'VAL-002': HttpStatus.BAD_REQUEST,
   'VAL-003': HttpStatus.BAD_REQUEST,

@@ -14,6 +14,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { TENANT_MODELS } from '../../database/tenant-models';
 import type { PrismaClient } from '../../generated/prisma/client';
 import { bearerFor } from '../auth/auth.test-helper';
+import { liveSubscription } from '../subscriptions/subscription.test-helper';
 
 type Delegate = { deleteMany(args: unknown): Promise<unknown> };
 interface SeededUser {
@@ -52,7 +53,9 @@ describe('clients API (HTTP + PostgreSQL)', () => {
   }
 
   async function seedOffice(name: string): Promise<string> {
-    const office = await raw.office.create({ data: { name, settings: { create: {} } } });
+    const office = await raw.office.create({
+      data: { name, settings: { create: {} }, subscriptions: liveSubscription() },
+    });
     officeIds.push(office.id);
     return office.id;
   }

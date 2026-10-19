@@ -5,8 +5,10 @@ import {
   ClientListItemSchema,
   ClientSchema,
   ContactPersonSchema,
+  OfficeSubscriptionSchema,
 } from '@nexlegtiq/shared-contracts';
 import type {
+  OfficeSubscription,
   AuthSession,
   Case,
   CaseListItem,
@@ -146,5 +148,16 @@ export function clientsApi(client: ApiClient) {
       client.request({ method: 'PATCH', path: contact(id, contactId), body }, ContactPersonSchema),
     removeContact: (id: string, contactId: string): Promise<void> =>
       client.request({ method: 'DELETE', path: contact(id, contactId) }),
+  };
+}
+
+/** `offices/me…` (api-conventions.md#offices): the office's subscription and usage (D-122). */
+export function officesApi(client: ApiClient) {
+  return {
+    subscription: (signal?: AbortSignal): Promise<OfficeSubscription> =>
+      client.request(
+        { method: 'GET', path: 'offices/me/subscription', signal },
+        OfficeSubscriptionSchema,
+      ),
   };
 }

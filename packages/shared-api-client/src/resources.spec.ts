@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 
 import { createApiClient } from './api-client.js';
-import { authApi, casesApi, clientsApi, usersApi } from './resources.js';
+import { authApi, casesApi, clientsApi, officesApi, usersApi } from './resources.js';
 
 const ORIGIN = 'http://api.test';
 const url = (path: string) => `${ORIGIN}/api/v1/${path}`;
@@ -49,6 +49,7 @@ function setup(token: string | null = null) {
     users: usersApi(client),
     cases: casesApi(client),
     clients: clientsApi(client),
+    offices: officesApi(client),
     store,
     onAuthFailure,
   };
@@ -291,6 +292,28 @@ describe('casesApi', () => {
   it('should refuse a detail that breaks the contract as SYS-001', async () => {
     server.use(http.get(url(`cases/${row.id}`), () => ok({ ...detail, counts: undefined })));
     await expect(setup('access-1').cases.get(row.id)).rejects.toMatchObject({ code: 'SYS-001' });
+  });
+});
+
+describe('officesApi', () => {
+  it('should read the subscription and check it against the contract', async () => {
+    const subscription = {
+      plan: { code: 'PS_FREE', name: 'Free' },
+      status: 'TRIALING',
+      readOnly: false,
+      periodEnd: '2027-04-01T00:00:00.000Z',
+      trialEndsAt: '2027-04-01T00:00:00.000Z',
+      limits: { users: 5, storageMb: 2048, aiMonthly: 5 },
+      features: { ai: true, clientPortal: true, googleVisionOcr: false },
+      usage: { users: 2, storageMb: 1, aiThisMonth: 0 },
+    };
+    server.use(http.get(url('offices/me/subscription'), () => ok(subscription)));
+    const { offices } = setup('access-1');
+    await expect(offices.subscription()).resolves.toEqual(subscription);
+    server.use(
+      http.get(url('offices/me/subscription'), () => ok({ ...subscription, status: 'GONE' })),
+    );
+    await expect(offices.subscription()).rejects.toMatchObject({ code: 'SYS-001' });
   });
 });
 

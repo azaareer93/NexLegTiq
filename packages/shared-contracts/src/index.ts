@@ -132,3 +132,5 @@ export type {
 export { CreateFolderSchema, FolderSchema, UpdateFolderSchema } from './folder.contract.js';
 export type { CreateFolderRequest, Folder, UpdateFolderRequest } from './folder.contract.js';
 export { EmailSchema, longText, MoneySchema, PhoneSchema, plainText } from './fields.js';
+export { OfficeSubscriptionSchema, PLAN_FEATURES } from './subscription.contract.js';
+export type { OfficeSubscription, PlanFeature } from './subscription.contract.js';

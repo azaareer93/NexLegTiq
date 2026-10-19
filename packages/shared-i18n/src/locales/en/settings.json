@@ -1,0 +1,34 @@
+{
+  "title": "Settings",
+  "subscription": {
+    "title": "Subscription",
+    "plan": "Plan",
+    "status": "Status",
+    "noPlan": "No subscription",
+    "trialEnds": "Trial ends",
+    "periodEnds": "Current period ends",
+    "noEnd": "No end date",
+    "readOnly": "The subscription has ended: the office is read-only until it is renewed.",
+    "upgrade": "To upgrade, renew or change your plan, contact us.",
+    "usage": {
+      "title": "Usage",
+      "users": "Users",
+      "storage": "Storage",
+      "ai": "AI requests this month",
+      "of": "{{used}} of {{limit}}",
+      "unlimited": "{{used}} (unlimited)"
+    },
+    "units": {
+      "mb": "{{value}} MB",
+      "gb": "{{value}} GB"
+    },
+    "features": {
+      "title": "Features",
+      "ai": "AI summaries",
+      "clientPortal": "Client portal",
+      "googleVisionOcr": "Enhanced OCR for difficult scans",
+      "included": "Included",
+      "notIncluded": "Not included"
+    }
+  }
+}

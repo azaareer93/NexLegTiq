@@ -15,6 +15,7 @@ import { configureApp } from '../app/configure-app';
 import { integrationEnv } from '../config/env.fixture';
 import type { PrismaClient } from '../generated/prisma/client';
 import { bearerFor } from '../modules/auth/auth.test-helper';
+import { liveSubscription } from '../modules/subscriptions/subscription.test-helper';
 
 type Delegate = {
   deleteMany(args: unknown): Promise<unknown>;
@@ -37,7 +38,9 @@ describe('tenant isolation over HTTP (two offices)', () => {
   const savedEnv = { ...process.env };
 
   async function seedOffice(name: string): Promise<SeededOffice> {
-    const office = await raw.office.create({ data: { name, settings: { create: {} } } });
+    const office = await raw.office.create({
+      data: { name, settings: { create: {} }, subscriptions: liveSubscription() },
+    });
     const user = await raw.user.create({
       data: {
         officeId: office.id,

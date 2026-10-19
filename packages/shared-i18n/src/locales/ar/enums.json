@@ -181,5 +181,12 @@
     "SENT": "أُرسل",
     "FAILED": "تعذّر الإرسال",
     "CANCELLED": "أُلغي"
+  },
+  "subscriptionStatus": {
+    "TRIALING": "فترة تجريبية",
+    "ACTIVE": "فعّال",
+    "PAST_DUE": "متأخر السداد",
+    "CANCELLED": "مُلغى",
+    "EXPIRED": "منتهٍ"
   }
 }

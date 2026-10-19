@@ -40,6 +40,9 @@
     "title": "Coming soon",
     "body": "This part of NexLegTiq is being built."
   },
+  "readOnly": {
+    "banner": "Your office's subscription has ended, so the office is read-only: you can view everything but not add or change anything. Contact us to renew it."
+  },
   "verify": {
     "banner": "Please confirm your email address. We sent you a link when you signed up.",
     "bannerWithDeadline": "Please confirm your email address by {{date}} to keep your access. We sent you a link when you signed up.",
