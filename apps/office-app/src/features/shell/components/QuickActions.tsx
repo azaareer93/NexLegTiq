@@ -10,12 +10,15 @@ import type { MenuProps } from 'antd';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { openQuickCreateCase } from '../../cases';
+import { ClientDrawer } from '../../clients';
+
 const QUICK_ACTIONS = ['file', 'client', 'task'] as const;
 type QuickAction = (typeof QUICK_ACTIONS)[number];
 const isQuickAction = (key: string): key is QuickAction =>
   (QUICK_ACTIONS as readonly string[]).includes(key);
 
-/** + Case, + Client, + Task for who may create them. Each opens a placeholder until its feature exists. */
+/** + Case, + Client, + Task for who may create them: the quick-create case modal, the client drawer, and a placeholder for tasks. */
 export function QuickActions({
   compact = false,
 }: {
@@ -23,8 +26,7 @@ export function QuickActions({
 }): React.JSX.Element | null {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  // Kept after closing, so the title does not go blank during the close animation.
-  const [action, setAction] = useState<QuickAction>('file');
+  const [clientOpen, setClientOpen] = useState(false);
   const can: Record<QuickAction, boolean> = {
     file: useCan('create:case'),
     client: useCan('manage:clients'),
@@ -47,10 +49,9 @@ export function QuickActions({
     return null;
   }
   const onClick: MenuProps['onClick'] = ({ key }) => {
-    if (isQuickAction(key)) {
-      setAction(key);
-      setOpen(true);
-    }
+    if (key === 'file') openQuickCreateCase();
+    else if (key === 'client') setClientOpen(true);
+    else if (isQuickAction(key)) setOpen(true);
   };
   return (
     <>
@@ -68,11 +69,12 @@ export function QuickActions({
         open={open}
         onCancel={() => setOpen(false)}
         footer={null}
-        title={t(`shell.quick.${action}`)}
+        title={t('shell.quick.task')}
         data-testid="quick-placeholder"
       >
         <EmptyState title={t('shell.comingSoon.title')} description={t('shell.comingSoon.body')} />
       </Modal>
+      <ClientDrawer open={clientOpen} clientId={null} onClose={() => setClientOpen(false)} />
     </>
   );
 }

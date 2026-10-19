@@ -490,7 +490,7 @@ describe('header', () => {
   });
 
   it.each(ROLES)(
-    'should offer a %s only the quick actions they may use, each opening its placeholder',
+    'should offer a %s only the quick actions they may use, the first opening its dialog',
     async (role) => {
       asRole(role);
       renderApp('/');
@@ -506,13 +506,13 @@ describe('header', () => {
         ['file', 'client', 'task'].filter((key) => screen.queryByTestId(`quick-${key}`)),
       ).toEqual(expected);
       fireEvent.click(screen.getByTestId(`quick-${expected[0]}`));
-      const dialog = await screen.findByRole('dialog');
+      // + Case loads its form on first use (its own chunk).
+      const dialog = await screen.findByRole('dialog', {}, { timeout: 20_000 });
       expect(
-        within(dialog).getByText(
+        within(dialog).getAllByText(
           { file: 'New case', client: 'New client', task: 'New task' }[expected[0] as 'file'],
-        ),
-      ).toBeTruthy();
-      expect(within(dialog).getByText('Coming soon')).toBeTruthy();
+        ).length,
+      ).toBeGreaterThan(0);
     },
     SLOW,
   );
