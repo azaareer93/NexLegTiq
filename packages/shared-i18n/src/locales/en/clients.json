@@ -1,0 +1,68 @@
+{
+  "list": {
+    "title": "Clients",
+    "newClient": "New client",
+    "searchPlaceholder": "Search by name or phone",
+    "searchLabel": "Search clients",
+    "filters": {
+      "clientType": "Type",
+      "status": "Status",
+      "all": "All",
+      "active": "Active",
+      "inactive": "Inactive",
+      "clear": "Clear filters"
+    },
+    "columns": {
+      "name": "Name",
+      "clientType": "Type",
+      "phone": "Phone",
+      "email": "Email",
+      "openFiles": "Open cases",
+      "updatedAt": "Last activity"
+    },
+    "inactive": "Inactive",
+    "total_one": "{{count}} client",
+    "total_other": "{{count}} clients",
+    "empty": {
+      "title": "No clients yet",
+      "body": "Add your first client to open cases for them.",
+      "filteredTitle": "No matching clients",
+      "filteredBody": "Try another search or clear the filters."
+    }
+  },
+  "drawer": {
+    "createTitle": "New client",
+    "editTitle": "Edit client"
+  },
+  "fields": {
+    "clientType": "Client type",
+    "individualName": "Full name",
+    "organizationName": "Organization name",
+    "nationalId": "National ID",
+    "taxId": "Tax ID",
+    "phone": "Phone",
+    "email": "Email",
+    "address": "Address",
+    "industry": "Industry",
+    "active": "Active",
+    "activeHint": "Inactive clients stay on their cases but are not offered for new ones."
+  },
+  "contacts": {
+    "title": "Contact persons",
+    "add": "Add contact person",
+    "primary": "Primary",
+    "makePrimary": "Make primary",
+    "fullName": "Full name",
+    "position": "Position",
+    "email": "Email",
+    "phone": "Phone",
+    "empty": "No contact persons yet.",
+    "removeTitle": "Remove this contact person?",
+    "removeBody": "{{name}} will be removed from this client."
+  },
+  "select": {
+    "placeholder": "Search clients",
+    "create": "New client",
+    "noResults": "No matching clients"
+  }
+}

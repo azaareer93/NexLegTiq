@@ -3,6 +3,7 @@ import type { RouteObject } from 'react-router';
 
 import { authRoutes, RequireAuth } from '../features/auth';
 import { casesRoutes } from '../features/cases';
+import { clientsRoutes } from '../features/clients';
 import {
   AppShell,
   NAV_ITEMS,
@@ -21,7 +22,10 @@ const placeholder = (navKey: NavKey | 'profile'): Pick<RouteObject, 'lazy'> => (
 });
 
 /** Menu items whose feature is built: their pages replace the placeholder. */
-const FEATURE_ROUTES: Partial<Record<NavKey, RouteObject[]>> = { cases: casesRoutes };
+const FEATURE_ROUTES: Partial<Record<NavKey, RouteObject[]>> = {
+  cases: casesRoutes,
+  clients: clientsRoutes,
+};
 
 /**
  * One route per menu item, generated from `NAV_ITEMS`: each page requires exactly the permission its menu item does, and

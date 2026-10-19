@@ -1,10 +1,25 @@
-import { AuthSessionSchema, CaseListItemSchema, CaseSchema } from '@nexlegtiq/shared-contracts';
+import {
+  AuthSessionSchema,
+  CaseListItemSchema,
+  CaseSchema,
+  ClientListItemSchema,
+  ClientSchema,
+  ContactPersonSchema,
+} from '@nexlegtiq/shared-contracts';
 import type {
   AuthSession,
   Case,
   CaseListItem,
   CaseQuerySchema,
   ChangePasswordRequestSchema,
+  Client,
+  ClientListItem,
+  ClientQuerySchema,
+  ContactPerson,
+  CreateClientSchema,
+  CreateContactPersonSchema,
+  UpdateClientRequest,
+  UpdateContactPersonRequest,
   ForgotPasswordRequestSchema,
   LoginRequestSchema,
   RegisterRequestSchema,
@@ -98,5 +113,38 @@ export function casesApi(client: ApiClient) {
     update: (id: string, body: UpdateCaseRequest): Promise<Case> =>
       client.request({ method: 'PATCH', path: path(id), body }, CaseSchema),
     remove: (id: string): Promise<void> => client.request({ method: 'DELETE', path: path(id) }),
+  };
+}
+
+/** `GET /clients` parameters as they travel in the query string (`ClientQuerySchema` input). */
+export type ClientListParams = Partial<Record<keyof z.input<typeof ClientQuerySchema>, string>>;
+
+/** Clients and their contact persons (D-108). */
+export function clientsApi(client: ApiClient) {
+  const path = (id: string) => `clients/${encodeURIComponent(id)}`;
+  const contact = (id: string, contactId: string) =>
+    `${path(id)}/contacts/${encodeURIComponent(contactId)}`;
+  return {
+    list: (query: ClientListParams, signal?: AbortSignal): Promise<Page<ClientListItem>> =>
+      client.requestPage({ method: 'GET', path: 'clients', query, signal }, ClientListItemSchema),
+    get: (id: string, signal?: AbortSignal): Promise<Client> =>
+      client.request({ method: 'GET', path: path(id), signal }, ClientSchema),
+    create: (body: Input<typeof CreateClientSchema>): Promise<Client> =>
+      client.request({ method: 'POST', path: 'clients', body }, ClientSchema),
+    update: (id: string, body: UpdateClientRequest): Promise<Client> =>
+      client.request({ method: 'PATCH', path: path(id), body }, ClientSchema),
+    addContact: (
+      id: string,
+      body: Input<typeof CreateContactPersonSchema>,
+    ): Promise<ContactPerson> =>
+      client.request({ method: 'POST', path: `${path(id)}/contacts`, body }, ContactPersonSchema),
+    updateContact: (
+      id: string,
+      contactId: string,
+      body: UpdateContactPersonRequest,
+    ): Promise<ContactPerson> =>
+      client.request({ method: 'PATCH', path: contact(id, contactId), body }, ContactPersonSchema),
+    removeContact: (id: string, contactId: string): Promise<void> =>
+      client.request({ method: 'DELETE', path: contact(id, contactId) }),
   };
 }

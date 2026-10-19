@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 
 import { createApiClient } from './api-client.js';
-import { authApi, casesApi, usersApi } from './resources.js';
+import { authApi, casesApi, clientsApi, usersApi } from './resources.js';
 
 const ORIGIN = 'http://api.test';
 const url = (path: string) => `${ORIGIN}/api/v1/${path}`;
@@ -48,6 +48,7 @@ function setup(token: string | null = null) {
     auth: authApi(client),
     users: usersApi(client),
     cases: casesApi(client),
+    clients: clientsApi(client),
     store,
     onAuthFailure,
   };
@@ -290,5 +291,110 @@ describe('casesApi', () => {
   it('should refuse a detail that breaks the contract as SYS-001', async () => {
     server.use(http.get(url(`cases/${row.id}`), () => ok({ ...detail, counts: undefined })));
     await expect(setup('access-1').cases.get(row.id)).rejects.toMatchObject({ code: 'SYS-001' });
+  });
+});
+
+describe('clientsApi', () => {
+  const id = '01920000-0000-7000-8000-0000000000c1';
+  const contactId = '01920000-0000-7000-8000-0000000000d1';
+  const row = {
+    id,
+    clientType: 'INDIVIDUAL',
+    displayName: 'Omar Khalil',
+    fullName: 'Omar Khalil',
+    companyName: null,
+    phone: '+970599000000',
+    email: null,
+    isActive: true,
+    primaryLawyer: null,
+    openFiles: 2,
+    createdAt: '2026-10-01T10:00:00.000Z',
+    updatedAt: '2026-10-05T10:00:00.000Z',
+  };
+  const contact = {
+    id: contactId,
+    fullName: 'Sara Khalil',
+    position: null,
+    email: null,
+    phone: null,
+    isPrimary: true,
+    createdAt: '2026-10-05T10:00:00.000Z',
+    updatedAt: '2026-10-05T10:00:00.000Z',
+  };
+  const detail = {
+    ...row,
+    nationalId: null,
+    taxId: null,
+    address: null,
+    industry: null,
+    closedFiles: 0,
+    contacts: [contact],
+  };
+  const pagination = { page: 1, limit: 20, total: 1, totalPages: 1, hasMore: false };
+
+  it('should list with the filters and create, get and update a client', async () => {
+    let query = '';
+    const bodies: unknown[] = [];
+    server.use(
+      http.get(url('clients'), ({ request }) => {
+        query = new URL(request.url).search;
+        return HttpResponse.json({ success: true, data: [row], meta: { ...meta, pagination } });
+      }),
+      http.post(url('clients'), async ({ request }) => {
+        bodies.push(await request.json());
+        return ok(detail, 201);
+      }),
+      http.get(url(`clients/${id}`), () => ok(detail)),
+      http.patch(url(`clients/${id}`), async ({ request }) => {
+        bodies.push(await request.json());
+        return ok({ ...detail, isActive: false });
+      }),
+    );
+    const { clients } = setup('access-1');
+    await expect(clients.list({ search: 'omar', isActive: 'true' })).resolves.toEqual({
+      items: [row],
+      pagination,
+    });
+    expect(Object.fromEntries(new URLSearchParams(query))).toEqual({
+      search: 'omar',
+      isActive: 'true',
+    });
+    await expect(
+      clients.create({ clientType: 'INDIVIDUAL', displayName: 'Omar Khalil' }),
+    ).resolves.toEqual(detail);
+    await expect(clients.get(id)).resolves.toEqual(detail);
+    await expect(clients.update(id, { isActive: false })).resolves.toMatchObject({
+      isActive: false,
+    });
+    expect(bodies).toEqual([
+      { clientType: 'INDIVIDUAL', displayName: 'Omar Khalil' },
+      { isActive: false },
+    ]);
+  });
+
+  it('should add, update and remove a contact person', async () => {
+    const seen: string[] = [];
+    server.use(
+      http.post(url(`clients/${id}/contacts`), () => ok(contact, 201)),
+      http.patch(url(`clients/${id}/contacts/${contactId}`), () =>
+        ok({ ...contact, position: 'CFO' }),
+      ),
+      http.delete(url(`clients/${id}/contacts/${contactId}`), ({ request }) => {
+        seen.push(request.method);
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const { clients } = setup('access-1');
+    await expect(clients.addContact(id, { fullName: 'Sara Khalil' })).resolves.toEqual(contact);
+    await expect(clients.updateContact(id, contactId, { position: 'CFO' })).resolves.toMatchObject({
+      position: 'CFO',
+    });
+    await expect(clients.removeContact(id, contactId)).resolves.toBeUndefined();
+    expect(seen).toEqual(['DELETE']);
+  });
+
+  it('should refuse a client that breaks the contract as SYS-001', async () => {
+    server.use(http.get(url(`clients/${id}`), () => ok({ ...detail, contacts: undefined })));
+    await expect(setup('access-1').clients.get(id)).rejects.toMatchObject({ code: 'SYS-001' });
   });
 });
