@@ -29,6 +29,11 @@ const ENUM_LABELS = {
   SESSION_TYPES: 'sessionType',
   SESSION_OUTCOMES: 'sessionOutcome',
   SESSION_STATUSES: 'sessionStatus',
+  DOCUMENT_TYPES: 'documentType',
+  DOCUMENT_STATUSES: 'documentStatus',
+  OCR_STATUSES: 'ocrStatus',
+  DOCUMENT_LANGUAGES: 'documentLanguage',
+  FOLDER_SYSTEM_KEYS: 'folderSystemKey',
   REMINDER_STATUSES: 'reminderStatus',
 } as const;
 /** Value lists translated elsewhere (`errors.*`, `common.language.*`), or not shown to users yet (permissions, D-087). */

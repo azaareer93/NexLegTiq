@@ -13,6 +13,11 @@ import {
   REMINDER_STATUSES,
   ROLES,
   SESSION_OUTCOMES,
+  DOCUMENT_LANGUAGES,
+  DOCUMENT_STATUSES,
+  DOCUMENT_TYPES,
+  FOLDER_SYSTEM_KEYS,
+  OCR_STATUSES,
   SESSION_TYPES,
   TASK_STATUSES,
 } from '@nexlegtiq/shared-types';
@@ -32,6 +37,11 @@ import {
   ReminderStatus,
   Role,
   SessionOutcome,
+  DocumentLanguage,
+  DocumentStatus,
+  DocumentType,
+  FolderSystemKey,
+  OcrStatus,
   SessionType,
   TaskStatus,
 } from '../generated/prisma/enums';
@@ -54,6 +64,11 @@ describe('shared-types enums match the Prisma schema', () => {
     ['CourtType', COURT_TYPES, CourtType],
     ['SessionType', SESSION_TYPES, SessionType],
     ['SessionOutcome', SESSION_OUTCOMES, SessionOutcome],
+    ['DocumentType', DOCUMENT_TYPES, DocumentType],
+    ['DocumentStatus', DOCUMENT_STATUSES, DocumentStatus],
+    ['OcrStatus', OCR_STATUSES, OcrStatus],
+    ['DocumentLanguage', DOCUMENT_LANGUAGES, DocumentLanguage],
+    ['FolderSystemKey', FOLDER_SYSTEM_KEYS, FolderSystemKey],
     ['ReminderStatus', REMINDER_STATUSES, ReminderStatus],
   ] as const)('%s', (_name, shared, prisma) => {
     expect([...shared].sort()).toEqual(Object.values(prisma).sort());

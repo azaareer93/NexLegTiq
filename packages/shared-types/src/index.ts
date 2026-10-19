@@ -40,6 +40,20 @@ export type { TaskStatus } from './task.js';
 export { REMINDER_STATUSES, SESSION_OUTCOMES, SESSION_STATUSES, SESSION_TYPES } from './session.js';
 export type { ReminderStatus, SessionOutcome, SessionStatus, SessionType } from './session.js';
 export {
+  DOCUMENT_LANGUAGES,
+  DOCUMENT_STATUSES,
+  DOCUMENT_TYPES,
+  FOLDER_SYSTEM_KEYS,
+  OCR_STATUSES,
+} from './document.js';
+export type {
+  DocumentLanguage,
+  DocumentStatus,
+  DocumentType,
+  FolderSystemKey,
+  OcrStatus,
+} from './document.js';
+export {
   conditionFor,
   hasAllPermissions,
   isRole,
