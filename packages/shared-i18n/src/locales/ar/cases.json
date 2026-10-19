@@ -119,19 +119,19 @@
   },
   "create": {
     "title": "ملف جديد",
-    "shortcut": "اختصار لوحة المفاتيح: Ctrl+Alt+N",
+    "shortcut": "اختصار لوحة المفاتيح: {{keys}}",
     "create": "إنشاء",
     "createAndOpen": "إنشاء وفتح",
     "created": "أُنشئ الملف {{number}}.",
     "client": "الموكل",
     "lawyer": "المحامي المسؤول",
     "paralegal": "المساعد القانوني",
-    "noParalegal": "بلا مساعد",
+    "noParalegal": "بدون مساعد قانوني",
     "court": "المحكمة",
     "courtPlaceholder": "ابحث عن محكمة بالاسم أو المدينة",
     "judge": "القاضي",
     "judgePickCourt": "اختر المحكمة أولًا",
-    "billingDefault": "افتراضي المكتب",
-    "more": "المحكمة والفوترة والوصف"
+    "billingDefault": "الإعداد الافتراضي للمكتب",
+    "more": "تفاصيل إضافية (اختيارية)"
   }
 }

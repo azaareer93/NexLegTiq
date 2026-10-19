@@ -7,11 +7,15 @@ import {
 import { EmptyState, useCan } from '@nexlegtiq/shared-ui';
 import { Button, Dropdown, Modal } from 'antd';
 import type { MenuProps } from 'antd';
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { openQuickCreateCase } from '../../cases';
-import { ClientDrawer } from '../../clients';
+
+// Its own chunk, loaded the first time + Client is used (as the case modal is).
+const ClientDrawer = lazy(async () => ({
+  default: (await import('../../clients/components/ClientDrawer')).ClientDrawer,
+}));
 
 const QUICK_ACTIONS = ['file', 'client', 'task'] as const;
 type QuickAction = (typeof QUICK_ACTIONS)[number];
@@ -74,7 +78,11 @@ export function QuickActions({
       >
         <EmptyState title={t('shell.comingSoon.title')} description={t('shell.comingSoon.body')} />
       </Modal>
-      <ClientDrawer open={clientOpen} clientId={null} onClose={() => setClientOpen(false)} />
+      {clientOpen ? (
+        <Suspense fallback={null}>
+          <ClientDrawer open clientId={null} onClose={() => setClientOpen(false)} />
+        </Suspense>
+      ) : null}
     </>
   );
 }

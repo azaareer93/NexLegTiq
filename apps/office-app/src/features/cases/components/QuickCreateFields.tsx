@@ -1,6 +1,7 @@
 import { CreateCaseSchema } from '@nexlegtiq/shared-contracts';
 import { BILLING_METHODS } from '@nexlegtiq/shared-types';
 import { useApiErrorHandler } from '@nexlegtiq/shared-ui';
+import { isolate } from '@nexlegtiq/shared-utils';
 import { Form, Input, Select } from 'antd';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -25,7 +26,7 @@ export function PeopleFields(): React.JSX.Element {
   const people = directory.data ?? [];
   const option = (person: { id: string; fullName: string; role: string }) => ({
     value: person.id,
-    label: person.fullName,
+    label: isolate(person.fullName),
   });
   return (
     <>
@@ -62,10 +63,19 @@ export function CourtFields(): React.JSX.Element {
   const courtId = Form.useWatch<string | undefined>('courtId', form);
   const [text, setText] = useState('');
   const [open, setOpen] = useState(false);
+  // The picked court keeps its name when a later search no longer lists it (as ClientSelect does).
+  const [picked, setPicked] = useState<{ value: string; label: string } | undefined>();
   const search = useDebounced(text.trim());
   const courts = useCourts(search, open || courtId !== undefined);
   const judges = useJudges(courtId);
   const arabic = i18n.language === 'ar';
+  const options = (courts.data?.items ?? []).map((court) => ({
+    value: court.id,
+    label: isolate(arabic ? court.nameAr : (court.nameEn ?? court.nameAr)),
+  }));
+  if (picked && picked.value === courtId && !options.some((o) => o.value === picked.value)) {
+    options.unshift(picked);
+  }
   return (
     <>
       <Form.Item name="courtId" label={t('cases.create.court')}>
@@ -73,17 +83,17 @@ export function CourtFields(): React.JSX.Element {
           allowClear
           showSearch={{ filterOption: false, searchValue: text, onSearch: setText }}
           onOpenChange={setOpen}
-          onChange={() => form.setFieldValue('judgeId', undefined)}
+          onChange={(value?: string) => {
+            setPicked(options.find((option) => option.value === value));
+            form.setFieldValue('judgeId', undefined);
+          }}
           placeholder={t('cases.create.courtPlaceholder')}
           loading={courts.isFetching}
-          options={(courts.data?.items ?? []).map((court) => ({
-            value: court.id,
-            label: arabic ? court.nameAr : (court.nameEn ?? court.nameAr),
-          }))}
+          options={options}
           data-testid="create-court"
         />
       </Form.Item>
-      <Form.Item name="judgeId" label={t('legal.judge')}>
+      <Form.Item name="judgeId" label={t('cases.create.judge')}>
         <Select
           allowClear
           disabled={courtId === undefined}
@@ -91,7 +101,7 @@ export function CourtFields(): React.JSX.Element {
           loading={judges.isFetching}
           options={(judges.data ?? [])
             .filter((judge) => judge.isActive)
-            .map((judge) => ({ value: judge.id, label: judge.fullName }))}
+            .map((judge) => ({ value: judge.id, label: isolate(judge.fullName) }))}
           data-testid="create-judge"
         />
       </Form.Item>

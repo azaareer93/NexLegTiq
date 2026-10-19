@@ -75,6 +75,7 @@ describe('users directory (HTTP + PostgreSQL)', () => {
   afterAll(async () => {
     if (raw) {
       const where = { officeId: { in: officeIds } };
+      await raw.auditLog.deleteMany({ where });
       await raw.officeSettings.deleteMany({ where });
       await raw.user.deleteMany({ where });
       await raw.office.deleteMany({ where: { id: { in: officeIds } } });
@@ -83,7 +84,7 @@ describe('users directory (HTTP + PostgreSQL)', () => {
     process.env = savedEnv;
   });
 
-  it("should list the office's active people by name, to any role, and nobody from another office", async () => {
+  it("should list the office's active people by name, and nobody from another office", async () => {
     const officeId = await seedOffice();
     const manager = await seedUser(officeId, 'OFFICE_MANAGER', 'Basma Office');
     const lawyer = await seedUser(officeId, 'LAWYER', 'Adel Lawyer');
@@ -91,16 +92,22 @@ describe('users directory (HTTP + PostgreSQL)', () => {
     const collaborator = await seedUser(officeId, 'EXTERNAL_COLLABORATOR', 'Ziad Outside');
     await seedUser(await seedOffice(), 'LAWYER', 'Other Office Lawyer');
 
-    const res = await http()
-      .get('/api/v1/users/directory')
-      .set(bearerFor(jwt, collaborator))
-      .expect(200);
+    const res = await http().get('/api/v1/users/directory').set(bearerFor(jwt, lawyer)).expect(200);
     expect((res.body as { data: DirectoryUser[] }).data).toEqual([
       { id: lawyer.userId, fullName: 'Adel Lawyer', role: 'LAWYER' },
       { id: manager.userId, fullName: 'Basma Office', role: 'OFFICE_MANAGER' },
       { id: collaborator.userId, fullName: 'Ziad Outside', role: 'EXTERNAL_COLLABORATOR' },
     ]);
   });
+
+  it.each(['TRAINEE', 'EXTERNAL_COLLABORATOR'] as const)(
+    'should refuse the directory to a %s (403 AUTH-100)',
+    async (role) => {
+      const user = await seedUser(await seedOffice(), role, 'Limited');
+      const res = await http().get('/api/v1/users/directory').set(bearerFor(jwt, user)).expect(403);
+      expect((res.body as { error: { code: string } }).error.code).toBe('AUTH-100');
+    },
+  );
 
   it('should refuse the directory without a token (401 AUTH-003)', async () => {
     const res = await http().get('/api/v1/users/directory').expect(401);

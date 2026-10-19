@@ -1,7 +1,8 @@
+import { ApiError } from '@nexlegtiq/shared-api-client';
 import { CreateCaseSchema } from '@nexlegtiq/shared-contracts';
 import { FILE_TYPES, PRIORITIES } from '@nexlegtiq/shared-types';
 import { ApiErrorAlert, useApiErrorHandler, useCan } from '@nexlegtiq/shared-ui';
-import { isolate } from '@nexlegtiq/shared-utils';
+import { isolateLtr } from '@nexlegtiq/shared-utils';
 import { App, Button, Flex, Form, Input, Modal, Select, Typography } from 'antd';
 import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -15,6 +16,17 @@ import { useCreateCase } from '../api/use-cases';
 import { createBody, CREATE_FIELDS, defaultLawyer } from '../case-form';
 import type { CreateValues } from '../case-form';
 import { closeQuickCreateCase } from '../quick-create';
+
+/** The API reports the client as `clientIds`/`primaryClientId`; the form has one `clientId` field. */
+function onClientField(error: unknown): unknown {
+  if (!(error instanceof ApiError) || !error.details) return error;
+  const details = error.details.map((detail) =>
+    detail.field === 'clientIds' || detail.field === 'primaryClientId'
+      ? { ...detail, field: 'clientId' }
+      : detail,
+  );
+  return { code: error.code, requestId: error.requestId, details };
+}
 
 /**
  * Quick-create case (D-123): the essentials first (title, client, type, priority, lawyer), then the optional court,
@@ -37,6 +49,8 @@ export function QuickCreateCaseModal(): React.JSX.Element {
     zodRule(shape[field], translateKey);
 
   const close = () => {
+    // Closing mid-request would drop its callbacks: the case would exist without a toast or navigation.
+    if (create.isPending) return;
     create.reset();
     closeQuickCreateCase();
   };
@@ -46,11 +60,12 @@ export function QuickCreateCaseModal(): React.JSX.Element {
     if (!body) return;
     create.mutate(body, {
       onSuccess: (file) => {
-        void message.success(t('cases.create.created', { number: isolate(file.fileNumber) }));
-        close();
+        void message.success(t('cases.create.created', { number: isolateLtr(file.fileNumber) }));
+        create.reset();
+        closeQuickCreateCase();
         if (openAfter.current) void navigate(`/cases/${file.id}`);
       },
-      onError: (error) => applyToForm(form, error, [...CREATE_FIELDS]),
+      onError: (error) => applyToForm(form, onClientField(error), [...CREATE_FIELDS]),
     });
   };
   const submitWith = (open: boolean) => () => {
@@ -64,7 +79,8 @@ export function QuickCreateCaseModal(): React.JSX.Element {
       onCancel={close}
       title={t('cases.create.title')}
       width={640}
-      destroyOnHidden
+      keyboard={!create.isPending}
+      closable={!create.isPending}
       mask={{ closable: !create.isPending }}
       data-testid="create-case-modal"
       footer={
@@ -93,7 +109,9 @@ export function QuickCreateCaseModal(): React.JSX.Element {
       }
     >
       <Flex vertical gap={12}>
-        <Typography.Text type="secondary">{t('cases.create.shortcut')}</Typography.Text>
+        <Typography.Text type="secondary">
+          {t('cases.create.shortcut', { keys: isolateLtr('Ctrl+Alt+N') })}
+        </Typography.Text>
         <ApiErrorAlert error={create.error} fields={CREATE_FIELDS} testId="create-error" />
         <Form
           form={form}

@@ -1338,8 +1338,10 @@ MVP-59 asks for responsible-lawyer and paralegal pickers, but no endpoint lists 
 its own story), billing defaults "from office settings" while the office settings API does not exist yet, and an entry
 point on the client profile, which has no page yet. → **`GET /users/directory`** (`src/modules/users`): the office's
 **active** users as `{id, fullName, role}` by name — no email, status or invitations (the team-management list adds those)
-— readable with ANY of `view:all|assigned:cases` (every office role: colleagues' names are shown on every file anyway);
-not paginated (capped at 500). **Modal** (`apps/office-app/src/features/cases`): one `QuickCreateCaseModal`, its own lazy
+— readable with ANY of `create:case`, `create:task`, `assign:task`, `create:session` (the roles whose forms have
+people pickers: OM, SL, L, P; admin staff, trainees and outside collaborators, who see only assigned files,
+get 403); not paginated (capped at 500); no `:id`, so `users.int.spec.ts` (another office's people never listed) stands
+in for the HTTP isolation matrix entry. **Modal** (`apps/office-app/src/features/cases`): one `QuickCreateCaseModal`, its own lazy
 chunk, mounted once by `QuickCreateCaseHost` in the shell (only for `create:case`), opened from the shell's **+ Case**
 quick action, the cases list's **New case** and **Ctrl+Alt+N** (physical `KeyN`; ignored while typing in a field, since
 Ctrl+Alt is AltGr on Windows layouts that type characters with it). Fields: title, client (`ClientSelect` with inline

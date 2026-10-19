@@ -119,7 +119,8 @@ async function openFromList(locale: 'en' | 'ar' = 'en'): Promise<HTMLElement> {
 async function pick(testId: string, label: string): Promise<void> {
   const select = screen.getByTestId(testId);
   fireEvent.mouseDown(select.querySelector('.ant-select-selector') ?? select);
-  fireEvent.click(await screen.findByTitle(label));
+  // Names are bidi-isolated in the options (D-092): match the name inside the isolates.
+  fireEvent.click(await screen.findByTitle(new RegExp(label)));
 }
 
 async function fillEssentials(): Promise<void> {
@@ -128,6 +129,54 @@ async function fillEssentials(): Promise<void> {
   fireEvent.mouseDown(clientSelect.querySelector('.ant-select-selector') ?? clientSelect);
   fireEvent.click(await screen.findByTitle('Omar Khalil'));
   await pick('create-type', 'Litigation');
+}
+
+const CREATED = /Case .*2026-LIT-00042.* created\./;
+const COURT_A = '01920000-0000-7000-8000-0000000000e1';
+const COURT_B = '01920000-0000-7000-8000-0000000000e3';
+const JUDGE_ID = '01920000-0000-7000-8000-0000000000e2';
+
+/** Two platform courts; only the first has a judge. */
+function serveCourts(): void {
+  const court = (id: string, name: string) => ({
+    id,
+    jurisdiction: 'PALESTINE',
+    courtType: 'FIRST_INSTANCE',
+    nameAr: name,
+    nameEn: name,
+    city: null,
+    address: null,
+    phone: null,
+    email: null,
+    isPlatform: true,
+    createdAt: '2026-10-01T10:00:00.000Z',
+    updatedAt: '2026-10-01T10:00:00.000Z',
+  });
+  const pagination = { page: 1, limit: 20, total: 2, totalPages: 1, hasMore: false };
+  server.use(
+    http.get(api('courts'), () =>
+      HttpResponse.json({
+        success: true,
+        data: [court(COURT_A, 'Ramallah Court'), court(COURT_B, 'Nablus Court')],
+        meta: { ...meta, pagination },
+      }),
+    ),
+    http.get(api(`courts/${COURT_A}/judges`), () =>
+      ok([
+        {
+          id: JUDGE_ID,
+          courtId: COURT_A,
+          fullName: 'Judge Salem',
+          isActive: true,
+          notes: null,
+          isPlatform: false,
+          createdAt: '2026-10-01T10:00:00.000Z',
+          updatedAt: '2026-10-01T10:00:00.000Z',
+        },
+      ]),
+    ),
+    http.get(api(`courts/${COURT_B}/judges`), () => ok([])),
+  );
 }
 
 describe('quick-create case (D-123)', () => {
@@ -146,6 +195,12 @@ describe('quick-create case (D-123)', () => {
       clientIds: [CLIENT_ID],
       primaryClientId: CLIENT_ID,
     });
+    // A rate typed before switching to a fixed fee stays in the form, but is not sent.
+    expect(createBody({ billingMethod: 'FIXED_FEE', hourlyRate: '150', fixedFee: '900' })).toEqual({
+      billingMethod: 'FIXED_FEE',
+      fixedFee: '900',
+    });
+    expect(createBody({ hourlyRate: '150' })).toEqual({});
     expect(defaultLawyer({ id: 'u1', role: 'LAWYER' })).toBe('u1');
     expect(defaultLawyer({ id: 'u2', role: 'PARALEGAL' })).toBeUndefined();
     expect(defaultLawyer(null)).toBeUndefined();
@@ -247,6 +302,88 @@ describe('quick-create case (D-123)', () => {
   );
 
   it(
+    'should send a court and its judge, and clear the judge when the court changes',
+    async () => {
+      setViewport(1280);
+      signedIn();
+      const bodies = serve();
+      serveCourts();
+      await openFromList();
+      await waitFor(() =>
+        expect(screen.getByTestId('create-lawyer').textContent).toContain(USER.fullName),
+      );
+      await fillEssentials();
+      expect(screen.getByTestId('create-judge').className).toContain('disabled');
+      await pick('create-court', 'Ramallah Court');
+      await waitFor(() =>
+        expect(screen.getByTestId('create-judge').className).not.toContain('disabled'),
+      );
+      await pick('create-judge', 'Judge Salem');
+      await pick('create-court', 'Nablus Court');
+      await waitFor(() =>
+        expect(screen.getByTestId('create-judge').textContent).not.toContain('Judge Salem'),
+      );
+      await pick('create-court', 'Ramallah Court');
+      await waitFor(() =>
+        expect(screen.getByTestId('create-judge').className).not.toContain('disabled'),
+      );
+      await pick('create-judge', 'Judge Salem');
+      fireEvent.click(screen.getByTestId('create-submit'));
+      await screen.findByText(CREATED);
+      expect(bodies[0]).toMatchObject({ courtId: COURT_A, judgeId: JUDGE_ID });
+    },
+    SLOW,
+  );
+
+  it(
+    'should show billing to an office manager and send the rate',
+    async () => {
+      setViewport(1280);
+      signedIn();
+      const bodies = serve();
+      await openFromList();
+      await waitFor(() =>
+        expect(screen.getByTestId('create-lawyer').textContent).toContain(USER.fullName),
+      );
+      await fillEssentials();
+      await pick('create-billing', 'Hourly');
+      fireEvent.change(await screen.findByTestId('create-rate'), { target: { value: '200' } });
+      fireEvent.click(screen.getByTestId('create-submit'));
+      await screen.findByText(CREATED);
+      expect(bodies[0]).toMatchObject({ billingMethod: 'HOURLY', hourlyRate: '200' });
+    },
+    SLOW,
+  );
+
+  it(
+    'should give a paralegal no billing fields and no default lawyer',
+    async () => {
+      setViewport(1280);
+      signedIn({
+        id: PARALEGAL_ID,
+        role: 'PARALEGAL',
+        permissions: [...permissionsFor('PARALEGAL')],
+      });
+      const bodies = serve();
+      const modal = await openFromList();
+      expect(screen.queryByTestId('create-billing')).toBeNull();
+      await fillEssentials();
+      fireEvent.click(screen.getByTestId('create-submit'));
+      await waitFor(() =>
+        expect(
+          modal.querySelector('.ant-form-item-has-error [data-testid="create-lawyer"]'),
+        ).toBeTruthy(),
+      );
+      expect(bodies).toHaveLength(0);
+      await pick('create-lawyer', 'Omar Lawyer');
+      fireEvent.click(screen.getByTestId('create-submit'));
+      await screen.findByText(CREATED);
+      expect(bodies[0]).toMatchObject({ responsibleLawyerId: people[1]?.id });
+    },
+    SLOW,
+  );
+
+  it(
     'should open with Ctrl+Alt+N anywhere, but not for a role that cannot create files',
     async () => {
       setViewport(1280);
@@ -269,9 +406,10 @@ describe('quick-create case (D-123)', () => {
       signedIn({ role: 'TRAINEE', permissions: [...permissionsFor('TRAINEE')] });
       renderApp('/tasks');
       await screen.findByTestId('page-tasks', {}, { timeout: COLD });
+      // The modal's chunk is loaded first, so its absence below is not just a slow import.
+      await import('./components/QuickCreateCaseModal');
       fireEvent.keyDown(window, { ctrlKey: true, altKey: true, code: 'KeyN', key: 'n' });
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      expect(screen.queryByTestId('create-case-modal')).toBeNull();
+      await waitFor(() => expect(screen.queryByTestId('create-case-modal')).toBeNull());
     },
     SLOW,
   );

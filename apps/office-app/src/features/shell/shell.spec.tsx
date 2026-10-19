@@ -506,7 +506,11 @@ describe('header', () => {
         ['file', 'client', 'task'].filter((key) => screen.queryByTestId(`quick-${key}`)),
       ).toEqual(expected);
       fireEvent.click(screen.getByTestId(`quick-${expected[0]}`));
-      // + Case loads its form on first use (its own chunk).
+      // + Case opens the quick-create modal (its own chunk, loaded on first use); + Client the client drawer.
+      if (expected[0] === 'file') {
+        await screen.findByTestId('create-case-modal', {}, { timeout: 20_000 });
+        return;
+      }
       const dialog = await screen.findByRole('dialog', {}, { timeout: 20_000 });
       expect(
         within(dialog).getAllByText(

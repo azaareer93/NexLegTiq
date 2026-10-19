@@ -14,9 +14,12 @@ import { RequireAnyPermission } from '../../common/rbac/permissions.decorator';
 export class UsersController {
   constructor(private readonly users: UsersRepository) {}
 
-  /** Every staff member works with colleagues' names (D-123): any role that sees files may read the directory. */
+  /**
+   * For the people pickers (D-123): only roles that open files, create or assign tasks, or schedule hearings — not
+   * trainees or outside collaborators, who see only their assigned files.
+   */
   @Get('directory')
-  @RequireAnyPermission('view:all:cases', 'view:assigned:cases')
+  @RequireAnyPermission('create:case', 'create:task', 'assign:task', 'create:session')
   @ApiOperation({ summary: 'Active colleagues (name and role) for pickers, by name' })
   @ApiZodResponse(HttpStatus.OK, DirectoryUserSchema.array())
   directory(): Promise<DirectoryUser[]> {

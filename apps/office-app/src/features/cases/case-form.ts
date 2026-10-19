@@ -39,6 +39,9 @@ export function createBody(values: CreateValues): Record<string, unknown> {
     const value = values[field]?.trim();
     if (value) body[field] = value;
   }
+  // The form keeps a hidden field's value: a rate typed before switching to a fixed fee must not be sent.
+  if (body['billingMethod'] !== 'HOURLY') delete body['hourlyRate'];
+  if (body['billingMethod'] !== 'FIXED_FEE') delete body['fixedFee'];
   const { clientId, ...rest } = body;
   return clientId === undefined
     ? rest

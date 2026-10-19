@@ -115,7 +115,7 @@
   },
   "create": {
     "title": "New case",
-    "shortcut": "Shortcut: Ctrl+Alt+N",
+    "shortcut": "Shortcut: {{keys}}",
     "create": "Create",
     "createAndOpen": "Create & open",
     "created": "Case {{number}} created.",
@@ -128,6 +128,6 @@
     "judge": "Judge",
     "judgePickCourt": "Choose a court first",
     "billingDefault": "Office default",
-    "more": "Court, billing and description"
+    "more": "More details (optional)"
   }
 }
