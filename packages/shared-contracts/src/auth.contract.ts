@@ -103,6 +103,8 @@ export const AuthUserSchema = z.object({
   verifyBy: z.iso.datetime().nullable(),
   /** The office's idle timeout in minutes (D-053, office settings): the UI signs out after it. */
   idleMinutes: z.number().int().min(15).max(120),
+  /** The office's IANA time zone (D-125): hearing and deadline times are shown and entered in it (D-127). */
+  timeZone: z.string().min(1),
 });
 export type AuthUser = z.infer<typeof AuthUserSchema>;
 

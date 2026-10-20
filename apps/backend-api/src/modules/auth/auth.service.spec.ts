@@ -35,7 +35,12 @@ const activeUser = {
   isActive: true,
   emailVerifiedAt: new Date('2026-09-01T00:00:00Z'),
   createdAt: new Date('2026-09-01T00:00:00Z'),
-  office: { name: 'Office', isActive: true, settings: { sessionIdleMinutes: 45 } },
+  office: {
+    name: 'Office',
+    isActive: true,
+    timezone: 'Asia/Hebron',
+    settings: { sessionIdleMinutes: 45 },
+  },
 };
 
 function setup(
@@ -190,6 +195,7 @@ describe('AuthService.login', () => {
     expect(issued.session.user).toMatchObject({
       emailVerified: false,
       idleMinutes: 45,
+      timeZone: 'Asia/Hebron',
       verifyBy: new Date(fresh.createdAt.getTime() + 7 * 86_400_000).toISOString(),
     });
 

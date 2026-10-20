@@ -1,0 +1,76 @@
+{
+  "tab": {
+    "upcoming": "Upcoming",
+    "past": "Past",
+    "noUpcoming": "No upcoming hearings",
+    "noPast": "No past hearings",
+    "schedule": "Schedule hearing",
+    "shortcut": "Shortcut: {{keys}}"
+  },
+  "item": {
+    "court": "Court",
+    "room": "Room {{room}}",
+    "judge": "Judge",
+    "lawyer": "Attending lawyer",
+    "reminders": "Reminders (days before): {{days}}",
+    "noReminders": "No reminders",
+    "outcome": "Outcome",
+    "cancelled": "Cancelled",
+    "needsOutcome": "Outcome not recorded",
+    "open": "Open hearing {{when}}",
+    "judgeOf": "Judge: {{name}}",
+    "lawyerOf": "Attending lawyer: {{name}}"
+  },
+  "drawer": {
+    "createTitle": "Schedule a hearing",
+    "title": "Hearing",
+    "save": "Save",
+    "schedule": "Schedule"
+  },
+  "fields": {
+    "type": "Type",
+    "date": "Date",
+    "start": "Starts at",
+    "end": "Ends at (optional)",
+    "room": "Courtroom",
+    "lawyer": "Attending lawyer",
+    "reminderDays": "Reminders (days before)",
+    "reminderDaysDefault": "Office default",
+    "outcome": "Outcome",
+    "minutes": "Minutes",
+    "scheduleNext": "Schedule the next hearing",
+    "nextDate": "Next hearing date",
+    "nextStart": "Next hearing time"
+  },
+  "timeZone": "Times are in the office time zone ({{zone}}).",
+  "conflict": {
+    "title": "The attending lawyer already has a hearing at this time.",
+    "hidden": "A hearing on a file you cannot open",
+    "anyway": "Schedule anyway"
+  },
+  "cancel": {
+    "action": "Cancel hearing",
+    "title": "Cancel this hearing?",
+    "body": "Its pending reminders are cancelled too. This cannot be undone.",
+    "reason": "Reason (optional)",
+    "confirm": "Yes, cancel the hearing",
+    "keep": "Keep"
+  },
+  "outcome": {
+    "title": "Outcome and minutes",
+    "save": "Record outcome",
+    "notStarted": "The outcome can be recorded once the hearing has started.",
+    "aiSummary": "Summarise with AI",
+    "aiSoon": "Available with the AI features."
+  },
+  "reminders": {
+    "title": "Reminders",
+    "item_one": "1 day before · {{name}}",
+    "item_other": "{{count}} days before · {{name}}"
+  },
+  "readOnly": "This hearing can no longer be changed.",
+  "scheduled": "Hearing scheduled.",
+  "cancelled": "Hearing cancelled.",
+  "separator": " · ",
+  "listSeparator": ", "
+}

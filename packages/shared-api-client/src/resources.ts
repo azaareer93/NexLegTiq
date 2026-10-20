@@ -9,6 +9,8 @@ import {
   DirectoryUserSchema,
   JudgeSchema,
   OfficeProfileSchema,
+  SessionListItemSchema,
+  SessionSchema,
   OfficeSettingsSchema,
   TeamMemberSchema,
   UserOpenFileSchema,
@@ -24,6 +26,14 @@ import type {
   UpdateOfficeSettingsRequest,
   UserOpenFile,
   OfficeSubscription,
+  CancelSessionRequest,
+  CreateCourtSchema,
+  CreateJudgeSchema,
+  CreateSessionSchema,
+  Session,
+  SessionListItem,
+  SessionOutcomeSchema,
+  UpdateSessionSchema,
   AuthSession,
   Case,
   CaseListItem,
@@ -216,6 +226,15 @@ export function courtsApi(client: ApiClient) {
         { method: 'GET', path: `courts/${encodeURIComponent(courtId)}/judges`, signal },
         JudgeSchema.array(),
       ),
+    /** An office court (D-115); the jurisdiction defaults to the office's. */
+    create: (body: Input<typeof CreateCourtSchema>): Promise<Court> =>
+      client.request({ method: 'POST', path: 'courts', body }, CourtSchema),
+    /** An office judge at a court (also at a platform court). */
+    createJudge: (courtId: string, body: Input<typeof CreateJudgeSchema>): Promise<Judge> =>
+      client.request(
+        { method: 'POST', path: `courts/${encodeURIComponent(courtId)}/judges`, body },
+        JudgeSchema,
+      ),
   };
 }
 
@@ -235,5 +254,39 @@ export function officesApi(client: ApiClient) {
         { method: 'GET', path: 'offices/me/subscription', signal },
         OfficeSubscriptionSchema,
       ),
+  };
+}
+
+/** `GET /cases/:id/sessions` (D-116): upcoming soonest first, past latest first. */
+export type FileSessionsParams = {
+  readonly when: 'upcoming' | 'past';
+  readonly page?: number;
+  readonly limit?: number;
+};
+
+/** Hearings (D-116, D-117). Instants are sent with an offset and come back in UTC. */
+export function sessionsApi(client: ApiClient) {
+  const path = (id: string) => `sessions/${encodeURIComponent(id)}`;
+  return {
+    forFile: (
+      fileId: string,
+      query: FileSessionsParams,
+      signal?: AbortSignal,
+    ): Promise<Page<SessionListItem>> =>
+      client.requestPage(
+        { method: 'GET', path: `cases/${encodeURIComponent(fileId)}/sessions`, query, signal },
+        SessionListItemSchema,
+      ),
+    get: (id: string, signal?: AbortSignal): Promise<Session> =>
+      client.request({ method: 'GET', path: path(id), signal }, SessionSchema),
+    /** 409 BIZ-004 when the attending lawyer is busy, unless `acknowledgeConflict`. */
+    create: (body: Input<typeof CreateSessionSchema>): Promise<Session> =>
+      client.request({ method: 'POST', path: 'sessions', body }, SessionSchema),
+    update: (id: string, body: Input<typeof UpdateSessionSchema>): Promise<Session> =>
+      client.request({ method: 'PATCH', path: path(id), body }, SessionSchema),
+    cancel: (id: string, body: CancelSessionRequest): Promise<Session> =>
+      client.request({ method: 'POST', path: `${path(id)}/cancel`, body }, SessionSchema),
+    outcome: (id: string, body: Input<typeof SessionOutcomeSchema>): Promise<Session> =>
+      client.request({ method: 'POST', path: `${path(id)}/outcome`, body }, SessionSchema),
   };
 }

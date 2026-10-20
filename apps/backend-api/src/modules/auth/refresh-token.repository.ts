@@ -17,7 +17,12 @@ export const USER_FOR_SESSION = {
   emailVerifiedAt: true,
   createdAt: true,
   office: {
-    select: { name: true, isActive: true, settings: { select: { sessionIdleMinutes: true } } },
+    select: {
+      name: true,
+      isActive: true,
+      timezone: true,
+      settings: { select: { sessionIdleMinutes: true } },
+    },
   },
 } as const;
 

@@ -27,7 +27,11 @@ export function useUpdateProfile() {
     onSuccess: (profile) => {
       queryClient.setQueryData(profileKey, profile);
       const { user } = useSession.getState();
-      if (user) useSession.setState({ user: { ...user, officeName: profile.name } });
+      if (user) {
+        useSession.setState({
+          user: { ...user, officeName: profile.name, timeZone: profile.timezone },
+        });
+      }
     },
   });
 }

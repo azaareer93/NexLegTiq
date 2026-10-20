@@ -44,6 +44,7 @@ describe('AuthSessionSchema', () => {
         emailVerified: false,
         verifyBy: '2026-10-08T12:00:00.000Z',
         idleMinutes: 30,
+        timeZone: 'Asia/Hebron',
       },
     };
     expect(AuthSessionSchema.safeParse(session).success).toBe(true);

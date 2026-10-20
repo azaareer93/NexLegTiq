@@ -31,6 +31,9 @@ import { CaseDetailsTab } from '../components/CaseDetailsTab';
 import { EditCaseDrawer } from '../components/EditCaseDrawer';
 import { fileActions, readTab, visibleTabs } from '../file-page';
 import type { FileActions } from '../file-page';
+import { useHearingShortcut, useSessionRights } from '../sessions/session-rights';
+import { SessionDrawer } from '../sessions/SessionDrawer';
+import { SessionsTab } from '../sessions/SessionsTab';
 
 type Dialog = 'edit' | 'delete' | 'comingSoon' | null;
 type MenuKey = 'edit' | 'reassign' | 'status' | 'archive' | 'delete';
@@ -155,6 +158,12 @@ function FileView({
   const queryClient = useQueryClient();
   const [params, setParams] = useSearchParams();
   const [dialog, setDialog] = useState<Dialog>(null);
+  // The hearing drawer: a hearing's id, null for a new one, undefined while closed.
+  const [hearing, setHearing] = useState<string | null | undefined>(undefined);
+  const sessionRights = useSessionRights(file, user.id);
+  useHearingShortcut(sessionRights.create && dialog === null && hearing === undefined, () =>
+    setHearing(null),
+  );
   const remove = useDeleteCase(file.id);
   const held = {
     'view:all:invoices': useCan('view:all:invoices'),
@@ -180,6 +189,14 @@ function FileView({
       },
       { replace: true },
     );
+
+  const tabContent = (key: string) => {
+    if (key === 'details') return <CaseDetailsTab file={file} onOpenHearing={setHearing} />;
+    if (key === 'sessions') {
+      return <SessionsTab fileId={file.id} canCreate={sessionRights.create} onOpen={setHearing} />;
+    }
+    return <ComingSoonTab />;
+  };
 
   const confirmDelete = () =>
     remove.mutate(undefined, {
@@ -212,7 +229,7 @@ function FileView({
           items={tabs.map((key) => ({
             key,
             label: <span data-testid={`tab-${key}`}>{t(`cases.file.tabs.${key}`)}</span>,
-            children: key === 'details' ? <CaseDetailsTab file={file} /> : <ComingSoonTab />,
+            children: tabContent(key),
           }))}
         />
       </Flex>
@@ -224,6 +241,13 @@ function FileView({
           onClose={() => setDialog(null)}
         />
       ) : null}
+      <SessionDrawer
+        file={file}
+        sessionId={hearing ?? null}
+        open={hearing !== undefined}
+        rights={sessionRights}
+        onClose={() => setHearing(undefined)}
+      />
       <ConfirmModal
         open={dialog === 'delete'}
         danger

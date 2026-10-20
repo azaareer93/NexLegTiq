@@ -1,9 +1,11 @@
 import { LockOutlined } from '@ant-design/icons';
 import type { Case } from '@nexlegtiq/shared-contracts';
-import { Bdi, EmptyState, Ltr, useFormat, useLanguage } from '@nexlegtiq/shared-ui';
+import { Bdi, Ltr, useFormat, useLanguage } from '@nexlegtiq/shared-ui';
 import { Card, Col, Descriptions, Flex, List, Row, Statistic, Tag, Typography } from 'antd';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+
+import { NextHearingCard } from '../sessions/NextHearingCard';
 
 /** A value, or "not set" for an empty one. */
 function Value({ children }: { readonly children: ReactNode }): ReactNode {
@@ -190,21 +192,15 @@ function CountsCard({ file }: { readonly file: Case }): React.JSX.Element {
   );
 }
 
-/** Hearings come with the sessions screens; until then the card says where they will appear. */
-function NextHearingCard(): React.JSX.Element {
-  const { t } = useTranslation();
-  return (
-    <Card title={t('cases.file.cards.nextHearing')} data-testid="case-card-next-hearing">
-      <EmptyState
-        title={t('cases.file.nextHearing.none')}
-        description={t('cases.file.nextHearing.soon')}
-      />
-    </Card>
-  );
-}
-
 /** The Details tab (frontend.md#legal-file-page): the file's fields and cards, two columns on wide screens. */
-export function CaseDetailsTab({ file }: { readonly file: Case }): React.JSX.Element {
+export function CaseDetailsTab({
+  file,
+  onOpenHearing,
+}: {
+  readonly file: Case;
+  /** Opens a hearing in the drawer (from the next-hearing card). */
+  readonly onOpenHearing: (id: string) => void;
+}): React.JSX.Element {
   return (
     <Row gutter={[16, 16]} data-testid="case-details">
       <Col xs={24} lg={14}>
@@ -216,7 +212,7 @@ export function CaseDetailsTab({ file }: { readonly file: Case }): React.JSX.Ele
       </Col>
       <Col xs={24} lg={10}>
         <Flex vertical gap={16}>
-          <NextHearingCard />
+          <NextHearingCard fileId={file.id} onOpen={onOpenHearing} />
           <CountsCard file={file} />
           <ClientsCard file={file} />
           <TeamCard file={file} />
