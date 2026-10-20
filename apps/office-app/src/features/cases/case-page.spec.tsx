@@ -81,8 +81,22 @@ const userAs = (role: Role, id = USER.id) => ({ id, role, permissions: permissio
 const asRole = (role: Role, id = USER.id, uiLanguage: 'AR' | 'EN' = 'EN') =>
   signedIn({ id, role, uiLanguage, permissions: [...permissionsFor(role)] });
 
+const EMPTY_PAGE = {
+  success: true,
+  data: [],
+  meta: {
+    timestamp: '2026-10-05T10:00:00.000Z',
+    requestId: 'req-12345678',
+    pagination: { page: 1, limit: 10, total: 0, totalPages: 0, hasMore: false },
+  },
+};
+
 function serveFile(file: Case = FILE) {
-  server.use(http.get(api(`cases/${ID}`), () => ok(file)));
+  server.use(
+    http.get(api(`cases/${ID}`), () => ok(file)),
+    // The next-hearing card reads the file's upcoming hearings.
+    http.get(api(`cases/${ID}/sessions`), () => HttpResponse.json(EMPTY_PAGE)),
+  );
 }
 const page = () => screen.findByTestId('page-case', {}, { timeout: COLD });
 

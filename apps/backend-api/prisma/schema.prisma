@@ -1163,6 +1163,8 @@ model Document {
   sharedWithClient Boolean           @default(false) @map("shared_with_client")
   /// The office user who uploaded it; portal uploads add `uploadedByClientUserId` with the Client Portal (D-119).
   uploadedById     String            @map("uploaded_by_id") @db.Uuid
+  /// The client's `Idempotency-Key` of the upload that created it: a retry returns this document (D-126).
+  idempotencyKey   String?           @map("idempotency_key")
   deletedAt        DateTime?         @map("deleted_at") @db.Timestamptz(3)
   createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -1177,6 +1179,8 @@ model Document {
   texts      DocumentText[]
 
   @@unique([id, officeId])
+  // One upload per key and uploader (NULLs never collide).
+  @@unique([officeId, uploadedById, idempotencyKey])
   // A file's documents, by folder (the Documents tab); also serves the folder FK checks (D-119).
   @@index([officeId, fileId, folderId])
   // Foreign-key lookup for a session (session documents).

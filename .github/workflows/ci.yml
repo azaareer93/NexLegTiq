@@ -37,7 +37,7 @@ jobs:
       DATABASE_URL: postgresql://nexlegtiq:test@localhost:5432/nexlegtiq_test
       REDIS_URL: redis://localhost:6379
       # The storage and mail containers started below (same credentials as docker/compose.dev.yml): integration tests
-      # use them through integrationEnv, and the e2e server's readiness checks the bucket. Nothing talks to ClamAV yet.
+      # use them through integrationEnv, and the e2e server's readiness checks the bucket; the document scan uses ClamAV.
       S3_ENDPOINT: http://127.0.0.1:9000
       S3_REGION: us-east-1
       S3_BUCKET: nexlegtiq-documents-local
@@ -48,7 +48,7 @@ jobs:
       SMTP_PORT: '1025'
       SMTP_REQUIRE_TLS: 'false'
       MAIL_FROM: no-reply@nexlegtiq.test
-      CLAMAV_HOST: localhost
+      CLAMAV_HOST: 127.0.0.1
       JWT_SECRET: ci-only-access-secret-at-least-32-characters
       JWT_PORTAL_SECRET: ci-only-portal-secret-at-least-32-chars
       ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
@@ -72,9 +72,13 @@ jobs:
       - run: pnpm nx affected -t lint typecheck --parallel=3
       # Same images and credentials as docker/compose.dev.yml. Started here, not as services: RustFS needs its data
       # directory as a command argument, which service containers cannot pass. The bucket is created like s3-init does.
-      - name: Start object storage and mail for integration and e2e tests
+      - name: Start object storage, mail and ClamAV for integration and e2e tests
         if: ${{ hashFiles('apps/backend-api/prisma/schema.prisma') != '' }}
         run: |
+          # ClamAV first: it downloads its signatures on start (about a minute). Same settings as compose (D-126): streams
+          # up to 60M, and content it had to skip reported, not passed.
+          docker run -d --name clamav -p 127.0.0.1:3310:3310 --entrypoint /bin/sh clamav/clamav:stable -c \
+            "printf 'StreamMaxLength 60M\nAlertExceedsMax yes\nAlertEncryptedArchive yes\n' >> /etc/clamav/clamd.conf; exec /init"
           docker run -d --name s3 -p 127.0.0.1:9000:9000 -e RUSTFS_ADDRESS=0.0.0.0:9000 \
             -e RUSTFS_ACCESS_KEY=nexlegtiq -e RUSTFS_SECRET_KEY=nexlegtiq-dev-only rustfs/rustfs:1.0.0 /data
           docker run -d --name mailpit -p 127.0.0.1:1025:1025 -p 127.0.0.1:8025:8025 axllent/mailpit:v1.31.3
@@ -86,6 +90,12 @@ jobs:
             sleep 2
           done
           [ "$ready" = true ] || { echo 'storage or mail container did not become ready'; exit 1; }
+          clamd=false
+          for attempt in $(seq 1 90); do
+            if docker exec clamav clamdcheck.sh >/dev/null 2>&1; then clamd=true && break; fi
+            sleep 4
+          done
+          [ "$clamd" = true ] || { docker logs clamav | tail -20; echo 'ClamAV did not become ready'; exit 1; }
           docker run --rm --network host -e AWS_ACCESS_KEY_ID=nexlegtiq -e AWS_SECRET_ACCESS_KEY=nexlegtiq-dev-only \
             -e AWS_DEFAULT_REGION=us-east-1 amazon/aws-cli:2.37.5 \
             --endpoint-url http://127.0.0.1:9000 s3api create-bucket --bucket nexlegtiq-documents-local

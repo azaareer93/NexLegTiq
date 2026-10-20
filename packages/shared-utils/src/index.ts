@@ -23,3 +23,5 @@ export {
   roundMoney,
   subtractMoney,
 } from './money.js';
+export { wallClock, zonedDateTime } from './zoned.js';
+export type { WallClock } from './zoned.js';

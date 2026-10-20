@@ -378,6 +378,9 @@ importers:
       bullmq:
         specifier: ^5.81.5
         version: 5.81.5
+      busboy:
+        specifier: 1.6.0
+        version: 1.6.0
       compression:
         specifier: ^1.8.2
         version: 1.8.2
@@ -436,6 +439,9 @@ importers:
       '@nestjs/testing':
         specifier: ^11.0.0
         version: 11.2.6(@nestjs/common@11.2.6(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.2.6)(@nestjs/platform-express@11.2.6)
+      '@types/busboy':
+        specifier: 1.5.4
+        version: 1.5.4
       '@types/cookie-parser':
         specifier: ^1.4.10
         version: 1.4.10(@types/express@5.0.6)
@@ -4325,6 +4331,9 @@ packages:
 
   '@types/bonjour@3.5.13':
     resolution: {integrity: sha512-z9fJ5Im06zvUL548KvYNecEVlA7cVDkGUi6kZusb04mpyEFKCIZJvloCcmpmLaIahDpOQGHaHmG6imtPMmPXGQ==}
+
+  '@types/busboy@1.5.4':
+    resolution: {integrity: sha512-kG7WrUuAKK0NoyxfQHsVE6j1m01s6kMma64E+OZenQABMQyTJop1DumUWcLwAQ2JzpefU7PDYoRDKl8uZosFjw==}
 
   '@types/chai@5.2.3':
     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
@@ -15122,6 +15131,10 @@ snapshots:
       '@types/node': 22.20.4
 
   '@types/bonjour@3.5.13':
+    dependencies:
+      '@types/node': 22.20.4
+
+  '@types/busboy@1.5.4':
     dependencies:
       '@types/node': 22.20.4
 

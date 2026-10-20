@@ -238,6 +238,7 @@ export class AuthService {
           emailVerified: user.emailVerifiedAt !== null,
           verifyBy: verifyBy(user)?.toISOString() ?? null,
           idleMinutes: user.office.settings?.sessionIdleMinutes ?? DEFAULT_IDLE_MINUTES,
+          timeZone: user.office.timezone,
         },
       },
     };
