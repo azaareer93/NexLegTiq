@@ -1496,3 +1496,32 @@ old team rows and so their access to those files, confidential ones included. UI
 responsible lawyer of open files, the API's VAL-001 reason is shown in words (role select, the wizard's list rule, and per
 file on its picker), buttons are named per person, statuses read Inactive / غير نشط (as for clients) and Arabic says
 "إيقاف الحساب" for deactivate.
+
+**D-127 — Hearings on the file page: office-time entry, the drawer, conflicts and inline courts** · Accepted (MVP-69, 2026-10-20) · Amends D-090, D-092
+MVP-69 needed hearing times on the office's clock in a browser that may run in any zone, and left the drawer's states, the
+conflict flow and "inline add" open. → **Time zone (amends D-090/D-092):** the session answer of login and refresh carries
+`user.timeZone` (the office's `timezone`, D-125), and the office app passes it to `NexProvider`, so every date and time on
+every page is shown in the office's zone (D-092 left this to "once office settings exist"); a manager's saved time zone updates
+the tab at once. `shared-utils` gains `wallClock(instant, zone)` and `zonedDateTime(date, time, zone)` (100 % covered, DST-tested):
+date and time pickers hold the **office wall clock** as plain values, and the request carries that time with the office's offset
+(`2026-11-02T09:30:00+02:00`, D-116), whatever the device's zone; a wall time skipped or repeated by a DST change (at night)
+resolves to a neighbouring reading. The drawer says which zone it uses. **Hearings tab** (`features/cases/sessions`): Upcoming
+(soonest first) and Past (latest first), 10 per page, each row with type, time, status, outcome or "outcome not recorded",
+court and room, judge, attending lawyer and the reminder days; a row (click or Enter/Space) opens the **drawer**. The list rows
+have no reminder statuses (the list contract leaves them out), so the drawer shows each reminder with its recipient and status
+(D-117). **Drawer:** a new hearing (type, date, start, optional end, court and judge, room, attending lawyer — the caller when
+they may attend, else the file's responsible lawyer — and reminder days, empty = the office's default); an existing one shows
+its summary, the edit form and "cancel hearing" (confirm, optional reason) while SCHEDULED, and outcome + minutes once it has
+started (correctable, "schedule the next hearing" with a date and time while it has none; the AI summary button is disabled until
+the AI features). Edits send only changed fields (instants compared as instants, reminder days as sets). **Conflicts:** a 409
+BIZ-004 shows each busy slot with its time and the file number when the user may open that file ("a hearing on a file you
+cannot open" otherwise) and "schedule anyway", which resends with `acknowledgeConflict` (create, edit and next hearing).
+**Rights (UI only, D-051):** schedule with `create:session`; edit, cancel and outcome with `edit:session` plus write access to
+the file (`edit:any:case`, or `edit:assigned:case` when assigned); nothing on an archived file. **Ctrl+Alt+H** opens a new
+hearing on the file page (physical key, not while typing — the quick-create rule, now `isCtrlAltShortcut`). **Next-hearing card**
+(Details tab): the first SCHEDULED hearing of the upcoming list, with "open hearing"; it shares the tab's query key, so any
+hearing write refreshes it at once. **Inline add (D-115):** the court and judge pickers (shared with quick-create) offer "new
+court" (Arabic name prefilled with the search, type, optional English name and city) and "new judge" (at the picked court); the
+new one is picked. **Deviations:** the Cypress schedule-hearing journey waits for the E2E story (as D-090/D-121); component tests
+cover the conflict flow, scheduling, editing, cancelling, outcome, the shortcut, rights, the card and axe in both languages.
+Why: hearing times are a legal deadline — they must read the same for everyone in the office, whatever their laptop's clock.
