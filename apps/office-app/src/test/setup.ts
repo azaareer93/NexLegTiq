@@ -14,3 +14,6 @@ globalThis.ResizeObserver ??= class {
   unobserve = (): undefined => undefined;
   disconnect = (): undefined => undefined;
 };
+
+// No network sockets in tests: the shell opens the realtime socket (D-129); tests drive it through fake-socket.ts.
+vi.mock('socket.io-client', () => import('./fake-socket'));
