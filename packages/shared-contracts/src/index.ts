@@ -140,6 +140,20 @@ export {
   plainText,
   TimeZoneSchema,
 } from './fields.js';
+export {
+  ChangeRoleSchema,
+  DeactivateUserSchema,
+  DirectoryUserSchema,
+  TeamMemberSchema,
+  UserOpenFileSchema,
+} from './user.contract.js';
+export type {
+  ChangeRoleRequest,
+  DeactivateUserRequest,
+  DirectoryUser,
+  TeamMember,
+  UserOpenFile,
+} from './user.contract.js';
 export { OfficeSubscriptionSchema, PLAN_FEATURES } from './subscription.contract.js';
 export type { OfficeSubscription, PlanFeature } from './subscription.contract.js';
 export {

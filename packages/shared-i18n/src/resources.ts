@@ -9,6 +9,7 @@ import arErrors from './locales/ar/errors.json' with { type: 'json' };
 import arLegal from './locales/ar/legal.json' with { type: 'json' };
 import arSettings from './locales/ar/settings.json' with { type: 'json' };
 import arShell from './locales/ar/shell.json' with { type: 'json' };
+import arTeam from './locales/ar/team.json' with { type: 'json' };
 import arValidation from './locales/ar/validation.json' with { type: 'json' };
 import enAuth from './locales/en/auth.json' with { type: 'json' };
 import enCases from './locales/en/cases.json' with { type: 'json' };
@@ -19,6 +20,7 @@ import enErrors from './locales/en/errors.json' with { type: 'json' };
 import enLegal from './locales/en/legal.json' with { type: 'json' };
 import enSettings from './locales/en/settings.json' with { type: 'json' };
 import enShell from './locales/en/shell.json' with { type: 'json' };
+import enTeam from './locales/en/team.json' with { type: 'json' };
 import enValidation from './locales/en/validation.json' with { type: 'json' };
 import type { I18N_NAMESPACES, I18nNamespace } from './namespaces.js';
 
@@ -33,6 +35,7 @@ const en = {
   cases: enCases,
   clients: enClients,
   settings: enSettings,
+  team: enTeam,
 };
 const ar = {
   common: arCommon,
@@ -45,6 +48,7 @@ const ar = {
   cases: arCases,
   clients: arClients,
   settings: arSettings,
+  team: arTeam,
 };
 
 /** Nested string tree of one namespace file. */

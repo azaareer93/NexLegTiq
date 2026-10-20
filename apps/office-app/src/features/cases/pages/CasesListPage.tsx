@@ -10,8 +10,8 @@ import {
   useApiErrorHandler,
   useCan,
 } from '@nexlegtiq/shared-ui';
-import { Button, Flex, Grid, Modal } from 'antd';
-import { useMemo, useState } from 'react';
+import { Button, Flex, Grid } from 'antd';
+import { useMemo } from 'react';
 import type { MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate, useNavigate, useSearchParams } from 'react-router';
@@ -30,6 +30,7 @@ import {
   withView,
 } from '../list-params';
 import type { ListChanges } from '../list-params';
+import { openQuickCreateCase } from '../quick-create';
 
 interface ListBodyProps {
   readonly list: ReturnType<typeof useCasesList>;
@@ -116,7 +117,6 @@ export function CasesListPage(): React.JSX.Element {
   const { t } = useTranslation();
   const canCreate = useCan('create:case');
   const [params, setParams] = useSearchParams();
-  const [createOpen, setCreateOpen] = useState(false);
 
   const query = useMemo(() => readQuery(params), [params]);
   const state = parseQuery(query);
@@ -140,7 +140,7 @@ export function CasesListPage(): React.JSX.Element {
             <Button
               type="primary"
               icon={<PlusOutlined />}
-              onClick={() => setCreateOpen(true)}
+              onClick={openQuickCreateCase}
               data-testid="cases-new"
             >
               {t('cases.list.newFile')}
@@ -165,15 +165,6 @@ export function CasesListPage(): React.JSX.Element {
           }
         />
       </Flex>
-      <Modal
-        open={createOpen}
-        onCancel={() => setCreateOpen(false)}
-        footer={null}
-        title={t('cases.list.newFile')}
-        data-testid="cases-new-modal"
-      >
-        <EmptyState title={t('shell.comingSoon.title')} description={t('shell.comingSoon.body')} />
-      </Modal>
     </section>
   );
 }

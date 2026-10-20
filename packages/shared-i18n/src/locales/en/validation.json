@@ -51,5 +51,7 @@
   "fileNumberFormat": "Use {YEAR}, {TYPE} and exactly one {SEQ} or {SEQ:n} (n from 1 to 9), with letters, digits, spaces and . _ / # - between them.",
   "percent": "Enter a percentage from 0 to 100 with at most two decimals.",
   "idleMinutes": "Choose between 15 and 120 minutes.",
-  "auditRetention": "Keep the audit log for at least 365 days and at most 3650."
+  "auditRetention": "Keep the audit log for at least 365 days and at most 3650.",
+  "roleHasOpenFiles": "This person is responsible for open files. Reassign them by deactivating the account, or keep a lawyer role.",
+  "reassignAllFiles": "Choose a new responsible lawyer for every open file."
 }

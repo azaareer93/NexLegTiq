@@ -1333,6 +1333,30 @@ never locks a contact being edited. **`ClientSelect` needs `manage:clients`** (`
 direction, Arabic labels and axe (list and open drawer) instead, as in D-091. Also added: `clientsApi`/`ClientListParams` in
 shared-api-client (D-089's resources) and the `clients` translation namespace (D-087).
 
+**D-123 — Quick-create case and the people directory** · Accepted (MVP-59, 2026-10-19)
+MVP-59 asks for responsible-lawyer and paralegal pickers, but no endpoint lists an office's people (team management is
+its own story), billing defaults "from office settings" while the office settings API does not exist yet, and an entry
+point on the client profile, which has no page yet. → **`GET /users/directory`** (`src/modules/users`): the office's
+**active** users as `{id, fullName, role}` by name — no email, status or invitations (the team-management list adds those)
+— readable with ANY of `create:case`, `create:task`, `assign:task`, `create:session` (the roles whose forms have
+people pickers: OM, SL, L, P; admin staff, trainees and outside collaborators, who see only assigned files,
+get 403); not paginated (capped at 500); no `:id`, so `users.int.spec.ts` (another office's people never listed) stands
+in for the HTTP isolation matrix entry. **Modal** (`apps/office-app/src/features/cases`): one `QuickCreateCaseModal`, its own lazy
+chunk, mounted once by `QuickCreateCaseHost` in the shell (only for `create:case`), opened from the shell's **+ Case**
+quick action, the cases list's **New case** and **Ctrl+Alt+N** (physical `KeyN`; ignored while typing in a field, since
+Ctrl+Alt is AltGr on Windows layouts that type characters with it). Fields: title, client (`ClientSelect` with inline
+create, D-121; one client at creation, `clientIds = [it]` and primary), type, priority (MEDIUM), sub-type, responsible
+lawyer (the directory's OFFICE_MANAGER/SENIOR_LAWYER/LAWYER — the API's rule — **defaulting to the caller** when eligible),
+optional paralegal (PARALEGAL), optional court (server search, platform and office courts) and judge (active judges of
+that court; changing the court clears it), billing method with rate or fee **only for `generate:invoice`** (D-096) and
+left empty by default — the API applies the office's billing method and rate (the "defaults from office settings" of the
+ticket, without reading them in the browser), and description. Validation from `CreateCaseSchema`; VAL-001 details land
+on their fields. **"Create"** closes the modal where the user is; **"Create & open"** goes to `/cases/:id`; both show
+"Case {number} created" (number isolated). The **+ Client** quick action now opens the client drawer (D-121's "coming
+soon" is gone); + Task stays a placeholder. **Deferred:** the client-profile entry point (no profile page), the Cypress
+journey (the Cypress project arrives with the E2E story; every control has a `data-testid`), confidentiality and court
+case number at creation (edited on the file page, D-118). Why: a case in a few keystrokes from anywhere, using only what
+the API already checks.
 **D-122 — Plan entitlements, quota checks and read-only mode** · Accepted (MVP-51, 2026-10-19)
 MVP-51 left open what "expired" means, which code a read-only write gets, which flags a plan has when its `features`
 JSON is empty (every seeded plan's is), and who may read the subscription. → **Entitlements**
@@ -1421,3 +1445,54 @@ are audited in full. Changing the reminder days applies to hearings written afte
 stay as they were** (D-117 recomputes them only when the hearing itself changes). While the subscription is read-only
 (D-122) the settings cannot be changed either, security ones included. The changed-fields helper behind audit rows is
 now one function (`common/audit/changes.ts`, also used by cases).
+**D-124 — Team management: deactivation with reassignment, role changes and reactivation** · Accepted (MVP-50, 2026-10-20)
+MVP-50 left who may change what, what "open file" means, what happens to the leaver's team rows, reminders and their own
+role open. → `src/modules/users` (`TeamService`), all `manage:users` (OFFICE_MANAGER only): **`GET /users`** — every user of
+the office, active first, then by name: id, name, email, role, `isActive`, `openFiles` (live OPEN or SUSPENDED files they
+are the responsible lawyer of — what BIZ-010 counts as open, D-108), `lastLoginAt`; not paginated (500, like the directory,
+D-123). **`GET /users/:id/open-files`** `[{id, fileNumber, title}]` — what the wizard must reassign (the cases list cannot
+filter OPEN + SUSPENDED in one call). **`PATCH /users/:id/role`** `{role}`; **`POST /users/:id/deactivate`**
+`{reassignments: [{fileId, newResponsibleLawyerId}]}` (200, the member); **`POST /users/:id/reactivate`** (200). Another
+office's user or a malformed id → 404 RES-001. **Last manager:** demoting or deactivating the last **active**
+OFFICE_MANAGER → 422 BIZ-001; every team write takes a per-office transaction advisory lock (`team:<officeId>`), so two
+managers cannot demote each other at the same time. **A role without a lawyer role** (PARALEGAL, ADMIN, TRAINEE,
+EXTERNAL_COLLABORATOR) is refused to an active user who is still responsible for open files — 400 VAL-001 on `role`
+(`validation.roleHasOpenFiles`): a file's responsible lawyer must hold a lawyer role (D-096); the manager reassigns through
+the deactivate wizard first. **Deactivate** (one transaction): the reassignments must name **exactly** the user's open files
+(a missing or foreign file → 400 VAL-001 `validation.reassignAllFiles` on `reassignments`, nothing changed); each new lawyer
+an active OFFICE_MANAGER/SENIOR_LAWYER/LAWYER other than the leaver (VAL-001 `validation.responsibleLawyer` on
+`reassignments.<i>.newResponsibleLawyerId`); then `isActive = false`, **every refresh token revoked** (the JWT guard already
+refuses their access token on the next request, D-082), and per file: `responsibleLawyerId` changed, the leaver's
+`FileTeamMember` row removed and the new lawyer's row made (or turned into) RESPONSIBLE_LAWYER (one per file, D-095), a
+`FILE_REASSIGNED` timeline event (`{fromUserId, toUserId, reason: 'DEACTIVATION'}`), an UPDATE audit row on the file, an
+in-app `file.reassigned` notification to the new lawyer (`shell.notifications.fileReassigned`, link `/cases/:id`; not when
+the manager takes the file), and the **reminders of the file's upcoming hearings are reset** (`ReminderScheduler.reset`,
+hearing time unchanged, as D-117 asked of the reassign story); a User UPDATE audit row records `reassignedFiles`.
+Deactivating an inactive user does nothing (200). Closed and archived files keep the leaver as their lawyer (history).
+**Reactivate:** checks a free seat first (`EntitlementsService.assertUserSlot`, 422 BIZ-008, D-122); an active user is a no-op.
+Every change has an audit row with old and new values. **UI** `/team` (`apps/office-app/src/features/team`, `team`
+namespace): table of the team (name, "you" tag, email in `<Ltr>`, role select, status tag, open files, last sign-in relative),
+role changed in place (a toast, or the error as a notification), Deactivate opens the **wizard**: the open files (number
+`<Ltr>` + title) each with a lawyer picker (active lawyers of the team except the leaver) and "give every file to" for more
+than one file; the API's refusal refreshes the list. **Your own row is read-only** (no role select, no deactivate) — a
+manager cannot lock themselves out from this page; another manager can. A change refreshes the team, the directory, the
+cases and the plan usage. **Not done here:** sessions where the leaver is the **attending lawyer** and tasks assigned to them
+keep pointing at them (delivery cancels their reminders, D-117; the calendar and tasks stories can offer a reassignment);
+invitations (their own story); a deactivated user's paralegal/member rows on other files stay as history. **Known limit:**
+the reactivate seat check reads usage outside the lock's transaction snapshot (two reactivations at once are serialised by
+the lock, an invitation accepted at that instant is not).
+Review additions (same PR): **opening a case cannot race a deactivation or role change** — case creation now checks the
+responsible lawyer and paralegal with `SELECT … FOR SHARE` (active, right role, the office's id as a parameter) and team
+writes lock the user's row `FOR UPDATE` after the team lock, so either the case commits first and must be reassigned, or
+the check waits and sees the change. Each reassignment is a **conditional update** (still the leaver's, open and live) —
+a file deleted or closed meanwhile is 409 RES-003 and nothing is written. **Responsible paralegal** (D-096: an active
+PARALEGAL): deactivating them, or changing a PARALEGAL's role, clears `responsibleParalegalId` on their open files (audited
+as `paralegalFilesCleared`); their team rows stay, so a promoted paralegal keeps working on those files. The open-file list
+is capped at the contract's 500 reassignments; deactivation runs with a **60 s transaction timeout**
+(`UnitOfWork.run(work, {timeoutMs})`, Prisma's default is 5 s) since every file and upcoming hearing is rewritten.
+**Role changes** leave tasks and attending-lawyer sessions as they are, like deactivation; the API allows a manager to demote
+or deactivate themselves while another active manager exists (only the UI hides it); **reactivating** someone restores their
+old team rows and so their access to those files, confidential ones included. UI: non-lawyer roles are disabled for a
+responsible lawyer of open files, the API's VAL-001 reason is shown in words (role select, the wizard's list rule, and per
+file on its picker), buttons are named per person, statuses read Inactive / غير نشط (as for clients) and Arabic says
+"إيقاف الحساب" for deactivate.
