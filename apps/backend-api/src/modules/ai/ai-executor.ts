@@ -131,14 +131,16 @@ export class AiExecutor {
       throw new AiFinalException('AI-003', 'Input too large for the AI model');
     }
     const redacted = this.redactor.redact(options.prompt.user, options.redactionContext);
-    const system = this.redactor.redact(options.prompt.system, options.redactionContext).text;
+    const redactedSystem = this.redactor.redact(options.prompt.system, options.redactionContext);
+    const system = redactedSystem.text;
+    const stats = mergeStats(redacted.stats, redactedSystem.stats);
     const answers: ProviderAnswer[] = [];
     const started = Date.now();
     let value: unknown;
     try {
       value = await this.ask(options, system, redacted, answers);
     } finally {
-      await this.record(options, answers, Date.now() - started);
+      await this.record(options, answers, Date.now() - started, stats);
     }
     const restored = options.schema.safeParse(restoreDeep(value, redacted.restore));
     const last = answers[answers.length - 1];
@@ -195,6 +197,7 @@ export class AiExecutor {
     options: ExecuteOptions<T>,
     answers: readonly ProviderAnswer[],
     durationMs: number,
+    redactionStats: Readonly<Record<string, number>>,
   ): Promise<void> {
     const last = answers[answers.length - 1];
     if (!last) return;
@@ -214,6 +217,7 @@ export class AiExecutor {
           new Decimal(0),
         )
         .toFixed(6),
+      redactionStats,
       userId: options.userId ?? null,
     });
   }
@@ -223,6 +227,15 @@ export class AiExecutor {
     if (!officeId) throw new Error('No office in the context of an AI call');
     return officeId;
   }
+}
+
+/** Adds up the redaction counts of the user text and the system prompt. */
+function mergeStats(...all: readonly Readonly<Record<string, number>>[]): Record<string, number> {
+  const merged: Record<string, number> = {};
+  for (const stats of all) {
+    for (const [kind, count] of Object.entries(stats)) merged[kind] = (merged[kind] ?? 0) + count;
+  }
+  return merged;
 }
 
 /** Parses and validates an answer; `problem` names paths and issue codes only (never the text). */

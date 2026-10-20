@@ -27,6 +27,7 @@ const nameRedactor: AiRedactor = {
     names.forEach((name, index) => (redacted = redacted.split(name).join(`[PARTY_${index + 1}]`)));
     return {
       text: redacted,
+      stats: { PARTY: names.length },
       restore: (value) =>
         names.reduce((out, name, index) => out.split(`[PARTY_${index + 1}]`).join(name), value),
     };
@@ -109,6 +110,8 @@ describe('AiExecutor (D-130)', () => {
         provider: 'fake',
         cached: false,
         userId: 'user-1',
+        // Counts from the user text and the system prompt (two names each) — never the values.
+        redactionStats: { PARTY: 4 },
       }),
     );
     expect(cache.set).toHaveBeenCalledWith(

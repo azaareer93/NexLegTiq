@@ -17,6 +17,8 @@ export interface UsageEntry {
   readonly userId: string | null;
   /** USD, summed over the calls (`cost` per call). */
   readonly costUsd: string;
+  /** Counts per kind of what the PII redactor replaced (D-131); none for a cache hit. */
+  readonly redactionStats?: Readonly<Record<string, number>>;
 }
 
 /**

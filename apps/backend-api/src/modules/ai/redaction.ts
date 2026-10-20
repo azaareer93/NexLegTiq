@@ -8,12 +8,14 @@ export interface Redacted {
   readonly text: string;
   /** Puts the original values back into a string of the answer. */
   restore(value: string): string;
+  /** How many values of each kind were replaced (for the usage record; never the values). */
+  readonly stats: Readonly<Record<string, number>>;
 }
 
 /**
- * PII redaction before any provider call (D-057). The real redactor is its own story; until it is registered as
- * `AI_REDACTOR`, `PassThroughRedactor` stands in — and it may only ever serve the fake provider, which sends nothing
- * outside: `AiExecutor` refuses a real provider while `redactsPii` is false (AI-001), so nothing leaves unredacted.
+ * PII redaction before any provider call (D-057): `PiiRedactor` is the `AI_REDACTOR` (D-131). `AiExecutor` refuses a
+ * provider that sends text out while the redactor's `redactsPii` is false (AI-001) — `PassThroughRedactor` exists only
+ * for tests of that rule.
  */
 export interface AiRedactor {
   readonly redactsPii: boolean;
@@ -26,7 +28,7 @@ export class PassThroughRedactor implements AiRedactor {
   readonly redactsPii = false;
 
   redact(text: string): Redacted {
-    return { text, restore: (value) => value };
+    return { text, restore: (value) => value, stats: {} };
   }
 }
 
