@@ -1496,3 +1496,48 @@ old team rows and so their access to those files, confidential ones included. UI
 responsible lawyer of open files, the API's VAL-001 reason is shown in words (role select, the wizard's list rule, and per
 file on its picker), buttons are named per person, statuses read Inactive / غير نشط (as for clients) and Arabic says
 "إيقاف الحساب" for deactivate.
+
+**D-126 — Document uploads: streaming, type sniffing, the malware scan, versions and idempotency** · Accepted (MVP-72, 2026-10-20)
+MVP-72 left the form layout, how the type is judged, what the scan does with each result, retries of an upload and who sees a
+confidential document open. → **Upload** `POST /documents` (`upload:document`; the file must be visible and not archived —
+`contribute`, D-119 — so a paralegal files documents on a lawyer's case) is `multipart/form-data` **read as a stream**
+(busboy, no Nest body parsing): the text fields (`fileId`, `documentType` default OTHER, `folderId?`, `sessionId?` of the same
+file, `isConfidential?` as `true`/`false`) must come **before** the `file` part, so they are validated (VAL-001) and access is
+checked before a byte is stored; only the first file part is read and it must be named `file`. A body announced over 50 MiB
++ 64 KiB is refused unread (413 VAL-006, answered once it has arrived so the client sees it); a file over 50 MiB (exactly
+50 MiB passes) is cut at the limit, its object deleted, 413 VAL-006. **Type:** judged by the first 64 KiB, never the name or the
+browser's Content-Type — magic bytes for PDF, PNG, JPEG, TIFF and DOC (OLE2; only named `.doc`), DOCX/XLSX as ZIP with
+`[Content_Types].xml` and `word/` or `xl/` entry names, CSV as text without NUL bytes (any encoding: Excel writes Arabic CSV
+as Windows-1256) — **and the name's extension must belong to that type** (a PNG called `.pdf` or a renamed executable → 415
+VAL-005). `file-type` was not used: it is ESM-only and the backend is CommonJS. **Names:** the uploaded name, without any
+browser path, is kept as is (Arabic too) in `originalFilename` and as the display `name`, and refused with control or bidi
+characters (`gpj‮exe.pdf`, VAL-001 on `file`). **Storage:** streamed to `{officeId}/{fileId}/{documentId}/{uuid}.{ext}`
+(canonical extension: `jpg`, `tiff`) while size and SHA-256 are computed; the document id is a UUID v7 made by the app
+(`common/ids/uuid-v7.ts`) because the key needs it before the insert. **Quota** (D-122): refused at once when already full,
+then checked with the real size after storing (403 AUTH-103, object deleted). **Recording** (one transaction): the document
+(status SCANNING, `ocrStatus` PENDING), version 1, a `DOCUMENT_UPLOADED` timeline event (`{name, versionNumber}`) and a
+CREATE audit row; any failure deletes the stored object. After the commit `ocr/scan-document {documentId, versionNumber}`
+is enqueued (job id `scan-{documentId}-v{n}`); the answer is **202 `{documentId, versionNumber, status}`**.
+**`Idempotency-Key`** (8–128 of `[A-Za-z0-9_-]`, else VAL-001): stored on the document, unique per office + uploader
+(migration `document_idempotency_key`); a repeated key returns the first document without reading the body, and a race on the
+same key answers the winner. It never expires (keys are the client's random ids) — the api-conventions Redis 24 h store is
+not needed for uploads. **Versions:** `POST /documents/:id/versions` (`changeNote?` then `file`) locks the document row, adds
+version n + 1, makes the document mirror it (name of the upload, type, size, checksum, key) with status SCANNING and
+`ocrStatus` PENDING, writes the timeline event and an UPDATE audit row, and queues its scan; `GET /documents/:id/versions`
+lists them newest first with their author. The display `name` stays (renaming is the documents story's). A quarantined
+document may receive a clean new version. **Scan** (`OcrProcessor`, the `ocr` queue's single consumer; ClamAV `INSTREAM` over
+TCP in a few lines, no client library): clean → PROCESSING and `ocr/process-document` enqueued; infected → QUARANTINED, the
+version's object deleted, a SECURITY audit row (`MALWARE_DETECTED`, signature) and an in-app notification to the uploader
+(`shell.notifications.documentQuarantined`, params include `code: STO-004`, link to the file's Documents tab); a scan that
+cannot finish is retried (3 attempts) and then the document is **FAILED — fail closed**, never treated as clean. Only the
+version the document still mirrors, while SCANNING, changes the document; a replaced version is still scanned and deleted when
+infected. **clamd's `StreamMaxLength` defaults to 25 MB**: both compose files now set 60M (dev and staging), and any other
+clamd must too, or large uploads fail closed. **`process-document`** (text extraction) belongs to its story: until then the
+job completes as skipped and documents stay PROCESSING — that story must pick up PROCESSING documents again. **Confidential
+documents** (`DocumentAccessService`, for the documents story too): seen only by the office manager, the uploader and the
+people assigned to the file (as for confidential files, D-096, also hidden from senior lawyers and admins who see every
+file); others get 404. **Rate limit** 20 uploads a minute per IP (api-conventions says per user; limits run before
+authentication, D-082). **Not done here:** the documents list, download, rename/move, delete and share (documents story), the
+HTTP isolation matrix entry (it needs list/get/patch/delete; another office's file or document → 404 is tested in
+`documents.int.spec.ts`), realtime `document.*` events (WebSocket story). Why: an upload is never held in memory, never
+trusted by its name, and never offered before it was scanned.

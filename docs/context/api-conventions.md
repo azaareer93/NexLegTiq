@@ -20,7 +20,7 @@
   a multi-value filter is comma-separated (`?fileType=NDA_REVIEW,RENTAL_AGREEMENT`, D-113).
 - Async work → `202 { jobId, status }`; poll `GET /jobs/:id` or listen to WS.
 - `error.message` is an English developer message; the FE maps `code` → i18n key `errors.<CODE>`.
-- Idempotency: `Idempotency-Key` header honored on POST create endpoints for uploads, invoices, sessions (Redis 24h; not built yet — sessions ship without it, D-116).
+- Idempotency: `Idempotency-Key` header honored on POST create endpoints for uploads, invoices, sessions (uploads: a unique key per uploader on the document, D-126; invoices: not built yet; sessions ship without it, D-116).
 
 ## Error codes
 AUTH-001 invalid credentials · 002 token expired · 003 token invalid · 004 refresh expired · 005 refresh invalid ·
@@ -64,9 +64,9 @@ GET `parties?search=` (reuse) · CRUD `task-templates`
 **sessions**: POST `sessions` (409 BIZ-004 unless `acknowledgeConflict`) · GET `sessions?from&to&lawyerId&fileId` (calendar) ·
 GET/PATCH `sessions/:id` · POST `sessions/:id/cancel` · POST `sessions/:id/outcome` (outcome+minutes → optional AI) ·
 GET `cases/:id/sessions?when=upcoming|past` · POST `sessions/reminders/:id/ack` (reminder engine) — D-116
-**documents**: POST `documents` (multipart: file, fileId, documentType, folderId?, sessionId?) → 202 ·
+**documents**: POST `documents` (multipart, fields before `file`: fileId, documentType, folderId?, sessionId?, isConfidential?; `Idempotency-Key`) → 202 `{documentId, versionNumber, status}` (413 VAL-006 > 50 MiB, 415 VAL-005 type, 403 AUTH-103 quota; D-126) ·
 GET `cases/:id/documents?folderId&type&search` · GET/PATCH/DELETE `documents/:id` · GET `documents/:id/download` →
-`{downloadUrl, expiresIn: 300}` · POST `documents/:id/versions` · GET `documents/:id/versions` · GET `documents/:id/text` ·
+`{downloadUrl, expiresIn: 300}` · POST `documents/:id/versions` (multipart: changeNote?, file → 202, D-126) · GET `documents/:id/versions` (newest first, D-126) · GET `documents/:id/text` ·
 POST `documents/:id/share` / `unshare` · POST `documents/:id/ocr/retry` · GET/POST `cases/:id/folders`,
 PATCH/DELETE `cases/:id/folders/:folderId` (system folders fixed → 422 BIZ-014; non-empty → 422 BIZ-013) — D-119
 **tasks**: CRUD `tasks` (`?fileId, assignee=me|<userId>, status, priority, dueBefore, overdue`, page/limit) · PATCH `tasks/:id/status` · PATCH `tasks/reorder` (204) · POST `tasks/bulk-assign` (200 `{updated}`) — D-098
