@@ -22,6 +22,7 @@
     "@prisma/adapter-pg": "7.10.0",
     "@prisma/client": "7.10.0",
     "bullmq": "^5.81.5",
+    "busboy": "1.6.0",
     "compression": "^1.8.2",
     "cookie-parser": "^1.4.7",
     "decimal.js": "^10.6.0",
@@ -41,6 +42,7 @@
   },
   "devDependencies": {
     "@nestjs/testing": "^11.0.0",
+    "@types/busboy": "1.5.4",
     "@types/cookie-parser": "^1.4.10"
   }
 }

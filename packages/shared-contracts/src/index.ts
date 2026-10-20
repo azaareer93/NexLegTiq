@@ -169,3 +169,31 @@ export type {
   UpdateOfficeProfileRequest,
   UpdateOfficeSettingsRequest,
 } from './office.contract.js';
+export {
+  DocumentQuerySchema,
+  DocumentSchema,
+  DocumentTextQuerySchema,
+  DocumentTextSchema,
+  DocumentUploadSchema,
+  DocumentVersionSchema,
+  DownloadLinkSchema,
+  DownloadQuerySchema,
+  UpdateDocumentSchema,
+  MAX_UPLOAD_BYTES,
+  OriginalFilenameSchema,
+  UploadDocumentFieldsSchema,
+  UploadVersionFieldsSchema,
+} from './document.contract.js';
+export type {
+  Document,
+  DocumentQuery,
+  DocumentText,
+  DocumentTextQuery,
+  DocumentUpload,
+  DocumentVersion,
+  DownloadLink,
+  DownloadQuery,
+  UpdateDocumentRequest,
+  UploadDocumentFields,
+  UploadVersionFields,
+} from './document.contract.js';

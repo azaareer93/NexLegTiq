@@ -53,5 +53,7 @@
   "idleMinutes": "Choose between 15 and 120 minutes.",
   "auditRetention": "Keep the audit log for at least 365 days and at most 3650.",
   "roleHasOpenFiles": "This person is responsible for open files. Reassign them by deactivating the account, or keep a lawyer role.",
-  "reassignAllFiles": "Choose a new responsible lawyer for every open file."
+  "reassignAllFiles": "Choose a new responsible lawyer for every open file.",
+  "unknownSession": "The selected hearing does not belong to this case.",
+  "idempotencyKey": "The request key must be 8 to 128 letters, digits, - or _."
 }
