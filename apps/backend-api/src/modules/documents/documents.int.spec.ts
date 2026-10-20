@@ -477,4 +477,163 @@ describe('documents upload API (HTTP + PostgreSQL + storage + ClamAV)', () => {
       titleKey: 'shell.notifications.documentQuarantined',
     });
   });
+
+  describe('reading and managing documents (D-128)', () => {
+    const doc = (key: string, id: string) => http().get(`/api/v1/documents/${id}`).set(as(key));
+    const list = (key: string, fileId: string, query = '') =>
+      http().get(`/api/v1/cases/${fileId}/documents${query}`).set(as(key));
+    const ids = (res: request.Response) =>
+      (res.body as { data: { id: string }[] }).data.map((row) => row.id);
+    const clean = (documentId: string) =>
+      inOffice(officeId, () =>
+        scanner().run({ documentId, versionNumber: 1 }, new AbortController().signal),
+      );
+
+    it('should list what the caller may see, filter and search, and hide confidential ones', async () => {
+      const fileId = await openFile();
+      const folder = await raw.documentFolder.findFirstOrThrow({ where: { fileId } });
+      const open = accepted(
+        await upload(fileId, pdf(), 'عقد الإيجار.pdf', {
+          fields: { folderId: folder.id, documentType: 'PLEADING' },
+        }),
+      );
+      const secret = accepted(
+        await upload(fileId, pdf(), 'secret.pdf', { fields: { isConfidential: 'true' } }),
+      );
+      expect(ids(await list('lawyer', fileId).expect(200)).sort()).toEqual(
+        [open.documentId, secret.documentId].sort(),
+      );
+      expect(ids(await list('senior', fileId).expect(200))).toEqual([open.documentId]);
+      expect(ids(await list('manager', fileId, `?folderId=${folder.id}`).expect(200))).toEqual([
+        open.documentId,
+      ]);
+      expect(ids(await list('manager', fileId, '?folderId=root').expect(200))).toEqual([
+        secret.documentId,
+      ]);
+      expect(ids(await list('manager', fileId, '?search=الإيجار').expect(200))).toEqual([
+        open.documentId,
+      ]);
+      expect(ids(await list('manager', fileId, '?documentType=PLEADING').expect(200))).toEqual([
+        open.documentId,
+      ]);
+      expectError(await list('other', fileId), 404, 'RES-001');
+      expectError(await doc('senior', secret.documentId), 404, 'RES-001');
+      expectError(await doc('other', open.documentId), 404, 'RES-001');
+      expect((await doc('manager', secret.documentId).expect(200)).body).toMatchObject({
+        data: {
+          name: 'secret.pdf',
+          isConfidential: true,
+          currentVersion: 1,
+          uploadedBy: { id: user('lawyer').userId },
+        },
+      });
+    });
+
+    it('should rename and move, audit the change, and keep classification to who may classify', async () => {
+      const fileId = await openFile();
+      const { documentId } = accepted(await upload(fileId, pdf(), 'draft.pdf'));
+      const folder = await raw.documentFolder.findFirstOrThrow({ where: { fileId } });
+      const patch = (key: string, body: object) =>
+        http().patch(`/api/v1/documents/${documentId}`).set(as(key)).send(body);
+      const res = await patch('lawyer', {
+        name: 'Final brief.pdf',
+        folderId: folder.id,
+        documentType: 'PLEADING',
+      });
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({
+        data: { name: 'Final brief.pdf', folderId: folder.id, documentType: 'PLEADING' },
+      });
+      expect(
+        await raw.auditLog.findFirst({ where: { entityId: documentId, action: 'UPDATE' } }),
+      ).toMatchObject({ oldValues: { name: 'draft.pdf', folderId: null } });
+      // A senior lawyer may edit the file, but only the manager, uploader or responsible lawyer classifies.
+      expectError(await patch('senior', { isConfidential: true }), 403, 'AUTH-100');
+      expect((await patch('manager', { isConfidential: true })).status).toBe(200);
+      const other = await openFile();
+      const theirs = await raw.documentFolder.findFirstOrThrow({ where: { fileId: other } });
+      expectError(await patch('lawyer', { folderId: theirs.id }), 400, 'VAL-001', 'folderId');
+      expectError(await patch('lawyer', {}), 400, 'VAL-001');
+      expectError(await patch('other', { name: 'x.pdf' }), 404, 'RES-001');
+    });
+
+    it('should offer a 5-minute link only once scanned clean, audit it, and serve the uploaded name', async () => {
+      const fileId = await openFile();
+      const body = pdf(4096);
+      const { documentId } = accepted(await upload(fileId, body, 'عقد.pdf'));
+      const link = (query = '') =>
+        http().get(`/api/v1/documents/${documentId}/download${query}`).set(as('lawyer'));
+      expectError(await link(), 422, 'BIZ-015');
+      await clean(documentId);
+      const res = await link();
+      expect(res.status).toBe(200);
+      const { downloadUrl, expiresIn } = (
+        res.body as { data: { downloadUrl: string; expiresIn: number } }
+      ).data;
+      expect(expiresIn).toBe(300);
+      expect(new URL(downloadUrl).searchParams.get('X-Amz-Expires')).toBe('300');
+      const fetched = await fetch(downloadUrl);
+      expect(Buffer.from(await fetched.arrayBuffer()).equals(body)).toBe(true);
+      expect(fetched.headers.get('content-disposition')).toContain("filename*=UTF-8''");
+      expect(
+        await raw.auditLog.findFirst({ where: { entityId: documentId, action: 'DOWNLOAD' } }),
+      ).toMatchObject({ newValues: { versionNumber: 1 }, userId: user('lawyer').userId });
+      expectError(await link('?version=9'), 404, 'RES-001');
+      expectError(
+        await http().get(`/api/v1/documents/${documentId}/download`).set(as('other')),
+        404,
+        'RES-001',
+      );
+      const infected = accepted(await upload(fileId, Buffer.from(EICAR), 'eicar.csv'));
+      await inOffice(officeId, () =>
+        scanner().run(
+          { documentId: infected.documentId, versionNumber: 1 },
+          new AbortController().signal,
+        ),
+      );
+      expectError(
+        await http().get(`/api/v1/documents/${infected.documentId}/download`).set(as('lawyer')),
+        422,
+        'STO-004',
+      );
+    });
+
+    it('should page the extracted text of the current version', async () => {
+      const fileId = await openFile();
+      const { documentId } = accepted(await upload(fileId, pdf(), 'long.pdf'));
+      const text = (page: number) =>
+        http().get(`/api/v1/documents/${documentId}/text?page=${page}`).set(as('lawyer'));
+      expect((await text(1).expect(200)).body).toMatchObject({
+        data: { versionNumber: 1, totalPages: 0, text: '' },
+      });
+      await raw.documentText.create({
+        data: { officeId, documentId, versionNumber: 1, text: 'ن'.repeat(20_000) + 'tail' },
+      });
+      expect((await text(2).expect(200)).body).toMatchObject({
+        data: { page: 2, totalPages: 2, text: 'tail' },
+      });
+    });
+
+    it('should soft-delete with delete:document only, and then answer 404', async () => {
+      const fileId = await openFile();
+      await raw.fileTeamMember.create({
+        data: { officeId, fileId, userId: user('trainee').userId },
+      });
+      const { documentId } = accepted(await upload(fileId, pdf(), 'old.pdf'));
+      const remove = (key: string) => http().delete(`/api/v1/documents/${documentId}`).set(as(key));
+      expectError(await remove('trainee'), 403, 'AUTH-100');
+      expectError(await remove('other'), 404, 'RES-001');
+      expect((await remove('lawyer')).status).toBe(204);
+      expectError(await doc('lawyer', documentId), 404, 'RES-001');
+      expect(ids(await list('lawyer', fileId).expect(200))).toEqual([]);
+      expect(
+        await raw.auditLog.findFirst({ where: { entityId: documentId, action: 'DELETE' } }),
+      ).toMatchObject({ newValues: { name: 'old.pdf' } });
+      // The stored object stays until the retention purge.
+      const { storageKey } = await raw.document.findUniqueOrThrow({ where: { id: documentId } });
+      await expect(
+        inOffice(officeId, () => app.get(StorageService).head(storageKey)),
+      ).resolves.not.toBeNull();
+    });
+  });
 });
