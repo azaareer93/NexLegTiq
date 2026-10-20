@@ -1566,3 +1566,5 @@ office can overshoot it by about one upload each. A scan job lost after its comm
 closed); a reconciliation like D-117's belongs with the text-extraction story. The malware SECURITY audit row has no user
 (written by the worker); the notification type is `DOCUMENT_QUARANTINED`; anyone who may upload may mark their upload
 confidential; `GET /documents/:id/versions` needs ANY of `view:all|assigned:cases` plus the document rule above.
+**CI (amends D-078/D-085):** the workspace job also starts ClamAV (`clamav/clamav:stable`, the compose settings above) and waits for
+`clamdcheck.sh` before the integration tests, which scan the EICAR file for real; its signature download adds about a minute.
