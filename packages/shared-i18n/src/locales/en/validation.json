@@ -45,6 +45,13 @@
   "folderMove": "A folder cannot be moved into itself or one of its subfolders.",
   "folderDepth": "Folders can be nested at most 5 levels deep.",
   "folderLimit": "A case can have at most 200 folders.",
+  "website": "Enter a web address starting with http:// or https://.",
+  "timeZone": "Choose a valid time zone.",
+  "reminderRange": "Reminders can be 1 to 30 days ahead (0 = the due day, for tasks only).",
+  "fileNumberFormat": "Use {YEAR}, {TYPE} and exactly one {SEQ} or {SEQ:n} (n from 1 to 9), with letters, digits, spaces and . _ / # - between them.",
+  "percent": "Enter a percentage from 0 to 100 with at most two decimals.",
+  "idleMinutes": "Choose between 15 and 120 minutes.",
+  "auditRetention": "Keep the audit log for at least 365 days and at most 3650.",
   "roleHasOpenFiles": "This person is responsible for open files. Reassign them by deactivating the account, or keep a lawyer role.",
   "reassignAllFiles": "Choose a new responsible lawyer for every open file."
 }

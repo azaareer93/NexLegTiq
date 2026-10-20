@@ -19,6 +19,7 @@ import { ClientsModule } from '../modules/clients/clients.module';
 import { CourtsModule } from '../modules/courts/courts.module';
 import { DocumentsModule } from '../modules/documents/documents.module';
 import { LegalFilesModule } from '../modules/legal-files/legal-files.module';
+import { OfficesModule } from '../modules/offices/offices.module';
 import { SessionsModule } from '../modules/sessions/sessions.module';
 import { SubscriptionGuard } from '../modules/subscriptions/subscription.guard';
 import { SubscriptionsModule } from '../modules/subscriptions/subscriptions.module';
@@ -41,6 +42,7 @@ import { UsersModule } from '../modules/users/users.module';
     ClientsModule,
     CourtsModule,
     LegalFilesModule,
+    OfficesModule,
     SessionsModule,
     DocumentsModule,
     TasksModule,

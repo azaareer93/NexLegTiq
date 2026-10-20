@@ -51,7 +51,7 @@ GET `auth/invites/:token` (preview)
 **users**: GET/PATCH `users/me` · GET `users/directory` (active colleagues' name and role for pickers; roles that create cases, tasks or sessions, D-123) · POST `users/me/password` (204; wrong current password → 400 VAL-001, D-086) · GET `users` (office team) · POST `users/invite` ·
 GET `users/invitations` · DELETE `users/invitations/:id` · PATCH `users/:id/role` · POST `users/:id/deactivate` (with reassignment) ·
 POST `users/:id/reactivate` (seat check, BIZ-008) · GET `users/:id/open-files` — D-124
-**offices**: GET `offices/me` · PATCH `offices/me` · GET/PATCH `offices/me/settings` · GET `offices/me/subscription` (every office user, D-122) ·
+**offices**: GET/PATCH `offices/me` · GET/PATCH `offices/me/settings` (`manage:office`, D-125) · GET `offices/me/subscription` (every office user, D-122) ·
 GET `offices/me/statistics` · POST `offices/me/export` (202)
 **clients**: CRUD `clients` (+ `?search, clientType, sort`) · `clients/:id/contacts` CRUD · GET `clients/:id/files` ·
 GET `clients/:id/invoices` · `clients/:id/notes` · portal access: POST `clients/:id/portal-invitations`, GET/DELETE `clients/:id/portal-users`

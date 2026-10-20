@@ -13,6 +13,7 @@ import { CaseAccessService } from './case-access.service';
 import { CasesRepository } from './cases.repository';
 import { FileNumberService } from './file-number.service';
 import { assertParticipants } from './participants';
+import { changes } from '../../common/audit/changes';
 import type { RequestContext } from '../../common/context/request-context';
 import {
   PermissionDeniedException,
@@ -266,23 +267,6 @@ async function writeLive(
 ) {
   const { count } = await tx.legalFile.updateMany({ where: liveFile(id), data });
   if (count === 0) throw new ResourceNotFoundException();
-}
-
-/** The fields of `data` whose value differs from `before`; money compares as decimals and is audited with 2 digits. */
-function changes(before: Record<string, unknown>, data: Record<string, unknown>) {
-  const old: Record<string, unknown> = {};
-  const next: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(data)) {
-    if (value === undefined) continue;
-    const previous = before[key];
-    const decimal = Prisma.Decimal.isDecimal(previous) ? previous : null;
-    const same = decimal ? value !== null && decimal.equals(value as string) : previous === value;
-    if (!same) {
-      old[key] = decimal ? decimal.toFixed(2) : previous;
-      next[key] = value;
-    }
-  }
-  return { old, next };
 }
 
 const orNull = <T>(value: T | undefined): T | null => value ?? null;

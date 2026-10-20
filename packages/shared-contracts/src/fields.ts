@@ -75,3 +75,38 @@ export const sortParam = <F extends string>(fields: readonly F[]) =>
       }
       return sort;
     });
+
+/** ISO-4217 codes the runtime knows (Node and every supported browser ship the list). */
+const CURRENCIES = new Set(Intl.supportedValuesOf('currency'));
+
+/** An ISO-4217 currency code (D-004), upper-cased. */
+export const CurrencySchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .refine((code) => CURRENCIES.has(code), 'validation.currency');
+
+/** The canonical name of a time zone, or null when `Intl` does not know it. */
+function canonicalZone(zone: string): string | null {
+  try {
+    return new Intl.DateTimeFormat('en', { timeZone: zone }).resolvedOptions().timeZone;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * An IANA region time zone (`Asia/Hebron`), stored under its canonical name (`asia/hebron` → `Asia/Hebron`, D-092).
+ * Fixed offsets (`+02:00`, `Etc/GMT+2`) are refused: they have no daylight saving, so dates and 09:00 reminders
+ * would be an hour off half the year; UTC is allowed.
+ */
+export const TimeZoneSchema = z
+  .string()
+  .trim()
+  .max(64, 'validation.tooLong')
+  .transform((zone, ctx) => {
+    const name = canonicalZone(zone);
+    if (name === 'UTC' || (name?.includes('/') && !name.startsWith('Etc/'))) return name;
+    ctx.addIssue({ code: 'custom', message: 'validation.timeZone' });
+    return z.NEVER;
+  });

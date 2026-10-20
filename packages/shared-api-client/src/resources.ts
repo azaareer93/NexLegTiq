@@ -8,6 +8,8 @@ import {
   CourtSchema,
   DirectoryUserSchema,
   JudgeSchema,
+  OfficeProfileSchema,
+  OfficeSettingsSchema,
   TeamMemberSchema,
   UserOpenFileSchema,
   OfficeSubscriptionSchema,
@@ -15,7 +17,11 @@ import {
 import type {
   ChangeRoleRequest,
   DeactivateUserRequest,
+  OfficeProfile,
+  OfficeSettings,
   TeamMember,
+  UpdateOfficeProfileRequest,
+  UpdateOfficeSettingsRequest,
   UserOpenFile,
   OfficeSubscription,
   AuthSession,
@@ -216,6 +222,14 @@ export function courtsApi(client: ApiClient) {
 /** `offices/me…` (api-conventions.md#offices): the office's subscription and usage (D-122). */
 export function officesApi(client: ApiClient) {
   return {
+    profile: (signal?: AbortSignal): Promise<OfficeProfile> =>
+      client.request({ method: 'GET', path: 'offices/me', signal }, OfficeProfileSchema),
+    updateProfile: (body: UpdateOfficeProfileRequest): Promise<OfficeProfile> =>
+      client.request({ method: 'PATCH', path: 'offices/me', body }, OfficeProfileSchema),
+    settings: (signal?: AbortSignal): Promise<OfficeSettings> =>
+      client.request({ method: 'GET', path: 'offices/me/settings', signal }, OfficeSettingsSchema),
+    updateSettings: (body: UpdateOfficeSettingsRequest): Promise<OfficeSettings> =>
+      client.request({ method: 'PATCH', path: 'offices/me/settings', body }, OfficeSettingsSchema),
     subscription: (signal?: AbortSignal): Promise<OfficeSubscription> =>
       client.request(
         { method: 'GET', path: 'offices/me/subscription', signal },

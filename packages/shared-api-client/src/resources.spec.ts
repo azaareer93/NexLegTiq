@@ -24,6 +24,7 @@ const session = {
     permissions: ['create:case'],
     emailVerified: true,
     verifyBy: null,
+    idleMinutes: 30,
   },
 };
 
@@ -394,6 +395,57 @@ describe('officesApi', () => {
       http.get(url('offices/me/subscription'), () => ok({ ...subscription, status: 'GONE' })),
     );
     await expect(offices.subscription()).rejects.toMatchObject({ code: 'SYS-001' });
+  });
+
+  it('should read and patch the profile and the settings', async () => {
+    const profile = {
+      id: '01920000-0000-7000-8000-0000000000e1',
+      name: 'Haddad Law',
+      registrationNumber: null,
+      taxId: null,
+      phone: null,
+      email: null,
+      address: null,
+      website: null,
+      jurisdiction: 'PALESTINE',
+      accountType: 'FIRM',
+      defaultLanguage: 'AR',
+      currency: 'ILS',
+      timezone: 'Asia/Hebron',
+    };
+    const settings = {
+      courtReminderDays: [7, 3, 1],
+      taskReminderDays: [1],
+      defaultBillingRate: null,
+      defaultBillingMethod: 'HOURLY',
+      taxRatePercent: '0.00',
+      enableAi: true,
+      enableOcr: true,
+      fileNumberFormat: '{YEAR}-{TYPE}-{SEQ:5}',
+      sessionIdleMinutes: 30,
+      auditRetentionDays: 365,
+    };
+    const bodies: unknown[] = [];
+    server.use(
+      http.get(url('offices/me'), () => ok(profile)),
+      http.patch(url('offices/me'), async ({ request }) => {
+        bodies.push(await request.json());
+        return ok({ ...profile, name: 'New' });
+      }),
+      http.get(url('offices/me/settings'), () => ok(settings)),
+      http.patch(url('offices/me/settings'), async ({ request }) => {
+        bodies.push(await request.json());
+        return ok({ ...settings, enableAi: false });
+      }),
+    );
+    const { offices } = setup('access-1');
+    await expect(offices.profile()).resolves.toEqual(profile);
+    await expect(offices.updateProfile({ name: 'New' })).resolves.toMatchObject({ name: 'New' });
+    await expect(offices.settings()).resolves.toEqual(settings);
+    await expect(offices.updateSettings({ enableAi: false })).resolves.toMatchObject({
+      enableAi: false,
+    });
+    expect(bodies).toEqual([{ name: 'New' }, { enableAi: false }]);
   });
 });
 
