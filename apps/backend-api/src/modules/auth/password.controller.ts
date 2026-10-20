@@ -27,6 +27,7 @@ import { Public } from '../../common/auth/public.decorator';
 import type { AuthPrincipal, RequestContext } from '../../common/context/request-context';
 import { ZodValidationPipe } from '../../common/http/zod-validation.pipe';
 import { ApiZodBody } from '../../common/openapi/api-zod.decorators';
+import { AllowWhenReadOnly } from '../subscriptions/subscription.decorators';
 
 const MINUTE_MS = 60_000;
 
@@ -72,6 +73,8 @@ export class PasswordController {
     await this.passwords.resetPassword(body, this.client(req));
   }
 
+  // The caller's own account, not office data: allowed while the office is read-only (D-122).
+  @AllowWhenReadOnly()
   @Post('users/me/password')
   @HttpCode(HttpStatus.NO_CONTENT)
   @Throttle({ default: { limit: 5, ttl: MINUTE_MS } })

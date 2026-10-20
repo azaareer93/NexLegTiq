@@ -16,6 +16,7 @@ import { configureApp } from '../../app/configure-app';
 import { RequirePermissions } from '../../common/rbac/permissions.decorator';
 import { integrationEnv } from '../../config/env.fixture';
 import { PrismaService } from '../../database/prisma.service';
+import { liveSubscription } from '../subscriptions/subscription.test-helper';
 
 @Controller('__auth_probe__')
 class ProbeController {
@@ -75,7 +76,11 @@ describe('auth (HTTP + PostgreSQL)', () => {
   ) {
     const raw = prisma.unscoped();
     const office = await raw.office.create({
-      data: { name: 'Auth test office', isActive: options.officeActive ?? true },
+      data: {
+        name: 'Auth test office',
+        isActive: options.officeActive ?? true,
+        subscriptions: liveSubscription(),
+      },
     });
     officeIds.push(office.id);
     const email = `auth-${randomUUID()}@example.test`;
@@ -114,6 +119,7 @@ describe('auth (HTTP + PostgreSQL)', () => {
     await raw.auditLog.deleteMany({ where });
     await raw.refreshToken.deleteMany({ where });
     await raw.user.deleteMany({ where });
+    await raw.subscription.deleteMany({ where });
     await raw.office.deleteMany({ where: { id: { in: officeIds } } });
     await raw.loginAttempt.deleteMany({ where: { email: { in: emails } } });
     await app.close();

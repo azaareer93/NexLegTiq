@@ -12,11 +12,11 @@ import { ClsService } from 'nestjs-cls';
 import { CaseAccessService } from './case-access.service';
 import { CasesRepository } from './cases.repository';
 import { FileNumberService } from './file-number.service';
+import { assertParticipants } from './participants';
 import type { RequestContext } from '../../common/context/request-context';
 import {
   PermissionDeniedException,
   ResourceNotFoundException,
-  ValidationException,
 } from '../../common/errors/app.exception';
 import { PaginatedResult } from '../../common/http/paginated-result';
 import { assignedFilesWhere } from '../../common/rbac/case-scope';
@@ -26,8 +26,6 @@ import { Prisma } from '../../generated/prisma/client';
 import type { ClientInfo } from '../auth/client-info';
 import { truncateUserAgent } from '../auth/client-info';
 import { assertCourtRefs, nextCourtRefs } from '../courts/court-refs';
-
-const LAWYER_ROLES = ['OFFICE_MANAGER', 'SENIOR_LAWYER', 'LAWYER'] as const;
 
 /** The office's calendar date in its time zone (D-092): a file opened at 01:00 in Hebron is opened that day. */
 export function todayIn(timeZone: string, now: Date): string {
@@ -64,7 +62,10 @@ export class CasesService {
           select: { defaultBillingMethod: true, defaultBillingRate: true },
         }),
       ]);
-      await Promise.all([assertParticipants(tx, input), assertCourtRefs(tx, input)]);
+      await Promise.all([
+        assertParticipants(tx, input, this.officeId()),
+        assertCourtRefs(tx, input),
+      ]);
       const openingDate = todayIn(office.timezone, new Date());
       const fileNumber = await this.numbers.next(
         tx,
@@ -315,30 +316,3 @@ function fileColumns(
 }
 
 const emptyToNull = (value: string | null | undefined) => (value === '' ? null : value);
-
-/** Clients must be live clients of the office; the lawyer and paralegal active users of the right role. */
-async function assertParticipants(tx: ScopedTransaction, input: CreateCaseRequest): Promise<void> {
-  const [clients, lawyer, paralegal] = await Promise.all([
-    tx.client.count({ where: { id: { in: input.clientIds }, deletedAt: null, isActive: true } }),
-    tx.user.count({
-      where: { id: input.responsibleLawyerId, isActive: true, role: { in: [...LAWYER_ROLES] } },
-    }),
-    input.responsibleParalegalId
-      ? tx.user.count({
-          where: { id: input.responsibleParalegalId, isActive: true, role: 'PARALEGAL' },
-        })
-      : Promise.resolve(1),
-  ]);
-  const details = [
-    ...(clients === input.clientIds.length
-      ? []
-      : [{ field: 'clientIds', message: 'validation.unknownClient' }]),
-    ...(lawyer === 1
-      ? []
-      : [{ field: 'responsibleLawyerId', message: 'validation.responsibleLawyer' }]),
-    ...(paralegal === 1
-      ? []
-      : [{ field: 'responsibleParalegalId', message: 'validation.responsibleParalegal' }]),
-  ];
-  if (details.length > 0) throw new ValidationException(details);
-}

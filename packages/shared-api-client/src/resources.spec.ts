@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 
 import { createApiClient } from './api-client.js';
-import { authApi, casesApi, clientsApi, courtsApi, usersApi } from './resources.js';
+import { authApi, casesApi, clientsApi, courtsApi, officesApi, usersApi } from './resources.js';
 
 const ORIGIN = 'http://api.test';
 const url = (path: string) => `${ORIGIN}/api/v1/${path}`;
@@ -50,6 +50,7 @@ function setup(token: string | null = null) {
     cases: casesApi(client),
     clients: clientsApi(client),
     courts: courtsApi(client),
+    offices: officesApi(client),
     store,
     onAuthFailure,
   };
@@ -374,6 +375,28 @@ describe('usersApi.directory and courtsApi', () => {
   });
 });
 
+describe('officesApi', () => {
+  it('should read the subscription and check it against the contract', async () => {
+    const subscription = {
+      plan: { code: 'PS_FREE', name: 'Free' },
+      status: 'TRIALING',
+      readOnly: false,
+      periodEnd: '2027-04-01T00:00:00.000Z',
+      trialEndsAt: '2027-04-01T00:00:00.000Z',
+      limits: { users: 5, storageMb: 2048, aiMonthly: 5 },
+      features: { ai: true, clientPortal: true, googleVisionOcr: false },
+      usage: { users: 2, storageMb: 1, aiThisMonth: 0 },
+    };
+    server.use(http.get(url('offices/me/subscription'), () => ok(subscription)));
+    const { offices } = setup('access-1');
+    await expect(offices.subscription()).resolves.toEqual(subscription);
+    server.use(
+      http.get(url('offices/me/subscription'), () => ok({ ...subscription, status: 'GONE' })),
+    );
+    await expect(offices.subscription()).rejects.toMatchObject({ code: 'SYS-001' });
+  });
+});
+
 describe('clientsApi', () => {
   const id = '01920000-0000-7000-8000-0000000000c1';
   const contactId = '01920000-0000-7000-8000-0000000000d1';
@@ -476,5 +499,53 @@ describe('clientsApi', () => {
   it('should refuse a client that breaks the contract as SYS-001', async () => {
     server.use(http.get(url(`clients/${id}`), () => ok({ ...detail, contacts: undefined })));
     await expect(setup('access-1').clients.get(id)).rejects.toMatchObject({ code: 'SYS-001' });
+  });
+});
+
+describe('usersApi team management', () => {
+  const id = '01920000-0000-7000-8000-0000000000a1';
+  const member = {
+    id,
+    fullName: 'Adel Lawyer',
+    email: 'adel@example.test',
+    role: 'LAWYER',
+    isActive: true,
+    openFiles: 1,
+    lastLoginAt: null,
+  };
+
+  it('should list the team, read open files and send role, deactivate and reactivate', async () => {
+    const bodies: unknown[] = [];
+    const record = async ({ request }: { request: Request }) => {
+      bodies.push(
+        request.method === 'POST' && !request.url.endsWith('reactivate')
+          ? await request.json()
+          : request.method,
+      );
+      return ok({ ...member, isActive: !request.url.endsWith('deactivate') });
+    };
+    server.use(
+      http.get(url('users'), () => ok([member])),
+      http.get(url(`users/${id}/open-files`), () =>
+        ok([{ id, fileNumber: '2026-LIT-00001', title: 'Land' }]),
+      ),
+      http.patch(url(`users/${id}/role`), async ({ request }) => {
+        bodies.push(await request.json());
+        return ok({ ...member, role: 'SENIOR_LAWYER' });
+      }),
+      http.post(url(`users/${id}/deactivate`), record),
+      http.post(url(`users/${id}/reactivate`), record),
+    );
+    const { users } = setup('access-1');
+    await expect(users.team()).resolves.toEqual([member]);
+    await expect(users.openFiles(id)).resolves.toHaveLength(1);
+    await expect(users.changeRole(id, { role: 'SENIOR_LAWYER' })).resolves.toMatchObject({
+      role: 'SENIOR_LAWYER',
+    });
+    await expect(users.deactivate(id, { reassignments: [] })).resolves.toMatchObject({
+      isActive: false,
+    });
+    await expect(users.reactivate(id)).resolves.toMatchObject({ isActive: true });
+    expect(bodies).toEqual([{ role: 'SENIOR_LAWYER' }, { reassignments: [] }, 'POST']);
   });
 });

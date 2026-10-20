@@ -8,8 +8,16 @@ import {
   CourtSchema,
   DirectoryUserSchema,
   JudgeSchema,
+  TeamMemberSchema,
+  UserOpenFileSchema,
+  OfficeSubscriptionSchema,
 } from '@nexlegtiq/shared-contracts';
 import type {
+  ChangeRoleRequest,
+  DeactivateUserRequest,
+  TeamMember,
+  UserOpenFile,
+  OfficeSubscription,
   AuthSession,
   Case,
   CaseListItem,
@@ -107,6 +115,30 @@ export function usersApi(client: ApiClient) {
         { method: 'GET', path: 'users/directory', signal },
         DirectoryUserSchema.array(),
       ),
+    /** Team management (D-124): every user of the office with their open-file counts. */
+    team: (signal?: AbortSignal): Promise<TeamMember[]> =>
+      client.request({ method: 'GET', path: 'users', signal }, TeamMemberSchema.array()),
+    /** Open files a user is responsible for: what deactivating them must reassign. */
+    openFiles: (id: string, signal?: AbortSignal): Promise<UserOpenFile[]> =>
+      client.request(
+        { method: 'GET', path: `users/${encodeURIComponent(id)}/open-files`, signal },
+        UserOpenFileSchema.array(),
+      ),
+    changeRole: (id: string, body: ChangeRoleRequest): Promise<TeamMember> =>
+      client.request(
+        { method: 'PATCH', path: `users/${encodeURIComponent(id)}/role`, body },
+        TeamMemberSchema,
+      ),
+    deactivate: (id: string, body: DeactivateUserRequest): Promise<TeamMember> =>
+      client.request(
+        { method: 'POST', path: `users/${encodeURIComponent(id)}/deactivate`, body },
+        TeamMemberSchema,
+      ),
+    reactivate: (id: string): Promise<TeamMember> =>
+      client.request(
+        { method: 'POST', path: `users/${encodeURIComponent(id)}/reactivate` },
+        TeamMemberSchema,
+      ),
   };
 }
 
@@ -177,6 +209,17 @@ export function courtsApi(client: ApiClient) {
       client.request(
         { method: 'GET', path: `courts/${encodeURIComponent(courtId)}/judges`, signal },
         JudgeSchema.array(),
+      ),
+  };
+}
+
+/** `offices/me…` (api-conventions.md#offices): the office's subscription and usage (D-122). */
+export function officesApi(client: ApiClient) {
+  return {
+    subscription: (signal?: AbortSignal): Promise<OfficeSubscription> =>
+      client.request(
+        { method: 'GET', path: 'offices/me/subscription', signal },
+        OfficeSubscriptionSchema,
       ),
   };
 }

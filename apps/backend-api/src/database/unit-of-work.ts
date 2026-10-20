@@ -35,7 +35,11 @@ export class UnitOfWork {
     this.logger.setContext(UnitOfWork.name);
   }
 
-  async run<T>(work: (tx: ScopedTransaction, afterCommit: AfterCommit) => Promise<T>): Promise<T> {
+  /** `timeoutMs` raises Prisma's 5 s interactive-transaction limit for writes that touch many rows. */
+  async run<T>(
+    work: (tx: ScopedTransaction, afterCommit: AfterCommit) => Promise<T>,
+    { timeoutMs }: { timeoutMs?: number } = {},
+  ): Promise<T> {
     const tasks: { task: () => Promise<unknown>; label: string }[] = [];
     let open = true;
     const afterCommit: AfterCommit = (task, label = 'after-commit task') => {
@@ -44,7 +48,10 @@ export class UnitOfWork {
     };
     let result: T;
     try {
-      result = await this.prisma.db.$transaction((tx) => work(tx, afterCommit));
+      result = await this.prisma.db.$transaction(
+        (tx) => work(tx, afterCommit),
+        timeoutMs ? { timeout: timeoutMs } : undefined,
+      );
     } finally {
       open = false;
     }

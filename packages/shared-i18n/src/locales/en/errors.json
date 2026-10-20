@@ -13,6 +13,7 @@
   "AUTH-101": "Your role does not allow this action.",
   "AUTH-102": "This feature is not included in your office's plan.",
   "AUTH-103": "Your office has reached its plan limit.",
+  "AUTH-104": "Your office's subscription has ended, so the office is read-only. Contact us to renew it.",
   "VAL-001": "Some fields are invalid. Check the form and try again.",
   "VAL-002": "Enter a valid email address.",
   "VAL-003": "Enter a valid phone number.",

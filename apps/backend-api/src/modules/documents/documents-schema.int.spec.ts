@@ -2,9 +2,9 @@ import { randomUUID } from 'node:crypto';
 
 import { FOLDER_SYSTEM_KEYS } from '@nexlegtiq/shared-types';
 
-import { StorageUsageService } from './storage-usage.service';
 import { LegalFilesTestDb } from '../legal-files/legal-files.test-helper';
 import type { TestOffice } from '../legal-files/legal-files.test-helper';
+import { StorageUsageService } from '../subscriptions/storage-usage.service';
 
 /** Prisma's code and the error text that names the constraint (it sits in the message or the driver cause). */
 async function violation(write: Promise<unknown>): Promise<{ code: unknown; text: string }> {

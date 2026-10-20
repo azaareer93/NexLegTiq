@@ -1,7 +1,7 @@
 import { ApiError, authApi, createApiClient } from '@nexlegtiq/shared-api-client';
 import type { ClientSession } from '@nexlegtiq/shared-api-client';
 import type { AuthUser } from '@nexlegtiq/shared-contracts';
-import { QueryClient } from '@tanstack/react-query';
+import { MutationCache, QueryClient } from '@tanstack/react-query';
 import { create } from 'zustand';
 
 /** Why the user is on the sign-in page; shown as a notice there. */
@@ -31,8 +31,19 @@ const INITIAL: SessionState = {
 
 export const useSession = create<SessionState>()(() => INITIAL);
 
-export const queryClient = new QueryClient({
+/** `GET /offices/me/subscription` (D-122); here so a refused write can refresh it without a cycle with settings. */
+export const subscriptionKey = ['office', 'subscription'] as const;
+
+export const queryClient: QueryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
+  // A write refused because the subscription ended (AUTH-104): reload it, so the read-only banner shows at once.
+  mutationCache: new MutationCache({
+    onError: (error) => {
+      if (error instanceof ApiError && error.code === 'AUTH-104') {
+        void queryClient.invalidateQueries({ queryKey: subscriptionKey });
+      }
+    },
+  }),
 });
 
 const configuredApiUrl = import.meta.env['VITE_API_URL'] as string | undefined;

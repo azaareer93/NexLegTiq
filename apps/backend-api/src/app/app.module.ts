@@ -20,6 +20,8 @@ import { CourtsModule } from '../modules/courts/courts.module';
 import { DocumentsModule } from '../modules/documents/documents.module';
 import { LegalFilesModule } from '../modules/legal-files/legal-files.module';
 import { SessionsModule } from '../modules/sessions/sessions.module';
+import { SubscriptionGuard } from '../modules/subscriptions/subscription.guard';
+import { SubscriptionsModule } from '../modules/subscriptions/subscriptions.module';
 import { TasksModule } from '../modules/tasks/tasks.module';
 import { UsersModule } from '../modules/users/users.module';
 
@@ -35,6 +37,7 @@ import { UsersModule } from '../modules/users/users.module';
     HealthModule,
     MetricsModule,
     AuthModule,
+    SubscriptionsModule,
     ClientsModule,
     CourtsModule,
     LegalFilesModule,
@@ -49,12 +52,13 @@ import { UsersModule } from '../modules/users/users.module';
   ],
   providers: [
     // Guards run in registration order: rate limit (also for unauthenticated callers), authentication
-    // (deny-by-default, @Public() opts out), then permissions.
+    // (deny-by-default, @Public() opts out), permissions, then plan features and read-only mode (D-122).
     // useExisting (like JwtAuthGuard) so tests can replace the guard with overrideProvider.
     ThrottlerGuard,
     { provide: APP_GUARD, useExisting: ThrottlerGuard },
     { provide: APP_GUARD, useExisting: JwtAuthGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
+    { provide: APP_GUARD, useExisting: SubscriptionGuard },
     // First: fills CLS (officeId, userId, …) from req.user before anything reads it.
     { provide: APP_INTERCEPTOR, useClass: TenantInterceptor },
     { provide: APP_INTERCEPTOR, useClass: EnvelopeInterceptor },
