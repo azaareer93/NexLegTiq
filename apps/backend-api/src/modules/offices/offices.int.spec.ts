@@ -78,9 +78,13 @@ describe('office profile and settings (HTTP + PostgreSQL)', () => {
     // unscoped: test fixtures.
     raw = app.get(PrismaService).unscoped();
     jwt = app.get(JwtService);
+  }, 60_000);
+
+  // Every test starts from fresh offices: none depends on what another one changed.
+  beforeEach(async () => {
     manager = await seedOffice('Offices office');
     other = await seedOffice('Other office');
-  }, 60_000);
+  });
 
   afterAll(async () => {
     if (raw) {
@@ -172,6 +176,13 @@ describe('office profile and settings (HTTP + PostgreSQL)', () => {
       timezone: 'Asia/Hebron',
       jurisdiction: 'PALESTINE',
     });
+    expect(row?.newValues).toEqual({
+      website: 'https://office.example.test',
+      email: 'info@office.example.test',
+      currency: 'JOD',
+      timezone: 'Asia/Amman',
+      jurisdiction: 'JORDAN',
+    });
 
     // '' clears an optional field; sending the same values again writes nothing.
     await http().patch('/api/v1/offices/me').set(as(manager)).send({ website: '' }).expect(200);
@@ -182,11 +193,22 @@ describe('office profile and settings (HTTP + PostgreSQL)', () => {
     expect(untouched.body.data).toMatchObject({ name: 'Other office', currency: 'ILS' });
   });
 
+  it('should ignore fields that are not editable (id, office, account type) and write nothing', async () => {
+    await http()
+      .patch('/api/v1/offices/me')
+      .set(as(manager))
+      .send({ id: other.officeId, officeId: other.officeId, accountType: 'CORPORATE' })
+      .expect(200);
+    const office = await raw.office.findUniqueOrThrow({ where: { id: manager.officeId } });
+    expect(office.accountType).toBe('SOLO');
+    expect(await auditRows(manager, 'Office')).toHaveLength(0);
+  });
+
   it('should refuse an invalid profile with the field in error', async () => {
     const res = await http()
       .patch('/api/v1/offices/me')
       .set(as(manager))
-      .send({ timezone: 'Mars/Olympus', currency: 'XYZ', website: 'javascript:alert(1)', name: '' })
+      .send({ timezone: '+02:00', currency: 'XYZ', website: 'javascript:alert(1)', name: '' })
       .expect(400);
     expect(fieldsOf(res.body).sort()).toEqual([
       'currency: validation.currency',
@@ -229,6 +251,22 @@ describe('office profile and settings (HTTP + PostgreSQL)', () => {
       sessionIdleMinutes: 30,
       auditRetentionDays: 365,
     });
+    expect(row?.newValues).toEqual({
+      courtReminderDays: [14, 3, 1],
+      taskReminderDays: [],
+      defaultBillingRate: '150',
+      taxRatePercent: '16',
+      enableAi: false,
+      sessionIdleMinutes: 60,
+      auditRetentionDays: 730,
+    });
+    expect(row).toMatchObject({ userId: manager.userId, entityType: 'OfficeSettings' });
+    expect(row?.requestId).toBeTruthy();
+    const otherSettings = await http()
+      .get('/api/v1/offices/me/settings')
+      .set(as(other))
+      .expect(200);
+    expect(otherSettings.body.data).toMatchObject({ courtReminderDays: [7, 3, 1], enableAi: true });
     // The same amount written differently is no change.
     await http()
       .patch('/api/v1/offices/me/settings')
@@ -286,5 +324,43 @@ describe('office profile and settings (HTTP + PostgreSQL)', () => {
       })
       .expect(201);
     expect(file.body.data.fileNumber).toBe('F/001');
+  });
+
+  it('should give new cases the billing defaults and new hearings the reminder days', async () => {
+    await http()
+      .patch('/api/v1/offices/me/settings')
+      .set(as(manager))
+      .send({ defaultBillingMethod: 'HOURLY', defaultBillingRate: '120', courtReminderDays: [2] })
+      .expect(200);
+    const client = await http()
+      .post('/api/v1/clients')
+      .set(as(manager))
+      .send({ clientType: 'INDIVIDUAL', displayName: 'Client' })
+      .expect(201);
+    const file = await http()
+      .post('/api/v1/cases')
+      .set(as(manager))
+      .send({
+        title: 'Defaults',
+        fileType: 'LITIGATION',
+        clientIds: [client.body.data.id],
+        primaryClientId: client.body.data.id,
+        responsibleLawyerId: manager.userId,
+      })
+      .expect(201);
+    expect(file.body.data).toMatchObject({ billingMethod: 'HOURLY', hourlyRate: '120.00' });
+    const session = await http()
+      .post('/api/v1/sessions')
+      .set(as(manager))
+      .send({
+        fileId: file.body.data.id,
+        startsAt: new Date(Date.now() + 10 * 86_400_000).toISOString(),
+        attendingLawyerId: manager.userId,
+      })
+      .expect(201);
+    const reminders = await raw.sessionReminder.findMany({
+      where: { sessionId: session.body.data.id },
+    });
+    expect(reminders.map((r) => r.daysBefore)).toEqual([2]);
   });
 });

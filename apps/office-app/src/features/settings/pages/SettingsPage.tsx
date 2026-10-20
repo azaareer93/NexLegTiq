@@ -47,7 +47,11 @@ function useUnsavedGuard() {
   );
   useEffect(() => {
     if (!unsaved) return undefined;
-    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      // Safari and older Chromium show the prompt only with a return value.
+      event.returnValue = '';
+    };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
   }, [unsaved]);

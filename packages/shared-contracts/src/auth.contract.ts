@@ -102,7 +102,7 @@ export const AuthUserSchema = z.object({
   /** When an unverified account loses access (AUTH-010); null once verified. */
   verifyBy: z.iso.datetime().nullable(),
   /** The office's idle timeout in minutes (D-053, office settings): the UI signs out after it. */
-  idleMinutes: z.number().int().positive(),
+  idleMinutes: z.number().int().min(15).max(120),
 });
 export type AuthUser = z.infer<typeof AuthUserSchema>;
 

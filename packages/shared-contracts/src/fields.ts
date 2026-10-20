@@ -86,16 +86,27 @@ export const CurrencySchema = z
   .toUpperCase()
   .refine((code) => CURRENCIES.has(code), 'validation.currency');
 
-/** An IANA time zone the runtime knows (`Asia/Hebron`), as `Intl` accepts it (D-092). */
+/** The canonical name of a time zone, or null when `Intl` does not know it. */
+function canonicalZone(zone: string): string | null {
+  try {
+    return new Intl.DateTimeFormat('en', { timeZone: zone }).resolvedOptions().timeZone;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * An IANA region time zone (`Asia/Hebron`), stored under its canonical name (`asia/hebron` → `Asia/Hebron`, D-092).
+ * Fixed offsets (`+02:00`, `Etc/GMT+2`) are refused: they have no daylight saving, so dates and 09:00 reminders
+ * would be an hour off half the year; UTC is allowed.
+ */
 export const TimeZoneSchema = z
   .string()
   .trim()
   .max(64, 'validation.tooLong')
-  .refine((zone) => {
-    try {
-      new Intl.DateTimeFormat('en', { timeZone: zone });
-      return zone.length > 0;
-    } catch {
-      return false;
-    }
-  }, 'validation.timeZone');
+  .transform((zone, ctx) => {
+    const name = canonicalZone(zone);
+    if (name === 'UTC' || (name?.includes('/') && !name.startsWith('Etc/'))) return name;
+    ctx.addIssue({ code: 'custom', message: 'validation.timeZone' });
+    return z.NEVER;
+  });

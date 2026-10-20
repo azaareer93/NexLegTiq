@@ -13,6 +13,7 @@ import {
   MoneySchema,
   PhoneSchema,
   plainText,
+  searchText,
   TimeZoneSchema,
 } from './fields.js';
 
@@ -23,11 +24,10 @@ const clearable = <T extends z.ZodType<string | null>>(schema: T) =>
     schema.nullable(),
   );
 
-const WebsiteSchema = z
-  .string()
-  .trim()
-  .max(200, 'validation.tooLong')
-  .pipe(z.url({ protocol: /^https?$/, error: 'validation.website' }));
+/** No control or bidi characters (as `plainText`), then an http(s) URL. */
+const WebsiteSchema = searchText(200).pipe(
+  z.url({ protocol: /^https?$/, error: 'validation.website' }),
+);
 
 /** `GET /offices/me` (D-125): the office's profile and regional defaults. */
 export const OfficeProfileSchema = z.object({

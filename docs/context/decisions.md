@@ -1412,3 +1412,12 @@ changes:** leaving the page in the app while any card has changes asks first (re
 and closing or reloading the tab triggers the browser's own prompt. **Not done here:** a logo upload (storage of office
 assets is not specified), statistics and export (`GET offices/me/statistics`, `POST offices/me/export`, their own stories),
 an audit row for reading settings (reads are not audited elsewhere either).
+Review additions (same PR): **time zones are stored under their canonical IANA name** (`asia/hebron` → `Asia/Hebron`)
+and only region zones and UTC are accepted — fixed offsets (`+02:00`, `Etc/GMT+2`) have no daylight saving, so file-number
+years and 09:00 reminders would be an hour off half the year; the page offers the same list. The website refuses control
+and bidi characters like any plain text, and the session's `idleMinutes` is checked as 15–120 like the column. The office's
+**tax id and registration number are not encrypted** (D-056 covers individuals' ids; an office's are on its letterhead) and
+are audited in full. Changing the reminder days applies to hearings written afterwards: **reminders already scheduled
+stay as they were** (D-117 recomputes them only when the hearing itself changes). While the subscription is read-only
+(D-122) the settings cannot be changed either, security ones included. The changed-fields helper behind audit rows is
+now one function (`common/audit/changes.ts`, also used by cases).

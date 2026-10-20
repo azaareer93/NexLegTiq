@@ -3,7 +3,8 @@ import type { Request } from 'express';
 import type { ClsService } from 'nestjs-cls';
 
 import { OfficesController } from './offices.controller';
-import { changes, OfficesService } from './offices.service';
+import { OfficesService } from './offices.service';
+import { changes } from '../../common/audit/changes';
 import type { RequestContext } from '../../common/context/request-context';
 import { ValidationException } from '../../common/errors/app.exception';
 import type { PrismaService } from '../../database/prisma.service';

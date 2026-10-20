@@ -46,6 +46,15 @@ describe('office contracts (D-125)', () => {
       'website: validation.website',
     ]);
     expect(TimeZoneSchema.safeParse('').success).toBe(false);
+    for (const zone of ['+02:00', 'Etc/GMT+2', '-0130']) {
+      expect(TimeZoneSchema.safeParse(zone).success).toBe(false);
+    }
+    expect(TimeZoneSchema.parse('asia/hebron')).toBe('Asia/Hebron');
+    expect(TimeZoneSchema.parse('UTC')).toBe('UTC');
+    expect(
+      UpdateOfficeProfileSchema.safeParse({ website: 'https://x.test/‮gpj' }).error?.issues[0]
+        ?.message,
+    ).toBe('validation.invalidCharacters');
     expect(CurrencySchema.safeParse('usd').data).toBe('USD');
   });
 

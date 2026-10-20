@@ -62,7 +62,7 @@
     "courtReminderDays": "Hearing reminders",
     "taskReminderDays": "Task reminders",
     "daysBefore": "Days before the hearing.",
-    "dueDay": "Days before the due date (0 = on the day).",
+    "dueDay": "Days before the due date (0 means on the day).",
     "defaultBillingMethod": "Default billing method",
     "defaultBillingRate": "Default hourly rate",
     "taxRatePercent": "Tax rate",
