@@ -37,7 +37,7 @@ describe('DocumentsController', () => {
       await expect(controller.update('d1', { name: 'n' }, req)).resolves.toBe('updated');
       await controller.remove('d1', req);
       await expect(controller.download('d1', { version: 2 }, req)).resolves.toBe('link');
-      await expect(controller.text('d1', { page: 1 })).resolves.toBe('text');
+      await expect(controller.text('d1', { page: 1 }, req)).resolves.toBe('text');
     }
     expect(service.upload).toHaveBeenCalledWith(
       req,

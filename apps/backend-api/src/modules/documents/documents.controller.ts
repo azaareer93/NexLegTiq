@@ -28,9 +28,11 @@ import {
 import type {
   Document,
   DocumentText,
+  DocumentTextQuery,
   DocumentUpload,
   DocumentVersion,
   DownloadLink,
+  DownloadQuery,
   UpdateDocumentRequest,
 } from '@nexlegtiq/shared-contracts';
 import type { Request } from 'express';
@@ -146,7 +148,7 @@ export class DocumentsController {
   @ApiZodResponse(HttpStatus.OK, DownloadLinkSchema)
   download(
     @Param('id', uuid) id: string,
-    @Query(new ZodValidationPipe(DownloadQuerySchema)) query: { version?: number },
+    @Query(new ZodValidationPipe(DownloadQuerySchema)) query: DownloadQuery,
     @Req() req: Request,
   ): Promise<DownloadLink> {
     return this.records.download(id, query.version, this.client(req));
@@ -159,9 +161,10 @@ export class DocumentsController {
   @ApiZodResponse(HttpStatus.OK, DocumentTextSchema)
   text(
     @Param('id', uuid) id: string,
-    @Query(new ZodValidationPipe(DocumentTextQuerySchema)) query: { page: number },
+    @Query(new ZodValidationPipe(DocumentTextQuerySchema)) query: DocumentTextQuery,
+    @Req() req: Request,
   ): Promise<DocumentText> {
-    return this.records.text(id, query.page);
+    return this.records.text(id, query.page, this.client(req));
   }
 
   private client(req: Request): ClientInfo {

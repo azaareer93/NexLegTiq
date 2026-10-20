@@ -104,10 +104,11 @@ export const UpdateDocumentSchema = z
   .refine((body) => Object.keys(body).length > 0, 'validation.required');
 export type UpdateDocumentRequest = z.infer<typeof UpdateDocumentSchema>;
 
-/** `GET /documents/:id/download?version=`: the current version unless one is named. */
+/** `GET /documents/:id/download?version=`: the current version (another version is 404 until versions carry their scan result, D-128). */
 export const DownloadQuerySchema = z.object({
-  version: z.coerce.number().int().min(1).optional(),
+  version: z.coerce.number().int().min(1).max(10_000).optional(),
 });
+export type DownloadQuery = z.infer<typeof DownloadQuerySchema>;
 
 /** A short-lived link (D-013: JSON, not a redirect, so the app can show errors); the file downloads under its own name. */
 export const DownloadLinkSchema = z.object({
@@ -120,6 +121,7 @@ export type DownloadLink = z.infer<typeof DownloadLinkSchema>;
 export const DocumentTextQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(10_000).default(1),
 });
+export type DocumentTextQuery = z.infer<typeof DocumentTextQuerySchema>;
 
 export const DocumentTextSchema = z.object({
   versionNumber: z.number().int().min(1),

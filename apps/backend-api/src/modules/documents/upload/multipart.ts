@@ -81,7 +81,7 @@ export function readUpload<S extends z.ZodType>(
       const fields = schema.safeParse(raw);
       // busboy reports an empty `filename=""` as undefined, whatever its types say.
       const sent = (info.filename as string | undefined) ?? '';
-      const filename = OriginalFilenameSchema.safeParse(sent.split(/[/\\]/).pop() ?? '');
+      const filename = OriginalFilenameSchema.safeParse(sent.replace(/^.*[/\\]/, ''));
       if (!fields.success || !filename.success) {
         // Answered once the body has been read (`close`), so the client is still listening.
         stream.resume();

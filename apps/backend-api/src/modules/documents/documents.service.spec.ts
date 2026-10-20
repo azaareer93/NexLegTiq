@@ -251,5 +251,9 @@ describe('DocumentsService versions', () => {
     const { service } = setup();
     Object.assign(service, { cls: { get: () => undefined } });
     await expect(service.upload(req(), 'valid-key-1', CLIENT)).rejects.toThrow('No user');
+    Object.assign(service, {
+      cls: { get: (key: string) => (key === 'userId' ? 'u1' : undefined) },
+    });
+    await expect(service.upload(req(), undefined, CLIENT)).rejects.toThrow('No office');
   });
 });

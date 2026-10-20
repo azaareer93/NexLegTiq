@@ -1596,3 +1596,15 @@ document's `ocrStatus` (empty, 0 pages, until the text-extraction story fills it
 (portal stories), the documents tab UI (its own story), a retention purge, `documents` in the HTTP isolation matrix (its list is
 per file; the integration test covers list, get, patch, delete and download across offices). Why: every way to a document's
 content goes through one access rule and leaves an audit row.
+Review additions (same PR): **only the current version is downloadable** — the scan result is the document's, i.e. the
+current version's, so `?version=` other than the current is 404 until versions carry their own scan record (D-126 asked
+for exactly this; a version replaced before its scan ran could otherwise be served unscanned). **The text view is gated and
+audited like a download:** only once scanned clean (STO-004 / BIZ-015), and each page read writes a `VIEW {versionNumber,
+text: true, page}` audit row. **Edits and deletes lock and re-check inside the write** (as uploads do, D-126): the file row
+`FOR NO KEY UPDATE` — deleted meanwhile 404, archived meanwhile BIZ-007, the target folder still the file's — then the
+document row `FOR UPDATE`, read again (deleted meanwhile 404), so the audit's old values are what the change replaced.
+Download and text read the document with `deletedAt: null`; `version` is capped at 10,000 (no 500 on huge numbers). The
+list query's `type` filter is named `documentType` (the contract's enum name), and `folderId=root` lists the file's root. A
+rename changes the display `name` only; downloads keep each version's uploaded name. **Later:** a
+`(office_id, file_id, updated_at DESC) WHERE deleted_at IS NULL` index if files reach thousands of documents; reading only
+the requested 20,000 characters in SQL instead of the whole text.

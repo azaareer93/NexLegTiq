@@ -3,7 +3,7 @@ import { PassThrough, Readable } from 'node:stream';
 import { MAX_UPLOAD_BYTES, UploadDocumentFieldsSchema } from '@nexlegtiq/shared-contracts';
 import type { Request } from 'express';
 
-import { readUpload } from './multipart';
+import { discardBody, readUpload } from './multipart';
 
 const FILE_ID = '01920000-0000-7000-8000-000000000001';
 
@@ -136,5 +136,29 @@ describe('readUpload', () => {
     await expect(readUpload(huge, UploadDocumentFieldsSchema)).rejects.toMatchObject({
       code: 'VAL-006',
     });
+  });
+
+  it('should report every invalid field when the name is fine', async () => {
+    await expect(
+      readUpload(
+        formRequest([
+          { name: 'fileId', value: 'nope' },
+          { name: 'file', filename: 'ok.pdf', data: Buffer.from('x') },
+        ]),
+        UploadDocumentFieldsSchema,
+      ),
+    ).rejects.toMatchObject({
+      code: 'VAL-001',
+      details: [expect.objectContaining({ field: 'fileId' })],
+    });
+  });
+});
+
+describe('discardBody', () => {
+  it('should settle at once for a read body, and once an unread one has arrived', async () => {
+    const done = { readableEnded: true } as unknown as Request;
+    await expect(discardBody(done)).resolves.toBeUndefined();
+    const pending = Readable.from([Buffer.from('rest of the body')]) as unknown as Request;
+    await expect(discardBody(pending)).resolves.toBeUndefined();
   });
 });

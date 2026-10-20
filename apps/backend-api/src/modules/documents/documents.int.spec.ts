@@ -601,6 +601,7 @@ describe('documents upload API (HTTP + PostgreSQL + storage + ClamAV)', () => {
     it('should page the extracted text of the current version', async () => {
       const fileId = await openFile();
       const { documentId } = accepted(await upload(fileId, pdf(), 'long.pdf'));
+      await clean(documentId);
       const text = (page: number) =>
         http().get(`/api/v1/documents/${documentId}/text?page=${page}`).set(as('lawyer'));
       expect((await text(1).expect(200)).body).toMatchObject({
@@ -612,6 +613,68 @@ describe('documents upload API (HTTP + PostgreSQL + storage + ClamAV)', () => {
       expect((await text(2).expect(200)).body).toMatchObject({
         data: { page: 2, totalPages: 2, text: 'tail' },
       });
+    });
+
+    it('should offer only the current version, audit text reads, and refuse writes on an archived file', async () => {
+      const fileId = await openFile();
+      const { documentId } = accepted(await upload(fileId, pdf(), 'v1.pdf'));
+      await clean(documentId);
+      accepted(
+        await http()
+          .post(`/api/v1/documents/${documentId}/versions`)
+          .set(as('lawyer'))
+          .attach('file', pdf(3000), 'v2.pdf'),
+      );
+      await inOffice(officeId, () =>
+        scanner().run({ documentId, versionNumber: 2 }, new AbortController().signal),
+      );
+      const link = (query: string) =>
+        http().get(`/api/v1/documents/${documentId}/download${query}`).set(as('lawyer'));
+      expect((await link('?version=2')).status).toBe(200);
+      expectError(await link('?version=1'), 404, 'RES-001');
+      await http().get(`/api/v1/documents/${documentId}/text`).set(as('lawyer')).expect(200);
+      expect(
+        await raw.auditLog.findFirst({ where: { entityId: documentId, action: 'VIEW' } }),
+      ).toMatchObject({ newValues: { versionNumber: 2, text: true, page: 1 } });
+      const moved = await http()
+        .patch(`/api/v1/documents/${documentId}`)
+        .set(as('lawyer'))
+        .send({ folderId: null, name: 'Root.pdf' });
+      expect(moved.body).toMatchObject({ data: { folderId: null, name: 'Root.pdf' } });
+      await raw.legalFile.update({ where: { id: fileId }, data: { status: 'ARCHIVED' } });
+      expectError(
+        await http()
+          .patch(`/api/v1/documents/${documentId}`)
+          .set(as('lawyer'))
+          .send({ name: 'x.pdf' }),
+        422,
+        'BIZ-007',
+      );
+      expectError(
+        await http().delete(`/api/v1/documents/${documentId}`).set(as('lawyer')),
+        422,
+        'BIZ-007',
+      );
+      // Reading an archived file's documents still works.
+      expect((await link('')).status).toBe(200);
+    });
+
+    it('should keep a confidential document from a senior lawyer off the file on every route', async () => {
+      const fileId = await openFile();
+      const { documentId } = accepted(
+        await upload(fileId, pdf(), 'secret.pdf', { fields: { isConfidential: 'true' } }),
+      );
+      await clean(documentId);
+      const base = `/api/v1/documents/${documentId}`;
+      expectError(await http().get(`${base}/download`).set(as('senior')), 404, 'RES-001');
+      expectError(await http().get(`${base}/text`).set(as('senior')), 404, 'RES-001');
+      expectError(
+        await http().patch(base).set(as('senior')).send({ name: 'x.pdf' }),
+        404,
+        'RES-001',
+      );
+      expectError(await http().delete(base).set(as('senior')), 404, 'RES-001');
+      expect((await doc('manager', documentId)).status).toBe(200);
     });
 
     it('should soft-delete with delete:document only, and then answer 404', async () => {

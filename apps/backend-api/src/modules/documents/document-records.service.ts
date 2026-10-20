@@ -10,6 +10,7 @@ import { ClsService } from 'nestjs-cls';
 
 import { DocumentAccessService } from './document-access.service';
 import type { AccessibleDocument } from './document-access.service';
+import { UploadIntake } from './upload/upload-intake';
 import { changes } from '../../common/audit/changes';
 import type { RequestContext } from '../../common/context/request-context';
 import {
@@ -17,11 +18,12 @@ import {
   BusinessRuleException,
   PermissionDeniedException,
   ResourceNotFoundException,
-  ValidationException,
 } from '../../common/errors/app.exception';
 import { PaginatedResult } from '../../common/http/paginated-result';
 import { DEFAULT_URL_TTL_SECONDS, StorageService } from '../../common/storage/storage.service';
 import { PrismaService } from '../../database/prisma.service';
+import { UnitOfWork } from '../../database/unit-of-work';
+import type { ScopedTransaction } from '../../database/unit-of-work';
 import type { Prisma } from '../../generated/prisma/client';
 import type { ClientInfo } from '../auth/client-info';
 import { truncateUserAgent } from '../auth/client-info';
@@ -80,6 +82,8 @@ export class DocumentRecordsService {
     private readonly files: CaseAccessService,
     private readonly documents: DocumentAccessService,
     private readonly storage: StorageService,
+    private readonly uow: UnitOfWork,
+    private readonly intake: UploadIntake,
   ) {}
 
   async list(fileId: string, query: DocumentQuery): Promise<PaginatedResult<Document>> {
@@ -130,35 +134,24 @@ export class DocumentRecordsService {
   /**
    * Renames, retypes or moves a document (uploader or someone who may edit the file, as for a new version, D-126); only
    * the office manager, the uploader or the file's responsible lawyer may set or lift `isConfidential` (as for files,
-   * D-096). Only changed fields are written and audited.
+   * D-096). Under a lock on the file (re-checked: live, not archived, the folder its own) and on the document, so the
+   * audit's old values are what the change replaced; only changed fields are written and audited.
    */
   async update(id: string, input: UpdateDocumentRequest, client: ClientInfo): Promise<Document> {
     const document = await this.documents.assertDocumentAccess(id, 'contribute');
     await this.documents.assertMayReplace(document);
     if (input.isConfidential !== undefined) await this.assertMayClassify(document);
-    if (input.folderId) {
-      const folder = await this.prisma.db.documentFolder.count({
-        where: { id: input.folderId, fileId: document.fileId },
+    await this.uow.run(async (tx) => {
+      await this.intake.recheck(tx, {
+        fileId: document.fileId,
+        folderId: input.folderId ?? undefined,
       });
-      if (folder === 0) {
-        throw new ValidationException([{ field: 'folderId', message: 'validation.unknownFolder' }]);
-      }
-    }
-    const before = await this.prisma.db.document.findFirstOrThrow({
-      where: { id },
-      select: { name: true, documentType: true, folderId: true, isConfidential: true },
+      const before = await this.lockDocument(tx, id);
+      const { old, next } = changes(before, input);
+      if (Object.keys(next).length === 0) return;
+      await tx.document.update({ where: { id }, data: next });
+      await tx.auditLog.create({ data: this.auditRow(client, id, 'UPDATE', old, next) });
     });
-    const { old, next } = changes(before, input);
-    if (Object.keys(next).length > 0) {
-      await this.prisma.db.$transaction(async (tx) => {
-        const { count } = await tx.document.updateMany({
-          where: { id, deletedAt: null },
-          data: next,
-        });
-        if (count === 0) throw new ResourceNotFoundException();
-        await tx.auditLog.create({ data: this.auditRow(client, id, 'UPDATE', old, next) });
-      });
-    }
     return this.load(id);
   }
 
@@ -166,64 +159,60 @@ export class DocumentRecordsService {
   async remove(id: string, client: ClientInfo): Promise<void> {
     const document = await this.documents.assertDocumentAccess(id, 'contribute');
     await this.documents.assertMayReplace(document);
-    await this.prisma.db.$transaction(async (tx) => {
-      const { count } = await tx.document.updateMany({
-        where: { id, deletedAt: null },
-        data: { deletedAt: new Date() },
-      });
-      if (count === 0) throw new ResourceNotFoundException();
-      const { name } = await tx.document.findFirstOrThrow({
-        where: { id },
-        select: { name: true },
-      });
+    await this.uow.run(async (tx) => {
+      await this.intake.recheck(tx, { fileId: document.fileId });
+      const { name } = await this.lockDocument(tx, id);
+      await tx.document.update({ where: { id }, data: { deletedAt: new Date() } });
       await tx.auditLog.create({ data: this.auditRow(client, id, 'DELETE', null, { name }) });
     });
   }
 
   /**
-   * A 5-minute link to the current version, or to `version`, served as an attachment under its uploaded name (RFC 5987,
-   * Arabic kept, D-085); audited as DOWNLOAD with the version. Only a document that passed its scan is offered.
+   * A 5-minute link to the current version, served as an attachment under its uploaded name (RFC 5987, Arabic kept,
+   * D-085), audited as DOWNLOAD. Only a version that passed its scan is offered — the document's state is the current
+   * version's, so an older version (`version` other than the current) is 404 until versions carry their own scan result.
    */
   async download(
     id: string,
     version: number | undefined,
     client: ClientInfo,
   ): Promise<DownloadLink> {
-    await this.documents.assertDocumentAccess(id, 'read');
-    const { status, currentVersion } = await this.prisma.db.document.findFirstOrThrow({
-      where: { id },
-      select: { status: true, currentVersion: true },
+    const { currentVersion } = await this.scannedClean(id);
+    if (version !== undefined && version !== currentVersion) throw new ResourceNotFoundException();
+    const stored = await this.prisma.db.documentVersion.findFirstOrThrow({
+      where: { documentId: id, versionNumber: currentVersion },
+      select: { storageKey: true, originalFilename: true, mimeType: true },
     });
-    assertDownloadable(status);
-    const stored = await this.prisma.db.documentVersion.findFirst({
-      where: { documentId: id, versionNumber: version ?? currentVersion },
-      select: { versionNumber: true, storageKey: true, originalFilename: true, mimeType: true },
-    });
-    if (!stored) throw new ResourceNotFoundException();
     const downloadUrl = await this.storage.presignedGetUrl(stored.storageKey, {
       expiresIn: DEFAULT_URL_TTL_SECONDS,
       filename: stored.originalFilename,
       contentType: stored.mimeType,
     });
     await this.prisma.db.auditLog.create({
-      data: this.auditRow(client, id, 'DOWNLOAD', null, { versionNumber: stored.versionNumber }),
+      data: this.auditRow(client, id, 'DOWNLOAD', null, { versionNumber: currentVersion }),
     });
     return { downloadUrl, expiresIn: DEFAULT_URL_TTL_SECONDS };
   }
 
-  /** The current version's extracted text, a page at a time (empty until extraction has run). */
-  async text(id: string, page: number): Promise<DocumentText> {
-    await this.documents.assertDocumentAccess(id, 'read');
-    const { currentVersion, ocrStatus } = await this.prisma.db.document.findFirstOrThrow({
-      where: { id },
-      select: { currentVersion: true, ocrStatus: true },
-    });
+  /**
+   * The current version's extracted text, a page at a time (empty until extraction has run); like a download, only once
+   * scanned clean, and each page read is an audit row (VIEW).
+   */
+  async text(id: string, page: number, client: ClientInfo): Promise<DocumentText> {
+    const { currentVersion, ocrStatus } = await this.scannedClean(id);
     const row = await this.prisma.db.documentText.findFirst({
       where: { documentId: id, versionNumber: currentVersion },
       select: { text: true },
     });
     const text = row?.text ?? '';
     const start = (page - 1) * TEXT_PAGE_CHARS;
+    await this.prisma.db.auditLog.create({
+      data: this.auditRow(client, id, 'VIEW', null, {
+        versionNumber: currentVersion,
+        text: true,
+        page,
+      }),
+    });
     return {
       versionNumber: currentVersion,
       ocrStatus,
@@ -231,6 +220,29 @@ export class DocumentRecordsService {
       totalPages: Math.ceil(text.length / TEXT_PAGE_CHARS),
       text: text.slice(start, start + TEXT_PAGE_CHARS),
     };
+  }
+
+  /** A live document the caller may read, whose current version passed its malware scan (D-126). */
+  private async scannedClean(id: string) {
+    await this.documents.assertDocumentAccess(id, 'read');
+    const document = await this.prisma.db.document.findFirst({
+      where: { id, deletedAt: null },
+      select: { status: true, currentVersion: true, ocrStatus: true },
+    });
+    if (!document) throw new ResourceNotFoundException();
+    assertDownloadable(document.status);
+    return document;
+  }
+
+  /** Locks the document row inside the write and reads it again (deleted meanwhile → 404). */
+  private async lockDocument(tx: ScopedTransaction, id: string) {
+    await tx.$queryRaw`SELECT 1 FROM documents WHERE id = ${id}::uuid AND office_id = ${this.officeId()}::uuid FOR UPDATE`;
+    const before = await tx.document.findFirst({
+      where: { id, deletedAt: null },
+      select: { name: true, documentType: true, folderId: true, isConfidential: true },
+    });
+    if (!before) throw new ResourceNotFoundException();
+    return before;
   }
 
   private async load(id: string): Promise<Document> {
@@ -252,18 +264,23 @@ export class DocumentRecordsService {
     if (lawyer === 0) throw new PermissionDeniedException();
   }
 
+  private officeId(): string {
+    const officeId = this.cls.get('officeId');
+    if (!officeId) throw new Error('No office caller in the request context');
+    return officeId;
+  }
+
   private auditRow(
     caller: ClientInfo,
     entityId: string,
-    action: 'UPDATE' | 'DELETE' | 'DOWNLOAD',
+    action: 'UPDATE' | 'DELETE' | 'DOWNLOAD' | 'VIEW',
     oldValues: Record<string, unknown> | null,
     newValues: Record<string, unknown>,
   ) {
-    const officeId = this.cls.get('officeId');
     const userId = this.cls.get('userId');
-    if (!officeId || !userId) throw new Error('No office caller in the request context');
+    if (!userId) throw new Error('No office caller in the request context');
     return {
-      officeId,
+      officeId: this.officeId(),
       userId,
       entityType: 'Document',
       entityId,

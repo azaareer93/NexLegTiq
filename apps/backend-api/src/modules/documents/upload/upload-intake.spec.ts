@@ -12,7 +12,7 @@ import type { EntitlementsService } from '../../subscriptions/entitlements.servi
 
 const FILE = 'f1';
 
-function setup({ folders = 1, sessions = 1 } = {}) {
+function setup({ folders = 1, sessions = 1, office = 'o1' as string | null } = {}) {
   const db = {
     documentFolder: { count: jest.fn().mockResolvedValue(folders) },
     session: { count: jest.fn().mockResolvedValue(sessions) },
@@ -27,7 +27,7 @@ function setup({ folders = 1, sessions = 1 } = {}) {
     delete: jest.fn().mockRejectedValue(new Error('gone')),
   };
   const intake = new UploadIntake(
-    { get: () => 'o1' } as unknown as ClsService<RequestContext>,
+    { get: () => office ?? undefined } as unknown as ClsService<RequestContext>,
     { db } as unknown as PrismaService,
     files as unknown as CaseAccessService,
     entitlements as unknown as EntitlementsService,
@@ -107,5 +107,12 @@ describe('UploadIntake', () => {
     entitlements.assertStorageFor.mockRejectedValueOnce(new Error('AUTH-103'));
     await expect(intake.store(file(), FILE, 'doc1')).rejects.toThrow('AUTH-103');
     expect(storage.delete).toHaveBeenCalled();
+  });
+
+  it('should need an office to lock the file', async () => {
+    const { intake, db } = setup({ office: null });
+    await expect(
+      intake.recheck({ ...db, $queryRaw: jest.fn() } as never, { fileId: FILE }),
+    ).rejects.toThrow('No office');
   });
 });

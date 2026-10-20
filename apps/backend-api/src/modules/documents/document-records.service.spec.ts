@@ -2,9 +2,11 @@ import type { ClsService } from 'nestjs-cls';
 
 import type { DocumentAccessService } from './document-access.service';
 import { DocumentRecordsService, TEXT_PAGE_CHARS } from './document-records.service';
+import type { UploadIntake } from './upload/upload-intake';
 import type { RequestContext } from '../../common/context/request-context';
 import type { StorageService } from '../../common/storage/storage.service';
 import type { PrismaService } from '../../database/prisma.service';
+import type { UnitOfWork } from '../../database/unit-of-work';
 import type { CaseAccessService } from '../legal-files/case-access.service';
 
 const CLIENT = { ip: '127.0.0.1', userAgent: 'jest', requestId: 'req-12345678' };
@@ -27,52 +29,48 @@ const ROW = {
   updatedAt: new Date('2026-10-20T10:00:00Z'),
   uploadedBy: { id: 'u9', fullName: 'Uploader' },
 };
+const BEFORE = { name: 'a.pdf', documentType: 'OTHER', folderId: null, isConfidential: false };
 
-function setup({
-  role = 'LAWYER',
-  status = 'READY',
-  text = null as string | null,
-  responsible = 0,
-  updated = 1,
-  context = { officeId: 'o1', userId: 'u1' } as unknown as Partial<RequestContext>,
-} = {}) {
+const DEFAULTS = {
+  role: 'LAWYER',
+  status: 'READY',
+  text: null as string | null,
+  responsible: 0,
+  live: true,
+  userId: 'u1',
+  officeId: 'o1' as string | null,
+};
+
+function setup(options: Partial<typeof DEFAULTS> = {}) {
+  const { role, status, text, responsible, live, userId, officeId } = { ...DEFAULTS, ...options };
   const tx = {
+    $queryRaw: jest.fn().mockResolvedValue([]),
     document: {
-      updateMany: jest.fn().mockResolvedValue({ count: updated }),
-      findFirstOrThrow: jest.fn().mockResolvedValue({ name: 'a.pdf' }),
+      findFirst: jest.fn().mockResolvedValue(live ? BEFORE : null),
+      update: jest.fn(),
     },
     auditLog: { create: jest.fn() },
   };
+  const state = { status, currentVersion: 2, ocrStatus: 'DONE' };
   const db = {
     document: {
       findMany: jest.fn().mockResolvedValue([ROW]),
       count: jest.fn().mockResolvedValue(1),
-      findFirst: jest.fn().mockResolvedValue(ROW),
-      findFirstOrThrow: jest.fn().mockResolvedValue({
-        status,
-        currentVersion: 2,
-        ocrStatus: 'DONE',
-        name: 'a.pdf',
-        documentType: 'OTHER',
-        folderId: null,
-        isConfidential: false,
-      }),
+      findFirst: jest.fn((args: { select: Record<string, unknown> }) =>
+        Promise.resolve(live ? ('uploadedBy' in args.select ? ROW : state) : null),
+      ),
     },
     documentVersion: {
-      findFirst: jest.fn().mockResolvedValue({
-        versionNumber: 2,
+      findFirstOrThrow: jest.fn().mockResolvedValue({
         storageKey: 'o1/f1/d1/x.pdf',
         originalFilename: 'عقد.pdf',
         mimeType: 'application/pdf',
       }),
     },
     documentText: { findFirst: jest.fn().mockResolvedValue(text === null ? null : { text }) },
-    documentFolder: { count: jest.fn().mockResolvedValue(1) },
     legalFile: { count: jest.fn().mockResolvedValue(responsible) },
     auditLog: { create: jest.fn() },
-    $transaction: (work: (t: typeof tx) => Promise<unknown>) => work(tx),
   };
-  const files = { assertFileAccess: jest.fn().mockResolvedValue({ id: 'f1' }) };
   const documents = {
     visibleWhere: () => ({ visible: true }),
     assertDocumentAccess: jest
@@ -80,16 +78,23 @@ function setup({
       .mockResolvedValue({ id: 'd1', fileId: 'f1', uploadedById: 'u9' }),
     assertMayReplace: jest.fn().mockResolvedValue(undefined),
   };
+  const intake = { recheck: jest.fn().mockResolvedValue(undefined) };
   const storage = { presignedGetUrl: jest.fn().mockResolvedValue('https://s3.test/x') };
-  const all: Partial<RequestContext> = { ...context, role: role as never };
+  const context: Partial<RequestContext> = {
+    officeId: officeId ?? undefined,
+    userId,
+    role,
+  } as never;
   const service = new DocumentRecordsService(
-    { get: (key: keyof RequestContext) => all[key] } as unknown as ClsService<RequestContext>,
+    { get: (key: keyof RequestContext) => context[key] } as unknown as ClsService<RequestContext>,
     { db } as unknown as PrismaService,
-    files as unknown as CaseAccessService,
+    { assertFileAccess: jest.fn() } as unknown as CaseAccessService,
     documents as unknown as DocumentAccessService,
     storage as unknown as StorageService,
+    { run: (work: (t: typeof tx) => Promise<unknown>) => work(tx) } as unknown as UnitOfWork,
+    intake as unknown as UploadIntake,
   );
-  return { service, db, tx, files, storage };
+  return { service, db, tx, storage, intake };
 }
 
 const QUERY = {
@@ -120,7 +125,7 @@ describe('DocumentRecordsService', () => {
     await service.list('f1', { ...QUERY, folderId: '01920000-0000-7000-8000-000000000001' });
   });
 
-  it('should offer a link only for scanned-clean documents and audit it', async () => {
+  it('should link only the current version of a scanned-clean document, and audit it', async () => {
     const { service, storage, db } = setup();
     await expect(service.download('d1', undefined, CLIENT)).resolves.toEqual({
       downloadUrl: 'https://s3.test/x',
@@ -134,37 +139,54 @@ describe('DocumentRecordsService', () => {
     expect(db.auditLog.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ action: 'DOWNLOAD', newValues: { versionNumber: 2 } }),
     });
+    await expect(service.download('d1', 2, CLIENT)).resolves.toBeTruthy();
+    await expect(service.download('d1', 1, CLIENT)).rejects.toMatchObject({ code: 'RES-001' });
     await expect(
-      setup({ status: 'QUARANTINED' }).service.download('d1', 1, CLIENT),
+      setup({ status: 'QUARANTINED' }).service.download('d1', undefined, CLIENT),
     ).rejects.toMatchObject({ code: 'STO-004' });
     await expect(
-      setup({ status: 'SCANNING' }).service.download('d1', 1, CLIENT),
+      setup({ status: 'SCANNING' }).service.download('d1', undefined, CLIENT),
     ).rejects.toMatchObject({ code: 'BIZ-015' });
-    const missing = setup();
-    missing.db.documentVersion.findFirst.mockResolvedValue(null);
-    await expect(missing.service.download('d1', 9, CLIENT)).rejects.toMatchObject({
-      code: 'RES-001',
-    });
+    await expect(
+      setup({ live: false }).service.download('d1', undefined, CLIENT),
+    ).rejects.toMatchObject({ code: 'RES-001' });
   });
 
-  it('should page the text and answer empty before extraction', async () => {
-    await expect(setup().service.text('d1', 1)).resolves.toMatchObject({ totalPages: 0, text: '' });
+  it('should page the text, audit each page and answer empty before extraction', async () => {
+    const empty = setup();
+    await expect(empty.service.text('d1', 1, CLIENT)).resolves.toMatchObject({
+      totalPages: 0,
+      text: '',
+    });
+    expect(empty.db.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: 'VIEW',
+        newValues: { versionNumber: 2, text: true, page: 1 },
+      }),
+    });
     const long = 'x'.repeat(TEXT_PAGE_CHARS) + 'end';
-    await expect(setup({ text: long }).service.text('d1', 2)).resolves.toMatchObject({
+    await expect(setup({ text: long }).service.text('d1', 2, CLIENT)).resolves.toMatchObject({
       page: 2,
       totalPages: 2,
       text: 'end',
     });
+    await expect(
+      setup({ status: 'QUARANTINED' }).service.text('d1', 1, CLIENT),
+    ).rejects.toMatchObject({ code: 'STO-004' });
   });
 
-  it('should write only changes, and let only who may classify change confidentiality', async () => {
-    const { service, tx } = setup();
+  it('should re-check under locks, write only changes, and keep classification to who may classify', async () => {
+    const { service, tx, intake } = setup();
     await service.update('d1', { name: 'a.pdf' }, CLIENT);
-    expect(tx.document.updateMany).not.toHaveBeenCalled();
+    expect(intake.recheck).toHaveBeenCalledWith(tx, { fileId: 'f1', folderId: undefined });
+    expect(tx.$queryRaw).toHaveBeenCalled();
+    expect(tx.document.update).not.toHaveBeenCalled();
     await service.update('d1', { name: 'b.pdf', folderId: 'x' }, CLIENT);
+    expect(intake.recheck).toHaveBeenLastCalledWith(tx, { fileId: 'f1', folderId: 'x' });
     expect(tx.auditLog.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         action: 'UPDATE',
+        oldValues: { name: 'a.pdf', folderId: null },
         newValues: { name: 'b.pdf', folderId: 'x' },
       }),
     });
@@ -173,35 +195,30 @@ describe('DocumentRecordsService', () => {
     ).rejects.toMatchObject({ code: 'AUTH-100' });
     await setup({ role: 'OFFICE_MANAGER' }).service.update('d1', { isConfidential: true }, CLIENT);
     await setup({ responsible: 1 }).service.update('d1', { isConfidential: true }, CLIENT);
-    await setup({ context: { officeId: 'o1', userId: 'u9' } as never }).service.update(
-      'd1',
-      { isConfidential: true },
-      CLIENT,
-    );
-    const unknown = setup();
-    unknown.db.documentFolder.count.mockResolvedValue(0);
-    await expect(unknown.service.update('d1', { folderId: 'y' }, CLIENT)).rejects.toMatchObject({
-      code: 'VAL-001',
-    });
+    await setup({ userId: 'u9' }).service.update('d1', { isConfidential: true }, CLIENT);
     await expect(
-      setup({ updated: 0 }).service.update('d1', { name: 'c.pdf' }, CLIENT),
+      setup({ live: false }).service.update('d1', { name: 'c.pdf' }, CLIENT),
     ).rejects.toMatchObject({ code: 'RES-001' });
   });
 
-  it('should soft-delete once, read one document, and need a caller', async () => {
+  it('should soft-delete under locks, read one document, and need an office', async () => {
     const { service, tx } = setup();
     await service.remove('d1', CLIENT);
+    expect(tx.document.update).toHaveBeenCalledWith({
+      where: { id: 'd1' },
+      data: { deletedAt: expect.any(Date) },
+    });
     expect(tx.auditLog.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ action: 'DELETE', newValues: { name: 'a.pdf' } }),
     });
-    await expect(setup({ updated: 0 }).service.remove('d1', CLIENT)).rejects.toMatchObject({
+    await expect(setup({ live: false }).service.remove('d1', CLIENT)).rejects.toMatchObject({
       code: 'RES-001',
     });
     await expect(service.get('d1')).resolves.toMatchObject({ id: 'd1', sizeBytes: 10 });
-    const gone = setup();
-    gone.db.document.findFirst.mockResolvedValue(null);
-    await expect(gone.service.get('d1')).rejects.toMatchObject({ code: 'RES-001' });
-    await expect(setup({ context: {} }).service.remove('d1', CLIENT)).rejects.toThrow(
+    await expect(setup({ live: false }).service.get('d1')).rejects.toMatchObject({
+      code: 'RES-001',
+    });
+    await expect(setup({ officeId: null }).service.remove('d1', CLIENT)).rejects.toThrow(
       'No office caller',
     );
   });
