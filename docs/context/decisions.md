@@ -1772,3 +1772,33 @@ separators are translation keys (Arabic "، "), names, rooms, times and the shor
 plural forms (Arabic zero/one/two/few/many/other). **Known limit:** the pickers hold the office's wall clock as a date in the
 device's zone; on a device whose zone skips that wall time (a DST gap at night) the picker may show it an hour off — irrelevant at
 court hours.
+
+**D-131 — PII redaction before LLM calls** · Accepted (MVP-84, 2026-10-21) · Amends D-130
+MVP-84 left the patterns, how names are matched in Arabic, the placeholder scheme, where redaction counts live and the
+"office toggle" open. → **`PiiRedactor`** (`src/modules/ai/pii-redactor.ts`) is now the `AI_REDACTOR`, so real providers
+may run (D-130's fail-closed rule stays: a redactor that does not redact still blocks them). It replaces, in this order:
+**emails**; **IBANs** (two letters, two digits, 11–30 characters, spaces allowed); **phones** — international with the
+country codes of our markets (+970/972/962/966/971/965/974/968/973/961/964/212/20, plus 1/44) or `00`, local mobiles
+(05x — PS, IL, SA, AE —, 07[789] JO, 01[0125] EG; 3–4 + 3–4 digits) and local landlines (0[2–9] + 7–8 digits), separators
+allowed; **bank and card numbers** (15–19 digits); **national ids** (any run of 9–14 digits: PS 9, JO/SA 10, EG 14); then
+**names** from `RedactionContext.names` — the feature passes the file's clients, parties, witnesses and lawyers. Digit
+patterns match Arabic-Indic and Persian digits too (matched on a Western-digit copy, spliced back by index). A name matches
+however it is written: Arabic letter variants (alef/hamza forms, ya/alef maqsura/ya-hamza, ha/ta marbuta, waw/waw-hamza),
+tashkeel, the dagger alef and tatweel between letters, any whitespace between words (a name split across lines),
+any case, and an attached و/ف/ب/ل/ك prefix; never inside a longer word (السالمي is not سالم). Full names are replaced
+first (longest first), then each word of a name of 3+ letters that is not a particle (بن، ابن، بنت، أبو، أم، عبد، ال,
+bin, ibn, abu, al, el, mr, dr…), so "Mr. Haddad" is covered too. **Placeholders** `[PARTY_n]`, `[EMAIL_n]`, `[PHONE_n]`,
+`[IBAN_n]`, `[ACCOUNT_n]`, `[ID_n]` are stable within one call (variants of one value share one; numbers follow the
+matching order); `restore` puts back the original number or email exactly and a name in the spelling the case uses;
+unknown placeholders stay as they are. **The mapping lives only in the returned object in the job's memory** — never
+stored, cached (the cache holds the re-hydrated answer, the office's own data) or logged. **Counts** per kind (user text
+and system prompt together) are stored as `AiUsage.redactionStats` (JSON, default `{}`, migration
+`ai_usage_redaction_stats`) — counts only, never values. **Office toggle:** redaction cannot be switched off in the MVP,
+so there is no setting; offices that want no AI at all use `enableAi` (AI-005). **Tests:** 40+ Arabic/English fixtures
+(hamza and alef forms, marks, tatweel, prefixes, line breaks, look-alike words, all phone formats, Arabic-Indic digits,
+ids, IBANs, cards, and dates/amounts/file numbers left alone) and a seeded property test (500 random texts without PII
+come back unchanged through redact and restore). **Known limits:** names not in the context (a judge's or a third
+person's name the file does not list) are not found — there is no NER; a 9–14 digit number that is not an id (a court
+case number written without separators) is redacted too (safe side; it comes back on restore); text that already contains
+a placeholder-looking token such as `[PARTY_1]` may be restored to a name; nicknames and transliterations (Ahmad / Ahmed /
+أحمد) are matched only when the context lists them.
