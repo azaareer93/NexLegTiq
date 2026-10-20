@@ -203,6 +203,45 @@ describe('JwtAuthGuard', () => {
     });
   });
 
+  it('should read the first of repeated Authorization headers and leave out a missing session id', async () => {
+    const { request, findFirst } = setup();
+    const guard = new JwtAuthGuard(
+      new Reflector(),
+      new AccessTokenVerifier(
+        jwt,
+        { unscoped: () => ({ user: { findFirst } }) } as unknown as PrismaService,
+        new AppConfig(parseEnv(testEnv())),
+      ),
+    );
+    const headers = { authorization: [`Bearer ${sign({ sid: undefined })}`, 'Bearer other'] };
+    const context = {
+      getHandler: () => () => undefined,
+      getClass: () => class {},
+      switchToHttp: () => ({ getRequest: () => Object.assign(request, { headers }) }),
+    } as unknown as ExecutionContext;
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(request.user).not.toHaveProperty('sessionId');
+  });
+
+  it('should give the realtime gateway the token expiry with the principal', async () => {
+    const findFirst = jest.fn().mockResolvedValue({
+      role: 'LAWYER',
+      isActive: true,
+      ...verified,
+      office: { isActive: true },
+    });
+    const verifier = new AccessTokenVerifier(
+      jwt,
+      { unscoped: () => ({ user: { findFirst } }) } as unknown as PrismaService,
+      new AppConfig(parseEnv(testEnv())),
+    );
+    const before = Date.now();
+    const { expiresAt, principal } = await verifier.verify(sign());
+    expect(principal.userId).toBe(USER);
+    expect(expiresAt).toBeGreaterThan(before + 800_000);
+    expect(expiresAt).toBeLessThanOrEqual(before + 901_000);
+  });
+
   it.each([
     ['no token', undefined, 'AUTH-003'],
     ['a malformed header', 'Token abc', 'AUTH-003'],
