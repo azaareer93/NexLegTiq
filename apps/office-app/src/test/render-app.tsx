@@ -38,6 +38,7 @@ export const USER: AuthUser = {
   permissions: [...permissionsFor('OFFICE_MANAGER')],
   emailVerified: true,
   verifyBy: null,
+  idleMinutes: 30,
 };
 export const SESSION = { accessToken: 'access-1', expiresIn: 900, user: USER };
 

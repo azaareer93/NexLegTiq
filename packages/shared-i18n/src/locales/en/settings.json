@@ -31,5 +31,50 @@
       "included": "Included",
       "notIncluded": "Not included"
     }
+  },
+  "discard": "Discard changes",
+  "unsaved": {
+    "title": "Leave without saving?",
+    "body": "Some settings have changes that are not saved. They will be lost.",
+    "leave": "Leave",
+    "stay": "Stay on this page"
+  },
+  "profile": {
+    "title": "Office profile",
+    "name": "Office name",
+    "registrationNumber": "Registration number",
+    "taxId": "Tax ID",
+    "phone": "Phone",
+    "email": "Email",
+    "address": "Address",
+    "website": "Website"
+  },
+  "preferences": {
+    "title": "Preferences",
+    "jurisdiction": "Jurisdiction",
+    "defaultLanguage": "Office language",
+    "currency": "Currency",
+    "timezone": "Time zone",
+    "newFilesOnly": "Applies to new cases; existing cases keep their currency."
+  },
+  "defaults": {
+    "title": "Practice defaults",
+    "courtReminderDays": "Hearing reminders",
+    "taskReminderDays": "Task reminders",
+    "daysBefore": "Days before the hearing.",
+    "dueDay": "Days before the due date (0 = on the day).",
+    "defaultBillingMethod": "Default billing method",
+    "defaultBillingRate": "Default hourly rate",
+    "taxRatePercent": "Tax rate",
+    "fileNumberFormat": "Case number format",
+    "fileNumberHelp": "{YEAR} = year, {TYPE} = case type code, {SEQ:5} = sequence with 5 digits. Applies to new cases.",
+    "enableAi": "AI features",
+    "enableOcr": "Text recognition (OCR) for uploads"
+  },
+  "security": {
+    "title": "Security",
+    "sessionIdleMinutes": "Sign out after inactivity (minutes)",
+    "auditRetentionDays": "Keep the audit log (days)",
+    "auditRetentionHelp": "At least 365 days; it can only be raised."
   }
 }
