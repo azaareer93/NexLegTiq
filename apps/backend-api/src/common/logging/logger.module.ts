@@ -35,6 +35,8 @@ export const SENSITIVE_KEYS = [
   'JWT_SECRET',
   'ENCRYPTION_KEY',
   'RESEND_API_KEY',
+  'OPENAI_API_KEY',
+  'GEMINI_API_KEY',
   'jwtSecret',
   'SMTP_PASSWORD',
   'apiKey',

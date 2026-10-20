@@ -38,6 +38,8 @@ export type { CourtType } from './court.js';
 export { SUBSCRIPTION_STATUSES } from './subscription.js';
 export type { SubscriptionStatus } from './subscription.js';
 export { TASK_STATUSES } from './task.js';
+export { AI_JOB_STATUSES, AI_SOURCE_TYPES } from './ai.js';
+export type { AiJobStatus, AiSourceType } from './ai.js';
 export type { TaskStatus } from './task.js';
 export { REMINDER_STATUSES, SESSION_OUTCOMES, SESSION_STATUSES, SESSION_TYPES } from './session.js';
 export type { ReminderStatus, SessionOutcome, SessionStatus, SessionType } from './session.js';

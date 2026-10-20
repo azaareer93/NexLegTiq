@@ -205,6 +205,50 @@ describe('parseEnv', () => {
     ).not.toThrow();
   });
 
+  it('should configure AI providers: off by default, keys and models per provider, no fake in production', () => {
+    const off = new AppConfig(parseEnv(testEnv())).ai;
+    expect(off).toMatchObject({
+      primary: 'none',
+      fallback: 'none',
+      maxOutputTokens: 4096,
+      prices: {},
+    });
+    expect(() => parseEnv(testEnv({ AI_PRIMARY_PROVIDER: 'openai' }))).toThrow(
+      /OPENAI_API_KEY: is required[\s\S]*OPENAI_MODEL: is required/,
+    );
+    expect(() =>
+      parseEnv(testEnv({ AI_PRIMARY_PROVIDER: 'none', AI_FALLBACK_PROVIDER: 'gemini' })),
+    ).toThrow(/GEMINI_API_KEY/);
+    const openai = { OPENAI_API_KEY: 'sk-live', OPENAI_MODEL: 'gpt-x' };
+    expect(() =>
+      parseEnv(
+        testEnv({ ...openai, AI_PRIMARY_PROVIDER: 'openai', AI_FALLBACK_PROVIDER: 'openai' }),
+      ),
+    ).toThrow(/AI_FALLBACK_PROVIDER: must differ/);
+    expect(() => parseEnv(testEnv({ AI_PRIMARY_PROVIDER: 'fake' }))).toThrow(/fake AI provider/);
+    expect(
+      parseEnv(testEnv({ NODE_ENV: 'test', AI_PRIMARY_PROVIDER: 'fake' })).AI_PRIMARY_PROVIDER,
+    ).toBe('fake');
+    const config = new AppConfig(
+      parseEnv(
+        testEnv({
+          ...openai,
+          AI_PRIMARY_PROVIDER: 'openai',
+          AI_MODEL_PRICES: '{"gpt-x":{"input":0.15,"output":0.6}}',
+        }),
+      ),
+    ).ai;
+    expect(config).toMatchObject({
+      openai: { apiKey: 'sk-live', model: 'gpt-x' },
+      prices: { 'gpt-x': { input: 0.15, output: 0.6 } },
+    });
+    expect(config.gemini).toBeUndefined();
+    expect(() => parseEnv(testEnv({ AI_MODEL_PRICES: 'not json' }))).toThrow(/AI_MODEL_PRICES/);
+    expect(() => parseEnv(testEnv({ AI_MODEL_PRICES: '{"m":{"input":-1}}' }))).toThrow(
+      /AI_MODEL_PRICES/,
+    );
+  });
+
   it('should require SMTP_USER and SMTP_PASSWORD together', () => {
     expect(() => parseEnv(testEnv({ SMTP_USER: 'mailer' }))).toThrow(/SMTP_PASSWORD/);
     expect(() => parseEnv(testEnv({ SMTP_PASSWORD: 'pw' }))).toThrow(/SMTP_PASSWORD/);

@@ -126,4 +126,39 @@ export class AppConfig {
   get clamav(): { readonly host: string; readonly port: number } {
     return { host: this.#env.CLAMAV_HOST, port: this.#env.CLAMAV_PORT };
   }
+
+  get ai(): AiConfig {
+    const env = this.#env;
+    return {
+      primary: env.AI_PRIMARY_PROVIDER,
+      fallback: env.AI_FALLBACK_PROVIDER,
+      openai:
+        env.OPENAI_API_KEY && env.OPENAI_MODEL
+          ? { apiKey: env.OPENAI_API_KEY, model: env.OPENAI_MODEL }
+          : undefined,
+      gemini:
+        env.GEMINI_API_KEY && env.GEMINI_MODEL
+          ? { apiKey: env.GEMINI_API_KEY, model: env.GEMINI_MODEL }
+          : undefined,
+      maxOutputTokens: env.AI_MAX_OUTPUT_TOKENS,
+      temperature: env.AI_TEMPERATURE,
+      timeoutMs: env.AI_TIMEOUT_MS,
+      cacheTtlSeconds: env.AI_CACHE_TTL,
+      prices: env.AI_MODEL_PRICES,
+    };
+  }
+}
+
+export type AiProviderName = Env['AI_PRIMARY_PROVIDER'];
+
+export interface AiConfig {
+  readonly primary: AiProviderName;
+  readonly fallback: AiProviderName;
+  readonly openai?: { readonly apiKey: string; readonly model: string };
+  readonly gemini?: { readonly apiKey: string; readonly model: string };
+  readonly maxOutputTokens: number;
+  readonly temperature: number;
+  readonly timeoutMs: number;
+  readonly cacheTtlSeconds: number;
+  readonly prices: Readonly<Record<string, { readonly input: number; readonly output: number }>>;
 }

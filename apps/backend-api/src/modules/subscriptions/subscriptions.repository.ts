@@ -49,6 +49,13 @@ export class SubscriptionsRepository {
     return this.prisma.db.user.count({ where: { isActive: true } });
   }
 
+  /** AI provider calls of the office this calendar month (UTC); cache hits are free (D-130). */
+  aiCallsSince(monthStart: Date): Promise<number> {
+    return this.prisma.db.aiUsage.count({
+      where: { cached: false, createdAt: { gte: monthStart } },
+    });
+  }
+
   pendingInvitations(now: Date): Promise<number> {
     return this.prisma.db.officeInvitation.count({
       where: { status: 'PENDING', expiresAt: { gt: now } },

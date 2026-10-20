@@ -16,6 +16,7 @@ const redisUrl = z.url({ protocol: /^rediss?$/ });
 // Documented dev/CI credentials (compose.dev.yml, .env.example, ci.yml): a production boot with one of them is a mistake.
 const PLACEHOLDER_SECRET = /^(nexlegtiq|nexlegtiq-dev-only|ci-only-.*|change-me.*)$/;
 const TLS_SSLMODES = new Set(['require', 'verify-ca', 'verify-full']);
+const AI_PROVIDERS = ['openai', 'gemini', 'fake', 'none'] as const;
 
 /**
  * Environment contract of backend-api (HTTP + worker). Boot fails on invalid env. Unknown keys are ignored.
@@ -89,6 +90,38 @@ const EnvObject = z.object({
   EMAIL_VERIFICATION_ENFORCED: z.stringbool().default(false),
   // Bull Board at /admin/queues (D-084). Unauthenticated Express middleware: local debugging only, refused in production.
   BULL_BOARD_ENABLED: z.stringbool().default(false),
+
+  // AI providers (ai-ocr.md, D-130). `none` = AI off for the whole deployment (AI-001); `fake` = deterministic answers
+  // for tests and local work, refused in production. Model names are configuration, never code.
+  AI_PRIMARY_PROVIDER: z.enum(AI_PROVIDERS).default('none'),
+  AI_FALLBACK_PROVIDER: z.enum(AI_PROVIDERS).default('none'),
+  OPENAI_API_KEY: required.optional(),
+  OPENAI_MODEL: required.optional(),
+  GEMINI_API_KEY: required.optional(),
+  GEMINI_MODEL: required.optional(),
+  AI_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(256).max(32_768).default(4096),
+  AI_TEMPERATURE: z.coerce.number().min(0).max(1).default(0.2),
+  // One provider attempt; a slower answer counts as unavailable (fallback). Inside the ai queue's 120 s job timeout.
+  AI_TIMEOUT_MS: z.coerce.number().int().min(1000).max(90_000).default(45_000),
+  AI_CACHE_TTL: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(30 * 86_400)
+    .default(86_400),
+  // USD per million tokens by model, for AiUsage.costUsd: {"model":{"input":0.15,"output":0.6}}. A model not listed costs 0.
+  AI_MODEL_PRICES: z
+    .string()
+    .transform((value, ctx) => {
+      try {
+        return JSON.parse(value) as unknown;
+      } catch {
+        ctx.addIssue({ code: 'custom', message: 'must be JSON' });
+        return z.NEVER;
+      }
+    })
+    .pipe(z.record(z.string(), z.object({ input: z.number().min(0), output: z.number().min(0) })))
+    .default({}),
 });
 
 type RawEnv = z.output<typeof EnvObject>;
@@ -140,11 +173,21 @@ const PRODUCTION_RULES: readonly (readonly [keyof RawEnv, (env: RawEnv) => boole
     'uses a documented dev/CI placeholder key',
   ],
   [
+    'AI_PRIMARY_PROVIDER',
+    (env) => env.AI_PRIMARY_PROVIDER === 'fake' || env.AI_FALLBACK_PROVIDER === 'fake',
+    'must not use the fake AI provider in production',
+  ],
+  [
     'SMTP_REQUIRE_TLS',
     (env) => env.SMTP_REQUIRE_TLS === false && !env.SMTP_SECURE,
     'must not be false in production unless SMTP_SECURE is true',
   ],
 ];
+
+const AI_PROVIDER_ENV: Partial<Record<(typeof AI_PROVIDERS)[number], readonly (keyof RawEnv)[]>> = {
+  openai: ['OPENAI_API_KEY', 'OPENAI_MODEL'],
+  gemini: ['GEMINI_API_KEY', 'GEMINI_MODEL'],
+};
 
 /** Credentials that must not be the documented dev/CI placeholders in production. */
 const secretsOf = (env: RawEnv): Record<string, string> => ({
@@ -154,6 +197,8 @@ const secretsOf = (env: RawEnv): Record<string, string> => ({
   JWT_SECRET: env.JWT_SECRET,
   SMTP_PASSWORD: env.SMTP_PASSWORD ?? '',
   RESEND_API_KEY: env.RESEND_API_KEY ?? '',
+  OPENAI_API_KEY: env.OPENAI_API_KEY ?? '',
+  GEMINI_API_KEY: env.GEMINI_API_KEY ?? '',
 });
 
 /** Every variable the backend reads; `.env.example` must document each of them (asserted in env.schema.spec.ts). */
@@ -169,6 +214,31 @@ export const EnvSchema = EnvObject.refine(
   .refine((env) => env.EMAIL_PROVIDER !== 'resend' || env.RESEND_API_KEY !== undefined, {
     message: 'RESEND_API_KEY is required when EMAIL_PROVIDER=resend',
     path: ['RESEND_API_KEY'],
+  })
+  .superRefine((env, ctx) => {
+    // Each configured provider needs its key and model; a fallback must differ from the primary.
+    for (const provider of new Set([env.AI_PRIMARY_PROVIDER, env.AI_FALLBACK_PROVIDER])) {
+      const needs = AI_PROVIDER_ENV[provider] ?? [];
+      for (const key of needs) {
+        if (env[key] === undefined) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [key],
+            message: `is required for the ${provider} AI provider`,
+          });
+        }
+      }
+    }
+    if (
+      env.AI_FALLBACK_PROVIDER !== 'none' &&
+      env.AI_FALLBACK_PROVIDER === env.AI_PRIMARY_PROVIDER
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['AI_FALLBACK_PROVIDER'],
+        message: 'must differ from the primary',
+      });
+    }
   })
   .refine((env) => (env.SMTP_USER === undefined) === (env.SMTP_PASSWORD === undefined), {
     message: 'SMTP_USER and SMTP_PASSWORD must be set together',
