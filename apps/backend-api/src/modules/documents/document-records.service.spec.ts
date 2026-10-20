@@ -34,7 +34,7 @@ function setup({
   text = null as string | null,
   responsible = 0,
   updated = 1,
-  context = { officeId: 'o1', userId: 'u1' } as Partial<RequestContext>,
+  context = { officeId: 'o1', userId: 'u1' } as unknown as Partial<RequestContext>,
 } = {}) {
   const tx = {
     document: {
@@ -173,7 +173,7 @@ describe('DocumentRecordsService', () => {
     ).rejects.toMatchObject({ code: 'AUTH-100' });
     await setup({ role: 'OFFICE_MANAGER' }).service.update('d1', { isConfidential: true }, CLIENT);
     await setup({ responsible: 1 }).service.update('d1', { isConfidential: true }, CLIENT);
-    await setup({ context: { officeId: 'o1', userId: 'u9' } }).service.update(
+    await setup({ context: { officeId: 'o1', userId: 'u9' } as never }).service.update(
       'd1',
       { isConfidential: true },
       CLIENT,
