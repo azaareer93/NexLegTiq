@@ -161,7 +161,9 @@ function FileView({
   // The hearing drawer: a hearing's id, null for a new one, undefined while closed.
   const [hearing, setHearing] = useState<string | null | undefined>(undefined);
   const sessionRights = useSessionRights(file, user.id);
-  useHearingShortcut(sessionRights.create, () => setHearing(null));
+  useHearingShortcut(sessionRights.create && dialog === null && hearing === undefined, () =>
+    setHearing(null),
+  );
   const remove = useDeleteCase(file.id);
   const held = {
     'view:all:invoices': useCan('view:all:invoices'),

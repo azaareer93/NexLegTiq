@@ -19,6 +19,13 @@ import {
 setupTestServer();
 
 const SLOW = 60_000;
+
+/** Text without the Unicode isolates names and values are wrapped in (D-092). */
+const ISOLATES = new RegExp(
+  `[${String.fromCodePoint(0x2066)}-${String.fromCodePoint(0x2069)}]`,
+  'g',
+);
+const plain = (element: HTMLElement) => (element.textContent ?? '').replace(ISOLATES, '');
 const COLD = 20_000;
 
 const FILE_ID = '01920000-0000-7000-8000-0000000001f1';
@@ -189,10 +196,9 @@ describe('hearings tab (MVP-69)', () => {
         {},
         { timeout: COLD },
       );
-      expect(row.textContent).toContain('Magistrate Court');
-      expect(row.textContent).toContain('Room 3');
-      expect(row.textContent).toContain('Judge Hani');
-      expect(row.textContent).toContain('Reminders (days before): 7, 1');
+      expect(plain(row)).toContain('Magistrate Court · Room 3 · Judge: Judge Hani');
+      expect(plain(row)).toContain('Attending lawyer: Sami Nasser');
+      expect(plain(row)).toContain('Reminders (days before): 7, 1');
       // 07:30 UTC is 09:30 in Hebron, the office zone.
       expect(row.textContent).toContain('9:30');
       const past = within(await screen.findByTestId(`session-row-${PAST_ID}`));
@@ -356,7 +362,7 @@ describe('hearings tab (MVP-69)', () => {
   );
 
   it(
-    'should open the drawer with Ctrl+Alt+H, and offer nothing to schedule without create:session',
+    'should open the drawer with Ctrl+Alt+H',
     async () => {
       setViewport(1280);
       asRole('LAWYER');
@@ -397,7 +403,9 @@ describe('hearings tab (MVP-69)', () => {
         await screen.findByTestId(`session-row-${SESSION_ID}`, {}, { timeout: COLD }),
       );
       const form = await screen.findByTestId('session-edit-form');
-      expect(screen.getByTestId('session-reminders-list').textContent).toContain('Days before: 7');
+      expect(plain(screen.getByTestId('session-reminders-list'))).toContain(
+        '7 days before · Sami Nasser',
+      );
       expect(screen.getByTestId('session-not-started')).toBeTruthy();
       fireEvent.change(within(form).getByTestId('session-room'), { target: { value: '5' } });
       fireEvent.click(within(form).getByTestId('session-save'));
@@ -470,6 +478,148 @@ describe('hearings tab (MVP-69)', () => {
       await within(card).findByText('Sami Nasser');
       fireEvent.click(within(card).getByTestId('next-hearing-open'));
       expect(await screen.findByTestId('session-summary')).toBeTruthy();
+    },
+    SLOW,
+  );
+
+  it(
+    'should schedule the next hearing with the outcome, and resend a conflict as acknowledged',
+    async () => {
+      setViewport(1280);
+      asRole('LAWYER');
+      const writes = serve();
+      let conflict = true;
+      server.use(
+        http.post(api(`sessions/${PAST_ID}/outcome`), async ({ request }) => {
+          writes.push({ method: 'POST', path: 'outcome', body: await request.json() });
+          if (!conflict) return ok(full(PAST));
+          conflict = false;
+          return new HttpResponse(
+            '{"success":false,"error":{"code":"BIZ-004","message":"dev BIZ-004","details":[{"field":"nextSession.startsAt","message":"validation.sessionConflict","params":{"sessionId":null,"startsAt":"2099-11-03T07:00:00.000Z","endsAt":null,"fileNumber":null}}]},"meta":{"timestamp":"2026-10-05T10:00:00.000Z","requestId":"req-12345678"}}',
+            {
+              status: 409,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          );
+        }),
+      );
+      await openTab();
+      fireEvent.click(await screen.findByTestId(`session-row-${PAST_ID}`, {}, { timeout: COLD }));
+      const outcome = await screen.findByTestId('session-outcome');
+      const select = within(outcome).getByTestId('session-outcome-select');
+      fireEvent.mouseDown(select.querySelector('.ant-select-selector') ?? select);
+      fireEvent.click(await screen.findByTitle('Adjourned'));
+      const next = within(outcome).getByTestId('session-schedule-next');
+      fireEvent.click(next.querySelector('input') ?? next);
+      await screen.findByTestId('session-next-date');
+      typeInto('session-next-date', '03/11/2099');
+      typeInto('session-next-start', '09:00');
+      fireEvent.click(within(outcome).getByTestId('session-outcome-save'));
+      fireEvent.click(await within(outcome).findByTestId('session-conflict-anyway'));
+      await waitFor(() => expect(writes).toHaveLength(2));
+      expect(writes[0]?.body).toEqual({
+        outcome: 'ADJOURNED',
+        nextSession: { startsAt: '2099-11-03T09:00:00+02:00', acknowledgeConflict: false },
+      });
+      expect(writes[1]?.body).toMatchObject({ nextSession: { acknowledgeConflict: true } });
+    },
+    SLOW,
+  );
+
+  it(
+    'should show a conflict on edit and resend only the changed fields as acknowledged',
+    async () => {
+      setViewport(1280);
+      asRole('LAWYER');
+      const writes = serve();
+      let conflict = true;
+      server.use(
+        http.patch(api(`sessions/${SESSION_ID}`), async ({ request }) => {
+          writes.push({ method: 'PATCH', path: 'edit', body: await request.json() });
+          if (!conflict) return ok(full(UPCOMING));
+          conflict = false;
+          return new HttpResponse(
+            '{"success":false,"error":{"code":"BIZ-004","message":"dev BIZ-004","details":[{"field":"startsAt","message":"validation.sessionConflict","params":{"sessionId":"s2","startsAt":"2099-11-02T08:00:00.000Z","endsAt":null,"fileNumber":"2026-LIT-00098"}}]},"meta":{"timestamp":"2026-10-05T10:00:00.000Z","requestId":"req-12345678"}}',
+            {
+              status: 409,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          );
+        }),
+      );
+      await openTab();
+      fireEvent.click(
+        await screen.findByTestId(`session-row-${SESSION_ID}`, {}, { timeout: COLD }),
+      );
+      const form = await screen.findByTestId('session-edit-form');
+      typeInto('session-start', '10:00');
+      fireEvent.click(within(form).getByTestId('session-save'));
+      const alert = await within(form).findByTestId('session-conflict');
+      expect(alert.textContent).toContain('2026-LIT-00098');
+      fireEvent.click(within(alert).getByTestId('session-conflict-anyway'));
+      await waitFor(() => expect(writes).toHaveLength(2));
+      expect(writes[0]?.body).toEqual({
+        startsAt: '2099-11-02T10:00:00+02:00',
+        acknowledgeConflict: false,
+      });
+      expect(writes[1]?.body).toEqual({
+        startsAt: '2099-11-02T10:00:00+02:00',
+        acknowledgeConflict: true,
+      });
+    },
+    SLOW,
+  );
+
+  it(
+    'should refuse a missing date before sending, and put server field errors on their fields',
+    async () => {
+      setViewport(1280);
+      asRole('LAWYER');
+      serve();
+      server.use(
+        http.post(
+          api('sessions'),
+          () =>
+            new HttpResponse(
+              '{"success":false,"error":{"code":"VAL-001","message":"dev VAL-001","details":[{"field":"endsAt","message":"validation.sessionTooLong"}]},"meta":{"timestamp":"2026-10-05T10:00:00.000Z","requestId":"req-12345678"}}',
+              {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' },
+              },
+            ),
+        ),
+      );
+      await openTab();
+      fireEvent.click(await screen.findByTestId('session-new'));
+      const drawer = await screen.findByTestId('session-drawer');
+      fireEvent.click(within(drawer).getByTestId('session-save'));
+      expect(
+        (await within(drawer).findAllByText('This field is required.')).length,
+      ).toBeGreaterThan(0);
+      typeInto('session-date', '02/11/2099');
+      typeInto('session-start', '09:30');
+      fireEvent.click(within(drawer).getByTestId('session-save'));
+      expect(await within(drawer).findByText('A hearing can last at most 24 hours.')).toBeTruthy();
+      expect(screen.getByTestId('session-create-form')).toBeTruthy();
+    },
+    SLOW,
+  );
+
+  it(
+    'should offer nothing on an archived file: no scheduling, no shortcut, a read-only drawer',
+    async () => {
+      setViewport(1280);
+      asRole('LAWYER');
+      serve();
+      server.use(http.get(api(`cases/${FILE_ID}`), () => ok({ ...FILE, status: 'ARCHIVED' })));
+      const tab = await openTab();
+      await within(tab).findByTestId(`session-row-${SESSION_ID}`, {}, { timeout: COLD });
+      expect(screen.queryByTestId('session-new')).toBeNull();
+      fireEvent.keyDown(window, { key: 'h', code: 'KeyH', ctrlKey: true, altKey: true });
+      expect(screen.queryByTestId('session-create-form')).toBeNull();
+      fireEvent.click(screen.getByTestId(`session-row-${PAST_ID}`));
+      expect(await screen.findByTestId('session-summary')).toBeTruthy();
+      expect(screen.queryByTestId('session-outcome')).toBeNull();
     },
     SLOW,
   );

@@ -1,6 +1,6 @@
 import { SESSION_TYPES } from '@nexlegtiq/shared-types';
 import { useApiErrorHandler } from '@nexlegtiq/shared-ui';
-import { isolate } from '@nexlegtiq/shared-utils';
+import { isolate, isolateLtr } from '@nexlegtiq/shared-utils';
 import { DatePicker, Flex, Form, Input, Select, TimePicker, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
 
@@ -18,8 +18,11 @@ const TIME_FORMAT = 'HH:mm';
 export function SessionFields({
   timeZone,
   initialCourt,
+  editing = false,
 }: {
   readonly timeZone: string;
+  /** Editing: an empty reminder list means no reminders (on create it means the office's default). */
+  readonly editing?: boolean;
   /** An edited hearing's court, which a court search may not list. */
   readonly initialCourt?: { readonly value: string; readonly label: string };
 }): React.JSX.Element {
@@ -50,7 +53,7 @@ export function SessionFields({
         </Form.Item>
       </Flex>
       <Typography.Text type="secondary" data-testid="session-time-zone">
-        {t('sessions.timeZone', { zone: timeZone })}
+        {t('sessions.timeZone', { zone: isolateLtr(timeZone) })}
       </Typography.Text>
       <CourtFields initialCourt={initialCourt} />
       <Form.Item name="courtRoom" label={t('sessions.fields.room')}>
@@ -71,7 +74,9 @@ export function SessionFields({
         <Select
           mode="multiple"
           allowClear
-          placeholder={t('sessions.fields.reminderDaysDefault')}
+          placeholder={
+            editing ? t('sessions.item.noReminders') : t('sessions.fields.reminderDaysDefault')
+          }
           options={REMINDER_DAY_OPTIONS.map((days) => ({ value: days, label: String(days) }))}
           data-testid="session-reminders"
         />

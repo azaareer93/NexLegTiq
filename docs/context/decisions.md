@@ -1525,3 +1525,16 @@ court" (Arabic name prefilled with the search, type, optional English name and c
 new one is picked. **Deviations:** the Cypress schedule-hearing journey waits for the E2E story (as D-090/D-121); component tests
 cover the conflict flow, scheduling, editing, cancelling, outcome, the shortcut, rights, the card and axe in both languages.
 Why: hearing times are a legal deadline — they must read the same for everyone in the office, whatever their laptop's clock.
+Review additions (same PR): **amends D-118** — the Hearings tab replaces that tab's "coming soon" state, and the next-hearing
+card is live. **Rights mirror the API:** every hearing write needs write access to the file (`edit:any:case`, or
+`edit:assigned:case` when assigned), so scheduling (and Ctrl+Alt+H) needs `create:session` with it, editing `edit:session`
+with it; "schedule the next hearing" is offered only with `create:session` too. The shortcut is off while another dialog is
+open. **"Schedule anyway"** re-validates the form and is cleared as soon as the form changes, so it never acknowledges a
+conflict the user did not see; forms re-mount when the hearing changed on the server (keyed by `updatedAt`), so a stale form
+never sends a colleague's change back. **Reminder days on edit:** an empty list means no reminders (its hint says so); on create
+it means the office's default. The next-hearing card reads the next 50 upcoming hearings (cancelled ones included). An unknown
+stored time zone falls back to Asia/Hebron in the pickers as in formatting. Texts: separators, labels ("Judge: …") and list
+separators are translation keys (Arabic "، "), names, rooms, times and the shortcut are bidi-isolated, reminder offsets use
+plural forms (Arabic zero/one/two/few/many/other). **Known limit:** the pickers hold the office's wall clock as a date in the
+device's zone; on a device whose zone skips that wall time (a DST gap at night) the picker may show it an hour off — irrelevant at
+court hours.

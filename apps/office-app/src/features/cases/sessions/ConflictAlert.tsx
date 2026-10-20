@@ -1,4 +1,4 @@
-import { Ltr, useFormat } from '@nexlegtiq/shared-ui';
+import { Bdi, Ltr, useFormat } from '@nexlegtiq/shared-ui';
 import { Alert, Button, Flex } from 'antd';
 import { useTranslation } from 'react-i18next';
 
@@ -27,8 +27,8 @@ export function ConflictAlert({
           <ul style={{ margin: 0, paddingInlineStart: 20 }}>
             {conflicts.map((conflict) => (
               <li key={`${conflict.sessionId ?? 'hidden'}-${conflict.startsAt}`}>
-                {format.dateTime(conflict.startsAt)}
-                {' · '}
+                <Bdi>{format.dateTime(conflict.startsAt)}</Bdi>
+                {t('sessions.separator')}
                 {conflict.fileNumber ? (
                   <Ltr>{conflict.fileNumber}</Ltr>
                 ) : (

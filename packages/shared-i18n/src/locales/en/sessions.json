@@ -17,7 +17,9 @@
     "outcome": "Outcome",
     "cancelled": "Cancelled",
     "needsOutcome": "Outcome not recorded",
-    "open": "Open hearing {{when}}"
+    "open": "Open hearing {{when}}",
+    "judgeOf": "Judge: {{name}}",
+    "lawyerOf": "Attending lawyer: {{name}}"
   },
   "drawer": {
     "createTitle": "Schedule a hearing",
@@ -51,7 +53,7 @@
     "title": "Cancel this hearing?",
     "body": "Its pending reminders are cancelled too. This cannot be undone.",
     "reason": "Reason (optional)",
-    "confirm": "Cancel hearing",
+    "confirm": "Yes, cancel the hearing",
     "keep": "Keep"
   },
   "outcome": {
@@ -63,9 +65,12 @@
   },
   "reminders": {
     "title": "Reminders",
-    "item": "Days before: {{days}} · {{name}}"
+    "item_one": "1 day before · {{name}}",
+    "item_other": "{{count}} days before · {{name}}"
   },
   "readOnly": "This hearing can no longer be changed.",
   "scheduled": "Hearing scheduled.",
-  "cancelled": "Hearing cancelled."
+  "cancelled": "Hearing cancelled.",
+  "separator": " · ",
+  "listSeparator": ", "
 }

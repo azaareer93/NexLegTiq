@@ -1,6 +1,7 @@
-import { CalendarOutlined, PlusOutlined } from '@ant-design/icons';
+import { PlusOutlined } from '@ant-design/icons';
 import type { SessionListItem } from '@nexlegtiq/shared-contracts';
-import { EmptyState, ErrorState, LoadingSkeleton, useFormat } from '@nexlegtiq/shared-ui';
+import { Bdi, EmptyState, ErrorState, LoadingSkeleton, useFormat } from '@nexlegtiq/shared-ui';
+import { isolate, isolateLtr } from '@nexlegtiq/shared-utils';
 import { Button, Card, Flex, Pagination, Tag, Typography } from 'antd';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -17,17 +18,13 @@ function WhereLine({ session }: { readonly session: SessionListItem }): React.JS
   const court = useCourtName()(session.court);
   const parts = [
     court ? <bdi key="court">{court}</bdi> : null,
-    session.courtRoom ? t('sessions.item.room', { room: session.courtRoom }) : null,
-    session.judge ? (
-      <span key="judge">
-        {t('sessions.item.judge')}: <bdi>{session.judge.fullName}</bdi>
-      </span>
-    ) : null,
+    session.courtRoom ? t('sessions.item.room', { room: isolate(session.courtRoom) }) : null,
+    session.judge ? t('sessions.item.judgeOf', { name: isolate(session.judge.fullName) }) : null,
   ].filter((part) => part !== null);
   if (parts.length === 0) return null;
   return (
     <Typography.Text type="secondary">
-      {parts.flatMap((part, index) => (index === 0 ? [part] : [' · ', part]))}
+      {parts.flatMap((part, index) => (index === 0 ? [part] : [t('sessions.separator'), part]))}
     </Typography.Text>
   );
 }
@@ -50,7 +47,7 @@ function SessionRow({
       hoverable
       role="button"
       tabIndex={0}
-      aria-label={t('sessions.item.open', { when })}
+      aria-label={t('sessions.item.open', { when: isolate(when) })}
       onClick={() => onOpen(session.id)}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -63,17 +60,21 @@ function SessionRow({
       <Flex vertical gap={4}>
         <Flex gap={8} wrap align="center">
           <Typography.Text strong>{t(`enums.sessionType.${session.sessionType}`)}</Typography.Text>
-          <Typography.Text>{when}</Typography.Text>
+          <Typography.Text>
+            <Bdi>{when}</Bdi>
+          </Typography.Text>
           <SessionStatusTag status={session.status} />
           {session.outcome ? <Tag>{t(`enums.sessionOutcome.${session.outcome}`)}</Tag> : null}
           {needsOutcome ? <Tag color="warning">{t('sessions.item.needsOutcome')}</Tag> : null}
         </Flex>
         <WhereLine session={session} />
         <Typography.Text type="secondary">
-          {t('sessions.item.lawyer')}: <bdi>{session.attendingLawyer.fullName}</bdi>
-          {' · '}
+          {t('sessions.item.lawyerOf', { name: isolate(session.attendingLawyer.fullName) })}
+          {t('sessions.separator')}
           {session.reminderDays.length > 0
-            ? t('sessions.item.reminders', { days: session.reminderDays.join(', ') })
+            ? t('sessions.item.reminders', {
+                days: session.reminderDays.join(t('sessions.listSeparator')),
+              })
             : t('sessions.item.noReminders')}
         </Typography.Text>
       </Flex>
@@ -157,7 +158,7 @@ export function SessionsTab({
             {t('sessions.tab.schedule')}
           </Button>
           <Typography.Text type="secondary">
-            <CalendarOutlined aria-hidden /> {t('sessions.tab.shortcut', { keys: 'Ctrl+Alt+H' })}
+            {t('sessions.tab.shortcut', { keys: isolateLtr('Ctrl+Alt+H') })}
           </Typography.Text>
         </Flex>
       ) : null}

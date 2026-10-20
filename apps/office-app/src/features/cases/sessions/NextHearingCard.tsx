@@ -1,4 +1,4 @@
-import { EmptyState, useFormat } from '@nexlegtiq/shared-ui';
+import { Bdi, EmptyState, useFormat } from '@nexlegtiq/shared-ui';
 import { Button, Card, Descriptions, Skeleton } from 'antd';
 import { useTranslation } from 'react-i18next';
 
@@ -20,7 +20,8 @@ export function NextHearingCard({
   const format = useFormat();
   const courtName = useCourtName();
   // Upcoming lists include cancelled hearings (D-116): the first scheduled one is the next hearing.
-  const upcoming = useFileSessions(fileId, { when: 'upcoming', limit: 10 });
+  // shortcut: looks at the next 50 only; a status filter on the API is the fix if 50 cancelled ones ever come first.
+  const upcoming = useFileSessions(fileId, { when: 'upcoming', limit: 50 });
   const next = upcoming.data?.items.find((session) => session.status === 'SCHEDULED');
   const court = next ? courtName(next.court) : null;
   return (
@@ -33,7 +34,7 @@ export function NextHearingCard({
         <>
           <Descriptions column={1} size="small">
             <Descriptions.Item label={t('sessions.fields.date')}>
-              {format.dateTime(next.startsAt)}
+              <Bdi>{format.dateTime(next.startsAt)}</Bdi>
             </Descriptions.Item>
             <Descriptions.Item label={t('sessions.fields.type')}>
               {t(`enums.sessionType.${next.sessionType}`)}

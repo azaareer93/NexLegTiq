@@ -107,6 +107,23 @@ describe('session form (D-127)', () => {
     expect(conflictsOf(new Error('x'))).toBeNull();
   });
 
+  it('should send each day with the offset it has in the office zone, across the DST change', () => {
+    const at = (date: string) =>
+      createBody(
+        {
+          sessionType: 'HEARING',
+          date: dayjs(date),
+          startsAt: dayjs(`${date}T09:30`),
+          attendingLawyerId: LAWYER,
+        },
+        FILE_ID,
+        ZONE,
+      ).startsAt;
+    // Hebron leaves summer time on 24 October 2026 (D-092).
+    expect(at('2026-10-23')).toBe('2026-10-23T09:30:00+03:00');
+    expect(at('2026-10-26')).toBe('2026-10-26T09:30:00+02:00');
+  });
+
   it('should tell whether a hearing has started', () => {
     expect(hasStarted(SESSION, Date.parse('2026-11-02T07:30:00Z'))).toBe(true);
     expect(hasStarted(SESSION, Date.parse('2026-11-02T07:29:00Z'))).toBe(false);

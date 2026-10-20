@@ -1,5 +1,5 @@
 import type { Session, SessionListItem } from '@nexlegtiq/shared-contracts';
-import { StatusTag, useFormat } from '@nexlegtiq/shared-ui';
+import { Bdi, StatusTag, useFormat } from '@nexlegtiq/shared-ui';
 import { isolate } from '@nexlegtiq/shared-utils';
 import { Descriptions, Flex, Tag, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
@@ -44,13 +44,13 @@ export function SessionSummary({ session }: { readonly session: Session }): Reac
           </Flex>
         </Descriptions.Item>
         <Descriptions.Item label={t('sessions.fields.date')}>
-          {format.dateTime(session.startsAt)}
+          <Bdi>{format.dateTime(session.startsAt)}</Bdi>
         </Descriptions.Item>
         {court ? (
           <Descriptions.Item label={t('sessions.item.court')}>
             <bdi>{court}</bdi>
             {session.courtRoom
-              ? ` · ${t('sessions.item.room', { room: session.courtRoom })}`
+              ? `${t('sessions.separator')}${t('sessions.item.room', { room: isolate(session.courtRoom) })}`
               : null}
           </Descriptions.Item>
         ) : null}
@@ -86,7 +86,7 @@ export function SessionSummary({ session }: { readonly session: Session }): Reac
             {session.reminders.map((reminder) => (
               <Flex component="li" key={reminder.id} justify="space-between" gap={8}>
                 {t('sessions.reminders.item', {
-                  days: reminder.daysBefore,
+                  count: reminder.daysBefore,
                   name: isolate(reminder.recipient.fullName),
                 })}
                 <Tag color={REMINDER_COLOR[reminder.status]}>

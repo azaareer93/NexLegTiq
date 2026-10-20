@@ -89,13 +89,15 @@ export function CreateSessionForm({
       requiredMark={false}
       initialValues={{ sessionType: 'HEARING', attendingLawyerId: lawyer }}
       onFinish={(values) => send(values)}
+      // A changed form makes an earlier conflict or error stale: clear it before "schedule anyway" can resend.
+      onValuesChange={() => create.reset()}
       disabled={create.isPending}
       data-testid="session-create-form"
     >
       {conflicts ? (
         <ConflictAlert
           conflicts={conflicts}
-          onConfirm={() => send(form.getFieldsValue(true) as SessionFormValues, true)}
+          onConfirm={() => void form.validateFields().then((values) => send(values, true))}
         />
       ) : (
         <ApiErrorAlert error={create.error} fields={FIELDS} testId="session-error" />
@@ -167,18 +169,19 @@ export function EditSessionForm({
       requiredMark={false}
       initialValues={formValuesOf(session, timeZone)}
       onFinish={(values) => send(values)}
+      onValuesChange={() => update.reset()}
       disabled={update.isPending}
       data-testid="session-edit-form"
     >
       {conflicts ? (
         <ConflictAlert
           conflicts={conflicts}
-          onConfirm={() => send(form.getFieldsValue(true) as SessionFormValues, true)}
+          onConfirm={() => void form.validateFields().then((values) => send(values, true))}
         />
       ) : (
         <ApiErrorAlert error={update.error} fields={FIELDS} testId="session-error" />
       )}
-      <SessionFields timeZone={timeZone} initialCourt={initialCourt} />
+      <SessionFields timeZone={timeZone} initialCourt={initialCourt} editing />
       <Actions pending={update.isPending} submitText={t('sessions.drawer.save')}>
         <Button danger onClick={() => setConfirming(true)} data-testid="session-cancel">
           {t('sessions.cancel.action')}

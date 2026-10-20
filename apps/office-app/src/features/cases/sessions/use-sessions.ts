@@ -11,8 +11,20 @@ import { apiClient, useSession } from '../../auth';
 const sessions = sessionsApi(apiClient);
 
 /** The office's time zone, in which hearing times are entered and shown (D-127). */
-export const useOfficeTimeZone = (): string =>
-  useSession((state) => state.user?.timeZone ?? DEFAULT_TIME_ZONE);
+const isZone = (zone: string) => {
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: zone });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+export const useOfficeTimeZone = (): string => {
+  const zone = useSession((state) => state.user?.timeZone);
+  // An unknown zone (an office row written before D-125's validation) falls back, as NexProvider's formatting does.
+  return zone && isZone(zone) ? zone : DEFAULT_TIME_ZONE;
+};
 
 export const sessionKeys = {
   all: ['sessions'] as const,

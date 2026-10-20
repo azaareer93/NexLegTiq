@@ -42,9 +42,12 @@ const FIELDS = ['outcome', 'minutes'];
 export function OutcomeSection({
   session,
   timeZone,
+  canScheduleNext,
 }: {
   readonly session: Session;
   readonly timeZone: string;
+  /** Scheduling the next hearing also needs `create:session` (D-116). */
+  readonly canScheduleNext: boolean;
 }): React.JSX.Element {
   const { t } = useTranslation();
   const { message } = App.useApp();
@@ -71,7 +74,7 @@ export function OutcomeSection({
         : {};
     const minutes = values.minutes?.trim();
     record.mutate(
-      { outcome: values.outcome ?? 'ADJOURNED', ...(minutes ? { minutes } : {}), ...next },
+      { outcome: values.outcome as SessionOutcome, ...(minutes ? { minutes } : {}), ...next },
       {
         onSuccess: () => void message.success(t('common.feedback.saved')),
         onError: (error) => applyToForm(form, error, FIELDS),
@@ -94,12 +97,13 @@ export function OutcomeSection({
           scheduleNext: false,
         }}
         onFinish={(values) => submit(values)}
+        onValuesChange={() => record.reset()}
         disabled={record.isPending}
       >
         {conflicts ? (
           <ConflictAlert
             conflicts={conflicts}
-            onConfirm={() => submit(form.getFieldsValue(), true)}
+            onConfirm={() => void form.validateFields().then((values) => submit(values, true))}
           />
         ) : (
           <ApiErrorAlert error={record.error} fields={FIELDS} testId="session-outcome-error" />
@@ -116,7 +120,7 @@ export function OutcomeSection({
         <Form.Item name="minutes" label={t('sessions.fields.minutes')}>
           <Input.TextArea dir="auto" rows={5} maxLength={20_000} data-testid="session-minutes" />
         </Form.Item>
-        {session.nextSessionId ? null : (
+        {session.nextSessionId || !canScheduleNext ? null : (
           <Form.Item name="scheduleNext" valuePropName="checked">
             <Checkbox data-testid="session-schedule-next">
               {t('sessions.fields.scheduleNext')}

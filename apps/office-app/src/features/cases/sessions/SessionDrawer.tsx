@@ -5,17 +5,10 @@ import { useTranslation } from 'react-i18next';
 
 import { OutcomeSection } from './OutcomeSection';
 import { hasStarted } from './session-form';
+import type { SessionRights } from './session-rights';
 import { CreateSessionForm, EditSessionForm } from './SessionForms';
 import { SessionSummary } from './SessionSummary';
 import { useHearing, useOfficeTimeZone } from './use-sessions';
-
-/** What the user may do with hearings on this file (UI only; the API re-checks, D-116). */
-export interface SessionRights {
-  /** `create:session` on a file that is not archived. */
-  readonly create: boolean;
-  /** `edit:session` on a file the user may write to and that is not archived. */
-  readonly edit: boolean;
-}
 
 function ExistingSession({
   session,
@@ -51,11 +44,16 @@ function ExistingSession({
       {scheduled ? (
         <>
           <Divider />
-          <EditSessionForm session={session} onDone={onDone} />
+          <EditSessionForm key={session.updatedAt} session={session} onDone={onDone} />
         </>
       ) : null}
       {started ? (
-        <OutcomeSection session={session} timeZone={timeZone} />
+        <OutcomeSection
+          key={session.updatedAt}
+          session={session}
+          timeZone={timeZone}
+          canScheduleNext={rights.create}
+        />
       ) : (
         <Typography.Paragraph type="secondary" data-testid="session-not-started">
           {t('sessions.outcome.notStarted')}
