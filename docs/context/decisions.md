@@ -1568,3 +1568,43 @@ closed); a reconciliation like D-117's belongs with the text-extraction story. T
 confidential; `GET /documents/:id/versions` needs ANY of `view:all|assigned:cases` plus the document rule above.
 **CI (amends D-078/D-085):** the workspace job also starts ClamAV (`clamav/clamav:stable`, the compose settings above) and waits for
 `clamdcheck.sh` before the integration tests, which scan the EICAR file for real; its signature download adds about a minute.
+
+**D-128 — Reading and managing documents: the file's list, metadata, soft delete, download and text** · Accepted (MVP-74, 2026-10-20)
+MVP-74 left who may rename, move, (un)classify and delete a document, what a download may serve, and how text is paged open.
+→ **Visibility** is D-126's `DocumentAccessService` everywhere: the file's scope (404 otherwise, D-019) and confidential
+documents only for the office manager, the uploader and the file's team. **`GET /cases/:id/documents`** (ANY of
+`view:all|assigned:cases`): live documents only, filters `folderId` (a folder of the file, or `root`), `documentType`,
+`status`, `search` (name or uploaded file name, case-insensitive contains; full-text search over the extracted text comes
+with global search), `sort=name|createdAt|updatedAt|sizeBytes[:dir]` (default newest change first, id as tie-break),
+paginated (≤ 100). **`GET /documents/:id`**: the document's current-version facts and uploader — never the storage key or
+checksum of older versions. **`PATCH /documents/:id`** (`upload:document`, a file that is not archived): `name`, `documentType`,
+`folderId` (`null` = root, a folder of the same file or VAL-001 `validation.unknownFolder`) and `isConfidential`; like a new
+version (D-126) only the uploader or someone who may edit the file changes a document, and **setting or lifting
+confidentiality** is for the office manager, the uploader or the file's responsible lawyer (403 AUTH-100 otherwise; as for
+files, D-096). Only changed fields are written and audited (the shared changes helper); an empty body is VAL-001.
+**`DELETE /documents/:id`** (`delete:document` = OM, SL, L; uploader or file editor): soft — `deletedAt`, gone from every list
+and route (404), its stored objects kept until the retention purge (which also has to free their quota bytes); audited with
+its name. **Download** `GET /documents/:id/download?version=` → `{downloadUrl, expiresIn: 300}` (JSON, D-013): only a document
+that passed its scan — QUARANTINED is **422 STO-004**, UPLOADED/SCANNING/FAILED **422 BIZ-015** (new: "not scanned clean yet");
+`version` names an older version (404 when it does not exist), the link serves that version's own uploaded name as an
+attachment (RFC 5987, Arabic kept, D-085) and type, and every link is an audit row `DOWNLOAD {versionNumber}` (a link,
+not proof the file was fetched). Older versions are offered on the document's state: a version replaced before its scan
+finished is still scanned and deleted when infected (D-126), but one whose scan never finished stays offered — a per-version
+scan record (append-only versions cannot take a status column) is the fix if that ever matters. **Text** `GET
+/documents/:id/text?page=`: the current version's extracted text in 20,000-character pages with `totalPages` and the
+document's `ocrStatus` (empty, 0 pages, until the text-extraction story fills it). **Not done here:** sharing with the client
+(portal stories), the documents tab UI (its own story), a retention purge, `documents` in the HTTP isolation matrix (its list is
+per file; the integration test covers list, get, patch, delete and download across offices). Why: every way to a document's
+content goes through one access rule and leaves an audit row.
+Review additions (same PR): **only the current version is downloadable** — the scan result is the document's, i.e. the
+current version's, so `?version=` other than the current is 404 until versions carry their own scan record (D-126 asked
+for exactly this; a version replaced before its scan ran could otherwise be served unscanned). **The text view is gated and
+audited like a download:** only once scanned clean (STO-004 / BIZ-015), and each page read writes a `VIEW {versionNumber,
+text: true, page}` audit row. **Edits and deletes lock and re-check inside the write** (as uploads do, D-126): the file row
+`FOR NO KEY UPDATE` — deleted meanwhile 404, archived meanwhile BIZ-007, the target folder still the file's — then the
+document row `FOR UPDATE`, read again (deleted meanwhile 404), so the audit's old values are what the change replaced.
+Download and text read the document with `deletedAt: null`; `version` is capped at 10,000 (no 500 on huge numbers). The
+list query's `type` filter is named `documentType` (the contract's enum name), and `folderId=root` lists the file's root. A
+rename changes the display `name` only; downloads keep each version's uploaded name. **Later:** a
+`(office_id, file_id, updated_at DESC) WHERE deleted_at IS NULL` index if files reach thousands of documents; reading only
+the requested 20,000 characters in SQL instead of the whole text.
