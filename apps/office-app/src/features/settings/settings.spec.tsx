@@ -1,4 +1,8 @@
-import type { OfficeSubscription } from '@nexlegtiq/shared-contracts';
+import type {
+  OfficeProfile,
+  OfficeSettings,
+  OfficeSubscription,
+} from '@nexlegtiq/shared-contracts';
 import { permissionsFor } from '@nexlegtiq/shared-types';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import axe from 'axe-core';
@@ -14,6 +18,7 @@ import {
   setViewport,
   signedIn,
 } from '../../test/render-app';
+import { useSession } from '../auth';
 
 setupTestServer();
 
@@ -35,6 +40,41 @@ const subscription = (extra: Partial<OfficeSubscription> = {}): OfficeSubscripti
 
 /** The visible text without the Unicode isolates that keep numbers and units in order (D-092). */
 const plain = (element: Element) => (element.textContent ?? '').replace(/[⁦-⁩]/g, '');
+
+const PROFILE: OfficeProfile = {
+  id: '01920000-0000-7000-8000-0000000000e1',
+  name: 'Haddad Law',
+  registrationNumber: null,
+  taxId: null,
+  phone: null,
+  email: null,
+  address: null,
+  website: null,
+  jurisdiction: 'PALESTINE',
+  accountType: 'FIRM',
+  defaultLanguage: 'AR',
+  currency: 'ILS',
+  timezone: 'Asia/Hebron',
+};
+const SETTINGS: OfficeSettings = {
+  courtReminderDays: [7, 3, 1],
+  taskReminderDays: [1],
+  defaultBillingRate: null,
+  defaultBillingMethod: 'HOURLY',
+  taxRatePercent: '0.00',
+  enableAi: true,
+  enableOcr: true,
+  fileNumberFormat: '{YEAR}-{TYPE}-{SEQ:5}',
+  sessionIdleMinutes: 30,
+  auditRetentionDays: 365,
+};
+
+beforeEach(() => {
+  server.use(
+    http.get(api('offices/me'), () => ok(PROFILE)),
+    http.get(api('offices/me/settings'), () => ok(SETTINGS)),
+  );
+});
 
 function serve(data: OfficeSubscription): void {
   server.use(http.get(api('offices/me/subscription'), () => ok(data)));
@@ -149,6 +189,106 @@ describe('Settings → Subscription (D-122)', () => {
         rules: { 'color-contrast': { enabled: false }, region: { enabled: false } },
       });
       expect(violations.map((violation) => violation.id)).toEqual([]);
+    },
+    SLOW,
+  );
+});
+
+describe('Settings → office profile, preferences, defaults and security (D-125)', () => {
+  async function openSettings(): Promise<void> {
+    setViewport(1280);
+    signedIn();
+    serve(subscription());
+    renderApp('/settings');
+    await screen.findByTestId('settings-profile', {}, { timeout: COLD });
+  }
+  const input = (testId: string) => screen.getByTestId(testId) as HTMLInputElement;
+
+  it(
+    'should save only the changed profile fields and show the new name in the header',
+    async () => {
+      let body: unknown;
+      server.use(
+        http.patch(api('offices/me'), async ({ request }) => {
+          body = await request.json();
+          return ok({ ...PROFILE, name: 'Haddad & Partners', website: 'https://haddad.example' });
+        }),
+      );
+      await openSettings();
+      expect(input('settings-name').value).toBe('Haddad Law');
+      fireEvent.change(input('settings-name'), { target: { value: 'Haddad & Partners' } });
+      fireEvent.change(input('settings-website'), { target: { value: 'https://haddad.example' } });
+      fireEvent.click(screen.getByTestId('settings-profile-save'));
+      await waitFor(() =>
+        expect(body).toEqual({ name: 'Haddad & Partners', website: 'https://haddad.example' }),
+      );
+      expect(await screen.findByText('Saved')).toBeTruthy();
+      await waitFor(() => expect(useSession.getState().user?.officeName).toBe('Haddad & Partners'));
+    },
+    SLOW,
+  );
+
+  it(
+    'should refuse an invalid case number format on the field, and show what the API refuses',
+    async () => {
+      let calls = 0;
+      server.use(
+        http.patch(api('offices/me/settings'), () => {
+          calls += 1;
+          return fail(400, 'VAL-001', [{ field: 'taxRatePercent', message: 'validation.percent' }]);
+        }),
+      );
+      await openSettings();
+      fireEvent.change(input('settings-file-number-format'), {
+        target: { value: '{YEAR}-{TYPE}' },
+      });
+      fireEvent.click(screen.getByTestId('settings-defaults-save'));
+      expect(await screen.findByText(/exactly one {SEQ}/)).toBeTruthy();
+      expect(calls).toBe(0);
+
+      fireEvent.change(input('settings-file-number-format'), { target: { value: 'F/{SEQ:3}' } });
+      fireEvent.change(input('settings-tax-rate'), { target: { value: '16' } });
+      fireEvent.click(screen.getByTestId('settings-defaults-save'));
+      expect(await screen.findByText(/percentage from 0 to 100/)).toBeTruthy();
+      expect(calls).toBe(1);
+    },
+    SLOW,
+  );
+
+  it(
+    'should apply a new idle timeout to this tab at once',
+    async () => {
+      let body: unknown;
+      server.use(
+        http.patch(api('offices/me/settings'), async ({ request }) => {
+          body = await request.json();
+          return ok({ ...SETTINGS, sessionIdleMinutes: 60 });
+        }),
+      );
+      await openSettings();
+      fireEvent.change(input('settings-idle-minutes'), { target: { value: '60' } });
+      fireEvent.click(screen.getByTestId('settings-security-save'));
+      await waitFor(() => expect(body).toEqual({ sessionIdleMinutes: 60 }));
+      await waitFor(() => expect(useSession.getState().idleMinutes).toBe(60));
+    },
+    SLOW,
+  );
+
+  it(
+    'should ask before leaving with unsaved changes, and discard them on request',
+    async () => {
+      await openSettings();
+      fireEvent.change(input('settings-phone'), { target: { value: '+970 59 123 4567' } });
+      fireEvent.click(screen.getAllByRole('link', { name: /Tasks/ })[0] as HTMLElement);
+      expect(await screen.findByText('Leave without saving?')).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: 'Stay on this page' }));
+      await waitFor(() => expect(screen.queryByText('Leave without saving?')).toBeNull());
+      expect(screen.getByTestId('page-settings')).toBeTruthy();
+
+      fireEvent.click(screen.getByTestId('settings-profile-discard'));
+      expect(input('settings-phone').value).toBe('');
+      fireEvent.click(screen.getAllByRole('link', { name: /Tasks/ })[0] as HTMLElement);
+      expect(await screen.findByTestId('page-tasks', {}, { timeout: COLD })).toBeTruthy();
     },
     SLOW,
   );

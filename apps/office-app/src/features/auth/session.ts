@@ -8,7 +8,7 @@ import { create } from 'zustand';
 export type SignOutReason = 'idle' | 'expired' | 'signedOut';
 const SIGN_OUT_REASONS: readonly SignOutReason[] = ['idle', 'expired', 'signedOut'];
 
-/** Default idle timeout (D-053) until the office setting is readable (office settings API, MVP-48). */
+/** Default idle timeout (D-053) until a session brings the office's own (`AuthUser.idleMinutes`, D-125). */
 export const DEFAULT_IDLE_MINUTES = 30;
 
 export interface SessionState {
@@ -147,7 +147,12 @@ export function startSession(session: ClientSession): void {
     queryClient.clear();
   }
   recordActivity();
-  useSession.setState({ status: 'authenticated', user: session.user, signOutReason: null });
+  useSession.setState({
+    status: 'authenticated',
+    user: session.user,
+    idleMinutes: session.user.idleMinutes,
+    signOutReason: null,
+  });
 }
 
 /** Clears everything this tab knows about the session: token, user and every cached query and mutation. */

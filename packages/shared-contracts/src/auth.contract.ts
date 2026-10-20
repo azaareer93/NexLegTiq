@@ -7,13 +7,10 @@ import {
 } from '@nexlegtiq/shared-types';
 import { z } from 'zod';
 
-import { EmailSchema, PhoneSchema, plainText } from './fields.js';
+import { CurrencySchema, EmailSchema, PhoneSchema, plainText } from './fields.js';
 import { NewPasswordSchema, passwordIsNotEmail } from './password.contract.js';
 
 // Normalise first, then validate: users paste emails with spaces and capitals; the column is citext anyway (D-032).
-
-/** ISO-4217 codes the runtime knows (Node and every supported browser ship the list). */
-const CURRENCIES = new Set(Intl.supportedValuesOf('currency'));
 
 /**
  * Office login (auth-rbac.md, Flows). Passwords are only length-checked here: a wrong password must look exactly like
@@ -40,11 +37,7 @@ export const RegisterRequestSchema = z
     jurisdiction: z.enum(JURISDICTIONS).default('PALESTINE'),
     defaultLanguage: z.enum(OFFICE_LANGUAGES).default('AR'),
     /** ISO-4217 (D-004); ILS, JOD and USD are common in Palestine. */
-    currency: z
-      .string()
-      .trim()
-      .toUpperCase()
-      .refine((code) => CURRENCIES.has(code), 'validation.currency'),
+    currency: CurrencySchema,
     phone: PhoneSchema.optional(),
     acceptTerms: z.literal(true, 'validation.mustAcceptTerms'),
     acceptPrivacy: z.literal(true, 'validation.mustAcceptPrivacy'),
@@ -108,6 +101,8 @@ export const AuthUserSchema = z.object({
   emailVerified: z.boolean(),
   /** When an unverified account loses access (AUTH-010); null once verified. */
   verifyBy: z.iso.datetime().nullable(),
+  /** The office's idle timeout in minutes (D-053, office settings): the UI signs out after it. */
+  idleMinutes: z.number().int().min(15).max(120),
 });
 export type AuthUser = z.infer<typeof AuthUserSchema>;
 

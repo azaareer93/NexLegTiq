@@ -131,6 +131,27 @@ export type {
 } from './session.contract.js';
 export { CreateFolderSchema, FolderSchema, UpdateFolderSchema } from './folder.contract.js';
 export type { CreateFolderRequest, Folder, UpdateFolderRequest } from './folder.contract.js';
-export { EmailSchema, longText, MoneySchema, PhoneSchema, plainText } from './fields.js';
+export {
+  CurrencySchema,
+  EmailSchema,
+  longText,
+  MoneySchema,
+  PhoneSchema,
+  plainText,
+  TimeZoneSchema,
+} from './fields.js';
 export { OfficeSubscriptionSchema, PLAN_FEATURES } from './subscription.contract.js';
 export type { OfficeSubscription, PlanFeature } from './subscription.contract.js';
+export {
+  FileNumberFormatSchema,
+  OfficeProfileSchema,
+  OfficeSettingsSchema,
+  UpdateOfficeProfileSchema,
+  UpdateOfficeSettingsSchema,
+} from './office.contract.js';
+export type {
+  OfficeProfile,
+  OfficeSettings,
+  UpdateOfficeProfileRequest,
+  UpdateOfficeSettingsRequest,
+} from './office.contract.js';

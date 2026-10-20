@@ -30,6 +30,9 @@ export interface IssuedSession {
   readonly refreshExpiresAt: Date;
 }
 
+/** The schema default of `office_settings.session_idle_minutes` (D-053), for an office without a settings row. */
+const DEFAULT_IDLE_MINUTES = 30;
+
 export type SessionUser = Prisma.UserGetPayload<{ select: typeof USER_FOR_SESSION }>;
 /** The scoped client or a transaction opened on it. */
 export type SessionTx = Pick<ScopedPrismaClient, 'refreshToken' | 'auditLog' | 'user'>;
@@ -234,6 +237,7 @@ export class AuthService {
           permissions: [...permissionsFor(user.role)],
           emailVerified: user.emailVerifiedAt !== null,
           verifyBy: verifyBy(user)?.toISOString() ?? null,
+          idleMinutes: user.office.settings?.sessionIdleMinutes ?? DEFAULT_IDLE_MINUTES,
         },
       },
     };

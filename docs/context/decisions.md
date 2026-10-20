@@ -1380,3 +1380,44 @@ keeps the subscription ACTIVE until that period ends and sets `cancelledAt`; PAS
 acts — the admin-panel story must surface such offices. **Not yet applied:** no route carries `@RequireFeature` (AI,
 portal and OCR stories add it with their endpoints) and `aiThisMonth` stays 0 until the AI quota story records usage and
 calls `assertAiQuota`; user invitations call `assertUserSlot` and uploads `assertStorageFor` in their stories.
+
+**D-125 — Office profile and settings: endpoints, validation, the idle timeout and the settings page** · Accepted (MVP-48, 2026-10-20) · Amends D-090
+MVP-48 left the bounds of several settings open, how the office's idle timeout reaches users who cannot read the settings,
+and how the page splits into sections. → **API** (`src/modules/offices`, `manage:office` = OFFICE_MANAGER on all four
+routes, others 403 AUTH-100; `me`-scoped, so there is no other office to address): `GET/PATCH /offices/me` — name,
+registration number, tax id, phone, email, address, website (`http(s)://` only, `validation.website`), jurisdiction,
+default language, currency (ISO-4217 the runtime knows, `CurrencySchema` now shared with signup) and time zone (an IANA
+zone `Intl` accepts, `validation.timeZone`); `accountType` is shown, not edited (it only chose the signup plan, D-083).
+`GET/PATCH /offices/me/settings` — `courtReminderDays` 1–30 (at least one), `taskReminderDays` 0–30 (0 = the due day; may
+be empty), each list ≤ 10 entries, duplicates refused (`validation.duplicate`), stored largest first; `defaultBillingRate`
+(decimal string, `null` clears) and `defaultBillingMethod`; `taxRatePercent` 0–100 with 2 decimals; `enableAi`,
+`enableOcr`; `fileNumberFormat` checked by the contract with the rules of D-095's parser (a unit test keeps the two in
+step on the same fixtures) and again by the parser before saving; `sessionIdleMinutes` 15–120 (D-053); `auditRetentionDays`
+365–3650 (D-060 "upward only" is read as "never below 365": lowering back towards a year is allowed). Both PATCHes take
+only the fields sent (`''`/`null` clears an optional profile field), write and audit only those whose value changed
+(decimals compared as numbers; `Office` / `OfficeSettings` UPDATE rows with old and new values), and lock the office row
+`FOR UPDATE` so concurrent edits queue and the audit's old values are right. **Effect:** nothing caches settings — new
+files read the number format, billing defaults, currency and jurisdiction at creation, sessions the reminder days and the
+time zone at each write — so a change applies to the next file or hearing and never rewrites existing ones (the page says
+so for currency). `enableAi`/`enableOcr` are stored only: the AI and OCR stories check them (with the plan flags, D-122).
+**Idle timeout (amends D-090):** the session answer of login and refresh carries `user.idleMinutes` (the office's
+`sessionIdleMinutes`, 30 without a settings row), so every user's tab adopts it; the manager's own tab applies a change at
+once, other tabs and users at their next refresh (≤ 15 min). A page load still judges "idle since the last visit" with the
+default 30 minutes, because the office's value is only known once the refresh has answered. **Page** `/settings`: five
+cards — Office profile (identity and contacts), Preferences (jurisdiction, language, currency, time zone; same endpoint),
+Practice defaults (reminders, billing, tax, case number format, AI/OCR), Security (idle timeout, audit retention) and the
+read-only Subscription (D-122). Each card is its own form with Save and Discard, sends only its changed fields, validates
+with the contract first and puts VAL-001 details on their fields; a saved name updates the header at once. **Unsaved
+changes:** leaving the page in the app while any card has changes asks first (react-router `useBlocker`, "Stay" / "Leave"),
+and closing or reloading the tab triggers the browser's own prompt. **Not done here:** a logo upload (storage of office
+assets is not specified), statistics and export (`GET offices/me/statistics`, `POST offices/me/export`, their own stories),
+an audit row for reading settings (reads are not audited elsewhere either).
+Review additions (same PR): **time zones are stored under their canonical IANA name** (`asia/hebron` → `Asia/Hebron`)
+and only region zones and UTC are accepted — fixed offsets (`+02:00`, `Etc/GMT+2`) have no daylight saving, so file-number
+years and 09:00 reminders would be an hour off half the year; the page offers the same list. The website refuses control
+and bidi characters like any plain text, and the session's `idleMinutes` is checked as 15–120 like the column. The office's
+**tax id and registration number are not encrypted** (D-056 covers individuals' ids; an office's are on its letterhead) and
+are audited in full. Changing the reminder days applies to hearings written afterwards: **reminders already scheduled
+stay as they were** (D-117 recomputes them only when the hearing itself changes). While the subscription is read-only
+(D-122) the settings cannot be changed either, security ones included. The changed-fields helper behind audit rows is
+now one function (`common/audit/changes.ts`, also used by cases).
