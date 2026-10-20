@@ -17,6 +17,7 @@ import {
 import { ACCOUNT_TYPES, JURISDICTIONS, OFFICE_LANGUAGES } from './office.js';
 import { PRIORITIES } from './priority.js';
 import { REMINDER_STATUSES, SESSION_OUTCOMES, SESSION_STATUSES, SESSION_TYPES } from './session.js';
+import { SUBSCRIPTION_STATUSES } from './subscription.js';
 import { TASK_STATUSES } from './task.js';
 
 /** D-016: enum values are UPPER_SNAKE and unique; the backend checks they equal the Prisma enums. */
@@ -44,6 +45,7 @@ describe('enum value lists', () => {
       OCR_STATUSES,
       DOCUMENT_LANGUAGES,
       FOLDER_SYSTEM_KEYS,
+      SUBSCRIPTION_STATUSES,
     }),
   )('%s should hold unique UPPER_SNAKE values', (_name, values) => {
     expect(values.length).toBeGreaterThan(0);

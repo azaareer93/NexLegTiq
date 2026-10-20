@@ -7,14 +7,16 @@ import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, Outlet, useLocation, useNavigation } from 'react-router';
 
-import { APP_NAME } from '../../../app/app-name';
-import { useSession } from '../../auth';
-import { navKeyOf, PRIMARY_KEYS, useNavItems } from '../nav';
 import { NotificationsBell } from './NotificationsBell';
 import { ProfileMenu } from './ProfileMenu';
 import { QuickActions } from './QuickActions';
+import { ReadOnlyBanner } from './ReadOnlyBanner';
 import { SearchOverlay } from './SearchOverlay';
 import { VerifyBanner } from './VerifyBanner';
+import { APP_NAME } from '../../../app/app-name';
+import { useSession } from '../../auth';
+import { QuickCreateCaseHost } from '../../cases';
+import { navKeyOf, PRIMARY_KEYS, useNavItems } from '../nav';
 
 /** Height of the phone bottom bar, which the content keeps clear of (plus the iPhone home-indicator area). */
 const BOTTOM_BAR_PX = 64;
@@ -154,7 +156,9 @@ export function AppShell(): React.JSX.Element {
           </Flex>
         </Layout.Header>
         <OfflineBanner />
+        <ReadOnlyBanner />
         <VerifyBanner />
+        <QuickCreateCaseHost />
         <Layout.Content
           style={{
             padding: token.paddingLG,

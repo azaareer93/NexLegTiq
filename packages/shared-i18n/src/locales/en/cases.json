@@ -112,5 +112,22 @@
       "title": "Delete this case?",
       "body": "Case <number>{{number}}</number> will be removed from every list. Its number is never reused."
     }
+  },
+  "create": {
+    "title": "New case",
+    "shortcut": "Shortcut: {{keys}}",
+    "create": "Create",
+    "createAndOpen": "Create & open",
+    "created": "Case {{number}} created.",
+    "client": "Client",
+    "lawyer": "Responsible lawyer",
+    "paralegal": "Paralegal",
+    "noParalegal": "None",
+    "court": "Court",
+    "courtPlaceholder": "Search courts by name or city",
+    "judge": "Judge",
+    "judgePickCourt": "Choose a court first",
+    "billingDefault": "Office default",
+    "more": "More details (optional)"
   }
 }

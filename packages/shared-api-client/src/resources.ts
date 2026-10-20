@@ -5,8 +5,19 @@ import {
   ClientListItemSchema,
   ClientSchema,
   ContactPersonSchema,
+  CourtSchema,
+  DirectoryUserSchema,
+  JudgeSchema,
+  TeamMemberSchema,
+  UserOpenFileSchema,
+  OfficeSubscriptionSchema,
 } from '@nexlegtiq/shared-contracts';
 import type {
+  ChangeRoleRequest,
+  DeactivateUserRequest,
+  TeamMember,
+  UserOpenFile,
+  OfficeSubscription,
   AuthSession,
   Case,
   CaseListItem,
@@ -16,11 +27,16 @@ import type {
   ClientListItem,
   ClientQuerySchema,
   ContactPerson,
+  Court,
+  CourtQuerySchema,
+  CreateCaseSchema,
   CreateClientSchema,
   CreateContactPersonSchema,
   UpdateClientRequest,
   UpdateContactPersonRequest,
+  DirectoryUser,
   ForgotPasswordRequestSchema,
+  Judge,
   LoginRequestSchema,
   RegisterRequestSchema,
   ResendVerificationRequestSchema,
@@ -93,6 +109,36 @@ export function usersApi(client: ApiClient) {
   return {
     changePassword: (body: Input<typeof ChangePasswordRequestSchema>) =>
       client.request({ method: 'POST', path: 'users/me/password', body }),
+    /** Active colleagues (name and role) for pickers (D-123). */
+    directory: (signal?: AbortSignal): Promise<DirectoryUser[]> =>
+      client.request(
+        { method: 'GET', path: 'users/directory', signal },
+        DirectoryUserSchema.array(),
+      ),
+    /** Team management (D-124): every user of the office with their open-file counts. */
+    team: (signal?: AbortSignal): Promise<TeamMember[]> =>
+      client.request({ method: 'GET', path: 'users', signal }, TeamMemberSchema.array()),
+    /** Open files a user is responsible for: what deactivating them must reassign. */
+    openFiles: (id: string, signal?: AbortSignal): Promise<UserOpenFile[]> =>
+      client.request(
+        { method: 'GET', path: `users/${encodeURIComponent(id)}/open-files`, signal },
+        UserOpenFileSchema.array(),
+      ),
+    changeRole: (id: string, body: ChangeRoleRequest): Promise<TeamMember> =>
+      client.request(
+        { method: 'PATCH', path: `users/${encodeURIComponent(id)}/role`, body },
+        TeamMemberSchema,
+      ),
+    deactivate: (id: string, body: DeactivateUserRequest): Promise<TeamMember> =>
+      client.request(
+        { method: 'POST', path: `users/${encodeURIComponent(id)}/deactivate`, body },
+        TeamMemberSchema,
+      ),
+    reactivate: (id: string): Promise<TeamMember> =>
+      client.request(
+        { method: 'POST', path: `users/${encodeURIComponent(id)}/reactivate` },
+        TeamMemberSchema,
+      ),
   };
 }
 
@@ -110,6 +156,8 @@ export function casesApi(client: ApiClient) {
       client.requestPage({ method: 'GET', path: 'cases', query, signal }, CaseListItemSchema),
     get: (id: string, signal?: AbortSignal): Promise<Case> =>
       client.request({ method: 'GET', path: path(id), signal }, CaseSchema),
+    create: (body: Input<typeof CreateCaseSchema>): Promise<Case> =>
+      client.request({ method: 'POST', path: 'cases', body }, CaseSchema),
     update: (id: string, body: UpdateCaseRequest): Promise<Case> =>
       client.request({ method: 'PATCH', path: path(id), body }, CaseSchema),
     remove: (id: string): Promise<void> => client.request({ method: 'DELETE', path: path(id) }),
@@ -146,5 +194,32 @@ export function clientsApi(client: ApiClient) {
       client.request({ method: 'PATCH', path: contact(id, contactId), body }, ContactPersonSchema),
     removeContact: (id: string, contactId: string): Promise<void> =>
       client.request({ method: 'DELETE', path: contact(id, contactId) }),
+  };
+}
+
+/** `GET /courts` parameters as they travel in the query string (`CourtQuerySchema` input). */
+export type CourtListParams = Partial<Record<keyof z.input<typeof CourtQuerySchema>, string>>;
+
+/** Courts and their judges (D-115): platform rows and the office's own. */
+export function courtsApi(client: ApiClient) {
+  return {
+    list: (query: CourtListParams, signal?: AbortSignal): Promise<Page<Court>> =>
+      client.requestPage({ method: 'GET', path: 'courts', query, signal }, CourtSchema),
+    judges: (courtId: string, signal?: AbortSignal): Promise<Judge[]> =>
+      client.request(
+        { method: 'GET', path: `courts/${encodeURIComponent(courtId)}/judges`, signal },
+        JudgeSchema.array(),
+      ),
+  };
+}
+
+/** `offices/me…` (api-conventions.md#offices): the office's subscription and usage (D-122). */
+export function officesApi(client: ApiClient) {
+  return {
+    subscription: (signal?: AbortSignal): Promise<OfficeSubscription> =>
+      client.request(
+        { method: 'GET', path: 'offices/me/subscription', signal },
+        OfficeSubscriptionSchema,
+      ),
   };
 }

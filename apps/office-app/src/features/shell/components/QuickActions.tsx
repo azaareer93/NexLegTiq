@@ -7,15 +7,22 @@ import {
 import { EmptyState, useCan } from '@nexlegtiq/shared-ui';
 import { Button, Dropdown, Modal } from 'antd';
 import type { MenuProps } from 'antd';
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+
+import { openQuickCreateCase } from '../../cases';
+
+// Its own chunk, loaded the first time + Client is used (as the case modal is).
+const ClientDrawer = lazy(async () => ({
+  default: (await import('../../clients/components/ClientDrawer')).ClientDrawer,
+}));
 
 const QUICK_ACTIONS = ['file', 'client', 'task'] as const;
 type QuickAction = (typeof QUICK_ACTIONS)[number];
 const isQuickAction = (key: string): key is QuickAction =>
   (QUICK_ACTIONS as readonly string[]).includes(key);
 
-/** + Case, + Client, + Task for who may create them. Each opens a placeholder until its feature exists. */
+/** + Case, + Client, + Task for who may create them: the quick-create case modal, the client drawer, and a placeholder for tasks. */
 export function QuickActions({
   compact = false,
 }: {
@@ -23,8 +30,7 @@ export function QuickActions({
 }): React.JSX.Element | null {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  // Kept after closing, so the title does not go blank during the close animation.
-  const [action, setAction] = useState<QuickAction>('file');
+  const [clientOpen, setClientOpen] = useState(false);
   const can: Record<QuickAction, boolean> = {
     file: useCan('create:case'),
     client: useCan('manage:clients'),
@@ -47,10 +53,9 @@ export function QuickActions({
     return null;
   }
   const onClick: MenuProps['onClick'] = ({ key }) => {
-    if (isQuickAction(key)) {
-      setAction(key);
-      setOpen(true);
-    }
+    if (key === 'file') openQuickCreateCase();
+    else if (key === 'client') setClientOpen(true);
+    else if (isQuickAction(key)) setOpen(true);
   };
   return (
     <>
@@ -68,11 +73,16 @@ export function QuickActions({
         open={open}
         onCancel={() => setOpen(false)}
         footer={null}
-        title={t(`shell.quick.${action}`)}
+        title={t('shell.quick.task')}
         data-testid="quick-placeholder"
       >
         <EmptyState title={t('shell.comingSoon.title')} description={t('shell.comingSoon.body')} />
       </Modal>
+      {clientOpen ? (
+        <Suspense fallback={null}>
+          <ClientDrawer open clientId={null} onClose={() => setClientOpen(false)} />
+        </Suspense>
+      ) : null}
     </>
   );
 }

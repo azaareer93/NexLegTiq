@@ -4,6 +4,7 @@ import type { RouteObject } from 'react-router';
 import { authRoutes, RequireAuth } from '../features/auth';
 import { casesRoutes } from '../features/cases';
 import { clientsRoutes } from '../features/clients';
+import { settingsRoutes } from '../features/settings';
 import {
   AppShell,
   NAV_ITEMS,
@@ -12,6 +13,7 @@ import {
   RouteError,
 } from '../features/shell';
 import type { NavKey } from '../features/shell';
+import { teamRoutes } from '../features/team';
 
 /** A lazy placeholder page, until its feature replaces it (its own chunk: the module is only imported here). */
 const placeholder = (navKey: NavKey | 'profile'): Pick<RouteObject, 'lazy'> => ({
@@ -25,6 +27,8 @@ const placeholder = (navKey: NavKey | 'profile'): Pick<RouteObject, 'lazy'> => (
 const FEATURE_ROUTES: Partial<Record<NavKey, RouteObject[]>> = {
   cases: casesRoutes,
   clients: clientsRoutes,
+  settings: settingsRoutes,
+  team: teamRoutes,
 };
 
 /**

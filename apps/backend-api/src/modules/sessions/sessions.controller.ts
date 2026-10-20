@@ -47,6 +47,7 @@ import { ApiZodBody, ApiZodQuery, ApiZodResponse } from '../../common/openapi/ap
 import { RequireAnyPermission, RequirePermissions } from '../../common/rbac/permissions.decorator';
 import { clientFromRequest } from '../auth/client-info';
 import type { ClientInfo } from '../auth/client-info';
+import { AllowWhenReadOnly } from '../subscriptions/subscription.decorators';
 
 /** A malformed id is the same 404 as an unknown one (D-019). */
 const uuid = new ParseUUIDPipe({ exceptionFactory: () => new ResourceNotFoundException() });
@@ -139,6 +140,8 @@ export class SessionsController {
     return this.sessions.recordOutcome(id, body, this.client(req));
   }
 
+  // Only a "seen" mark on the caller's own reminder (D-117): allowed while the office is read-only (D-122).
+  @AllowWhenReadOnly()
   @Post('reminders/:id/ack')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Acknowledge one of my hearing reminders (404 if it is not mine)' })

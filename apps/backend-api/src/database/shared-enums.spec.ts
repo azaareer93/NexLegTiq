@@ -19,6 +19,7 @@ import {
   FOLDER_SYSTEM_KEYS,
   OCR_STATUSES,
   SESSION_TYPES,
+  SUBSCRIPTION_STATUSES,
   TASK_STATUSES,
 } from '@nexlegtiq/shared-types';
 
@@ -43,6 +44,7 @@ import {
   FolderSystemKey,
   OcrStatus,
   SessionType,
+  SubscriptionStatus,
   TaskStatus,
 } from '../generated/prisma/enums';
 
@@ -61,6 +63,7 @@ describe('shared-types enums match the Prisma schema', () => {
     ['PartyType', PARTY_TYPES, PartyType],
     ['BillingMethod', BILLING_METHODS, BillingMethod],
     ['TaskStatus', TASK_STATUSES, TaskStatus],
+    ['SubscriptionStatus', SUBSCRIPTION_STATUSES, SubscriptionStatus],
     ['CourtType', COURT_TYPES, CourtType],
     ['SessionType', SESSION_TYPES, SessionType],
     ['SessionOutcome', SESSION_OUTCOMES, SessionOutcome],

@@ -1,11 +1,16 @@
-import { ApiError, casesApi } from '@nexlegtiq/shared-api-client';
+import { ApiError, casesApi, courtsApi, usersApi } from '@nexlegtiq/shared-api-client';
 import type { CaseListParams } from '@nexlegtiq/shared-api-client';
-import type { Case, UpdateCaseRequest } from '@nexlegtiq/shared-contracts';
+import type { Case, CreateCaseSchema, UpdateCaseRequest } from '@nexlegtiq/shared-contracts';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { z } from 'zod';
 
 import { apiClient } from '../../auth';
 
 const cases = casesApi(apiClient);
+const users = usersApi(apiClient);
+const courts = courtsApi(apiClient);
+
+type CreateCaseInput = z.input<typeof CreateCaseSchema>;
 
 export const caseKeys = {
   all: ['cases'] as const,
@@ -58,3 +63,41 @@ export function useDeleteCase(id: string) {
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: caseKeys.lists() }),
   });
 }
+
+/** `POST /cases`: lists refetch; the new file is cached for "Create & open". */
+export function useCreateCase() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateCaseInput) => cases.create(body),
+    onSuccess: (file: Case) => {
+      queryClient.setQueryData(caseKeys.detail(file.id), file);
+      void queryClient.invalidateQueries({ queryKey: caseKeys.lists() });
+    },
+  });
+}
+
+/** Active colleagues for the lawyer and paralegal pickers (D-123); changes rarely. */
+export const useDirectory = (enabled = true) =>
+  useQuery({
+    queryKey: ['users', 'directory'] as const,
+    queryFn: ({ signal }) => users.directory(signal),
+    staleTime: 5 * 60_000,
+    enabled,
+  });
+
+/** Courts matching `search` (Arabic or English name, city), 20 at a time. */
+export const useCourts = (search: string, enabled: boolean) =>
+  useQuery({
+    queryKey: ['courts', 'list', search] as const,
+    queryFn: ({ signal }) => courts.list({ limit: '20', ...(search ? { search } : {}) }, signal),
+    placeholderData: keepPreviousData,
+    enabled,
+  });
+
+/** The judges of a court (active first), once a court is picked. */
+export const useJudges = (courtId: string | undefined) =>
+  useQuery({
+    queryKey: ['courts', 'judges', courtId] as const,
+    queryFn: ({ signal }) => courts.judges(courtId ?? '', signal),
+    enabled: courtId !== undefined,
+  });
