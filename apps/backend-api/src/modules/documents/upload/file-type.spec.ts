@@ -35,7 +35,17 @@ describe('sniffFileType', () => {
     ['a PDF without extension', Buffer.from('%PDF-1.7'), 'contract'],
     ['an OLE file named .xls', bytes(0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1), 'old.xls'],
     ['a plain ZIP named .docx', zip('photo.jpg'), 'brief.docx'],
-    ['a ZIP naming both word/ and xl/', zip('[Content_Types].xml', 'word/a', 'xl/b'), 'x.docx'],
+    [
+      'a ZIP naming both main parts',
+      zip('[Content_Types].xml', 'word/document.xml', 'xl/workbook.xml'),
+      'x.docx',
+    ],
+    ['a package without its main part', zip('[Content_Types].xml', 'word/other.xml'), 'x.docx'],
+    [
+      'a macro-enabled document renamed .docx',
+      zip('[Content_Types].xml', 'word/document.xml', 'word/vbaProject.bin'),
+      'x.docx',
+    ],
     ['a binary named .csv', Buffer.from('MZ\0\0'), 'list.csv'],
     ['text named .txt', Buffer.from('hello'), 'notes.txt'],
     ['an empty file', Buffer.alloc(0), 'empty.csv'],

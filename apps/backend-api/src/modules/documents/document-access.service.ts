@@ -15,6 +15,7 @@ import { CaseAccessService } from '../legal-files/case-access.service';
 export interface AccessibleDocument {
   readonly id: string;
   readonly fileId: string;
+  readonly uploadedById: string;
 }
 
 /**
@@ -51,12 +52,22 @@ export class DocumentAccessService {
   async assertDocumentAccess(id: string, mode: 'read' | 'contribute'): Promise<AccessibleDocument> {
     const document = await this.prisma.db.document.findFirst({
       where: { AND: [{ id }, this.visibleWhere()] },
-      select: { id: true, fileId: true, file: { select: { status: true } } },
+      select: { id: true, fileId: true, uploadedById: true, file: { select: { status: true } } },
     });
     if (!document) throw new ResourceNotFoundException();
     if (mode === 'contribute' && document.file.status === 'ARCHIVED') {
       throw new BusinessRuleException('BIZ-007', 'The file is archived and read-only');
     }
-    return { id: document.id, fileId: document.fileId };
+    return { id: document.id, fileId: document.fileId, uploadedById: document.uploadedById };
+  }
+
+  /**
+   * Replacing a document's content (a new version) is for its uploader or someone who may edit the file (`edit:any|
+   * assigned:case`, 403/404 otherwise): adding documents (`upload:document`) alone does not let a trainee or an outside
+   * collaborator overwrite a colleague's.
+   */
+  async assertMayReplace(document: AccessibleDocument): Promise<void> {
+    if (document.uploadedById === this.cls.get('userId')) return;
+    await this.files.assertFileAccess(document.fileId, 'write');
   }
 }

@@ -47,9 +47,10 @@ const startsWith = (head: Buffer, bytes: readonly number[]) =>
  */
 function officeKind(head: Buffer): Kind | null {
   const text = head.toString('latin1');
-  if (!text.includes('[Content_Types].xml')) return null;
-  const word = text.includes('word/');
-  const excel = text.includes('xl/');
+  // A macro project means a .docm/.xlsm renamed: not on the allow-list.
+  if (!text.includes('[Content_Types].xml') || text.includes('vbaProject.bin')) return null;
+  const word = text.includes('word/document.xml');
+  const excel = text.includes('xl/workbook.xml');
   if (word === excel) return null;
   return word ? 'docx' : 'xlsx';
 }

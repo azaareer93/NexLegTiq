@@ -1,7 +1,10 @@
 import { Readable } from 'node:stream';
 
+import type { ClsService } from 'nestjs-cls';
+
 import type { IncomingFile } from './multipart';
 import { UploadIntake } from './upload-intake';
+import type { RequestContext } from '../../../common/context/request-context';
 import type { StorageService } from '../../../common/storage/storage.service';
 import type { PrismaService } from '../../../database/prisma.service';
 import type { CaseAccessService } from '../../legal-files/case-access.service';
@@ -24,12 +27,13 @@ function setup({ folders = 1, sessions = 1 } = {}) {
     delete: jest.fn().mockRejectedValue(new Error('gone')),
   };
   const intake = new UploadIntake(
+    { get: () => 'o1' } as unknown as ClsService<RequestContext>,
     { db } as unknown as PrismaService,
     files as unknown as CaseAccessService,
     entitlements as unknown as EntitlementsService,
     storage as unknown as StorageService,
   );
-  return { intake, files, entitlements, storage };
+  return { intake, files, entitlements, storage, db };
 }
 
 const file = (): IncomingFile => ({
@@ -39,6 +43,33 @@ const file = (): IncomingFile => ({
 });
 
 describe('UploadIntake', () => {
+  it('should check again under a lock that the file is live and open and the folder still its own', async () => {
+    const { intake, db } = setup();
+    const tx = (rows: { status: string }[]) => ({
+      ...db,
+      $queryRaw: jest.fn().mockResolvedValue(rows),
+    });
+    const open = tx([{ status: 'OPEN' }]);
+    await intake.recheck(open as never, { fileId: FILE, folderId: 'd1' });
+    expect(open.$queryRaw).toHaveBeenCalled();
+    await expect(intake.recheck(tx([]) as never, { fileId: FILE })).rejects.toMatchObject({
+      code: 'RES-001',
+    });
+    await expect(
+      intake.recheck(tx([{ status: 'ARCHIVED' }]) as never, { fileId: FILE }),
+    ).rejects.toMatchObject({ code: 'BIZ-007' });
+    const gone = setup({ folders: 0 });
+    await expect(
+      gone.intake.recheck(
+        { ...gone.db, $queryRaw: jest.fn().mockResolvedValue([{ status: 'OPEN' }]) } as never,
+        {
+          fileId: FILE,
+          folderId: 'd1',
+        },
+      ),
+    ).rejects.toMatchObject({ code: 'VAL-001' });
+  });
+
   it('should check the file, its folder and hearing, and refuse unknown ones', async () => {
     const { intake, files } = setup();
     await intake.assertTargets({ fileId: FILE, folderId: 'd1', sessionId: 's1' });

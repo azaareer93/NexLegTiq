@@ -5,14 +5,17 @@ import type { ClsService } from 'nestjs-cls';
 
 import type { DocumentAccessService } from './document-access.service';
 import { DocumentsService } from './documents.service';
-import { readUpload } from './upload/multipart';
+import { discardBody, readUpload } from './upload/multipart';
 import type { UploadIntake } from './upload/upload-intake';
 import type { RequestContext } from '../../common/context/request-context';
 import type { QueueProducer } from '../../common/queue/queue-producer';
 import type { PrismaService } from '../../database/prisma.service';
 import type { UnitOfWork } from '../../database/unit-of-work';
 
-jest.mock('./upload/multipart', () => ({ readUpload: jest.fn() }));
+jest.mock('./upload/multipart', () => ({
+  readUpload: jest.fn(),
+  discardBody: jest.fn().mockResolvedValue(undefined),
+}));
 
 const CLIENT = { ip: '127.0.0.1', userAgent: 'jest', requestId: 'req-12345678' };
 const FILE_ID = 'f1';
@@ -30,20 +33,27 @@ const incoming = () => ({
 const prismaError = (code: string) =>
   Object.assign(new Error(code), { name: 'PrismaClientKnownRequestError', code });
 
-function setup({ existing = null as { id: string; status: string } | null, current = 1 } = {}) {
+type Existing = { id: string; status: string; currentVersion: number } | null;
+
+function setup({ existing = null as Existing, current = 1 } = {}) {
   const tasks: (() => Promise<unknown>)[] = [];
   const tx = {
     $queryRaw: jest.fn().mockResolvedValue([]),
     document: {
       create: jest.fn(),
       update: jest.fn(),
-      findFirst: jest
-        .fn()
-        .mockResolvedValue(
-          current
-            ? { currentVersion: current, status: 'READY', checksumSha256: 'b'.repeat(64) }
-            : null,
-        ),
+      findFirst: jest.fn().mockResolvedValue(
+        current
+          ? {
+              currentVersion: current,
+              status: 'READY',
+              isConfidential: true,
+              originalFilename: 'old.pdf',
+              mimeType: 'application/pdf',
+              checksumSha256: 'b'.repeat(64),
+            }
+          : null,
+      ),
     },
     documentVersion: { create: jest.fn() },
     caseTimelineEvent: { create: jest.fn() },
@@ -75,11 +85,16 @@ function setup({ existing = null as { id: string; status: string } | null, curre
   const intake = {
     beforeStoring: jest.fn((_file: unknown, checks: () => Promise<unknown>) => checks()),
     assertTargets: jest.fn().mockResolvedValue(undefined),
+    recheck: jest.fn().mockResolvedValue(undefined),
     store: jest.fn().mockResolvedValue(STORED),
     discard: jest.fn().mockResolvedValue(undefined),
   };
   const documents = {
-    assertDocumentAccess: jest.fn().mockResolvedValue({ id: 'd1', fileId: FILE_ID }),
+    assertDocumentAccess: jest
+      .fn()
+      .mockResolvedValue({ id: 'd1', fileId: FILE_ID, uploadedById: 'u1' }),
+    assertMayReplace: jest.fn().mockResolvedValue(undefined),
+    visibleWhere: () => ({}),
   };
   const queues = { enqueue: jest.fn().mockResolvedValue({}) };
   const context: Partial<RequestContext> = { officeId: 'o1' as never, userId: 'u1' as never };
@@ -144,21 +159,25 @@ describe('DocumentsService.upload', () => {
     );
   });
 
-  it('should refuse a malformed Idempotency-Key and replay a known one without reading the body', async () => {
+  it('should refuse a malformed or spent Idempotency-Key and replay a known one without reading the body', async () => {
     jest.mocked(readUpload).mockClear();
-    const bad = req();
-    await expect(setup().service.upload(bad, 'short', CLIENT)).rejects.toMatchObject({
+    await expect(setup().service.upload(req(), 'short', CLIENT)).rejects.toMatchObject({
       code: 'VAL-001',
       details: [{ field: 'Idempotency-Key' }],
     });
-    expect(bad.resume).toHaveBeenCalled();
-    const { service } = setup({ existing: { id: 'd0', status: 'READY' } });
+    expect(discardBody).toHaveBeenCalled();
+    const { service } = setup({ existing: { id: 'd0', status: 'READY', currentVersion: 3 } });
     await expect(service.upload(req(), 'retry-key-1', CLIENT)).resolves.toEqual({
       documentId: 'd0',
-      versionNumber: 1,
+      versionNumber: 3,
       status: 'READY',
     });
     expect(readUpload).not.toHaveBeenCalled();
+    const spent = setup();
+    spent.db.document.findFirst.mockResolvedValueOnce({ id: 'd0' }).mockResolvedValueOnce(null);
+    await expect(spent.service.upload(req(), 'retry-key-2', CLIENT)).rejects.toMatchObject({
+      code: 'RES-002',
+    });
   });
 
   it('should delete the stored object when recording fails, and answer the winner of a key race', async () => {
@@ -170,7 +189,8 @@ describe('DocumentsService.upload', () => {
     tx.document.create.mockRejectedValueOnce(prismaError('P2002'));
     db.document.findFirst
       .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ id: 'winner', status: 'SCANNING' });
+      .mockResolvedValueOnce({ id: 'winner' })
+      .mockResolvedValueOnce({ currentVersion: 1, status: 'SCANNING' });
     await expect(service.upload(req(), 'race-key-1', CLIENT)).resolves.toMatchObject({
       documentId: 'winner',
     });
@@ -197,6 +217,7 @@ describe('DocumentsService versions', () => {
       status: 'SCANNING',
     });
     expect(documents.assertDocumentAccess).toHaveBeenCalledWith('d1', 'contribute');
+    expect(documents.assertMayReplace).toHaveBeenCalled();
     expect(tx.$queryRaw).toHaveBeenCalled();
     expect(tx.document.update).toHaveBeenCalledWith({
       where: { id: 'd1' },

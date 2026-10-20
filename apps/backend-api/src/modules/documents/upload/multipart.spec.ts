@@ -1,4 +1,4 @@
-import { Readable } from 'node:stream';
+import { PassThrough, Readable } from 'node:stream';
 
 import { MAX_UPLOAD_BYTES, UploadDocumentFieldsSchema } from '@nexlegtiq/shared-contracts';
 import type { Request } from 'express';
@@ -39,6 +39,30 @@ const read = async (stream: Readable) => {
 };
 
 describe('readUpload', () => {
+  it('should error the file stream when the client aborts mid-upload, instead of waiting forever', async () => {
+    const boundary = 'nlq-abort';
+    const req = Object.assign(new PassThrough(), {
+      headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+    });
+    const crlf = String.fromCharCode(13, 10);
+    req.write(
+      [
+        `--${boundary}`,
+        'Content-Disposition: form-data; name="fileId"',
+        '',
+        FILE_ID,
+        `--${boundary}`,
+        'Content-Disposition: form-data; name="file"; filename="a.pdf"',
+        '',
+        '%PDF-1.7 partial',
+      ].join(crlf),
+    );
+    const { file } = await readUpload(req as unknown as Request, UploadDocumentFieldsSchema);
+    const reading = read(file.stream);
+    req.destroy(new Error('aborted'));
+    await expect(reading).rejects.toThrow('aborted');
+  });
+
   it('should validate the fields, then hand over the file as a stream with its bare name', async () => {
     const { fields, file } = await readUpload(
       formRequest([

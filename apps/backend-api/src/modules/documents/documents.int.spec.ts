@@ -62,6 +62,7 @@ describe('documents upload API (HTTP + PostgreSQL + storage + ClamAV)', () => {
   const users: Record<string, SeededUser> = {};
   let officeId: string;
   let clientId: string;
+  let otherClientId: string;
 
   const http = () => request(app.getHttpServer());
   const user = (key: string) => users[key] as SeededUser;
@@ -160,6 +161,7 @@ describe('documents upload API (HTTP + PostgreSQL + storage + ClamAV)', () => {
       ['lawyer', 'LAWYER'],
       ['senior', 'SENIOR_LAWYER'],
       ['admin', 'ADMIN'],
+      ['trainee', 'TRAINEE'],
     ] as const) {
       users[key] = await seedUser(officeId, role);
     }
@@ -168,7 +170,13 @@ describe('documents upload API (HTTP + PostgreSQL + storage + ClamAV)', () => {
         data: { officeId, clientType: 'INDIVIDUAL', displayName: 'Documents client' },
       })
     ).id;
-    users['other'] = await seedUser(await seedOffice('Other documents office'), 'OFFICE_MANAGER');
+    const otherOffice = await seedOffice('Other documents office');
+    users['other'] = await seedUser(otherOffice, 'OFFICE_MANAGER');
+    otherClientId = (
+      await raw.client.create({
+        data: { officeId: otherOffice, clientType: 'INDIVIDUAL', displayName: 'Other client' },
+      })
+    ).id;
   }, 60_000);
 
   afterAll(async () => {
@@ -319,6 +327,53 @@ describe('documents upload API (HTTP + PostgreSQL + storage + ClamAV)', () => {
     expectError(await upload(fileId, pdf(), 'a.pdf'), 422, 'BIZ-007');
   });
 
+  it('should let only the uploader or an editor of the file replace a document, and scan the new version', async () => {
+    const fileId = await openFile();
+    await raw.fileTeamMember.create({ data: { officeId, fileId, userId: user('trainee').userId } });
+    const lawyers = accepted(await upload(fileId, pdf(), 'brief.pdf'));
+    const version = (documentId: string, key: string) =>
+      http()
+        .post(`/api/v1/documents/${documentId}/versions`)
+        .set(as(key))
+        .attach('file', pdf(), 'next.pdf');
+    expectError(await version(lawyers.documentId, 'trainee'), 403, 'AUTH-100');
+    const own = accepted(await upload(fileId, pdf(), 'notes.pdf', { key: 'trainee' }));
+    expect(accepted(await version(own.documentId, 'trainee')).versionNumber).toBe(2);
+    expect(
+      await getQueue(app, QUEUE.OCR).getJob(`${officeId}_scan-${own.documentId}-v2`),
+    ).toBeTruthy();
+  });
+
+  it('should not replay a key another uploader used, and refuse a folder of another office', async () => {
+    const fileId = await openFile();
+    const headers = { 'Idempotency-Key': `shared-${randomUUID()}` };
+    const first = accepted(await upload(fileId, pdf(), 'a.pdf', { headers }));
+    const second = accepted(await upload(fileId, pdf(), 'b.pdf', { key: 'manager', headers }));
+    expect(second.documentId).not.toBe(first.documentId);
+    const theirFile = (
+      await http()
+        .post('/api/v1/cases')
+        .set(as('other'))
+        .send({
+          title: 'Their file',
+          fileType: 'LITIGATION',
+          clientIds: [otherClientId],
+          primaryClientId: otherClientId,
+          responsibleLawyerId: user('other').userId,
+        })
+        .expect(201)
+    ).body as { data: { id: string } };
+    const theirFolder = await raw.documentFolder.findFirstOrThrow({
+      where: { fileId: theirFile.data.id },
+    });
+    expectError(
+      await upload(fileId, pdf(), 'a.pdf', { fields: { folderId: theirFolder.id } }),
+      400,
+      'VAL-001',
+      'folderId',
+    );
+  });
+
   it('should add versions, mirror the newest and list them newest first', async () => {
     const fileId = await openFile();
     const { documentId } = accepted(await upload(fileId, pdf(), 'draft.pdf'));
@@ -374,6 +429,9 @@ describe('documents upload API (HTTP + PostgreSQL + storage + ClamAV)', () => {
     expect((await versions('senior')).status).toBe(404);
     expect((await versions('manager')).status).toBe(200);
     expect((await versions('lawyer')).status).toBe(200);
+    // Its name stays out of the file's timeline, which colleagues off the file may see.
+    const event = await raw.caseTimelineEvent.findFirstOrThrow({ where: { sourceId: documentId } });
+    expect(event.payload).toEqual({ versionNumber: 1 });
   });
 
   it('should pass a clean file on to processing and quarantine the EICAR test file', async () => {

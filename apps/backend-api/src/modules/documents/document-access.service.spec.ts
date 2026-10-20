@@ -12,13 +12,19 @@ function setup(role: Role | undefined, found: { status: string } | null = { stat
   const context: Partial<RequestContext> = { userId: 'u1' as never, role };
   const findFirst = jest
     .fn()
-    .mockResolvedValue(found && { id: 'd1', fileId: 'f1', file: { status: found.status } });
+    .mockResolvedValue(
+      found && { id: 'd1', fileId: 'f1', uploadedById: 'u9', file: { status: found.status } },
+    );
+  const files = {
+    visibleWhere: () => FILE_VISIBLE,
+    assertFileAccess: jest.fn().mockResolvedValue({ id: 'f1' }),
+  };
   const service = new DocumentAccessService(
     { get: (key: keyof RequestContext) => context[key] } as unknown as ClsService<RequestContext>,
     { db: { document: { findFirst } } } as unknown as PrismaService,
-    { visibleWhere: () => FILE_VISIBLE } as unknown as CaseAccessService,
+    files as unknown as CaseAccessService,
   );
-  return { service, findFirst };
+  return { service, findFirst, files };
 }
 
 describe('DocumentAccessService', () => {
@@ -43,6 +49,7 @@ describe('DocumentAccessService', () => {
     await expect(setup('LAWYER').service.assertDocumentAccess('d1', 'read')).resolves.toEqual({
       id: 'd1',
       fileId: 'f1',
+      uploadedById: 'u9',
     });
     await expect(
       setup('LAWYER', null).service.assertDocumentAccess('d1', 'read'),
@@ -52,5 +59,13 @@ describe('DocumentAccessService', () => {
     await expect(archived.service.assertDocumentAccess('d1', 'contribute')).rejects.toMatchObject({
       code: 'BIZ-007',
     });
+  });
+
+  it('should let the uploader replace a document, and anyone else only with edit access to the file', async () => {
+    const { service, files } = setup('TRAINEE');
+    await service.assertMayReplace({ id: 'd1', fileId: 'f1', uploadedById: 'u1' });
+    expect(files.assertFileAccess).not.toHaveBeenCalled();
+    await service.assertMayReplace({ id: 'd1', fileId: 'f1', uploadedById: 'u9' });
+    expect(files.assertFileAccess).toHaveBeenCalledWith('f1', 'write');
   });
 });

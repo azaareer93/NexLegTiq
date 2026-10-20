@@ -60,8 +60,9 @@ export class DocumentScan {
       signal,
     );
     if (!result.infected) {
+      // PROCESSING too: a retry after a failed enqueue below must enqueue again (the job id keeps it single).
       const { count } = await this.prisma.db.document.updateMany({
-        where: scanning(job),
+        where: { ...scanning(job), status: { in: ['SCANNING', 'PROCESSING'] } },
         data: { status: 'PROCESSING' },
       });
       if (count === 0) return 'SUPERSEDED';

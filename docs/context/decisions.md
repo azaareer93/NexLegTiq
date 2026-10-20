@@ -1522,7 +1522,7 @@ is enqueued (job id `scan-{documentId}-v{n}`); the answer is **202 `{documentId,
 (migration `document_idempotency_key`); a repeated key returns the first document without reading the body, and a race on the
 same key answers the winner. It never expires (keys are the client's random ids) — the api-conventions Redis 24 h store is
 not needed for uploads. **Versions:** `POST /documents/:id/versions` (`changeNote?` then `file`) locks the document row, adds
-version n + 1, makes the document mirror it (name of the upload, type, size, checksum, key) with status SCANNING and
+version n + 1, makes the document mirror it (`originalFilename`, type, size, checksum, key) with status SCANNING and
 `ocrStatus` PENDING, writes the timeline event and an UPDATE audit row, and queues its scan; `GET /documents/:id/versions`
 lists them newest first with their author. The display `name` stays (renaming is the documents story's). A quarantined
 document may receive a clean new version. **Scan** (`OcrProcessor`, the `ocr` queue's single consumer; ClamAV `INSTREAM` over
@@ -1541,3 +1541,28 @@ authentication, D-082). **Not done here:** the documents list, download, rename/
 HTTP isolation matrix entry (it needs list/get/patch/delete; another office's file or document → 404 is tested in
 `documents.int.spec.ts`), realtime `document.*` events (WebSocket story). Why: an upload is never held in memory, never
 trusted by its name, and never offered before it was scanned.
+Review additions (same PR): **an aborted or timed-out upload** ends the parser (`stream.pipeline`, not `pipe`), which
+errors the file stream, so the storage write fails and is cleaned up instead of waiting forever; every early answer (413,
+415, a refused field, a replay) is sent once the body has been read (`discardBody`, bounded by the server's request
+timeout), so the client sees it. **Inside the write** the file row is locked (`FOR NO KEY UPDATE`, as folder writes do) and
+checked again — deleted meanwhile is 404, archived BIZ-007 — with the folder and hearing, because an upload can take
+minutes. **Replacing a document** (a new version) is for its uploader or someone who may edit the file
+(`edit:any|assigned:case`, else 403 AUTH-100 / 404): `upload:document` alone (trainees, outside collaborators) adds
+documents but does not overwrite a colleague's. **Idempotent replays** report the document's current version and status; a
+key whose document the caller can no longer see (deleted, file out of scope) is spent — 409 RES-002, body not stored. **A
+confidential document's name stays out of the file's timeline** (payload `{versionNumber}` only), which colleagues off the
+file may read; its audit rows keep the name — the audit-viewer story must filter Document rows with
+`DocumentAccessService.visibleWhere`. **clamd fails closed on what it skips:** the compose files also set `AlertExceedsMax`
+and `AlertEncryptedArchive` (content over its limits, password-protected archives → reported, so QUARANTINED); encrypted
+PDFs and Office macros are not flagged (offices receive both routinely) — the allow-list already refuses macro-enabled
+packages (`vbaProject.bin`), and a DOCX/XLSX must contain its main part (`word/document.xml` / `xl/workbook.xml`). A clean
+scan retried after its `process-document` enqueue failed enqueues again (the update also matches PROCESSING; the job id
+keeps one). The version list is capped at 100; the version UPDATE audit row holds the replaced name, type and checksum.
+**Deviations / known limits:** the 202 carries `documentId`, not a `jobId` (D-014): the document is the thing to follow,
+through its status. Versions have no scan status of their own (`document_versions` is append-only): a version replaced
+before its scan finished is scanned and deleted when infected, but the download story must serve only the current version
+while READY, or record per-version results first. Concurrent uploads each pass the quota against committed usage, so an
+office can overshoot it by about one upload each. A scan job lost after its commit leaves the document SCANNING (fail
+closed); a reconciliation like D-117's belongs with the text-extraction story. The malware SECURITY audit row has no user
+(written by the worker); the notification type is `DOCUMENT_QUARANTINED`; anyone who may upload may mark their upload
+confidential; `GET /documents/:id/versions` needs ANY of `view:all|assigned:cases` plus the document rule above.

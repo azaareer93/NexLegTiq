@@ -7,12 +7,15 @@ import { ClsService } from 'nestjs-cls';
 import { DocumentAccessService } from './document-access.service';
 import { documentJobId, SCAN_DOCUMENT_JOB } from './document-jobs';
 import type { DocumentJob } from './document-jobs';
-import { readUpload } from './upload/multipart';
-import type { IncomingFile } from './upload/multipart';
+import { discardBody, readUpload } from './upload/multipart';
 import type { StoredUpload } from './upload/store-upload';
 import { UploadIntake } from './upload/upload-intake';
 import type { RequestContext } from '../../common/context/request-context';
-import { ResourceNotFoundException, ValidationException } from '../../common/errors/app.exception';
+import {
+  ResourceConflictException,
+  ResourceNotFoundException,
+  ValidationException,
+} from '../../common/errors/app.exception';
 import { isPrismaError } from '../../common/errors/prisma-error';
 import { uuidV7 } from '../../common/ids/uuid-v7';
 import { QueueProducer } from '../../common/queue/queue-producer';
@@ -25,6 +28,17 @@ import { truncateUserAgent } from '../auth/client-info';
 
 /** A client-chosen retry key (api-conventions.md: `Idempotency-Key`). */
 const IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{8,128}$/;
+
+interface NewVersion {
+  readonly documentId: string;
+  readonly fileId: string;
+  readonly versionNumber: number;
+  readonly filename: string;
+  readonly stored: StoredUpload;
+  readonly changeNote: string | null;
+  /** A confidential document's name stays out of the file's timeline, which more people see (D-126). */
+  readonly confidential: boolean;
+}
 
 /**
  * Uploads and versions (MVP-72, D-126). An upload is streamed to `{officeId}/{fileId}/{documentId}/{uuid}.{ext}`, recorded
@@ -47,30 +61,31 @@ export class DocumentsService {
     idempotencyKey: string | undefined,
     client: ClientInfo,
   ): Promise<DocumentUpload> {
-    if (idempotencyKey !== undefined && !IDEMPOTENCY_KEY.test(idempotencyKey)) {
-      req.resume();
-      throw new ValidationException([
-        { field: 'Idempotency-Key', message: 'validation.idempotencyKey' },
-      ]);
-    }
-    const replay = idempotencyKey ? await this.byIdempotencyKey(idempotencyKey) : null;
+    // A retry with a known key is answered from the first upload; its body is discarded unread.
+    const replay = idempotencyKey
+      ? await this.replay(idempotencyKey).catch((error: unknown) =>
+          discardBody(req).then(() => Promise.reject(error)),
+        )
+      : null;
     if (replay) {
-      req.resume();
+      await discardBody(req);
       return replay;
     }
     const { fields, file } = await readUpload(req, UploadDocumentFieldsSchema);
     await this.intake.beforeStoring(file, () => this.intake.assertTargets(fields));
     const documentId = uuidV7();
     const stored = await this.intake.store(file, fields.fileId, documentId);
+    const confidential = fields.isConfidential ?? false;
+    const placement = { folderId: fields.folderId ?? null, sessionId: fields.sessionId ?? null };
     try {
       await this.uow.run(async (tx, afterCommit) => {
+        await this.intake.recheck(tx, fields);
         await tx.document.create({
           data: {
             id: documentId,
             officeId: this.officeId(),
             fileId: fields.fileId,
-            folderId: fields.folderId ?? null,
-            sessionId: fields.sessionId ?? null,
+            ...placement,
             name: file.filename,
             originalFilename: file.filename,
             documentType: fields.documentType,
@@ -79,20 +94,26 @@ export class DocumentsService {
             checksumSha256: stored.checksumSha256,
             storageKey: stored.key,
             status: 'SCANNING',
-            isConfidential: fields.isConfidential ?? false,
+            isConfidential: confidential,
             uploadedById: this.userId(),
             idempotencyKey: idempotencyKey ?? null,
           },
         });
-        await this.recordVersion(tx, afterCommit, documentId, fields.fileId, 1, file, stored, null);
+        await this.recordVersion(tx, afterCommit, {
+          documentId,
+          fileId: fields.fileId,
+          versionNumber: 1,
+          filename: file.filename,
+          stored,
+          changeNote: null,
+          confidential,
+        });
+        const created = { fileId: fields.fileId, ...placement, name: file.filename };
         await tx.auditLog.create({
           data: this.auditRow(client, documentId, 'CREATE', null, {
-            fileId: fields.fileId,
-            folderId: fields.folderId ?? null,
-            sessionId: fields.sessionId ?? null,
-            name: file.filename,
+            ...created,
             documentType: fields.documentType,
-            isConfidential: fields.isConfidential ?? false,
+            isConfidential: confidential,
             mimeType: stored.mimeType,
             sizeBytes: stored.sizeBytes,
             checksumSha256: stored.checksumSha256,
@@ -101,11 +122,8 @@ export class DocumentsService {
       });
     } catch (error) {
       await this.intake.discard(stored.key);
-      // Two requests with one key raced: the other one created the document.
-      if (idempotencyKey && isPrismaError(error) && error.code === 'P2002') {
-        const winner = await this.byIdempotencyKey(idempotencyKey);
-        if (winner) return winner;
-      }
+      const winner = await this.raceWinner(error, idempotencyKey);
+      if (winner) return winner;
       throw error;
     }
     return { documentId, versionNumber: 1, status: 'SCANNING' };
@@ -114,59 +132,57 @@ export class DocumentsService {
   /** Stores a new version of a document (n + 1), which the document then mirrors; it is scanned again. */
   async addVersion(documentId: string, req: Request, client: ClientInfo): Promise<DocumentUpload> {
     const { fields, file } = await readUpload(req, UploadVersionFieldsSchema);
-    const document = await this.intake.beforeStoring(file, () =>
-      this.documents.assertDocumentAccess(documentId, 'contribute'),
-    );
+    const document = await this.intake.beforeStoring(file, async () => {
+      const found = await this.documents.assertDocumentAccess(documentId, 'contribute');
+      await this.documents.assertMayReplace(found);
+      return found;
+    });
     const stored = await this.intake.store(file, document.fileId, documentId);
     try {
       return await this.uow.run(async (tx, afterCommit) => {
+        await this.intake.recheck(tx, { fileId: document.fileId });
         await tx.$queryRaw`SELECT 1 FROM documents WHERE id = ${documentId}::uuid AND office_id = ${this.officeId()}::uuid FOR UPDATE`;
+        const replaced = { originalFilename: true, mimeType: true, checksumSha256: true } as const;
         const before = await tx.document.findFirst({
           where: { id: documentId, deletedAt: null },
-          select: { currentVersion: true, status: true, checksumSha256: true },
+          select: { currentVersion: true, status: true, isConfidential: true, ...replaced },
         });
         if (!before) throw new ResourceNotFoundException();
         const versionNumber = before.currentVersion + 1;
+        const mirror = {
+          originalFilename: file.filename,
+          mimeType: stored.mimeType,
+          checksumSha256: stored.checksumSha256,
+        };
         await tx.document.update({
           where: { id: documentId },
           data: {
             currentVersion: versionNumber,
-            originalFilename: file.filename,
-            mimeType: stored.mimeType,
+            ...mirror,
             sizeBytes: stored.sizeBytes,
-            checksumSha256: stored.checksumSha256,
             storageKey: stored.key,
             status: 'SCANNING',
             ocrStatus: 'PENDING',
           },
         });
-        const note = fields.changeNote || null;
-        await this.recordVersion(
-          tx,
-          afterCommit,
+        const changeNote = fields.changeNote || null;
+        await this.recordVersion(tx, afterCommit, {
           documentId,
-          document.fileId,
+          fileId: document.fileId,
           versionNumber,
-          file,
+          filename: file.filename,
           stored,
-          note,
-        );
+          changeNote,
+          confidential: before.isConfidential,
+        });
+        const { currentVersion, status, originalFilename, mimeType, checksumSha256 } = before;
         await tx.auditLog.create({
           data: this.auditRow(
             client,
             documentId,
             'UPDATE',
-            {
-              currentVersion: before.currentVersion,
-              status: before.status,
-              checksumSha256: before.checksumSha256,
-            },
-            {
-              currentVersion: versionNumber,
-              status: 'SCANNING',
-              checksumSha256: stored.checksumSha256,
-              changeNote: note,
-            },
+            { currentVersion, status, originalFilename, mimeType, checksumSha256 },
+            { currentVersion: versionNumber, status: 'SCANNING', ...mirror, changeNote },
           ),
         });
         return { documentId, versionNumber, status: 'SCANNING' as const };
@@ -182,6 +198,7 @@ export class DocumentsService {
     const rows = await this.prisma.db.documentVersion.findMany({
       where: { documentId },
       orderBy: { versionNumber: 'desc' },
+      take: 100, // listed whole, newest first: a plausible ceiling
       select: {
         versionNumber: true,
         originalFilename: true,
@@ -203,13 +220,9 @@ export class DocumentsService {
   private async recordVersion(
     tx: ScopedTransaction,
     afterCommit: AfterCommit,
-    documentId: string,
-    fileId: string,
-    versionNumber: number,
-    file: IncomingFile,
-    stored: StoredUpload,
-    changeNote: string | null,
+    version: NewVersion,
   ): Promise<void> {
+    const { documentId, fileId, versionNumber, filename, stored, changeNote } = version;
     const officeId = this.officeId();
     const userId = this.userId();
     await tx.documentVersion.create({
@@ -218,7 +231,7 @@ export class DocumentsService {
         documentId,
         versionNumber,
         storageKey: stored.key,
-        originalFilename: file.filename,
+        originalFilename: filename,
         mimeType: stored.mimeType,
         sizeBytes: stored.sizeBytes,
         checksumSha256: stored.checksumSha256,
@@ -234,7 +247,7 @@ export class DocumentsService {
         sourceType: 'Document',
         sourceId: documentId,
         actorId: userId,
-        payload: { name: file.filename, versionNumber },
+        payload: version.confidential ? { versionNumber } : { name: filename, versionNumber },
       },
     });
     const job: DocumentJob = { documentId, versionNumber };
@@ -247,12 +260,36 @@ export class DocumentsService {
     );
   }
 
-  private async byIdempotencyKey(key: string): Promise<DocumentUpload | null> {
+  /**
+   * The document a key already created, in its current state; null for a new key. A key whose document the caller can no
+   * longer reach (deleted, file out of scope) is spent: 409 RES-002.
+   */
+  private async replay(key: string): Promise<DocumentUpload | null> {
+    if (!IDEMPOTENCY_KEY.test(key)) {
+      throw new ValidationException([
+        { field: 'Idempotency-Key', message: 'validation.idempotencyKey' },
+      ]);
+    }
     const document = await this.prisma.db.document.findFirst({
       where: { uploadedById: this.userId(), idempotencyKey: key },
-      select: { id: true, status: true },
+      select: { id: true },
     });
-    return document ? { documentId: document.id, versionNumber: 1, status: document.status } : null;
+    if (!document) return null;
+    const visible = await this.prisma.db.document.findFirst({
+      where: { AND: [{ id: document.id }, this.documents.visibleWhere()] },
+      select: { currentVersion: true, status: true },
+    });
+    if (!visible) throw new ResourceConflictException('RES-002', 'Idempotency-Key already used');
+    return {
+      documentId: document.id,
+      versionNumber: visible.currentVersion,
+      status: visible.status,
+    };
+  }
+
+  /** Two requests with one key raced (unique violation): the other one created the document. */
+  private async raceWinner(error: unknown, key: string | undefined) {
+    return key && isPrismaError(error) && error.code === 'P2002' ? this.replay(key) : null;
   }
 
   private auditRow(

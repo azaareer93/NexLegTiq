@@ -58,7 +58,11 @@ describe('DocumentScan', () => {
     const { scan, db, queues } = setup({ infected: false });
     await expect(scan.run(JOB, signal)).resolves.toBe('CLEAN');
     expect(db.document.updateMany).toHaveBeenCalledWith({
-      where: { id: JOB.documentId, currentVersion: 2, status: 'SCANNING' },
+      where: {
+        id: JOB.documentId,
+        currentVersion: 2,
+        status: { in: ['SCANNING', 'PROCESSING'] },
+      },
       data: { status: 'PROCESSING' },
     });
     expect(queues.enqueue).toHaveBeenCalledWith('ocr', 'process-document', JOB, {

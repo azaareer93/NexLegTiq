@@ -51,11 +51,12 @@ services:
 
   clamav:
     image: clamav/clamav:stable
-    # clamd refuses streams over 25 MB by default; uploads go up to 50 MiB (D-126).
+    # clamd refuses streams over 25 MB by default (uploads go up to 50 MiB), and by default passes what it had to skip
+    # (content over its limits, encrypted archives) as clean: both are changed here, fail closed (D-126).
     entrypoint:
       - /bin/sh
       - -c
-      - grep -q '^StreamMaxLength' /etc/clamav/clamd.conf || echo 'StreamMaxLength 60M' >> /etc/clamav/clamd.conf; exec /init
+      - grep -q '^StreamMaxLength' /etc/clamav/clamd.conf || printf 'StreamMaxLength 60M\nAlertExceedsMax yes\nAlertEncryptedArchive yes\n' >> /etc/clamav/clamd.conf; exec /init
     restart: unless-stopped
     volumes:
       - clamav-db:/var/lib/clamav

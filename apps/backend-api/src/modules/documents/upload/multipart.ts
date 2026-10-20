@@ -1,3 +1,4 @@
+import { pipeline } from 'node:stream';
 import type { Readable } from 'node:stream';
 
 import { MAX_UPLOAD_BYTES, OriginalFilenameSchema } from '@nexlegtiq/shared-contracts';
@@ -21,6 +22,20 @@ export interface IncomingFile {
 
 export const tooLarge = () => new AppException('VAL-006', 'The file is larger than 50 MB');
 
+/**
+ * Reads the rest of a body without keeping it, and settles once it has all arrived (or the client went away): answering
+ * while a client still sends resets the connection, and it never sees the answer. Bounded by the server's request timeout.
+ */
+export function discardBody(req: Request): Promise<void> {
+  if (req.readableEnded) return Promise.resolve();
+  return new Promise((resolve) => {
+    req.once('end', resolve);
+    req.once('close', resolve);
+    req.once('error', () => resolve());
+    req.resume();
+  });
+}
+
 const missingFile = () =>
   new ValidationException([{ field: 'file', message: 'validation.required' }]);
 
@@ -36,13 +51,8 @@ export function readUpload<S extends z.ZodType>(
 ): Promise<{ fields: z.output<S>; file: IncomingFile }> {
   const announced = Number(req.headers['content-length'] ?? 0);
   if (announced > MAX_UPLOAD_BYTES + FORM_OVERHEAD_BYTES) {
-    // Discarded unread (nothing is parsed or stored), and answered once it has all arrived: answering mid-upload
-    // resets the connection, and the client never sees the 413.
-    return new Promise((_, reject) => {
-      req.on('end', () => reject(tooLarge()));
-      req.on('error', reject);
-      req.resume();
-    });
+    // Discarded unread: nothing is parsed or stored.
+    return discardBody(req).then(() => Promise.reject(tooLarge()));
   }
   let parser: busboy.Busboy;
   try {
@@ -53,11 +63,13 @@ export function readUpload<S extends z.ZodType>(
       limits: { files: 1, fields: 10, fieldSize: 4096, parts: 12, fileSize: MAX_UPLOAD_BYTES + 1 },
     });
   } catch {
-    req.resume();
-    return Promise.reject(new AppException('VAL-005', 'Expected a multipart/form-data upload'));
+    return discardBody(req).then(() =>
+      Promise.reject(new AppException('VAL-005', 'Expected a multipart/form-data upload')),
+    );
   }
   return new Promise((resolve, reject) => {
     const raw: Record<string, string> = {};
+    let refusal: ValidationException | undefined;
     parser.on('field', (name, value) => {
       raw[name] = value;
     });
@@ -71,15 +83,14 @@ export function readUpload<S extends z.ZodType>(
       const sent = (info.filename as string | undefined) ?? '';
       const filename = OriginalFilenameSchema.safeParse(sent.split(/[/\\]/).pop() ?? '');
       if (!fields.success || !filename.success) {
+        // Answered once the body has been read (`close`), so the client is still listening.
         stream.resume();
-        reject(
-          new ValidationException([
-            ...(fields.success ? [] : zodIssuesToDetails(fields.error.issues)),
-            ...(filename.success
-              ? []
-              : filename.error.issues.map((issue) => ({ field: 'file', message: issue.message }))),
-          ]),
-        );
+        refusal = new ValidationException([
+          ...(fields.success ? [] : zodIssuesToDetails(fields.error.issues)),
+          ...(filename.success
+            ? []
+            : filename.error.issues.map((issue) => ({ field: 'file', message: issue.message }))),
+        ]);
         return;
       }
       let truncated = false;
@@ -91,9 +102,12 @@ export function readUpload<S extends z.ZodType>(
         file: { filename: filename.data, stream, truncated: () => truncated },
       });
     });
-    parser.on('error', reject);
     // Settling twice is a no-op: after the file part this changes nothing.
-    parser.on('close', () => reject(missingFile()));
-    req.pipe(parser);
+    parser.on('close', () => reject(refusal ?? missingFile()));
+    // `pipeline`, not `pipe`: a client that aborts or times out destroys the parser, which errors the file stream, so
+    // the storage upload fails and is cleaned up instead of waiting forever.
+    pipeline(req, parser, (error) => {
+      if (error) reject(error);
+    });
   });
 }
