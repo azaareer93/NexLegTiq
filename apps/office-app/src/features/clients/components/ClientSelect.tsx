@@ -37,7 +37,8 @@ export function ClientSelect({
   const { t } = useTranslation();
   const [text, setText] = useState('');
   const [open, setOpen] = useState(false);
-  const [creating, setCreating] = useState(false);
+  // The name the drawer starts with: taken on the click, since closing the dropdown clears the search.
+  const [creating, setCreating] = useState<string | null>(null);
   const [picked, setPicked] = useState<PickedClient | undefined>();
   const search = useDebounced(text.trim());
   const list = useClientsList(
@@ -90,8 +91,8 @@ export function ClientSelect({
               icon={<PlusOutlined />}
               style={{ textAlign: 'start' }}
               onClick={() => {
+                setCreating(text.trim());
                 setOpen(false);
-                setCreating(true);
               }}
               data-testid={`${testId}-create`}
             >
@@ -108,12 +109,12 @@ export function ClientSelect({
         data-testid={testId}
       />
       <ClientDrawer
-        open={creating}
+        open={creating !== null}
         clientId={null}
-        initialName={text.trim()}
-        onClose={() => setCreating(false)}
+        initialName={creating ?? ''}
+        onClose={() => setCreating(null)}
         onCreated={(client: Client) => {
-          setCreating(false);
+          setCreating(null);
           setText('');
           pick({ id: client.id, displayName: client.displayName });
         }}

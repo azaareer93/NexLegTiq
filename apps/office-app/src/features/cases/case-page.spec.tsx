@@ -369,7 +369,8 @@ describe('file page', () => {
           fail(400, 'VAL-001', [{ field: 'title', message: 'validation.tooLong' }]),
         ),
       );
-      renderApp(`/cases/${ID}`);
+      // StrictMode, as in main.tsx: its dev remount must not wipe the form's starting values.
+      renderApp(`/cases/${ID}`, 'en', { strict: true });
       await page();
       fireEvent.click(screen.getByTestId('case-edit'));
       fireEvent.change(await screen.findByTestId('case-title-input'), {

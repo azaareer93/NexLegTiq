@@ -354,7 +354,8 @@ describe('client drawer', () => {
       signedIn();
       serveClients([]);
       const writes = serveWrites(detail({ nationalId: '401234567' }));
-      renderApp('/clients');
+      // StrictMode, as in main.tsx: its dev remount must not wipe the new client's starting values.
+      renderApp('/clients', 'en', { strict: true });
       fireEvent.click(await screen.findByTestId('clients-new', {}, { timeout: COLD }));
       await screen.findByTestId('client-name-input');
       expect(screen.queryByTestId('client-tax-id-input')).toBeNull();

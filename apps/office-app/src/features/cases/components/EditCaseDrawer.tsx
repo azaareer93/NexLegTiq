@@ -3,6 +3,7 @@ import { UpdateCaseSchema } from '@nexlegtiq/shared-contracts';
 import { BILLING_METHODS, PRIORITIES } from '@nexlegtiq/shared-types';
 import { ApiErrorAlert, Ltr, useApiErrorHandler } from '@nexlegtiq/shared-ui';
 import { App, Button, Drawer, Flex, Form, Input, Select, Switch } from 'antd';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { parseForm, zodRule } from '../../auth/forms';
@@ -59,13 +60,19 @@ interface EditCaseDrawerProps {
   readonly onClose: () => void;
 }
 
-/** Edits the file's own fields (D-118); status, team, lawyer and court have their own flows. */
-export function EditCaseDrawer({
-  file,
-  actions,
-  open,
-  onClose,
-}: EditCaseDrawerProps): React.JSX.Element {
+/**
+ * Edits the file's own fields (D-118); status, team, lawyer and court have their own flows. Every opening gets a fresh
+ * form, so a cancelled edit leaves nothing behind (not `clearOnDestroy`: StrictMode's dev remount wipes initial values).
+ */
+export function EditCaseDrawer(props: EditCaseDrawerProps): React.JSX.Element {
+  const [opening, setOpening] = useState({ open: props.open, count: 0 });
+  if (props.open !== opening.open) {
+    setOpening({ open: props.open, count: opening.count + (props.open ? 1 : 0) });
+  }
+  return <CaseEditDrawer key={opening.count} {...props} />;
+}
+
+function CaseEditDrawer({ file, actions, open, onClose }: EditCaseDrawerProps): React.JSX.Element {
   const { t } = useTranslation();
   const { message } = App.useApp();
   const { translateKey, applyToForm } = useApiErrorHandler();
@@ -132,8 +139,6 @@ export function EditCaseDrawer({
           noValidate
           requiredMark={false}
           initialValues={valuesOf(file)}
-          // A cancelled edit leaves nothing behind: the next opening starts from the file as it is.
-          clearOnDestroy
           onFinish={submit}
           disabled={update.isPending}
         >
