@@ -35,7 +35,7 @@ const activeUser = {
   isActive: true,
   emailVerifiedAt: new Date('2026-09-01T00:00:00Z'),
   createdAt: new Date('2026-09-01T00:00:00Z'),
-  office: { name: 'Office', isActive: true },
+  office: { name: 'Office', isActive: true, settings: { sessionIdleMinutes: 45 } },
 };
 
 function setup(
@@ -159,7 +159,7 @@ describe('AuthService.login', () => {
     ['an inactive user', { ...activeUser, isActive: false }, 'User account is inactive'],
     [
       'a suspended office',
-      { ...activeUser, office: { name: 'O', isActive: false } },
+      { ...activeUser, office: { name: 'O', isActive: false, settings: null } },
       'Office is suspended',
     ],
     ['an unknown role', { ...activeUser, role: 'GHOST' }, 'User account is inactive'],
@@ -181,6 +181,7 @@ describe('AuthService.login', () => {
     const issued = await setup({ user: fresh }).service.login(request, client);
     expect(issued.session.user).toMatchObject({
       emailVerified: false,
+      idleMinutes: 45,
       verifyBy: new Date(fresh.createdAt.getTime() + 7 * 86_400_000).toISOString(),
     });
 

@@ -5,9 +5,15 @@ import {
   ClientListItemSchema,
   ClientSchema,
   ContactPersonSchema,
+  OfficeProfileSchema,
+  OfficeSettingsSchema,
   OfficeSubscriptionSchema,
 } from '@nexlegtiq/shared-contracts';
 import type {
+  OfficeProfile,
+  OfficeSettings,
+  UpdateOfficeProfileRequest,
+  UpdateOfficeSettingsRequest,
   OfficeSubscription,
   AuthSession,
   Case,
@@ -154,6 +160,14 @@ export function clientsApi(client: ApiClient) {
 /** `offices/me…` (api-conventions.md#offices): the office's subscription and usage (D-122). */
 export function officesApi(client: ApiClient) {
   return {
+    profile: (signal?: AbortSignal): Promise<OfficeProfile> =>
+      client.request({ method: 'GET', path: 'offices/me', signal }, OfficeProfileSchema),
+    updateProfile: (body: UpdateOfficeProfileRequest): Promise<OfficeProfile> =>
+      client.request({ method: 'PATCH', path: 'offices/me', body }, OfficeProfileSchema),
+    settings: (signal?: AbortSignal): Promise<OfficeSettings> =>
+      client.request({ method: 'GET', path: 'offices/me/settings', signal }, OfficeSettingsSchema),
+    updateSettings: (body: UpdateOfficeSettingsRequest): Promise<OfficeSettings> =>
+      client.request({ method: 'PATCH', path: 'offices/me/settings', body }, OfficeSettingsSchema),
     subscription: (signal?: AbortSignal): Promise<OfficeSubscription> =>
       client.request(
         { method: 'GET', path: 'offices/me/subscription', signal },

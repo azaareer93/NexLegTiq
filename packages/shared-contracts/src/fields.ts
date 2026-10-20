@@ -75,3 +75,27 @@ export const sortParam = <F extends string>(fields: readonly F[]) =>
       }
       return sort;
     });
+
+/** ISO-4217 codes the runtime knows (Node and every supported browser ship the list). */
+const CURRENCIES = new Set(Intl.supportedValuesOf('currency'));
+
+/** An ISO-4217 currency code (D-004), upper-cased. */
+export const CurrencySchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .refine((code) => CURRENCIES.has(code), 'validation.currency');
+
+/** An IANA time zone the runtime knows (`Asia/Hebron`), as `Intl` accepts it (D-092). */
+export const TimeZoneSchema = z
+  .string()
+  .trim()
+  .max(64, 'validation.tooLong')
+  .refine((zone) => {
+    try {
+      new Intl.DateTimeFormat('en', { timeZone: zone });
+      return zone.length > 0;
+    } catch {
+      return false;
+    }
+  }, 'validation.timeZone');

@@ -16,7 +16,9 @@ export const USER_FOR_SESSION = {
   isActive: true,
   emailVerifiedAt: true,
   createdAt: true,
-  office: { select: { name: true, isActive: true } },
+  office: {
+    select: { name: true, isActive: true, settings: { select: { sessionIdleMinutes: true } } },
+  },
 } as const;
 
 export interface NewRefreshToken {
