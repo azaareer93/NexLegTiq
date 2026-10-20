@@ -9,10 +9,10 @@ export const closeQuickCreateCase = (): void => useQuickCreateCase.setState({ op
 const EDITABLE = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
 
 /**
- * Ctrl+Alt+N by the physical key (works on an Arabic layout), not on auto-repeat or while composing. Ignored while
- * typing in a field: on Windows Ctrl+Alt is AltGr, which some layouts use to type characters.
+ * Ctrl+Alt+<key> by the physical key (`code`, so it works on an Arabic layout), not on auto-repeat or while composing.
+ * Ignored while typing in a field: on Windows Ctrl+Alt is AltGr, which some layouts use to type characters.
  */
-export function isNewCaseShortcut(event: KeyboardEvent): boolean {
+export function isCtrlAltShortcut(event: KeyboardEvent, code: string): boolean {
   return (
     !isTyping(event.target) &&
     event.ctrlKey &&
@@ -21,9 +21,13 @@ export function isNewCaseShortcut(event: KeyboardEvent): boolean {
     !event.metaKey &&
     !event.repeat &&
     !event.isComposing &&
-    event.code === 'KeyN'
+    event.code === code
   );
 }
+
+/** Ctrl+Alt+N: a new case (D-123). */
+export const isNewCaseShortcut = (event: KeyboardEvent): boolean =>
+  isCtrlAltShortcut(event, 'KeyN');
 
 const isTyping = (target: EventTarget | null): boolean =>
   target instanceof HTMLElement && (target.isContentEditable || EDITABLE.has(target.tagName));
