@@ -111,7 +111,6 @@ function ClientForm({
         noValidate
         requiredMark={false}
         initialValues={initial}
-        clearOnDestroy
         onFinish={submit}
         disabled={save.isPending}
       >
