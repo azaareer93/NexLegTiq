@@ -136,6 +136,14 @@ describe('AuthService.login', () => {
     });
   });
 
+  it("should send the office's idle timeout, or the default without a settings row (D-125)", async () => {
+    const withSettings = await setup().service.login(request, client);
+    expect(withSettings.session.user.idleMinutes).toBe(45);
+    const user = { ...activeUser, office: { ...activeUser.office, settings: null } };
+    const without = await setup({ user }).service.login(request, client);
+    expect(without.session.user.idleMinutes).toBe(30);
+  });
+
   it('should lock out before checking the password', async () => {
     const { service, raw } = setup({
       failures: Array.from({ length: 5 }, () => new Date(Date.now() - 1000)),

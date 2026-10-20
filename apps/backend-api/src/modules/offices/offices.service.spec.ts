@@ -1,6 +1,8 @@
 import { FileNumberFormatSchema } from '@nexlegtiq/shared-contracts';
+import type { Request } from 'express';
 import type { ClsService } from 'nestjs-cls';
 
+import { OfficesController } from './offices.controller';
 import { changes, OfficesService } from './offices.service';
 import type { RequestContext } from '../../common/context/request-context';
 import { ValidationException } from '../../common/errors/app.exception';
@@ -137,5 +139,33 @@ describe('fileNumberFormat contract vs parser', () => {
       parsed = false;
     }
     expect(FileNumberFormatSchema.safeParse(format).success).toBe(parsed);
+  });
+});
+
+describe('OfficesController', () => {
+  it('should hand each route to the service with the caller', async () => {
+    const service = {
+      profile: jest.fn().mockResolvedValue('profile'),
+      updateProfile: jest.fn().mockResolvedValue('profile'),
+      settings: jest.fn().mockResolvedValue('settings'),
+      updateSettings: jest.fn().mockResolvedValue('settings'),
+    };
+    const req = { ip: '127.0.0.1', get: () => 'jest' } as unknown as Request;
+    for (const active of [true, false]) {
+      const cls = { isActive: () => active, getId: () => 'req-12345678' };
+      const controller = new OfficesController(
+        service as unknown as OfficesService,
+        cls as unknown as ClsService<RequestContext>,
+      );
+      await expect(controller.profile()).resolves.toBe('profile');
+      await expect(controller.settings()).resolves.toBe('settings');
+      await controller.updateProfile({ name: 'N' }, req);
+      await controller.updateSettings({ enableAi: false }, req);
+    }
+    expect(service.updateProfile).toHaveBeenCalledWith(
+      { name: 'N' },
+      expect.objectContaining({ requestId: 'req-12345678' }),
+    );
+    expect(service.updateSettings).toHaveBeenCalledTimes(2);
   });
 });
