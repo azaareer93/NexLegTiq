@@ -94,6 +94,11 @@ services:
 
   clamav:
     image: clamav/clamav:stable
+    # clamd refuses streams over 25 MB by default; uploads go up to 50 MiB (D-126).
+    entrypoint:
+      - /bin/sh
+      - -c
+      - grep -q '^StreamMaxLength' /etc/clamav/clamd.conf || echo 'StreamMaxLength 60M' >> /etc/clamav/clamd.conf; exec /init
     ports: ['127.0.0.1:3310:3310']
     volumes:
       # Signature DB (~300 MB) is downloaded by freshclam on first start; the volume keeps it across restarts.

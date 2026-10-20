@@ -304,6 +304,8 @@ export const TENANT_ISOLATION_MATRIX: readonly TenantResource[] = [
   },
   // Folders are nested under their file (`cases/:id/folders`); their HTTP isolation is in folders.int.spec.ts.
   { model: 'DocumentFolder', create: folderIn, update: { name: 'Renamed' } },
+  // Uploads and versions have no list/get/patch/delete yet (the document-access story adds them); their HTTP
+  // isolation (another office's file or document → 404) is in documents.int.spec.ts until then.
   { model: 'Document', create: documentIn, update: { name: 'Renamed' } },
   { model: 'DocumentVersion', create: versionIn, update: { changeNote: 'Changed' } },
   { model: 'DocumentText', create: documentTextIn, update: { text: 'Changed' } },

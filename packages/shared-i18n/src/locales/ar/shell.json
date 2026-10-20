@@ -30,7 +30,8 @@
     "open": "الإشعارات",
     "empty": "لا توجد إشعارات بعد.",
     "hearingReminder": "جلسة قادمة في الملف {{fileNumber}}",
-    "fileReassigned": "أُسند إليك الملف {{fileNumber}}"
+    "fileReassigned": "أُسند إليك الملف {{fileNumber}}",
+    "documentQuarantined": "حُجب المستند ⁨{{name}}⁩ لاحتوائه على برمجية خبيثة"
   },
   "profile": {
     "menu": "قائمة الحساب",
