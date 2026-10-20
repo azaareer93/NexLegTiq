@@ -1,11 +1,13 @@
+import { PlusOutlined } from '@ant-design/icons';
 import { CreateCaseSchema } from '@nexlegtiq/shared-contracts';
 import { BILLING_METHODS } from '@nexlegtiq/shared-types';
 import { useApiErrorHandler } from '@nexlegtiq/shared-ui';
 import { isolate } from '@nexlegtiq/shared-utils';
-import { Form, Input, Select } from 'antd';
+import { Button, Divider, Form, Input, Select } from 'antd';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { NewCourtModal, NewJudgeModal } from './CourtQuickAdd';
 import { zodRule } from '../../auth/forms';
 import { useDebounced } from '../../clients/list-params';
 import { useCourts, useDirectory, useJudges } from '../api/use-cases';
@@ -56,15 +58,31 @@ export function PeopleFields(): React.JSX.Element {
   );
 }
 
-/** An optional court (server search, platform and office courts) and a judge of that court. */
-export function CourtFields(): React.JSX.Element {
+interface Option {
+  readonly value: string;
+  readonly label: string;
+}
+
+/**
+ * An optional court (server search, platform and office courts) and a judge of that court, each with an inline "new"
+ * (D-115). `initialCourt` names a court the form starts with (an edited hearing's), which a search may not list.
+ */
+export function CourtFields({
+  initialCourt,
+}: {
+  readonly initialCourt?: Option;
+}): React.JSX.Element {
   const { t, i18n } = useTranslation();
   const form = Form.useFormInstance();
-  const courtId = Form.useWatch<string | undefined>('courtId', form);
+  // `null` (a cleared court of an edited hearing) is no court too.
+  const courtId = Form.useWatch<string | null | undefined>('courtId', form) ?? undefined;
   const [text, setText] = useState('');
   const [open, setOpen] = useState(false);
   // The picked court keeps its name when a later search no longer lists it (as ClientSelect does).
-  const [picked, setPicked] = useState<{ value: string; label: string } | undefined>();
+  const [picked, setPicked] = useState<Option | undefined>(initialCourt);
+  // The court modal's starting name (what was searched), null while closed; taken on click, as closing clears the search.
+  const [newCourt, setNewCourt] = useState<string | null>(null);
+  const [newJudge, setNewJudge] = useState(false);
   const search = useDebounced(text.trim());
   const courts = useCourts(search, open || courtId !== undefined);
   const judges = useJudges(courtId);
@@ -90,6 +108,20 @@ export function CourtFields(): React.JSX.Element {
           placeholder={t('cases.create.courtPlaceholder')}
           loading={courts.isFetching}
           options={options}
+          popupRender={(menu) => (
+            <>
+              {menu}
+              <AddButton
+                label={t('cases.create.newCourt')}
+                onClick={() => {
+                  setNewCourt(text.trim());
+                  setOpen(false);
+                }}
+                testId="create-court-new"
+              />
+            </>
+          )}
+          open={open}
           data-testid="create-court"
         />
       </Form.Item>
@@ -102,9 +134,66 @@ export function CourtFields(): React.JSX.Element {
           options={(judges.data ?? [])
             .filter((judge) => judge.isActive)
             .map((judge) => ({ value: judge.id, label: isolate(judge.fullName) }))}
+          popupRender={(menu) => (
+            <>
+              {menu}
+              <AddButton
+                label={t('cases.create.newJudge')}
+                onClick={() => setNewJudge(true)}
+                testId="create-judge-new"
+              />
+            </>
+          )}
           data-testid="create-judge"
         />
       </Form.Item>
+      <NewCourtModal
+        initialName={newCourt}
+        onClose={() => setNewCourt(null)}
+        onCreated={(court) => {
+          setNewCourt(null);
+          setPicked({
+            value: court.id,
+            label: isolate(arabic ? court.nameAr : (court.nameEn ?? court.nameAr)),
+          });
+          form.setFieldsValue({ courtId: court.id, judgeId: undefined });
+        }}
+      />
+      <NewJudgeModal
+        courtId={courtId}
+        open={newJudge}
+        onClose={() => setNewJudge(false)}
+        onCreated={(judge) => {
+          setNewJudge(false);
+          form.setFieldValue('judgeId', judge.id);
+        }}
+      />
+    </>
+  );
+}
+
+function AddButton({
+  label,
+  onClick,
+  testId,
+}: {
+  readonly label: string;
+  readonly onClick: () => void;
+  readonly testId: string;
+}): React.JSX.Element {
+  return (
+    <>
+      <Divider style={{ margin: '4px 0' }} />
+      <Button
+        type="text"
+        block
+        icon={<PlusOutlined />}
+        style={{ textAlign: 'start' }}
+        onClick={onClick}
+        data-testid={testId}
+      >
+        {label}
+      </Button>
     </>
   );
 }

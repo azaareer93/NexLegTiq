@@ -1,6 +1,12 @@
 import { ApiError, casesApi, courtsApi, usersApi } from '@nexlegtiq/shared-api-client';
 import type { CaseListParams } from '@nexlegtiq/shared-api-client';
-import type { Case, CreateCaseSchema, UpdateCaseRequest } from '@nexlegtiq/shared-contracts';
+import type {
+  Case,
+  CreateCaseSchema,
+  CreateCourtSchema,
+  CreateJudgeSchema,
+  UpdateCaseRequest,
+} from '@nexlegtiq/shared-contracts';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { z } from 'zod';
 
@@ -11,6 +17,8 @@ const users = usersApi(apiClient);
 const courts = courtsApi(apiClient);
 
 type CreateCaseInput = z.input<typeof CreateCaseSchema>;
+type CreateCourtInput = z.input<typeof CreateCourtSchema>;
+type CreateJudgeInput = z.input<typeof CreateJudgeSchema>;
 
 export const caseKeys = {
   all: ['cases'] as const,
@@ -101,3 +109,22 @@ export const useJudges = (courtId: string | undefined) =>
     queryFn: ({ signal }) => courts.judges(courtId ?? '', signal),
     enabled: courtId !== undefined,
   });
+
+/** `POST /courts`: an office court (D-115); court searches refetch. */
+export function useCreateCourt() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateCourtInput) => courts.create(body),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['courts', 'list'] }),
+  });
+}
+
+/** `POST /courts/:id/judges`: an office judge at that court; its judge list refetches. */
+export function useCreateJudge(courtId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateJudgeInput) => courts.createJudge(courtId ?? '', body),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({ queryKey: ['courts', 'judges', courtId] }),
+  });
+}
