@@ -27,6 +27,7 @@ import { AI_REDACTOR, PassThroughRedactor } from './redaction';
     AiJobRegistry,
     { provide: AI_REDACTOR, useClass: PassThroughRedactor },
   ],
-  exports: [AiExecutor, AiJobs, AiJobRegistry, AiProviders, AiAccess],
+  // AiProviders stays inside: features reach a model only through AiExecutor (redaction, quota, usage).
+  exports: [AiExecutor, AiJobs, AiJobRegistry, AiAccess],
 })
 export class AiModule {}

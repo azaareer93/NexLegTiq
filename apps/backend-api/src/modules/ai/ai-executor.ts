@@ -1,20 +1,24 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { OfficeId } from '@nexlegtiq/shared-types';
+import { Decimal } from 'decimal.js';
 import { ClsService } from 'nestjs-cls';
 import { z } from 'zod';
 
 import { AiAccess } from './ai-access';
 import { AiCache } from './ai-cache';
-import { AiProviders } from './ai-providers';
+import { AiFinalException, AiProviders } from './ai-providers';
 import type { ProviderAnswer } from './ai-providers';
 import { AiUsageRecorder } from './ai-usage';
 import { AI_REDACTOR, restoreDeep } from './redaction';
-import type { AiRedactor, RedactionContext } from './redaction';
+import type { AiRedactor, Redacted, RedactionContext } from './redaction';
 import type { RequestContext } from '../../common/context/request-context';
 import { AppException } from '../../common/errors/app.exception';
 import { AppConfig } from '../../config/app-config';
 
-/** A versioned prompt (ai-ocr.md): `version` is stored with the output and part of the cache key. */
+/**
+ * A versioned prompt (ai-ocr.md): `version` is stored with the output and part of the cache key. `system` comes from a
+ * prompt file; case data belongs in `user` (both are redacted, but only `user` is meant to carry it).
+ */
 export interface AiPrompt {
   readonly version: string;
   readonly system: string;
@@ -22,12 +26,15 @@ export interface AiPrompt {
 }
 
 export interface ExecuteOptions<T> {
-  /** Feature name for usage and the fake provider, e.g. `document-summary`. */
+  /** Feature name for usage, the cache key and the fake provider, e.g. `document-summary`. */
   readonly feature: string;
   readonly prompt: AiPrompt;
   readonly schema: z.ZodType<T>;
   readonly redactionContext: RedactionContext;
-  /** Office-scoped cache key parts (`[A-Za-z0-9._-]`); the prompt version is added. None → no cache. */
+  /**
+   * Office-scoped cache key parts (`[A-Za-z0-9._-]`), e.g. the document id and version; the feature and prompt version
+   * are added. None → no cache. The cache is per office: the caller has checked access to the source first.
+   */
   readonly cacheKey?: readonly string[];
   readonly ttlSeconds?: number;
   /** Who asked; null for work the system started. */
@@ -46,12 +53,18 @@ export interface AiResult<T> {
 /** Longest user text sent at once; longer documents are chunked by the feature (map-reduce), else AI-003. */
 export const MAX_INPUT_CHARS = 400_000;
 
+/**
+ * Time for one `execute`, all attempts included (primary, fallback, repair): inside the `ai` queue's 120 s job timeout
+ * (D-084), so the job is never cut off in the middle of a provider call.
+ */
+export const EXECUTE_DEADLINE_MS = 100_000;
+
 type Cached<T> = Omit<AiResult<T>, 'cached'>;
 
 /**
- * The one way to call an LLM (ai-ocr.md, D-130): availability (AI-001/005, AUTH-102/103) → cache → PII redaction →
- * provider with fallback → JSON parse + Zod validation (one repair attempt, then AI-004) → re-hydration → usage row →
- * cache. Fails closed: a provider that sends text out runs only with a redactor that really redacts (D-057).
+ * The one way to call an LLM (ai-ocr.md, D-130): enablement (AI-001/005, AUTH-102) → cache → quota (AUTH-103) → PII
+ * redaction → provider with fallback → JSON parse + Zod validation (one repair, then AI-004) → re-hydration → usage row
+ * → cache. Fails closed: a provider that sends text out runs only with a redactor that really redacts (D-057).
  */
 @Injectable()
 export class AiExecutor {
@@ -67,18 +80,15 @@ export class AiExecutor {
 
   async execute<T>(options: ExecuteOptions<T>): Promise<AiResult<T>> {
     const officeId = this.officeId();
-    await this.access.assertAvailable();
-    const key = options.cacheKey && [...options.cacheKey, options.prompt.version];
+    await this.access.assertEnabled();
+    const key = options.cacheKey && [options.feature, ...options.cacheKey, options.prompt.version];
     const hit = key ? await this.fromCache(officeId, key, options) : null;
     if (hit) return hit;
+    await this.access.assertQuota();
     const result = await this.call(options);
     if (key) {
-      await this.cache.set(
-        officeId,
-        key,
-        result,
-        options.ttlSeconds ?? this.config.ai.cacheTtlSeconds,
-      );
+      const ttl = options.ttlSeconds ?? this.config.ai.cacheTtlSeconds;
+      await this.cache.set(officeId, key, result, ttl);
     }
     return { ...result, cached: false };
   }
@@ -100,38 +110,41 @@ export class AiExecutor {
       outputTokens: 0,
       durationMs: 0,
       cached: true,
+      costUsd: '0',
       userId: options.userId ?? null,
     });
     return { ...hit, value: value.data, cached: true };
   }
 
-  /** Redact → provider (with one repair) → re-hydrate → validate; the usage row is written even when it fails. */
+  /**
+   * Redact → provider (with one repair) → re-hydrate → validate. Every answer received is recorded, also when a later
+   * call fails: the calls were paid for.
+   */
   private async call<T>(options: ExecuteOptions<T>): Promise<Cached<T>> {
     if (this.providers.sendsOut && !this.redactor.redactsPii) {
-      throw new AppException(
+      throw new AiFinalException(
         'AI-001',
         'AI providers are blocked until the PII redactor is installed',
       );
     }
     if (options.prompt.user.length > MAX_INPUT_CHARS) {
-      throw new AppException('AI-003', 'Input too large for the AI model');
+      throw new AiFinalException('AI-003', 'Input too large for the AI model');
     }
     const redacted = this.redactor.redact(options.prompt.user, options.redactionContext);
+    const system = this.redactor.redact(options.prompt.system, options.redactionContext).text;
+    const answers: ProviderAnswer[] = [];
     const started = Date.now();
-    const { value, answers } = await this.ask(options, redacted.text);
-    const last = answers[answers.length - 1] as ProviderAnswer;
-    await this.usage.record({
-      feature: options.feature,
-      provider: last.provider,
-      model: last.model,
-      inputTokens: answers.reduce((sum, answer) => sum + answer.inputTokens, 0),
-      outputTokens: answers.reduce((sum, answer) => sum + answer.outputTokens, 0),
-      durationMs: Date.now() - started,
-      cached: false,
-      userId: options.userId ?? null,
-    });
+    let value: unknown;
+    try {
+      value = await this.ask(options, system, redacted, answers);
+    } finally {
+      await this.record(options, answers, Date.now() - started);
+    }
     const restored = options.schema.safeParse(restoreDeep(value, redacted.restore));
-    if (!restored.success) throw new AppException('AI-004', 'AI output did not match the schema');
+    const last = answers[answers.length - 1];
+    if (!restored.success || !last) {
+      throw new AiFinalException('AI-004', 'AI output did not match the schema');
+    }
     return {
       value: restored.data,
       provider: last.provider,
@@ -140,30 +153,69 @@ export class AiExecutor {
     };
   }
 
-  /** One call, and one repair call when the answer is not valid JSON for the schema. */
+  /** One call, and one repair call (a separate message) when the answer is not valid JSON for the schema. */
   private async ask<T>(
     options: ExecuteOptions<T>,
-    user: string,
-  ): Promise<{ value: unknown; answers: ProviderAnswer[] }> {
-    const jsonSchema = z.toJSONSchema(options.schema, { io: 'input', unrepresentable: 'any' });
+    system: string,
+    redacted: Redacted,
+    answers: ProviderAnswer[],
+  ): Promise<unknown> {
+    const deadline = AbortSignal.timeout(EXECUTE_DEADLINE_MS);
     const request = {
       feature: options.feature,
-      system: options.prompt.system,
-      jsonSchema,
+      system,
+      user: redacted.text,
+      jsonSchema: z.toJSONSchema(options.schema, { io: 'input', unrepresentable: 'any' }),
       maxOutputTokens: this.config.ai.maxOutputTokens,
       temperature: this.config.ai.temperature,
-      signal: options.signal ?? new AbortController().signal,
+      signal: options.signal ? AbortSignal.any([options.signal, deadline]) : deadline,
     };
-    const first = await this.providers.complete({ ...request, user });
-    const checked = check(first.text, options.schema);
-    if (checked.ok) return { value: checked.value, answers: [first] };
-    const repair = await this.providers.complete({
-      ...request,
-      user: `${user}\n\nYour previous answer was not valid (${checked.problem}). Answer again with one JSON object only, matching the schema.`,
+    try {
+      const first = await this.providers.complete(request);
+      answers.push(first);
+      const checked = check(first.text, options.schema);
+      if (checked.ok) return checked.value;
+      const repair = await this.providers.complete({
+        ...request,
+        followUp: `Your previous answer was not valid (${checked.problem}). Answer again with one JSON object only, matching the schema.`,
+      });
+      answers.push(repair);
+      const repaired = check(repair.text, options.schema);
+      return repaired.ok ? repaired.value : null;
+    } catch (error) {
+      // Our own deadline, not the caller's signal: the providers were too slow this time.
+      if (deadline.aborted && !options.signal?.aborted) {
+        throw new AppException('AI-001', 'AI providers did not answer in time');
+      }
+      throw error;
+    }
+  }
+
+  private async record<T>(
+    options: ExecuteOptions<T>,
+    answers: readonly ProviderAnswer[],
+    durationMs: number,
+  ): Promise<void> {
+    const last = answers[answers.length - 1];
+    if (!last) return;
+    await this.usage.record({
+      feature: options.feature,
+      provider: last.provider,
+      model: last.model,
+      inputTokens: answers.reduce((sum, answer) => sum + answer.inputTokens, 0),
+      outputTokens: answers.reduce((sum, answer) => sum + answer.outputTokens, 0),
+      durationMs,
+      cached: false,
+      // Each call at its own provider's price (a repair may come from the fallback).
+      costUsd: answers
+        .reduce(
+          (sum, answer) =>
+            sum.plus(this.usage.cost(answer.priceModel, answer.inputTokens, answer.outputTokens)),
+          new Decimal(0),
+        )
+        .toFixed(6),
+      userId: options.userId ?? null,
     });
-    const repaired = check(repair.text, options.schema);
-    if (repaired.ok) return { value: repaired.value, answers: [first, repair] };
-    return { value: null, answers: [first, repair] };
   }
 
   private officeId(): OfficeId {

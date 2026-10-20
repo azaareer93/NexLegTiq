@@ -4,7 +4,12 @@ export interface AiRequest {
   readonly feature: string;
   readonly system: string;
   readonly user: string;
-  /** JSON Schema of the expected answer (Zod's `toJSONSchema`). */
+  /**
+   * A separate follow-up message from us (the repair instruction), never appended to the user text: a document cannot
+   * forge it.
+   */
+  readonly followUp?: string;
+  /** JSON Schema of the expected answer (Zod's `toJSONSchema`, without `$schema`). */
   readonly jsonSchema: Record<string, unknown>;
   readonly maxOutputTokens: number;
   readonly temperature: number;
@@ -14,6 +19,7 @@ export interface AiRequest {
 export interface AiCompletion {
   /** The raw answer, expected to be JSON. */
   readonly text: string;
+  /** The model that answered, as the provider names it (may be a dated snapshot). */
   readonly model: string;
   readonly inputTokens: number;
   readonly outputTokens: number;
@@ -23,6 +29,7 @@ export type ProviderName = 'openai' | 'gemini' | 'fake';
 
 export interface AiProvider {
   readonly name: ProviderName;
+  /** The configured model name — the key of `AI_MODEL_PRICES`. */
   readonly model: string;
   complete(request: AiRequest): Promise<AiCompletion>;
 }
@@ -43,9 +50,10 @@ export class ProviderUnavailableError extends Error {
 }
 
 /**
- * The provider refused the request itself (bad key, bad request, input too long): another provider would refuse it
- * too or answer differently, so no fallback. `tooLarge` maps to AI-003, anything else to AI-001. Never carries the
- * provider's message (it may quote the input).
+ * The provider refused the request itself (bad key, bad request, input too long, content blocked by its safety
+ * filters): another provider would refuse it too or answer differently, so no fallback and no breaker count — one office's
+ * document must not switch a provider off for everyone. `tooLarge` maps to AI-003, anything else to AI-001. Never
+ * carries the provider's message (it may quote the input).
  */
 export class ProviderRequestError extends Error {
   constructor(
@@ -56,4 +64,10 @@ export class ProviderRequestError extends Error {
     super(`${provider} refused the request (${status})`);
     this.name = 'ProviderRequestError';
   }
+}
+
+/** Zod's JSON Schema carries `$schema`, which providers' schema dialects do not all accept. */
+export function providerSchema(schema: Record<string, unknown>): Record<string, unknown> {
+  const { $schema: _dialect, ...rest } = schema;
+  return rest;
 }

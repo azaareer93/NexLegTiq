@@ -119,14 +119,12 @@ describe('AiUsageRecorder', () => {
       durationMs: 10,
       cached: false,
       userId: null,
+      costUsd: '0.450000',
     };
-    expect(recorder.cost(entry)).toBe('0.450000');
-    expect(recorder.cost({ ...entry, model: 'unknown' })).toBe('0');
-    expect(recorder.cost({ ...entry, cached: true })).toBe('0');
+    expect(recorder.cost('m', 1_000_000, 500_000).toFixed(6)).toBe('0.450000');
+    expect(recorder.cost('unknown', 1_000_000, 500_000).toFixed(6)).toBe('0.000000');
     await recorder.record(entry);
-    expect(create).toHaveBeenCalledWith({
-      data: { ...entry, officeId: OFFICE, costUsd: '0.450000' },
-    });
+    expect(create).toHaveBeenCalledWith({ data: { ...entry, officeId: OFFICE } });
     const orphan = new AiUsageRecorder(
       { db: { aiUsage: { create } } } as unknown as PrismaService,
       config(),
@@ -242,13 +240,26 @@ describe('AiJobs', () => {
     await expect(jobs.start(JOB)).resolves.toEqual({ createdById: 'u1' });
     aiJob.updateMany.mockResolvedValueOnce({ count: 0 });
     await expect(jobs.start(JOB)).resolves.toBeNull();
-    await jobs.succeed(JOB, { summaryId: 's' });
+    await jobs.succeed(JOB, { summaryId: JOB, count: 2 });
+    expect(aiJob.updateMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { id: JOB, status: 'RUNNING' } }),
+    );
     expect(realtime.toUser).toHaveBeenLastCalledWith('u1', 'ai.job.completed', { jobId: JOB });
+    // A late success after the job failed or moved on changes nothing and tells nobody.
+    aiJob.updateMany.mockResolvedValueOnce({ count: 0 });
+    await jobs.succeed(JOB, { summaryId: JOB });
+    expect(realtime.toUser).toHaveBeenCalledTimes(1);
+    // AI text never lands in the job row.
+    await expect(jobs.succeed(JOB, { summary: 'text' })).rejects.toThrow();
     await jobs.fail(JOB, 'AI-004');
     expect(realtime.toUser).toHaveBeenLastCalledWith('u1', 'ai.job.failed', { jobId: JOB });
     aiJob.updateMany.mockResolvedValueOnce({ count: 0 });
     await jobs.fail(JOB, 'AI-004');
     expect(realtime.toUser).toHaveBeenCalledTimes(2);
+  });
+
+  it('should require a caller to read a job', async () => {
+    await expect(jobsSetup({ officeId: OFFICE }).jobs.get(JOB)).rejects.toThrow('No caller');
   });
 });
 

@@ -15,6 +15,8 @@ export interface UsageEntry {
   readonly durationMs: number;
   readonly cached: boolean;
   readonly userId: string | null;
+  /** USD, summed over the calls (`cost` per call). */
+  readonly costUsd: string;
 }
 
 /**
@@ -34,17 +36,17 @@ export class AiUsageRecorder {
     const officeId = this.cls.get('officeId');
     if (!officeId) throw new Error('No office in the context of an AI usage record');
     await this.prisma.db.aiUsage.create({
-      data: { ...entry, officeId, costUsd: this.cost(entry) },
+      data: { ...entry, officeId },
     });
   }
 
-  cost({ model, inputTokens, outputTokens, cached }: UsageEntry): string {
-    const price = this.config.ai.prices[model];
-    if (cached || !price) return '0';
+  /** The cost of one call, by the configured model name (the price key). */
+  cost(priceModel: string, inputTokens: number, outputTokens: number): Decimal {
+    const price = this.config.ai.prices[priceModel];
+    if (!price) return new Decimal(0);
     return new Decimal(inputTokens)
       .mul(price.input)
       .plus(new Decimal(outputTokens).mul(price.output))
-      .div(1_000_000)
-      .toFixed(6);
+      .div(1_000_000);
   }
 }

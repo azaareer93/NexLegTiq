@@ -7,7 +7,7 @@ import type { AiCache } from './ai-cache';
 import { AiExecutor, BaseAiService, MAX_INPUT_CHARS } from './ai-executor';
 import type { AiPrompt, ExecuteOptions } from './ai-executor';
 import { AiProviders } from './ai-providers';
-import type { AiUsageRecorder } from './ai-usage';
+import { AiUsageRecorder } from './ai-usage';
 import { PassThroughRedactor } from './redaction';
 import type { AiRedactor } from './redaction';
 import type { RequestContext } from '../../common/context/request-context';
@@ -38,6 +38,7 @@ function setup({
   redactor = nameRedactor as AiRedactor,
   cached = null as unknown,
   denied = null as AppException | null,
+  quotaDenied = null as AppException | null,
 } = {}) {
   const config = new AppConfig(
     parseEnv(testEnv({ NODE_ENV: 'test', AI_PRIMARY_PROVIDER: 'fake', ...env })),
@@ -47,10 +48,15 @@ function setup({
     warn: jest.fn(),
   } as unknown as PinoLogger);
   const access = {
-    assertAvailable: jest.fn(() => (denied ? Promise.reject(denied) : Promise.resolve())),
+    assertEnabled: jest.fn(() => (denied ? Promise.reject(denied) : Promise.resolve())),
+    assertQuota: jest.fn(() => (quotaDenied ? Promise.reject(quotaDenied) : Promise.resolve())),
   };
   const cache = { get: jest.fn().mockResolvedValue(cached), set: jest.fn() };
-  const usage = { record: jest.fn() };
+  const usage = {
+    record: jest.fn(),
+    cost: (model: string, input: number, output: number) =>
+      new AiUsageRecorder({} as never, config, {} as never).cost(model, input, output),
+  };
   const cls = { get: jest.fn((key: string) => (key === 'officeId' ? OFFICE : undefined)) };
   const executor = new AiExecutor(
     access as unknown as AiAccess,
@@ -107,7 +113,7 @@ describe('AiExecutor (D-130)', () => {
     );
     expect(cache.set).toHaveBeenCalledWith(
       OFFICE,
-      ['summary', 'doc-1', 'summary.v1'],
+      ['test-summary', 'summary', 'doc-1', 'summary.v1'],
       expect.objectContaining({ promptVersion: 'summary.v1' }),
       86_400,
     );
@@ -143,7 +149,7 @@ describe('AiExecutor (D-130)', () => {
     await expect(executor.execute(options())).resolves.toMatchObject({
       value: { summary: 'fixed' },
     });
-    expect(fake.requests[1]?.user).toContain('Your previous answer was not valid (not JSON)');
+    expect(fake.requests[1]?.followUp).toContain('Your previous answer was not valid (not JSON)');
     const recorded = usage.record.mock.calls[0]?.[0] as { inputTokens: number };
     expect(recorded.inputTokens).toBeGreaterThan(20);
   });
@@ -152,7 +158,7 @@ describe('AiExecutor (D-130)', () => {
     const { executor, fake, usage, cache } = setup();
     fake.script({ json: { summary: '' } }, { json: { parties: 'x' } });
     await expect(executor.execute(options())).rejects.toMatchObject({ code: 'AI-004' });
-    expect(fake.requests[1]?.user).toMatch(/summary: too_small|parties: invalid_type/);
+    expect(fake.requests[1]?.followUp).toMatch(/summary: too_small|parties: invalid_type/);
     expect(usage.record).toHaveBeenCalledTimes(1);
     expect(cache.set).not.toHaveBeenCalled();
   });
@@ -204,5 +210,62 @@ describe('AiExecutor (D-130)', () => {
     await expect(new Feature(executor).run()).resolves.toMatchObject({
       value: { summary: 'from feature' },
     });
+  });
+
+  it('should serve a cache hit even when the quota is used up, but check the quota before a call', async () => {
+    const hit = {
+      value: { summary: 'cached', parties: [] },
+      provider: 'fake',
+      model: 'fake-1',
+      promptVersion: 'summary.v1',
+    };
+    const cachedSetup = setup({ cached: hit, quotaDenied: new AppException('AUTH-103', 'quota') });
+    await expect(cachedSetup.executor.execute(options())).resolves.toMatchObject({ cached: true });
+    const missSetup = setup({ quotaDenied: new AppException('AUTH-103', 'quota') });
+    await expect(missSetup.executor.execute(options())).rejects.toMatchObject({ code: 'AUTH-103' });
+    expect(missSetup.fake.requests).toHaveLength(0);
+  });
+
+  it('should record the paid first answer when the repair call fails', async () => {
+    const { executor, fake, usage } = setup();
+    fake.script({ text: 'not json' }, { error: new AppException('AI-002', 'rate limited') });
+    await expect(executor.execute(options())).rejects.toMatchObject({ code: 'AI-002' });
+    expect(usage.record).toHaveBeenCalledWith(
+      expect.objectContaining({ cached: false, provider: 'fake' }),
+    );
+    expect(fake.requests[1]?.followUp).toContain('not valid (not JSON)');
+    expect(fake.requests[1]?.user).toBe(fake.requests[0]?.user);
+  });
+
+  it('should price each call at its configured model and redact the system prompt too', async () => {
+    const { executor, fake, usage } = setup({
+      env: { AI_MODEL_PRICES: '{"fake-1":{"input":1,"output":1}}' },
+    });
+    fake.script({ json: { summary: 's', parties: [] } });
+    await executor.execute(
+      options({ prompt: { ...prompt, system: 'About Ahmad Saleh.' }, cacheKey: undefined }),
+    );
+    expect(fake.requests[0]?.system).toBe('About [PARTY_1].');
+    const entry = usage.record.mock.calls[0]?.[0] as {
+      costUsd: string;
+      inputTokens: number;
+      outputTokens: number;
+    };
+    expect(Number(entry.costUsd)).toBeCloseTo(
+      (entry.inputTokens + entry.outputTokens) / 1_000_000,
+      6,
+    );
+  });
+
+  it('should answer AI-001 when the providers miss the deadline, and pass a caller abort through', async () => {
+    const { executor, fake } = setup();
+    const aborted = Object.assign(new Error('aborted'), { name: 'AbortError' });
+    jest.spyOn(AbortSignal, 'timeout').mockReturnValueOnce(AbortSignal.abort());
+    fake.script({ error: aborted });
+    await expect(executor.execute(options())).rejects.toMatchObject({ code: 'AI-001' });
+    const caller = new AbortController();
+    caller.abort();
+    fake.script({ error: aborted });
+    await expect(executor.execute(options({ signal: caller.signal }))).rejects.toBe(aborted);
   });
 });

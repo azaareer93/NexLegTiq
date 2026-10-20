@@ -18,7 +18,15 @@ interface Link {
 
 export interface ProviderAnswer extends AiCompletion {
   readonly provider: AiProvider['name'];
+  /** The configured model name, the key of `AI_MODEL_PRICES` (the answer's `model` may be a dated snapshot). */
+  readonly priceModel: string;
 }
+
+/**
+ * An AI error that another attempt would not fix (no provider, a refused request, no redactor): the worker fails the
+ * job at once instead of retrying it (D-130).
+ */
+export class AiFinalException extends AppException {}
 
 /**
  * The configured providers in order — primary, then fallback (`AI_PRIMARY_PROVIDER` / `AI_FALLBACK_PROVIDER`) — each
@@ -53,7 +61,7 @@ export class AiProviders {
   }
 
   async complete(request: AiRequest): Promise<ProviderAnswer> {
-    if (!this.configured) throw new AppException('AI-001', 'No AI provider is configured');
+    if (!this.configured) throw new AiFinalException('AI-001', 'No AI provider is configured');
     let last: ProviderUnavailableError | null = null;
     for (const link of this.chain) {
       if (!link.breaker.allow()) continue;
@@ -74,7 +82,7 @@ export class AiProviders {
     try {
       const answer = await provider.complete(request);
       breaker.succeeded();
-      return { answer: { ...answer, provider: provider.name } };
+      return { answer: { ...answer, provider: provider.name, priceModel: provider.model } };
     } catch (error) {
       if (error instanceof ProviderUnavailableError) {
         breaker.failed();
@@ -84,16 +92,16 @@ export class AiProviders {
         );
         return { unavailable: error };
       }
+      // A refused request, or the caller giving up, says nothing about the provider's health: the trial is released.
+      breaker.release();
       if (!(error instanceof ProviderRequestError)) throw error;
-      // A refused request says nothing about the provider's health.
-      breaker.succeeded();
       this.logger.warn(
         { provider: provider.name, status: error.status },
         'AI provider refused the request',
       );
       throw error.tooLarge
-        ? new AppException('AI-003', 'Input too large for the AI model')
-        : new AppException('AI-001', 'AI provider refused the request');
+        ? new AiFinalException('AI-003', 'Input too large for the AI model')
+        : new AiFinalException('AI-001', 'AI provider refused the request');
     }
   }
 

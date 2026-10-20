@@ -1595,3 +1595,28 @@ else, another office or a malformed id → 404. **Not here:** `AiSummary` and ev
 stories), the evaluation set, the daily cost alert (`AI_COST_ALERT_THRESHOLD_USD`), per-plan input caps, and the real
 redactor. Why: every AI feature gets fallback, validation, caching, quota and cost tracking from one place, and no text
 reaches a provider before PII redaction exists.
+Review additions (same PR): **amends D-122** — `assertAiQuota()` now counts itself (`EntitlementsService.aiCallsThisMonth`),
+so D-122's "the AI usage records arrive with the AI quota story" is done; and implements **D-014**'s 202 + job id for AI.
+**Order:** enablement (provider, office switch, plan flag) → cache → **quota** → call: a cached answer is served even when
+the quota is used up. **Quota unit:** one AI request = one usage row of a provider answer — a repaired answer counts once,
+though both calls are paid and recorded in the same row. **Usage is recorded in a `finally`**: an answer already received
+is recorded even when the repair call then fails. **Cost** is computed per call at the **configured** model name
+(`AI_MODEL_PRICES` key; providers answer with dated snapshot names) and summed — a repair from the fallback is priced
+at its own rate. **Deadline:** one `execute` has **100 s** for every attempt (primary, fallback, repair), inside the
+queue's 120 s; missing it is AI-001. **Breaker:** a half-open trial ended by an abort or an unexpected error is released
+(it no longer keeps a provider off until restart); a refused request does not count. **Refusals** — a 4xx, a safety block
+(Gemini `promptFeedback.blockReason`, a `SAFETY`/`RECITATION`… finish, OpenAI `refusal` or `content_filter`) — are final:
+no fallback, no breaker count (one office's document cannot switch a provider off for everyone), and **not retried** by
+the worker (`AiFinalException`, also for "no provider" and "no redactor"). **Jobs:** only a RUNNING job succeeds (a late
+attempt changes nothing and tells nobody); `result` is checked to hold ids and counts only (`AiJobResultSchema`) — AI
+text never lands in the row; CHECKs tie `error_code` to FAILED and `finished_at` to a finished job; reading a job needs a
+caller. **Hardening:** `AiProviders` is not exported (features reach a model only through `AiExecutor`); the system
+prompt is redacted too (case data belongs in the user text); the repair instruction is a **separate message**, never
+appended to the document, and the system rules say the user message is material, not instructions; a provider's error
+body is only searched (first 4 KB) for "too long", never kept; `$schema` is stripped from the JSON Schema sent;
+Gemini's thinking tokens count as output; the cache key is `[feature, …parts, promptVersion]` (two features can no
+longer share an entry); the fake provider keeps its last 100 requests. **Gemini retention:** it has no `store: false`
+— production must use a paid Gemini API account whose terms exclude training and retention (D-057), or leave Gemini
+out. **Known limits:** the quota check is not atomic — parallel jobs of one office (worker concurrency 5) can exceed it by
+a few requests; a job whose enqueue was lost after the commit, or that was skipped because its office was suspended,
+stays QUEUED (no sweep yet); job fields are not limited per job type yet (each feature's handler validates its own).

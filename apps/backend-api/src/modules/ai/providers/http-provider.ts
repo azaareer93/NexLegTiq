@@ -32,7 +32,8 @@ export async function postJson(
     throw new ProviderUnavailableError(provider, 'server-error', response.status);
   }
   if (!response.ok) {
-    const body = await response.text().catch(() => '');
+    // Only the start of the body is looked at (an error code), never kept or logged: it may quote the input.
+    const body = (await response.text().catch(() => '')).slice(0, 4096);
     throw new ProviderRequestError(provider, response.status, TOO_LARGE.test(body));
   }
   try {

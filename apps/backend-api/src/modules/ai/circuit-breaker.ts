@@ -27,6 +27,11 @@ export class CircuitBreaker {
     this.trialRunning = false;
   }
 
+  /** The trial ended without telling anything about the provider (the caller gave up): let another one through. */
+  release(): void {
+    this.trialRunning = false;
+  }
+
   failed(): void {
     this.failures += 1;
     this.trialRunning = false;

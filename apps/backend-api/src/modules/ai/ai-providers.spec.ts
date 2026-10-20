@@ -82,6 +82,7 @@ describe('AiProviders (fallback matrix, D-130)', () => {
       provider: 'openai',
       text: '{"from":"openai"}',
       model: 'gpt-test-2026',
+      priceModel: 'gpt-test',
       inputTokens: 10,
       outputTokens: 5,
     });
@@ -191,6 +192,72 @@ describe('CircuitBreaker', () => {
     expect(breaker.allow()).toBe(true);
     breaker.succeeded();
     expect(breaker.allow()).toBe(true);
+    expect(breaker.allow()).toBe(true);
+  });
+});
+
+describe('AiProviders (refusals and blocks)', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it('should treat a safety block or refusal as final: no fallback, the breaker untouched', async () => {
+    const blocked = {
+      status: 200,
+      body: { promptFeedback: { blockReason: 'SAFETY' }, usageMetadata: {} },
+    };
+    const filtered = {
+      status: 200,
+      body: {
+        ...openAiOk,
+        choices: [{ message: { content: null }, finish_reason: 'content_filter' }],
+      },
+    };
+    const calls = scriptFetch({
+      gemini: [blocked, blocked, blocked, blocked, blocked, blocked],
+      openai: [filtered],
+    });
+    const geminiFirst = providers({
+      AI_PRIMARY_PROVIDER: 'gemini',
+      AI_FALLBACK_PROVIDER: 'openai',
+    });
+    for (let i = 0; i < 6; i += 1) {
+      await expect(geminiFirst.complete(request)).rejects.toMatchObject({ code: 'AI-001' });
+    }
+    expect(calls.every((call) => call.url.includes('generativelanguage'))).toBe(true);
+    await expect(providers().complete(request)).rejects.toMatchObject({ code: 'AI-001' });
+  });
+
+  it('should count Gemini thinking tokens as output and send the schema without $schema', async () => {
+    const thinking = {
+      ...geminiOk,
+      usageMetadata: { promptTokenCount: 3, candidatesTokenCount: 4, thoughtsTokenCount: 5 },
+    };
+    const calls = scriptFetch({ gemini: [{ status: 200, body: thinking }] });
+    const geminiOnly = providers({ AI_PRIMARY_PROVIDER: 'gemini', AI_FALLBACK_PROVIDER: 'none' });
+    await expect(
+      geminiOnly.complete({
+        ...request,
+        jsonSchema: { $schema: 'x', type: 'object' },
+        followUp: 'again',
+      }),
+    ).resolves.toMatchObject({ outputTokens: 9, priceModel: 'gemini-test' });
+    const body = JSON.parse(String(calls[0]?.init.body)) as {
+      generationConfig: { responseJsonSchema: Record<string, unknown> };
+      contents: { parts: { text: string }[] }[];
+    };
+    expect(body.generationConfig.responseJsonSchema).toEqual({ type: 'object' });
+    expect(body.contents[0]?.parts.map((part) => part.text)).toEqual(['user', 'again']);
+  });
+});
+
+describe('CircuitBreaker release', () => {
+  it('should free the half-open trial when it ends without a verdict', () => {
+    let now = 0;
+    const breaker = new CircuitBreaker(1, 1000, () => now);
+    breaker.failed();
+    now = 1000;
+    expect(breaker.allow()).toBe(true);
+    expect(breaker.allow()).toBe(false);
+    breaker.release();
     expect(breaker.allow()).toBe(true);
   });
 });

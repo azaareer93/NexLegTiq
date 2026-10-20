@@ -15,10 +15,14 @@ import { PrismaService } from '../../../database/prisma.service';
 import { AiJobRegistry } from '../ai-job-registry';
 import { AiJobs } from '../ai-jobs';
 import type { AiJobData } from '../ai-jobs';
+import { AiFinalException } from '../ai-providers';
 
 const AiJobDataSchema = z.looseObject({ aiJobId: z.uuid() });
 
-/** Only a provider that was unavailable is worth another attempt (D-130); anything else fails at once. */
+/**
+ * Only a provider that was unavailable is worth another attempt (D-130); anything else — and an `AiFinalException`
+ * (refused request, no provider or redactor) — fails at once.
+ */
 const RETRYABLE = new Set(['AI-001', 'AI-002', 'SYS-001']);
 const ERROR_CODE = /^[A-Z]+-\d{3}$/;
 
@@ -70,7 +74,8 @@ export class AiProcessor extends TenantProcessor<AiJobData> {
       );
     } catch (error) {
       const code = errorCodeOf(error);
-      throw RETRYABLE.has(code) ? error : new UnrecoverableError(code);
+      const retry = RETRYABLE.has(code) && !(error instanceof AiFinalException);
+      throw retry ? error : new UnrecoverableError(code);
     }
     await this.jobs.succeed(aiJobId, result);
     return result;

@@ -37,6 +37,8 @@ export class FakeAiProvider implements AiProvider {
 
   complete(request: AiRequest): Promise<AiCompletion> {
     this.requests.push(request);
+    // Local work keeps the provider for hours: remember only the latest requests.
+    if (this.requests.length > 100) this.requests.shift();
     const step = this.steps.shift();
     if (step && 'error' in step) return Promise.reject(step.error);
     const text =

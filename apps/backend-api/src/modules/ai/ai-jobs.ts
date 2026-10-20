@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { AiJob, AiJobAccepted } from '@nexlegtiq/shared-contracts';
 import type { AiSourceType } from '@nexlegtiq/shared-types';
 import { ClsService } from 'nestjs-cls';
+import { z } from 'zod';
 
 import { AiAccess } from './ai-access';
 import type { RequestContext } from '../../common/context/request-context';
@@ -26,6 +27,12 @@ export interface NewAiJob {
 export interface AiJobData {
   readonly aiJobId: string;
 }
+
+/** What a job may keep as its result: ids (one or a list) and counts. */
+export const AiJobResultSchema = z.record(
+  z.string().max(64),
+  z.union([z.uuid(), z.array(z.uuid()).max(100), z.number().int()]),
+);
 
 const JOB_SELECT = {
   id: true,
@@ -83,8 +90,10 @@ export class AiJobs {
   }
 
   async get(id: string): Promise<AiJob> {
+    const userId = this.cls.get('userId');
+    if (!userId) throw new Error('No caller in the context of an AI job');
     const job = await this.prisma.db.aiJob.findFirst({
-      where: { id, createdById: this.cls.get('userId') },
+      where: { id, createdById: userId },
       select: JOB_SELECT,
     });
     if (!job) throw new ResourceNotFoundException();
@@ -107,14 +116,19 @@ export class AiJobs {
     return this.prisma.db.aiJob.findFirstOrThrow({ where: { id }, select: { createdById: true } });
   }
 
+  /**
+   * Only a RUNNING job succeeds: an attempt that finished after its timeout (the job FAILED or retried meanwhile) changes
+   * nothing. `result` must hold ids and counts only (`AiJobResultSchema`) — never AI text, which may carry PII.
+   */
   async succeed(id: string, result: Record<string, unknown>): Promise<void> {
-    const job = await this.prisma.db.aiJob.update({
+    const checked = AiJobResultSchema.parse(result);
+    const { count } = await this.prisma.db.aiJob.updateMany({
+      where: { id, status: 'RUNNING' },
+      data: { status: 'SUCCEEDED', result: checked, finishedAt: new Date() },
+    });
+    if (count === 0) return;
+    const job = await this.prisma.db.aiJob.findFirstOrThrow({
       where: { id },
-      data: {
-        status: 'SUCCEEDED',
-        result: result as Prisma.InputJsonObject,
-        finishedAt: new Date(),
-      },
       select: { createdById: true },
     });
     this.realtime.toUser(job.createdById, 'ai.job.completed', { jobId: id });

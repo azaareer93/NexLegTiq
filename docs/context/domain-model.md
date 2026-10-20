@@ -97,7 +97,8 @@
 ## AI
 - **AiSummary** 🔒 — `sourceType` (D-039), sourceId, fileId, language, summary, keyFacts JSON, keyLegalIssues JSON,
   nextSteps JSON?, riskAssessment?, model, provider, promptVersion, createdById, createdAt.
-- **AiJob** 🔒 — type, sourceType, sourceId, status QUEUED|RUNNING|SUCCEEDED|FAILED, error, attempts, jobId.
+- **AiJob** 🔒 — type, sourceType, sourceId, status QUEUED|RUNNING|SUCCEEDED|FAILED, errorCode, attempts, result (ids only),
+  createdById, startedAt, finishedAt; the row id is the queue job id (D-130).
 - **AiUsage** 🔒 — feature, provider, model, inputTokens, outputTokens, costUsd Decimal(10,6), durationMs, cached, userId.
 - Phase 2: ContractAnalysis, EvidenceSuggestion, DocumentTemplate, GeneratedDocument, LocalCourtProcess,
   FileProcessTracker, VoiceNote, IngestedEmail.
