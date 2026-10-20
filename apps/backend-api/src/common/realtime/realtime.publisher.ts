@@ -22,7 +22,7 @@ import { redisConnectionOptions } from '../queue/redis-connection';
 @Injectable()
 export class RealtimePublisher implements OnModuleDestroy {
   private readonly redis: Redis;
-  private readonly emitter: Emitter;
+  private readonly emitter: ReturnType<Emitter['of']>;
 
   constructor(
     config: AppConfig,
@@ -36,7 +36,14 @@ export class RealtimePublisher implements OnModuleDestroy {
       maxRetriesPerRequest: 1,
     });
     this.redis.on('error', (error) => this.logger.warn({ err: error }, 'Realtime Redis error'));
-    this.emitter = new Emitter(this.redis, { key: realtimeKey(config.redis.bullmqPrefix) }).of(
+    // The emitter fires `publish` without handling its promise: a Redis outage would be an unhandled rejection (a crash).
+    const publisher = {
+      publish: (channel: string, message: string) =>
+        this.redis
+          .publish(channel, message)
+          .catch((error: unknown) => this.logger.warn({ err: error }, 'Realtime event not sent')),
+    };
+    this.emitter = new Emitter(publisher, { key: realtimeKey(config.redis.bullmqPrefix) }).of(
       REALTIME_NAMESPACE,
     );
   }
@@ -60,6 +67,18 @@ export class RealtimePublisher implements OnModuleDestroy {
     const officeId = this.cls.get('officeId');
     if (!officeId) throw new Error('No office in the context of a realtime event');
     this.emit([officeRoom(officeId)], event, payload);
+  }
+
+  /**
+   * Closes every socket of a user on every API instance (deactivation): their reconnect is then refused by the token
+   * check, instead of the channel living until the token expires.
+   */
+  disconnectUser(userId: string): void {
+    try {
+      this.emitter.in(userRoom(userId)).disconnectSockets(true);
+    } catch (error) {
+      this.logger.warn({ err: error }, 'Realtime disconnect not sent');
+    }
   }
 
   async onModuleDestroy(): Promise<void> {

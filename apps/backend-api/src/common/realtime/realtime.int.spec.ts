@@ -168,6 +168,24 @@ describe('Realtime gateway and publisher (real Redis)', () => {
     await expect(refusal({ token: token(ghost) })).resolves.toEqual({ code: 'AUTH-003' });
   });
 
+  it('should refuse the root namespace, where nothing lives', async () => {
+    const root = io(`${url}/`, {
+      auth: { token: token(a1) },
+      transports: ['websocket'],
+      reconnection: false,
+    });
+    sockets.push(root);
+    const error = await new Promise<Error>((resolve) => root.once('connect_error', resolve));
+    expect(error.message).toBe('AUTH-003');
+  });
+
+  it('should close every socket of a user on request (deactivation), through Redis', async () => {
+    const { socket } = await connect(a2);
+    const closed = next(socket, 'disconnect');
+    publisher.disconnectUser(a2.userId);
+    await expect(closed).resolves.toBe('io server disconnect');
+  });
+
   it('should refuse an inactive user', async () => {
     const [, idle] = await seedOffice('Realtime C');
     await raw.user.update({ where: { id: idle.userId }, data: { isActive: false } });

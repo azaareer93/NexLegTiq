@@ -1,6 +1,6 @@
 import type { Namespace, Socket } from 'socket.io';
 
-import { RealtimeGateway } from './realtime.gateway';
+import { MAX_SOCKETS_PER_USER, RealtimeGateway } from './realtime.gateway';
 import { RealtimePublisher } from './realtime.publisher';
 import { closeRedis } from './rooms';
 import { AppConfig } from '../../config/app-config';
@@ -11,8 +11,14 @@ import { AppException } from '../errors/app.exception';
 
 const emit = jest.fn();
 const to = jest.fn(() => ({ emit }));
+const disconnectSockets = jest.fn();
+const inRoom = jest.fn(() => ({ disconnectSockets }));
+const emitterClient: { publish?: (channel: string, message: string) => Promise<unknown> } = {};
 jest.mock('@socket.io/redis-emitter', () => ({
-  Emitter: jest.fn(() => ({ of: () => ({ to }) })),
+  Emitter: jest.fn((client: typeof emitterClient) => {
+    emitterClient.publish = client.publish;
+    return { of: () => ({ to, in: inRoom }) };
+  }),
 }));
 
 const ID = '01900000-0000-7000-8000-0000000000a1';
@@ -60,39 +66,76 @@ describe('RealtimePublisher', () => {
     expect(warn).toHaveBeenCalledWith(expect.anything(), 'Realtime event not sent');
   });
 
+  it('should log a failed Redis publish instead of leaving an unhandled rejection', async () => {
+    const p = publisher('o');
+    (p as unknown as { redis: { publish: jest.Mock } }).redis.publish = jest
+      .fn()
+      .mockRejectedValue(new Error('down'));
+    await expect(emitterClient.publish?.('channel', 'message')).resolves.toBeUndefined();
+    expect(warn).toHaveBeenCalledWith(expect.anything(), 'Realtime event not sent');
+  });
+
+  it('should close every socket of a deactivated user, logging a failure', () => {
+    const p = publisher('o');
+    p.disconnectUser('u1');
+    expect(inRoom).toHaveBeenCalledWith('user:u1');
+    expect(disconnectSockets).toHaveBeenCalledWith(true);
+    disconnectSockets.mockImplementationOnce(() => {
+      throw new Error('down');
+    });
+    expect(() => p.disconnectUser('u1')).not.toThrow();
+    expect(warn).toHaveBeenCalledWith(expect.anything(), 'Realtime disconnect not sent');
+  });
+
   it('should close its idle Redis connection on shutdown', async () => {
     await expect(publisher('o').onModuleDestroy()).resolves.toBeUndefined();
   });
 });
 
 describe('RealtimeGateway', () => {
-  function admit(verify: jest.Mock, auth: object = { token: 't' }) {
+  type FakeSocket = {
+    handshake: { auth: object };
+    conn: { readyState: string };
+    join: jest.Mock;
+    disconnect: jest.Mock;
+    once: jest.Mock;
+    leave?: () => void;
+  };
+
+  function gatewayWith(verify: jest.Mock) {
     const gateway = new RealtimeGateway({ verify } as unknown as AccessTokenVerifier);
     let middleware: (socket: Socket, next: (error?: Error) => void) => void = () => undefined;
     gateway.afterInit({
       use: (fn: typeof middleware) => (middleware = fn),
     } as unknown as Namespace);
-    const socket = {
-      id: 's1',
-      handshake: { auth },
-      join: jest.fn().mockResolvedValue(undefined),
-      disconnect: jest.fn(),
+    const connect = (auth: object = { token: 't' }, disconnected = false) => {
+      const socket: FakeSocket = {
+        handshake: { auth },
+        conn: { readyState: disconnected ? 'closed' : 'open' },
+        join: jest.fn().mockResolvedValue(undefined),
+        disconnect: jest.fn(),
+        once: jest.fn((_event: string, listener: () => void) => (socket.leave = listener)),
+      };
+      const result = new Promise<Error | undefined>((resolve) =>
+        middleware(socket as unknown as Socket, resolve),
+      );
+      return { socket, result };
     };
-    const result = new Promise<Error | undefined>((resolve) =>
-      middleware(socket as unknown as Socket, resolve),
-    );
-    return { gateway, socket, result };
+    return connect;
   }
+
+  const valid = () =>
+    jest.fn().mockResolvedValue({
+      principal: { officeId: 'o1', userId: 'u1' },
+      expiresAt: Date.now() + 1000,
+    });
 
   afterEach(() => jest.useRealTimers());
 
   it('should join the office and user rooms and disconnect when the token expires', async () => {
     jest.useFakeTimers();
-    const verify = jest.fn().mockResolvedValue({
-      principal: { officeId: 'o1', userId: 'u1' },
-      expiresAt: Date.now() + 1000,
-    });
-    const { socket, result } = admit(verify);
+    const verify = valid();
+    const { socket, result } = gatewayWith(verify)();
     await expect(result).resolves.toBeUndefined();
     expect(verify).toHaveBeenCalledWith('t');
     expect(socket.join).toHaveBeenCalledWith(['office:o1', 'user:u1']);
@@ -100,25 +143,41 @@ describe('RealtimeGateway', () => {
     expect(socket.disconnect).toHaveBeenCalledWith(true);
   });
 
-  it('should forget the expiry timer of a socket that left', async () => {
+  it('should drop the expiry timer of a socket that left', async () => {
     jest.useFakeTimers();
-    const verify = jest.fn().mockResolvedValue({
-      principal: { officeId: 'o1', userId: 'u1' },
-      expiresAt: Date.now() + 1000,
-    });
-    const { gateway, socket, result } = admit(verify);
+    const { socket, result } = gatewayWith(valid())();
     await result;
-    gateway.handleDisconnect(socket as unknown as Socket);
+    socket.leave?.();
     jest.advanceTimersByTime(1000);
     expect(socket.disconnect).not.toHaveBeenCalled();
   });
 
+  it('should hold nothing for a client that left while its token was checked', async () => {
+    const { socket, result } = gatewayWith(valid())({ token: 't' }, true);
+    await result;
+    expect(socket.join).not.toHaveBeenCalled();
+    expect(socket.once).not.toHaveBeenCalled();
+  });
+
+  it('should cap the sockets of one user and free a place when one leaves', async () => {
+    const connect = gatewayWith(valid());
+    const open = [];
+    for (let i = 0; i < MAX_SOCKETS_PER_USER; i += 1) {
+      const attempt = connect();
+      await expect(attempt.result).resolves.toBeUndefined();
+      open.push(attempt.socket);
+    }
+    await expect(connect().result).resolves.toMatchObject({ data: { code: 'RATE-001' } });
+    open[0]?.leave?.();
+    await expect(connect().result).resolves.toBeUndefined();
+  });
+
   it('should refuse with the error code, a missing token and unexpected failures included', async () => {
-    const refused = admit(jest.fn().mockRejectedValue(new AppException('AUTH-002', 'x')), {
+    const refused = gatewayWith(jest.fn().mockRejectedValue(new AppException('AUTH-002', 'x')))({
       token: 42,
     });
     await expect(refused.result).resolves.toMatchObject({ data: { code: 'AUTH-002' } });
-    const broken = admit(jest.fn().mockRejectedValue(new Error('db down')));
+    const broken = gatewayWith(jest.fn().mockRejectedValue(new Error('db down')))();
     await expect(broken.result).resolves.toMatchObject({ data: { code: 'SYS-001' } });
   });
 });

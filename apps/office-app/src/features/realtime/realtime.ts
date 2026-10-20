@@ -3,7 +3,7 @@ import type { RealtimeEvent, RealtimePayload } from '@nexlegtiq/shared-contracts
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
 
-import { API_URL, auth, endSession, useSession } from '../auth/session';
+import { API_URL, auth, endSession, isRefusal, startSession, useSession } from '../auth/session';
 
 type Listener = (payload: unknown) => void;
 
@@ -32,9 +32,13 @@ function renew(): void {
   renewing = true;
   auth
     .refresh()
+    .then((session) => {
+      // Another user now owns the cookie (signed in in another tab): adopt their session, which clears this one's data.
+      if (session.user.id !== useSession.getState().user?.id) startSession(session);
+    })
     .catch((error: unknown) => {
-      // A refused refresh ends the session like any request would; offline keeps it (the next request retries).
-      if ((error as { status?: number }).status === 401) endSession('expired');
+      // A refused refresh (401, inactive user or office, overdue email) ends the session like at start-up; offline keeps it.
+      if (isRefusal(error)) endSession('expired');
     })
     .finally(() => {
       renewing = false;
@@ -52,7 +56,13 @@ function connect(token: string): void {
   });
   next.onAny(dispatch);
   next.on('connect_error', (error: Error & { data?: { code?: unknown } }) => {
-    if (error.data?.code === 'AUTH-002') renew();
+    const code = error.data?.code;
+    if (code === 'AUTH-002') renew();
+    // A refusal that is not about the token (a database blip, the per-user cap): socket.io does not retry it, so try
+    // again later, with jitter so tabs do not return together.
+    else if (typeof code === 'string' && !code.startsWith('AUTH-')) {
+      setTimeout(() => socket === next && next.connect(), 5_000 + Math.random() * 25_000);
+    }
   });
   next.on('disconnect', (reason) => {
     // The server ends a socket when its token expires (D-129); the client does not reconnect on its own then.

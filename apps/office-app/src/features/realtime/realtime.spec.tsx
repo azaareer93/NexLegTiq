@@ -1,4 +1,6 @@
 import { ApiError } from '@nexlegtiq/shared-api-client';
+import type { ClientSession } from '@nexlegtiq/shared-api-client';
+import type { AuthUser } from '@nexlegtiq/shared-contracts';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook } from '@testing-library/react';
 import type { ReactNode } from 'react';
@@ -133,5 +135,52 @@ describe('realtime client (D-129)', () => {
     await flush();
     expect(refresh).toHaveBeenCalledTimes(2);
     expect(useSession.getState()).toMatchObject({ status: 'anonymous', signOutReason: 'expired' });
+  });
+
+  it('should end the session when the renewal is refused for an inactive user or office', async () => {
+    vi.spyOn(auth, 'refresh').mockRejectedValueOnce(new ApiError('AUTH-006', 'inactive', 403));
+    useSession.setState({ status: 'authenticated', accessToken: 'one' });
+    latest().fire('disconnect', 'io server disconnect');
+    await flush();
+    expect(useSession.getState()).toMatchObject({ status: 'anonymous', signOutReason: 'expired' });
+  });
+
+  it('should adopt the session of another user who now owns the cookie, and keep its own otherwise', async () => {
+    const me = { id: 'u1' } as unknown as AuthUser;
+    const other = { id: 'u2', idleMinutes: 30 } as unknown as AuthUser;
+    vi.spyOn(auth, 'refresh')
+      .mockResolvedValueOnce({ user: me } as unknown as ClientSession)
+      .mockResolvedValueOnce({ user: other } as unknown as ClientSession);
+    useSession.setState({ status: 'authenticated', accessToken: 'one', user: me });
+    latest().fire('disconnect', 'io server disconnect');
+    await flush();
+    expect(useSession.getState().user).toBe(me);
+    latest().fire('disconnect', 'io server disconnect');
+    await flush();
+    expect(useSession.getState().user).toBe(other);
+  });
+
+  it('should try again later after a refusal that is not about the token, on the current socket only', () => {
+    vi.useFakeTimers();
+    try {
+      useSession.setState({ accessToken: 'one' });
+      const first = latest();
+      first.fire(
+        'connect_error',
+        Object.assign(new Error('SYS-001'), { data: { code: 'SYS-001' } }),
+      );
+      vi.advanceTimersByTime(30_000);
+      expect(first.connects).toBe(1);
+
+      first.fire(
+        'connect_error',
+        Object.assign(new Error('RATE-001'), { data: { code: 'RATE-001' } }),
+      );
+      useSession.setState({ accessToken: 'two' });
+      vi.advanceTimersByTime(30_000);
+      expect(first.connects).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

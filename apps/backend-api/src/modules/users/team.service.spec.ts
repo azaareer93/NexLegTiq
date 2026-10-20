@@ -2,6 +2,7 @@ import type { ClsService } from 'nestjs-cls';
 
 import { TeamService } from './team.service';
 import type { RequestContext } from '../../common/context/request-context';
+import type { RealtimePublisher } from '../../common/realtime/realtime.publisher';
 import type { PrismaService } from '../../database/prisma.service';
 import type { UnitOfWork } from '../../database/unit-of-work';
 import type { ClientInfo } from '../auth/client-info';
@@ -71,6 +72,7 @@ function setup(
     cls,
     entitlements as unknown as EntitlementsService,
     reminders as unknown as ReminderScheduler,
+    { disconnectUser: jest.fn() } as unknown as RealtimePublisher,
   );
   return { service, tx, entitlements, reminders };
 }

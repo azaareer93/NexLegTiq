@@ -17,6 +17,7 @@ import {
   ResourceConflictException,
   ResourceNotFoundException,
 } from '../../common/errors/app.exception';
+import { RealtimePublisher } from '../../common/realtime/realtime.publisher';
 import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { AfterCommit, ScopedTransaction } from '../../database/unit-of-work';
@@ -55,6 +56,7 @@ export class TeamService {
     private readonly cls: ClsService<RequestContext>,
     private readonly entitlements: EntitlementsService,
     private readonly reminders: ReminderScheduler,
+    private readonly realtime: RealtimePublisher,
   ) {}
 
   async list(): Promise<TeamMember[]> {
@@ -124,6 +126,7 @@ export class TeamService {
         await assertLawyers(tx, userId, reassignments);
         const now = new Date();
         await tx.user.update({ where: { id: userId }, data: { isActive: false } });
+        afterCommit(async () => this.realtime.disconnectUser(userId), 'realtime disconnect');
         await tx.refreshToken.updateMany({
           where: { userId, revokedAt: null },
           data: { revokedAt: now },

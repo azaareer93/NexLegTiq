@@ -39,9 +39,9 @@ const EDITABLE = {
   assignedToId: true,
 } satisfies Prisma.TaskSelect;
 
-/** Tasks API (MVP-76, D-098). Access rules live in TaskAccessService. */
 type TaskRef = { readonly id: string; readonly fileId: string | null };
 
+/** Tasks API (MVP-76, D-098). Access rules live in TaskAccessService. */
 @Injectable()
 export class TasksService {
   constructor(
@@ -150,7 +150,7 @@ export class TasksService {
         data: { ...rest, ...(dueDate !== undefined && { dueDate: toDbDateOrNull(dueDate) }) },
       });
       await tx.auditLog.create({ data: this.audit(client, id, 'UPDATE', old, next) });
-      afterCommit(() => this.updated(task, assignee), 'realtime task.updated');
+      afterCommit(() => this.updated(task), 'realtime task.updated');
       if (assignee) {
         const title = (next['title'] as string | undefined) ?? task.title;
         await this.notifyAssigned(tx, afterCommit, assignee, { id, fileId: task.fileId, title });
@@ -246,6 +246,7 @@ export class TasksService {
           ),
         });
         await this.notifyAssigned(tx, afterCommit, input.assignedToId, task);
+        afterCommit(() => this.updated(task), 'realtime task.updated');
       }
     });
     return { updated: changed.length };
@@ -278,10 +279,9 @@ export class TasksService {
     }, 'realtime task.assigned');
   }
 
-  /** Tells the assignee's open apps that their task changed (they refetch it, D-129). */
-  private async updated(task: TaskRef & { assignedToId: string }, to?: string): Promise<void> {
-    const users = [task.assignedToId, ...(to ? [to] : [])];
-    this.realtime.toUsers(users, 'task.updated', { taskId: task.id, fileId: task.fileId });
+  /** Tells the (previous) assignee their task changed (D-129); a new assignee gets `task.assigned` instead. */
+  private async updated({ id, fileId, assignedToId }: TaskRef & { assignedToId: string }) {
+    this.realtime.toUser(assignedToId, 'task.updated', { taskId: id, fileId });
   }
 
   private assertHolds(permission: 'assign:task'): void {

@@ -24,7 +24,8 @@ class RedisIoAdapter extends IoAdapter {
   ) {
     super(app);
     this.pub = new Redis({ ...redisConnectionOptions(config.redis.url), lazyConnect: true });
-    this.sub = this.pub.duplicate();
+    // The adapter subscribes without handling the promise: the subscriber waits for Redis instead of failing a retry count.
+    this.sub = this.pub.duplicate({ maxRetriesPerRequest: null });
     for (const client of [this.pub, this.sub]) {
       // An unhandled ioredis error event would crash the process; the clients reconnect on their own.
       client.on('error', (error: Error) => this.log.warn(`Realtime Redis error: ${error.message}`));
@@ -41,8 +42,12 @@ class RedisIoAdapter extends IoAdapter {
   override createIOServer(port: number, options?: ServerOptions): Server {
     const server = super.createIOServer(port, {
       ...options,
-      cors: { origin: [...this.config.corsOrigins], credentials: true },
+      cors: { origin: [...this.config.corsOrigins] },
+      // WebSocket only: long polling would need sticky sessions across API instances.
+      transports: ['websocket'],
     }) as Server;
+    // socket.io always serves the root namespace; nothing lives there, so refuse it rather than hold idle sockets open.
+    server.of('/').use((_socket, next) => next(new Error('AUTH-003')));
     server.adapter(
       createAdapter(this.pub, this.sub, { key: realtimeKey(this.config.redis.bullmqPrefix) }),
     );

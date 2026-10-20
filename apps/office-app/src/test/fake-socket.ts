@@ -19,6 +19,14 @@ export class FakeSocket {
     return this;
   }
 
+  /** How often the client asked to connect again (after a refusal). */
+  connects = 0;
+
+  connect(): this {
+    this.connects += 1;
+    return this;
+  }
+
   disconnect(): this {
     this.disconnected = true;
     return this;

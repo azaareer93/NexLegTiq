@@ -1497,7 +1497,7 @@ responsible lawyer of open files, the API's VAL-001 reason is shown in words (ro
 file on its picker), buttons are named per person, statuses read Inactive / غير نشط (as for clients) and Arabic says
 "إيقاف الحساب" for deactivate.
 
-**D-129 — Realtime gateway: authentication, rooms, ids-only events and the office-app client** · Accepted (MVP-94, 2026-10-20)
+**D-129 — Realtime gateway: authentication, rooms, ids-only events and the office-app client** · Accepted (MVP-94, 2026-10-20) · Amends D-098, D-117
 MVP-94 left the token hand-off, what happens at token expiry, what an event carries, multi-instance delivery and the
 portal namespace open. → **Gateway** (`src/common/realtime`, API process only): socket.io namespace `/ws` on the default
 `/socket.io` path. The client sends the same access token as the HTTP API in the connect packet (`auth.token`, never the
@@ -1532,3 +1532,24 @@ fake `socket.io-client`. Versions: socket.io 4.8.3 (pinned with the client), `io
 **Known limits:** events missed while a socket is down are not replayed (a refetch on the next page view or event
 covers it); every token refresh reconnects (one short gap per 15 min). Why: live updates without a second auth path, and
 no event that could carry data across offices or past the API's access rules.
+Review additions (same PR): **amends D-098 and D-117** — the WebSocket push they deferred is done (`task.assigned` and
+`notification` for task assignment; `session.reminder` and the `notification` event from the notification queue
+consumer). **Redis failures never crash a process:** the emitter fires `publish` without handling its promise, so the
+publisher hands it a client whose `publish` logs and swallows a rejection; the adapter's subscriber waits for Redis
+(`maxRetriesPerRequest: null`) instead of failing a retry count. **Hardening:** the root namespace `/` refuses every
+connection (socket.io always serves it; nothing lives there) and the server speaks WebSocket only (polling would need
+sticky sessions across instances; CORS without credentials — no cookies travel); at most **10 sockets per user** per
+API instance (`RATE-001` as `connect_error`); the expiry timer belongs to the socket (cleared on its disconnect,
+`unref`), and a client that left while its token was checked holds nothing. **Deactivation closes the user's sockets
+at once** on every instance (`RealtimePublisher.disconnectUser`, after commit) — their reconnect is refused; a password
+reset or change does not (the user's access tokens stay valid for their 15 minutes, D-086, so a closed socket would just
+reconnect). `task.updated` goes to the **previous** assignee only (a new assignee gets `task.assigned`; for a personal
+task the old assignee then gets 404 on refetch — only the id is sent), bulk assignment included. **Office app:** a
+refused renewal is judged like the start-up restore (401, 403 AUTH-006/010 → signed out); a renewed session that
+belongs to **another user** (signed in in another tab) is adopted through `startSession`, which clears the previous
+user's data; a refusal that is not about the token (SYS-001, the per-user cap) is retried once after 5–30 s with
+jitter. **Known limits:** delivery across several API instances is built on the Redis adapter but tested with one;
+while Redis is down events are lost (the app catches up on its next fetch); each new hearing reads the file's
+responsible lawyer once more than the reminder scheduler does (one primary-key lookup, kept for simplicity); every
+environment needs its own `BULLMQ_PREFIX` if Redis is ever shared. **Left open:** the portal namespace with its own
+token check and `client:{id}` rooms (Client Portal story), and the document and AI events (their stories emit them).

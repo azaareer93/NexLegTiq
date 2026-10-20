@@ -236,7 +236,7 @@ describe('JwtAuthGuard', () => {
       new AppConfig(parseEnv(testEnv())),
     );
     const before = Date.now();
-    const { expiresAt, principal } = await verifier.verify(sign());
+    const { expiresAt, principal } = await verifier.verify(sign({}));
     expect(principal.userId).toBe(USER);
     expect(expiresAt).toBeGreaterThan(before + 800_000);
     expect(expiresAt).toBeLessThanOrEqual(before + 901_000);
