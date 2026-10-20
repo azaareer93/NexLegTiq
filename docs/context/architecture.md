@@ -84,6 +84,10 @@ D-058); invalidate by explicit keys or `SCAN` patterns (never `KEYS`). Default T
 socket.io namespace `/ws`, auth via access token, rooms `office:{officeId}`, `user:{userId}`.
 Events: `document.processed`, `document.summary.ready`, `session.scheduled`, `session.reminder`,
 `task.assigned`, `task.updated`, `notification`, `ai.job.completed|failed`.
+Implementation (D-129): `src/common/realtime/` — the socket.io server path is the default `/socket.io` (not under
+`/api/v1`), shared across API instances by `@socket.io/redis-adapter`; `RealtimePublisher.toUser|toUsers|toOffice` emits
+through Redis from the API or the worker; payloads are ids only (`shared-contracts/realtime.contract.ts`). Office app:
+`features/realtime` (`useRealtime`, `useInvalidateOn`, `RealtimeBridge` in the shell).
 
 ## Frontend (office-app, client-portal, admin-panel)
 React 19, Vite 8, **React Router 8** (data router: `createBrowserRouter` + `RouterProvider`, D-010), AntD 6 (D-087; `ConfigProvider` with theme tokens, `direction`, `locale`), `@ant-design/icons`,

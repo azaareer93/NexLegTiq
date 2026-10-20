@@ -1496,3 +1496,39 @@ old team rows and so their access to those files, confidential ones included. UI
 responsible lawyer of open files, the API's VAL-001 reason is shown in words (role select, the wizard's list rule, and per
 file on its picker), buttons are named per person, statuses read Inactive / غير نشط (as for clients) and Arabic says
 "إيقاف الحساب" for deactivate.
+
+**D-129 — Realtime gateway: authentication, rooms, ids-only events and the office-app client** · Accepted (MVP-94, 2026-10-20)
+MVP-94 left the token hand-off, what happens at token expiry, what an event carries, multi-instance delivery and the
+portal namespace open. → **Gateway** (`src/common/realtime`, API process only): socket.io namespace `/ws` on the default
+`/socket.io` path. The client sends the same access token as the HTTP API in the connect packet (`auth.token`, never the
+URL); it is checked by **`AccessTokenVerifier`**, now shared with `JwtAuthGuard` (HS256, issuer, audience, then role,
+user and office active reloaded from the database — D-082, D-081). A refusal is a `connect_error` whose `data.code` is the
+error code (AUTH-002 expired, AUTH-003, AUTH-006, AUTH-010). An admitted socket joins `office:{officeId}` and
+`user:{userId}` and is **disconnected when its token expires**, so a deactivated or demoted user keeps a live channel at
+most one token lifetime (≤ 15 min). Clients cannot send events (no handlers). **Delivery:** `@socket.io/redis-adapter`
+shares rooms between API instances and `RealtimePublisher` (global, API and worker) emits through
+`@socket.io/redis-emitter`, both keyed `{BULLMQ_PREFIX}:socket.io`; `useRealtimeAdapter(app)` is called by `main.ts`
+(not by `configureApp`), so unit-test apps never contact Redis; Redis down at boot is logged, not fatal (D-084). Every
+ioredis client has an error listener; closing drops a connection that never became ready (`quit` would wait forever).
+**Events carry ids only** (`RealtimePayloadSchemas` in shared-contracts; checked before emitting — a bad payload is a
+programming error — and again by the client): the app refetches through the API, which applies every access rule, so an
+event never leaks a confidential file's content. `toOffice` takes the office from CLS only. Emitting is best effort and
+runs **after commit** (`afterCommit`); a Redis failure is logged, never thrown. **Wired now:** `task.assigned` +
+`notification` to a colleague given a task, `task.updated` to the assignee(s) on edit and status change,
+`session.scheduled` to the attending and responsible lawyers on every new hearing (also a next session),
+`session.reminder` to the recipient when a reminder is handed over, `notification` whenever the worker writes a
+`Notification` row. **Not wired yet (contract ready):** `document.processed` and `document.summary.ready` (the upload/OCR
+and summary stories emit them), `ai.job.completed|failed` (AI stories). **Deviation — portal namespace:** the client portal
+realm (`ClientUser`, `client:{id}` rooms) does not exist yet; its story adds a second namespace with its own token check.
+**Office app** (`features/realtime`): one socket per access token — a refreshed token closes it and opens a new one
+(re-authentication), sign-out closes it; socket.io's reconnection with backoff 1 s → 30 s (randomised) after a network
+drop; on `connect_error` AUTH-002 or a server disconnect (expiry) it calls `auth.refresh()` under the cross-tab lock
+(D-089) — **not `restoreSession`**, which records activity: a live socket must never keep an idle shared computer signed
+in (D-053); a refused refresh ends the session as `expired`, offline keeps it. `useRealtime(event, handler)` (latest
+handler, no resubscribe), `useInvalidateOn(event, payload → queryKeys)`, and `RealtimeBridge` in the shell invalidates by
+prefix (`tasks`, `sessions`, `documents`, `notifications`, `cases/detail/{fileId}`) — a key nobody cached costs nothing.
+Tests: integration (real Redis, two offices — events stay in their office; refusals; expiry disconnect) and Vitest with a
+fake `socket.io-client`. Versions: socket.io 4.8.3 (pinned with the client), `ioredis` declared at BullMQ's 5.11.1.
+**Known limits:** events missed while a socket is down are not replayed (a refetch on the next page view or event
+covers it); every token refresh reconnects (one short gap per 15 min). Why: live updates without a second auth path, and
+no event that could carry data across offices or past the API's access rules.
