@@ -24,6 +24,10 @@ Budgets: < 30 s for ≤ 10 pages; timeouts → FAILED with retry button.
 | Witness statement summary (P1-in-MVP) | manual | same as document summary |
 "Create tasks from next steps" creates Task rows with `sourceType=AI_NEXT_STEP` after the user confirms (never silently).
 
+Implementation (D-130, `apps/backend-api/src/modules/ai`): `AiExecutor.execute` / `BaseAiService`, `AiProviders` (OpenAI and
+Gemini over `fetch`, fake provider for tests), `AiJobs` + `AiJobRegistry` + `AiProcessor` for the `ai` queue, `GET /jobs/:id`,
+`AiJob` and `AiUsage` tables. Real providers refuse to run until the PII redactor replaces the pass-through `AI_REDACTOR`.
+
 Architecture (`modules/ai`):
 - `AiProvider` interface → `OpenAiProvider` (primary), `GeminiProvider` (fallback), `AnthropicProvider` (optional, config switch).
   Provider chosen by `AI_PRIMARY_PROVIDER` / `AI_FALLBACK_PROVIDER`; fallback on 5xx/timeouts/rate limit, not on validation errors.

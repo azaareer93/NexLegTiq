@@ -1553,3 +1553,45 @@ while Redis is down events are lost (the app catches up on its next fetch); each
 responsible lawyer once more than the reminder scheduler does (one primary-key lookup, kept for simplicity); every
 environment needs its own `BULLMQ_PREFIX` if Redis is ever shared. **Left open:** the portal namespace with its own
 token check and `client:{id}` rooms (Client Portal story), and the document and AI events (their stories emit them).
+
+**D-130 — AI foundation: providers, the executor, jobs and usage** · Accepted (MVP-83, 2026-10-20)
+MVP-83 left the SDKs, the circuit breaker, how the foundation can ship before the PII redactor, the job model and how
+the quota is counted open. → **Providers** (`src/modules/ai/providers`): an `AiProvider` interface with **OpenAI** (chat
+completions, JSON mode, `store: false`) and **Gemini** (`generateContent`, `responseJsonSchema`, key in the
+`x-goog-api-key` header, never the URL) called over `fetch` — no SDKs (a few fields each, like Resend in D-085); a
+deterministic **`FakeAiProvider`** (per-feature fixtures, scripted answers and errors, SHA-256 echo otherwise) is the
+only provider in tests and CI. Anthropic (optional in the ticket) is not built. **Config** (Zod env, documented in
+`.env.example`): `AI_PRIMARY_PROVIDER` / `AI_FALLBACK_PROVIDER` = `openai|gemini|fake|none` (default `none` = AI off,
+AI-001), each used provider needs its `*_API_KEY` and `*_MODEL` (model names are configuration), the fallback must differ
+from the primary, `fake` is refused in production; `AI_MAX_OUTPUT_TOKENS` 4096, `AI_TEMPERATURE` 0.2, `AI_TIMEOUT_MS` 45 s
+per attempt (inside the `ai` queue's 120 s), `AI_CACHE_TTL` 24 h, `AI_MODEL_PRICES` (USD per million tokens by model; an
+unlisted model costs 0, the tokens stay). Keys are redacted from logs. **Fallback** only when a provider is
+**unavailable** — timeout, network, 429, 5xx, or a 200 that is not the expected JSON — never on a refused request (other
+4xx: AI-003 when the input is too long, else AI-001) nor on invalid output. All unavailable → AI-002 if the last one was
+rate limited, else AI-001. **Circuit breaker** per provider and process: 5 failures in a row open it for 30 s, then one
+trial call; a refused request does not count. **`AiExecutor.execute({feature, prompt, schema, redactionContext,
+cacheKey?, ttlSeconds?, userId?, signal?})`** (features extend `BaseAiService`): availability (`AiAccess`: provider
+configured → AI-001; office `enableAi` → **AI-005**; plan flag `ai` → AUTH-102; monthly quota → AUTH-103) → cache → PII
+redaction → provider → JSON parse + Zod validation with **one repair call** (the problem is named by paths and issue codes,
+never by content) → re-hydration → validation again → usage row → cache. Still invalid → **AI-004** (the usage row is
+written anyway: the calls cost). User text over 400,000 characters → AI-003 (features chunk long documents). **PII
+redaction fails closed (D-057):** the redactor is its own story; until it replaces the `AI_REDACTOR` provider, a
+`PassThroughRedactor` (`redactsPii: false`) stands in, and the executor **refuses every provider that sends text out**
+(AI-001) — only the fake provider runs. Prompts are versioned files (`prompts/<name>.v<N>.ts`; the shared rules are
+`legal-assistant.v1`); the version is stored with every result and is part of the cache key. **Cache:** Redis under
+`o:{officeId}:ai:…` (`CacheKeys.tenant`, D-058), best effort (a Redis failure is a miss); a cached value the schema no
+longer accepts is ignored. **Usage** (`AiUsage`, tenant table, append-only — UPDATE revoked from the app role): one row per
+answer with provider, model, tokens (both calls of a repair), cost (`Decimal(10,6)`, decimal.js), duration and `cached`;
+**the quota counts provider calls (not cache hits) since the start of the UTC month** (`EntitlementsService.aiCallsThisMonth`,
+now also `usage.aiThisMonth` of `GET /offices/me/subscription`, amends D-122). **Jobs** (`AiJob`, tenant table: type,
+`sourceType` = `AiSourceType` (D-039's list, now in shared-types with AR/EN labels), `sourceId`, status
+QUEUED|RUNNING|SUCCEEDED|FAILED, `errorCode`, attempts, `result` = ids only, creator): `AiJobs.enqueue` checks availability,
+writes the row and queues `ai/<type>` after the commit (job id = the row id) → 202 `{jobId, status}`. One `AiProcessor`
+consumes the queue and dispatches to the handler a feature registered in `AiJobRegistry`; an unknown job fails
+(SYS-001). Only availability errors (AI-001, AI-002, SYS-001) are retried; anything else fails at once; the last failed
+attempt marks the job FAILED with its code. Success and failure push `ai.job.completed|failed` (D-129) to the creator.
+**`GET /jobs/:id`** (`use:ai`) shows a job to **its creator only** — it may concern a file a colleague cannot see; anyone
+else, another office or a malformed id → 404. **Not here:** `AiSummary` and every feature (document and session summary
+stories), the evaluation set, the daily cost alert (`AI_COST_ALERT_THRESHOLD_USD`), per-plan input caps, and the real
+redactor. Why: every AI feature gets fallback, validation, caching, quota and cost tracking from one place, and no text
+reaches a provider before PII redaction exists.
