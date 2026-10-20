@@ -102,7 +102,7 @@
     },
     "nextHearing": {
       "none": "No hearing scheduled",
-      "soon": "Hearings will appear here once they can be scheduled from the Hearings tab."
+      "open": "Open hearing"
     },
     "edit": {
       "title": "Edit case",
@@ -128,6 +128,13 @@
     "judge": "Judge",
     "judgePickCourt": "Choose a court first",
     "billingDefault": "Office default",
-    "more": "More details (optional)"
+    "more": "More details (optional)",
+    "newCourt": "New court",
+    "newJudge": "New judge",
+    "courtNameAr": "Court name (Arabic)",
+    "courtNameEn": "Court name (English, optional)",
+    "courtType": "Court type",
+    "city": "City (optional)",
+    "judgeName": "Judge name"
   }
 }

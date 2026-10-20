@@ -1620,3 +1620,155 @@ longer share an entry); the fake provider keeps its last 100 requests. **Gemini 
 out. **Known limits:** the quota check is not atomic — parallel jobs of one office (worker concurrency 5) can exceed it by
 a few requests; a job whose enqueue was lost after the commit, or that was skipped because its office was suspended,
 stays QUEUED (no sweep yet); job fields are not limited per job type yet (each feature's handler validates its own).
+.**D-126 — Document uploads: streaming, type sniffing, the malware scan, versions and idempotency** · Accepted (MVP-72, 2026-10-20)
+MVP-72 left the form layout, how the type is judged, what the scan does with each result, retries of an upload and who sees a
+confidential document open. → **Upload** `POST /documents` (`upload:document`; the file must be visible and not archived —
+`contribute`, D-119 — so a paralegal files documents on a lawyer's case) is `multipart/form-data` **read as a stream**
+(busboy, no Nest body parsing): the text fields (`fileId`, `documentType` default OTHER, `folderId?`, `sessionId?` of the same
+file, `isConfidential?` as `true`/`false`) must come **before** the `file` part, so they are validated (VAL-001) and access is
+checked before a byte is stored; only the first file part is read and it must be named `file`. A body announced over 50 MiB
++ 64 KiB is refused unread (413 VAL-006, answered once it has arrived so the client sees it); a file over 50 MiB (exactly
+50 MiB passes) is cut at the limit, its object deleted, 413 VAL-006. **Type:** judged by the first 64 KiB, never the name or the
+browser's Content-Type — magic bytes for PDF, PNG, JPEG, TIFF and DOC (OLE2; only named `.doc`), DOCX/XLSX as ZIP with
+`[Content_Types].xml` and `word/` or `xl/` entry names, CSV as text without NUL bytes (any encoding: Excel writes Arabic CSV
+as Windows-1256) — **and the name's extension must belong to that type** (a PNG called `.pdf` or a renamed executable → 415
+VAL-005). `file-type` was not used: it is ESM-only and the backend is CommonJS. **Names:** the uploaded name, without any
+browser path, is kept as is (Arabic too) in `originalFilename` and as the display `name`, and refused with control or bidi
+characters (`gpj‮exe.pdf`, VAL-001 on `file`). **Storage:** streamed to `{officeId}/{fileId}/{documentId}/{uuid}.{ext}`
+(canonical extension: `jpg`, `tiff`) while size and SHA-256 are computed; the document id is a UUID v7 made by the app
+(`common/ids/uuid-v7.ts`) because the key needs it before the insert. **Quota** (D-122): refused at once when already full,
+then checked with the real size after storing (403 AUTH-103, object deleted). **Recording** (one transaction): the document
+(status SCANNING, `ocrStatus` PENDING), version 1, a `DOCUMENT_UPLOADED` timeline event (`{name, versionNumber}`) and a
+CREATE audit row; any failure deletes the stored object. After the commit `ocr/scan-document {documentId, versionNumber}`
+is enqueued (job id `scan-{documentId}-v{n}`); the answer is **202 `{documentId, versionNumber, status}`**.
+**`Idempotency-Key`** (8–128 of `[A-Za-z0-9_-]`, else VAL-001): stored on the document, unique per office + uploader
+(migration `document_idempotency_key`); a repeated key returns the first document without reading the body, and a race on the
+same key answers the winner. It never expires (keys are the client's random ids) — the api-conventions Redis 24 h store is
+not needed for uploads. **Versions:** `POST /documents/:id/versions` (`changeNote?` then `file`) locks the document row, adds
+version n + 1, makes the document mirror it (`originalFilename`, type, size, checksum, key) with status SCANNING and
+`ocrStatus` PENDING, writes the timeline event and an UPDATE audit row, and queues its scan; `GET /documents/:id/versions`
+lists them newest first with their author. The display `name` stays (renaming is the documents story's). A quarantined
+document may receive a clean new version. **Scan** (`OcrProcessor`, the `ocr` queue's single consumer; ClamAV `INSTREAM` over
+TCP in a few lines, no client library): clean → PROCESSING and `ocr/process-document` enqueued; infected → QUARANTINED, the
+version's object deleted, a SECURITY audit row (`MALWARE_DETECTED`, signature) and an in-app notification to the uploader
+(`shell.notifications.documentQuarantined`, params include `code: STO-004`, link to the file's Documents tab); a scan that
+cannot finish is retried (3 attempts) and then the document is **FAILED — fail closed**, never treated as clean. Only the
+version the document still mirrors, while SCANNING, changes the document; a replaced version is still scanned and deleted when
+infected. **clamd's `StreamMaxLength` defaults to 25 MB**: both compose files now set 60M (dev and staging), and any other
+clamd must too, or large uploads fail closed. **`process-document`** (text extraction) belongs to its story: until then the
+job completes as skipped and documents stay PROCESSING — that story must pick up PROCESSING documents again. **Confidential
+documents** (`DocumentAccessService`, for the documents story too): seen only by the office manager, the uploader and the
+people assigned to the file (as for confidential files, D-096, also hidden from senior lawyers and admins who see every
+file); others get 404. **Rate limit** 20 uploads a minute per IP (api-conventions says per user; limits run before
+authentication, D-082). **Not done here:** the documents list, download, rename/move, delete and share (documents story), the
+HTTP isolation matrix entry (it needs list/get/patch/delete; another office's file or document → 404 is tested in
+`documents.int.spec.ts`), realtime `document.*` events (WebSocket story). Why: an upload is never held in memory, never
+trusted by its name, and never offered before it was scanned.
+Review additions (same PR): **an aborted or timed-out upload** ends the parser (`stream.pipeline`, not `pipe`), which
+errors the file stream, so the storage write fails and is cleaned up instead of waiting forever; every early answer (413,
+415, a refused field, a replay) is sent once the body has been read (`discardBody`, bounded by the server's request
+timeout), so the client sees it. **Inside the write** the file row is locked (`FOR NO KEY UPDATE`, as folder writes do) and
+checked again — deleted meanwhile is 404, archived BIZ-007 — with the folder and hearing, because an upload can take
+minutes. **Replacing a document** (a new version) is for its uploader or someone who may edit the file
+(`edit:any|assigned:case`, else 403 AUTH-100 / 404): `upload:document` alone (trainees, outside collaborators) adds
+documents but does not overwrite a colleague's. **Idempotent replays** report the document's current version and status; a
+key whose document the caller can no longer see (deleted, file out of scope) is spent — 409 RES-002, body not stored. **A
+confidential document's name stays out of the file's timeline** (payload `{versionNumber}` only), which colleagues off the
+file may read; its audit rows keep the name — the audit-viewer story must filter Document rows with
+`DocumentAccessService.visibleWhere`. **clamd fails closed on what it skips:** the compose files also set `AlertExceedsMax`
+and `AlertEncryptedArchive` (content over its limits, password-protected archives → reported, so QUARANTINED); encrypted
+PDFs and Office macros are not flagged (offices receive both routinely) — the allow-list already refuses macro-enabled
+packages (`vbaProject.bin`), and a DOCX/XLSX must contain its main part (`word/document.xml` / `xl/workbook.xml`). A clean
+scan retried after its `process-document` enqueue failed enqueues again (the update also matches PROCESSING; the job id
+keeps one). The version list is capped at 100; the version UPDATE audit row holds the replaced name, type and checksum.
+**Deviations / known limits:** the 202 carries `documentId`, not a `jobId` (D-014): the document is the thing to follow,
+through its status. Versions have no scan status of their own (`document_versions` is append-only): a version replaced
+before its scan finished is scanned and deleted when infected, but the download story must serve only the current version
+while READY, or record per-version results first. Concurrent uploads each pass the quota against committed usage, so an
+office can overshoot it by about one upload each. A scan job lost after its commit leaves the document SCANNING (fail
+closed); a reconciliation like D-117's belongs with the text-extraction story. The malware SECURITY audit row has no user
+(written by the worker); the notification type is `DOCUMENT_QUARANTINED`; anyone who may upload may mark their upload
+confidential; `GET /documents/:id/versions` needs ANY of `view:all|assigned:cases` plus the document rule above.
+**CI (amends D-078/D-085):** the workspace job also starts ClamAV (`clamav/clamav:stable`, the compose settings above) and waits for
+`clamdcheck.sh` before the integration tests, which scan the EICAR file for real; its signature download adds about a minute.
+
+**D-128 — Reading and managing documents: the file's list, metadata, soft delete, download and text** · Accepted (MVP-74, 2026-10-20)
+MVP-74 left who may rename, move, (un)classify and delete a document, what a download may serve, and how text is paged open.
+→ **Visibility** is D-126's `DocumentAccessService` everywhere: the file's scope (404 otherwise, D-019) and confidential
+documents only for the office manager, the uploader and the file's team. **`GET /cases/:id/documents`** (ANY of
+`view:all|assigned:cases`): live documents only, filters `folderId` (a folder of the file, or `root`), `documentType`,
+`status`, `search` (name or uploaded file name, case-insensitive contains; full-text search over the extracted text comes
+with global search), `sort=name|createdAt|updatedAt|sizeBytes[:dir]` (default newest change first, id as tie-break),
+paginated (≤ 100). **`GET /documents/:id`**: the document's current-version facts and uploader — never the storage key or
+checksum of older versions. **`PATCH /documents/:id`** (`upload:document`, a file that is not archived): `name`, `documentType`,
+`folderId` (`null` = root, a folder of the same file or VAL-001 `validation.unknownFolder`) and `isConfidential`; like a new
+version (D-126) only the uploader or someone who may edit the file changes a document, and **setting or lifting
+confidentiality** is for the office manager, the uploader or the file's responsible lawyer (403 AUTH-100 otherwise; as for
+files, D-096). Only changed fields are written and audited (the shared changes helper); an empty body is VAL-001.
+**`DELETE /documents/:id`** (`delete:document` = OM, SL, L; uploader or file editor): soft — `deletedAt`, gone from every list
+and route (404), its stored objects kept until the retention purge (which also has to free their quota bytes); audited with
+its name. **Download** `GET /documents/:id/download?version=` → `{downloadUrl, expiresIn: 300}` (JSON, D-013): only a document
+that passed its scan — QUARANTINED is **422 STO-004**, UPLOADED/SCANNING/FAILED **422 BIZ-015** (new: "not scanned clean yet");
+`version` names an older version (404 when it does not exist), the link serves that version's own uploaded name as an
+attachment (RFC 5987, Arabic kept, D-085) and type, and every link is an audit row `DOWNLOAD {versionNumber}` (a link,
+not proof the file was fetched). Older versions are offered on the document's state: a version replaced before its scan
+finished is still scanned and deleted when infected (D-126), but one whose scan never finished stays offered — a per-version
+scan record (append-only versions cannot take a status column) is the fix if that ever matters. **Text** `GET
+/documents/:id/text?page=`: the current version's extracted text in 20,000-character pages with `totalPages` and the
+document's `ocrStatus` (empty, 0 pages, until the text-extraction story fills it). **Not done here:** sharing with the client
+(portal stories), the documents tab UI (its own story), a retention purge, `documents` in the HTTP isolation matrix (its list is
+per file; the integration test covers list, get, patch, delete and download across offices). Why: every way to a document's
+content goes through one access rule and leaves an audit row.
+Review additions (same PR): **only the current version is downloadable** — the scan result is the document's, i.e. the
+current version's, so `?version=` other than the current is 404 until versions carry their own scan record (D-126 asked
+for exactly this; a version replaced before its scan ran could otherwise be served unscanned). **The text view is gated and
+audited like a download:** only once scanned clean (STO-004 / BIZ-015), and each page read writes a `VIEW {versionNumber,
+text: true, page}` audit row. **Edits and deletes lock and re-check inside the write** (as uploads do, D-126): the file row
+`FOR NO KEY UPDATE` — deleted meanwhile 404, archived meanwhile BIZ-007, the target folder still the file's — then the
+document row `FOR UPDATE`, read again (deleted meanwhile 404), so the audit's old values are what the change replaced.
+Download and text read the document with `deletedAt: null`; `version` is capped at 10,000 (no 500 on huge numbers). The
+list query's `type` filter is named `documentType` (the contract's enum name), and `folderId=root` lists the file's root. A
+rename changes the display `name` only; downloads keep each version's uploaded name. **Later:** a
+`(office_id, file_id, updated_at DESC) WHERE deleted_at IS NULL` index if files reach thousands of documents; reading only
+the requested 20,000 characters in SQL instead of the whole text.
+**D-127 — Hearings on the file page: office-time entry, the drawer, conflicts and inline courts** · Accepted (MVP-69, 2026-10-20) · Amends D-090, D-092
+MVP-69 needed hearing times on the office's clock in a browser that may run in any zone, and left the drawer's states, the
+conflict flow and "inline add" open. → **Time zone (amends D-090/D-092):** the session answer of login and refresh carries
+`user.timeZone` (the office's `timezone`, D-125), and the office app passes it to `NexProvider`, so every date and time on
+every page is shown in the office's zone (D-092 left this to "once office settings exist"); a manager's saved time zone updates
+the tab at once. `shared-utils` gains `wallClock(instant, zone)` and `zonedDateTime(date, time, zone)` (100 % covered, DST-tested):
+date and time pickers hold the **office wall clock** as plain values, and the request carries that time with the office's offset
+(`2026-11-02T09:30:00+02:00`, D-116), whatever the device's zone; a wall time skipped or repeated by a DST change (at night)
+resolves to a neighbouring reading. The drawer says which zone it uses. **Hearings tab** (`features/cases/sessions`): Upcoming
+(soonest first) and Past (latest first), 10 per page, each row with type, time, status, outcome or "outcome not recorded",
+court and room, judge, attending lawyer and the reminder days; a row (click or Enter/Space) opens the **drawer**. The list rows
+have no reminder statuses (the list contract leaves them out), so the drawer shows each reminder with its recipient and status
+(D-117). **Drawer:** a new hearing (type, date, start, optional end, court and judge, room, attending lawyer — the caller when
+they may attend, else the file's responsible lawyer — and reminder days, empty = the office's default); an existing one shows
+its summary, the edit form and "cancel hearing" (confirm, optional reason) while SCHEDULED, and outcome + minutes once it has
+started (correctable, "schedule the next hearing" with a date and time while it has none; the AI summary button is disabled until
+the AI features). Edits send only changed fields (instants compared as instants, reminder days as sets). **Conflicts:** a 409
+BIZ-004 shows each busy slot with its time and the file number when the user may open that file ("a hearing on a file you
+cannot open" otherwise) and "schedule anyway", which resends with `acknowledgeConflict` (create, edit and next hearing).
+**Rights (UI only, D-051):** schedule with `create:session`; edit, cancel and outcome with `edit:session` plus write access to
+the file (`edit:any:case`, or `edit:assigned:case` when assigned); nothing on an archived file. **Ctrl+Alt+H** opens a new
+hearing on the file page (physical key, not while typing — the quick-create rule, now `isCtrlAltShortcut`). **Next-hearing card**
+(Details tab): the first SCHEDULED hearing of the upcoming list, with "open hearing"; it shares the tab's query key, so any
+hearing write refreshes it at once. **Inline add (D-115):** the court and judge pickers (shared with quick-create) offer "new
+court" (Arabic name prefilled with the search, type, optional English name and city) and "new judge" (at the picked court); the
+new one is picked. **Deviations:** the Cypress schedule-hearing journey waits for the E2E story (as D-090/D-121); component tests
+cover the conflict flow, scheduling, editing, cancelling, outcome, the shortcut, rights, the card and axe in both languages.
+Why: hearing times are a legal deadline — they must read the same for everyone in the office, whatever their laptop's clock.
+Review additions (same PR): **amends D-118** — the Hearings tab replaces that tab's "coming soon" state, and the next-hearing
+card is live. **Rights mirror the API:** every hearing write needs write access to the file (`edit:any:case`, or
+`edit:assigned:case` when assigned), so scheduling (and Ctrl+Alt+H) needs `create:session` with it, editing `edit:session`
+with it; "schedule the next hearing" is offered only with `create:session` too. The shortcut is off while another dialog is
+open. **"Schedule anyway"** re-validates the form and is cleared as soon as the form changes, so it never acknowledges a
+conflict the user did not see; forms re-mount when the hearing changed on the server (keyed by `updatedAt`), so a stale form
+never sends a colleague's change back. **Reminder days on edit:** an empty list means no reminders (its hint says so); on create
+it means the office's default. The next-hearing card reads the next 50 upcoming hearings (cancelled ones included). An unknown
+stored time zone falls back to Asia/Hebron in the pickers as in formatting. Texts: separators, labels ("Judge: …") and list
+separators are translation keys (Arabic "، "), names, rooms, times and the shortcut are bidi-isolated, reminder offsets use
+plural forms (Arabic zero/one/two/few/many/other). **Known limit:** the pickers hold the office's wall clock as a date in the
+device's zone; on a device whose zone skips that wall time (a DST gap at night) the picker may show it an hour off — irrelevant at
+court hours.

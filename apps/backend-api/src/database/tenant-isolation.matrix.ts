@@ -306,6 +306,9 @@ export const TENANT_ISOLATION_MATRIX: readonly TenantResource[] = [
   },
   // Folders are nested under their file (`cases/:id/folders`); their HTTP isolation is in folders.int.spec.ts.
   { model: 'DocumentFolder', create: folderIn, update: { name: 'Renamed' } },
+  // Documents are listed per file (`cases/:id/documents`), which this matrix's fixed list path cannot express; their
+  // HTTP isolation (another office's file or document → 404 on list, get, patch, delete, download) is in
+  // documents.int.spec.ts.
   { model: 'Document', create: documentIn, update: { name: 'Renamed' } },
   { model: 'DocumentVersion', create: versionIn, update: { changeNote: 'Changed' } },
   { model: 'DocumentText', create: documentTextIn, update: { text: 'Changed' } },

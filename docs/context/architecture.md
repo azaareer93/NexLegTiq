@@ -64,7 +64,7 @@ timeline event → enqueue async work → audit log → invalidate cache → str
 ### Queues (D-011)
 | Queue | Priority | Jobs | Retry |
 |---|---|---|---|
-| `ocr` | high | `process-document` | 3× exp 1s, timeout 60s |
+| `ocr` | high | `scan-document` (ClamAV, D-126), `process-document` | 3× exp 1s, timeout 60s |
 | `ai` | medium | `summarize-document`, `summarize-session` | 2× 10s, timeout 120s |
 | `reminder` | high | `send-session-reminder`, `send-task-reminder` (delayed jobs), `reconcile-reminders` (daily scheduler, D-117) | 3× exp |
 | `email` | low | `send-email` | 3× fixed 5s |

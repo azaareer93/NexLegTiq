@@ -30,7 +30,8 @@
     "open": "Notifications",
     "empty": "No notifications yet.",
     "hearingReminder": "Upcoming hearing in file {{fileNumber}}",
-    "fileReassigned": "File {{fileNumber}} is now assigned to you"
+    "fileReassigned": "File {{fileNumber}} is now assigned to you",
+    "documentQuarantined": "⁨{{name}}⁩ was blocked: it contains malware"
   },
   "profile": {
     "menu": "Account menu",

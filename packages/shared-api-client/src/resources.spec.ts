@@ -2,7 +2,15 @@ import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 
 import { createApiClient } from './api-client.js';
-import { authApi, casesApi, clientsApi, courtsApi, officesApi, usersApi } from './resources.js';
+import {
+  authApi,
+  casesApi,
+  clientsApi,
+  courtsApi,
+  officesApi,
+  sessionsApi,
+  usersApi,
+} from './resources.js';
 
 const ORIGIN = 'http://api.test';
 const url = (path: string) => `${ORIGIN}/api/v1/${path}`;
@@ -25,6 +33,7 @@ const session = {
     emailVerified: true,
     verifyBy: null,
     idleMinutes: 30,
+    timeZone: 'Asia/Hebron',
   },
 };
 
@@ -52,6 +61,7 @@ function setup(token: string | null = null) {
     clients: clientsApi(client),
     courts: courtsApi(client),
     offices: officesApi(client),
+    sessions: sessionsApi(client),
     store,
     onAuthFailure,
   };
@@ -370,6 +380,28 @@ describe('usersApi.directory and courtsApi', () => {
     await expect(courts.judges(courtId)).resolves.toEqual([judge]);
   });
 
+  it('should add an office court and a judge', async () => {
+    let courtBody: unknown;
+    let judgeBody: unknown;
+    server.use(
+      http.post(url('courts'), async ({ request }) => {
+        courtBody = await request.json();
+        return ok(court, 201);
+      }),
+      http.post(url(`courts/${courtId}/judges`), async ({ request }) => {
+        judgeBody = await request.json();
+        return ok(judge, 201);
+      }),
+    );
+    const { courts } = setup('access-1');
+    await expect(courts.create({ nameAr: 'محكمة', courtType: 'MAGISTRATE' })).resolves.toEqual(
+      court,
+    );
+    expect(courtBody).toEqual({ nameAr: 'محكمة', courtType: 'MAGISTRATE' });
+    await expect(courts.createJudge(courtId, { fullName: 'Judge Amal' })).resolves.toEqual(judge);
+    expect(judgeBody).toEqual({ fullName: 'Judge Amal' });
+  });
+
   it('should refuse a directory entry with an unknown role as SYS-001', async () => {
     server.use(http.get(url('users/directory'), () => ok([{ ...people[0], role: 'CEO' }])));
     await expect(setup('access-1').users.directory()).rejects.toMatchObject({ code: 'SYS-001' });
@@ -599,5 +631,79 @@ describe('usersApi team management', () => {
     });
     await expect(users.reactivate(id)).resolves.toMatchObject({ isActive: true });
     expect(bodies).toEqual([{ role: 'SENIOR_LAWYER' }, { reassignments: [] }, 'POST']);
+  });
+});
+
+describe('sessionsApi', () => {
+  const fileId = '01920000-0000-7000-8000-0000000000f1';
+  const sessionId = '01920000-0000-7000-8000-0000000000a5';
+  const item = {
+    id: sessionId,
+    file: { id: fileId, fileNumber: '2026-LIT-00001', title: 'Lease' },
+    sessionType: 'HEARING',
+    status: 'SCHEDULED',
+    startsAt: '2026-11-02T07:30:00.000Z',
+    endsAt: null,
+    court: null,
+    judge: null,
+    courtRoom: null,
+    attendingLawyer: { id: '01920000-0000-7000-8000-000000000001', fullName: 'Layla Haddad' },
+    reminderDays: [7, 1],
+    outcome: null,
+    nextSessionId: null,
+    previousSessionId: null,
+    cancellationReason: null,
+    createdAt: '2026-10-20T10:00:00.000Z',
+    updatedAt: '2026-10-20T10:00:00.000Z',
+  };
+  const full = { ...item, minutes: null, reminders: [] };
+
+  it('should list the sessions of a file and write through the session routes', async () => {
+    let query = '';
+    const writes: { method: string; path: string; body: unknown }[] = [];
+    const record =
+      (method: string) =>
+      async ({ request }: { request: Request }) => {
+        writes.push({ method, path: new URL(request.url).pathname, body: await request.json() });
+        return ok(full);
+      };
+    server.use(
+      http.get(url(`cases/${fileId}/sessions`), ({ request }) => {
+        query = new URL(request.url).search;
+        return HttpResponse.json({
+          success: true,
+          data: [item],
+          meta: {
+            ...meta,
+            pagination: { page: 1, limit: 20, total: 1, totalPages: 1, hasMore: false },
+          },
+        });
+      }),
+      http.get(url(`sessions/${sessionId}`), () => ok(full)),
+      http.post(url('sessions'), record('POST')),
+      http.patch(url(`sessions/${sessionId}`), record('PATCH')),
+      http.post(url(`sessions/${sessionId}/cancel`), record('POST')),
+      http.post(url(`sessions/${sessionId}/outcome`), record('POST')),
+    );
+    const { sessions } = setup('access-1');
+    await expect(sessions.forFile(fileId, { when: 'past', limit: 20 })).resolves.toMatchObject({
+      items: [item],
+    });
+    expect(new URLSearchParams(query).get('when')).toBe('past');
+    await expect(sessions.get(sessionId)).resolves.toEqual(full);
+    await sessions.create({
+      fileId,
+      startsAt: '2026-11-02T09:30:00+02:00',
+      attendingLawyerId: item.attendingLawyer.id,
+    });
+    await sessions.update(sessionId, { courtRoom: '3' });
+    await sessions.cancel(sessionId, { reason: 'Strike' });
+    await sessions.outcome(sessionId, { outcome: 'ADJOURNED' });
+    expect(writes.map((write) => `${write.method} ${write.path}`)).toEqual([
+      'POST /api/v1/sessions',
+      `PATCH /api/v1/sessions/${sessionId}`,
+      `POST /api/v1/sessions/${sessionId}/cancel`,
+      `POST /api/v1/sessions/${sessionId}/outcome`,
+    ]);
   });
 });
