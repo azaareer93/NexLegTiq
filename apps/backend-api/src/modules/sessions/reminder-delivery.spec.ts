@@ -1,6 +1,7 @@
 import { ReminderDelivery } from './reminder-delivery';
 import type { MailService } from '../../common/mail/mail.service';
 import type { QueueProducer } from '../../common/queue/queue-producer';
+import type { RealtimePublisher } from '../../common/realtime/realtime.publisher';
 import { AppConfig } from '../../config/app-config';
 import { testEnv } from '../../config/env.fixture';
 import { parseEnv } from '../../config/env.schema';
@@ -62,6 +63,7 @@ function setup(found: unknown = row()) {
     mail as unknown as MailService,
     queues as unknown as QueueProducer,
     config,
+    { toUser: jest.fn(), toUsers: jest.fn(), toOffice: jest.fn() } as unknown as RealtimePublisher,
   );
   return { delivery, db, mail, queues };
 }

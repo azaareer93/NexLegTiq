@@ -13,6 +13,7 @@ import {
   ResourceNotFoundException,
   ValidationException,
 } from '../../common/errors/app.exception';
+import type { RealtimePublisher } from '../../common/realtime/realtime.publisher';
 import type { PrismaService } from '../../database/prisma.service';
 import type { UnitOfWork } from '../../database/unit-of-work';
 import type { CaseAccessService } from '../legal-files/case-access.service';
@@ -22,6 +23,7 @@ const ME = '01920000-0000-7000-8000-000000000001';
 const OTHER = '01920000-0000-7000-8000-000000000002';
 const FILE = '01920000-0000-7000-8000-0000000000f1';
 const TASK = '01920000-0000-7000-8000-0000000000a1';
+const NOTIFICATION = '01900000-0000-7000-8000-0000000000f1';
 const CLIENT = { ip: '127.0.0.1', userAgent: 'jest', requestId: 'req-12345678' };
 
 const accessRow = (overrides: Record<string, unknown> = {}) => ({
@@ -60,10 +62,13 @@ function setup(role: Role = 'LAWYER', row = accessRow()) {
     },
     caseTimelineEvent: { create: jest.fn() },
     auditLog: { create: jest.fn() },
-    notification: { create: jest.fn() },
+    notification: { create: jest.fn().mockResolvedValue({ id: NOTIFICATION }) },
   };
   const uow = {
-    run: jest.fn((work: (t: typeof tx) => unknown) => work(tx)),
+    // After-commit tasks run at once here, so realtime calls are visible to the test.
+    run: jest.fn((work: (t: typeof tx, after: (task: () => unknown) => void) => unknown) =>
+      work(tx, (task) => void task()),
+    ),
   } as unknown as UnitOfWork;
   const cls = {
     get: (key: keyof RequestContext) => context[key],
@@ -81,12 +86,22 @@ function setup(role: Role = 'LAWYER', row = accessRow()) {
     findFor: jest.fn().mockResolvedValue(row),
     findAllFor: jest.fn().mockResolvedValue([row]),
   } as unknown as TaskAccessService;
+  const realtime = { toUser: jest.fn(), toUsers: jest.fn(), toOffice: jest.fn() };
   const tasks = {
     get: jest.fn().mockResolvedValue({ id: TASK }),
     list: jest.fn().mockResolvedValue({ items: [], total: 0 }),
   } as unknown as TasksRepository;
   return {
-    service: new TasksService(cls, uow, prisma, files, access, tasks),
+    service: new TasksService(
+      cls,
+      uow,
+      prisma,
+      files,
+      access,
+      tasks,
+      realtime as unknown as RealtimePublisher,
+    ),
+    realtime,
     tx,
     files,
     tasks,
@@ -97,7 +112,7 @@ function setup(role: Role = 'LAWYER', row = accessRow()) {
 describe('TasksService', () => {
   describe('create', () => {
     it('should create a task last in TODO, check the file and the assignee, audit and notify', async () => {
-      const { service, tx, files } = setup();
+      const { service, tx, files, realtime } = setup();
       await service.create(
         CreateTaskSchema.parse({
           title: 'Draft',
@@ -125,6 +140,14 @@ describe('TasksService', () => {
       });
       expect(tx.notification.create).toHaveBeenCalledWith({
         data: expect.objectContaining({ userId: OTHER, type: 'task.assigned' }),
+        select: { id: true },
+      });
+      expect(realtime.toUser).toHaveBeenCalledWith(OTHER, 'task.assigned', {
+        taskId: TASK,
+        fileId: FILE,
+      });
+      expect(realtime.toUser).toHaveBeenCalledWith(OTHER, 'notification', {
+        notificationId: NOTIFICATION,
       });
     });
 
@@ -218,6 +241,7 @@ describe('TasksService', () => {
       });
       expect(tx.notification.create).toHaveBeenCalledWith({
         data: expect.objectContaining({ userId: OTHER, params: { taskId: TASK, title: 'Draft' } }),
+        select: { id: true },
       });
     });
 

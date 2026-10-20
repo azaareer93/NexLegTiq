@@ -5,6 +5,7 @@ import type { PinoLogger } from 'nestjs-pino';
 
 import { NotificationProcessor } from './notification.processor';
 import type { RequestContext } from '../../../common/context/request-context';
+import type { RealtimePublisher } from '../../../common/realtime/realtime.publisher';
 import { TenantRunner } from '../../../common/tenancy/tenant-runner';
 import type { PrismaService } from '../../../database/prisma.service';
 
@@ -31,6 +32,7 @@ function setup() {
     new TenantRunner(ClsServiceManager.getClsService<RequestContext>()),
     prisma,
     logger,
+    { toUser: jest.fn(), toUsers: jest.fn(), toOffice: jest.fn() } as unknown as RealtimePublisher,
   );
   const job = (name: string, data: object) =>
     ({

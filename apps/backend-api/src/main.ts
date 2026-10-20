@@ -5,6 +5,7 @@ import { Logger } from 'nestjs-pino';
 import { AppModule } from './app/app.module';
 import { configureApp } from './app/configure-app';
 import { API_PREFIX } from './bootstrap';
+import { useRealtimeAdapter } from './common/realtime/redis-io.adapter';
 import { AppConfig } from './config/app-config';
 
 async function bootstrap(): Promise<void> {
@@ -13,6 +14,7 @@ async function bootstrap(): Promise<void> {
     bodyParser: false,
   });
   configureApp(app);
+  await useRealtimeAdapter(app);
   const { host, port } = app.get(AppConfig).http;
   await app.listen(port, host);
   app.get(Logger).log(`HTTP API listening on http://${host}:${port}/${API_PREFIX}`, 'Bootstrap');

@@ -2,6 +2,7 @@ import type { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 
+import { AccessTokenVerifier } from './access-token-verifier';
 import { JWT_AUDIENCE, JWT_ISSUER } from './auth.constants';
 import { bearerFor } from './auth.test-helper';
 import { assertCookieRequestOrigin } from './csrf';
@@ -146,9 +147,11 @@ describe('JwtAuthGuard', () => {
     const prisma = { unscoped: () => ({ user: { findFirst } }) } as unknown as PrismaService;
     const guard = new JwtAuthGuard(
       new Reflector(),
-      jwt,
-      prisma,
-      new AppConfig(parseEnv(testEnv({ EMAIL_VERIFICATION_ENFORCED: 'true' }))),
+      new AccessTokenVerifier(
+        jwt,
+        prisma,
+        new AppConfig(parseEnv(testEnv({ EMAIL_VERIFICATION_ENFORCED: 'true' }))),
+      ),
     );
     const request: { headers: Record<string, string>; user?: unknown } = { headers: {} };
     const run = (authorization?: string, handler: object = () => undefined): Promise<boolean> => {

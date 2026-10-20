@@ -8,6 +8,7 @@ import { EnvelopeInterceptor } from '../common/http/envelope.interceptor';
 import { MailModule } from '../common/mail/mail.module';
 import { QueueModule } from '../common/queue/queue.module';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
+import { RealtimeGatewayModule, RealtimeModule } from '../common/realtime/realtime.module';
 import { StorageModule } from '../common/storage/storage.module';
 import { TenantInterceptor } from '../common/tenancy/tenant.interceptor';
 import { DatabaseModule } from '../database/database.module';
@@ -33,6 +34,8 @@ import { UsersModule } from '../modules/users/users.module';
     DatabaseModule,
     // Producers only: the HTTP app enqueues, the worker process consumes (D-011).
     QueueModule,
+    RealtimeModule,
+    RealtimeGatewayModule,
     StorageModule,
     MailModule,
     HealthModule,

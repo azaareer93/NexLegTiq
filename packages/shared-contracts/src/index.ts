@@ -169,3 +169,9 @@ export type {
   UpdateOfficeProfileRequest,
   UpdateOfficeSettingsRequest,
 } from './office.contract.js';
+export {
+  REALTIME_EVENTS,
+  REALTIME_NAMESPACE,
+  RealtimePayloadSchemas,
+} from './realtime.contract.js';
+export type { RealtimeEvent, RealtimePayload } from './realtime.contract.js';

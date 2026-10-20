@@ -18,6 +18,7 @@ import { configureApp } from '../../app/configure-app';
 import { MailService } from '../../common/mail/mail.service';
 import { QueueProducer } from '../../common/queue/queue-producer';
 import { getQueue, QUEUE } from '../../common/queue/queues';
+import { RealtimePublisher } from '../../common/realtime/realtime.publisher';
 import { TenantRunner } from '../../common/tenancy/tenant-runner';
 import { AppConfig } from '../../config/app-config';
 import { integrationEnv } from '../../config/env.fixture';
@@ -142,6 +143,7 @@ describe('hearing reminders (HTTP + PostgreSQL + Redis)', () => {
       app.get(MailService),
       app.get(QueueProducer),
       app.get(AppConfig),
+      app.get(RealtimePublisher),
     );
     processor = new ReminderProcessor(
       tenant,
@@ -437,6 +439,7 @@ describe('hearing reminders (HTTP + PostgreSQL + Redis)', () => {
       tenant,
       app.get(PrismaService),
       await app.resolve(PinoLogger),
+      app.get(RealtimePublisher),
     );
     const fields = {
       userId: user('attending').userId,

@@ -5,6 +5,7 @@ import { reminderJobId } from './reminder-scheduler';
 import { MailService } from '../../common/mail/mail.service';
 import { QueueProducer } from '../../common/queue/queue-producer';
 import { QUEUE } from '../../common/queue/queues';
+import { RealtimePublisher } from '../../common/realtime/realtime.publisher';
 import { AppConfig } from '../../config/app-config';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
@@ -66,6 +67,7 @@ export class ReminderDelivery {
     private readonly mail: MailService,
     private readonly queues: QueueProducer,
     private readonly config: AppConfig,
+    private readonly realtime: RealtimePublisher,
   ) {}
 
   async deliver(reminderId: string, now = new Date()): Promise<DeliveryResult> {
@@ -150,6 +152,10 @@ export class ReminderDelivery {
       },
       { jobId: `${jobId}-notification` },
     );
+    this.realtime.toUser(recipient.id, 'session.reminder', {
+      sessionId: session.id,
+      reminderId: reminder.id,
+    });
   }
 
   private async setStatus(
