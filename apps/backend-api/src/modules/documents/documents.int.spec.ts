@@ -5,7 +5,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { MAX_UPLOAD_BYTES } from '@nexlegtiq/shared-contracts';
-import type { Role } from '@nexlegtiq/shared-types';
+import type { OfficeId, Role } from '@nexlegtiq/shared-types';
 import { ClsService } from 'nestjs-cls';
 import type { PinoLogger } from 'nestjs-pino';
 import request from 'supertest';
@@ -67,7 +67,7 @@ describe('documents upload API (HTTP + PostgreSQL + storage + ClamAV)', () => {
   const user = (key: string) => users[key] as SeededUser;
   const as = (key: string) => bearerFor(jwt, user(key));
   const inOffice = <T>(office: string, work: () => Promise<T>) =>
-    app.get(TenantRunner).run({ officeId: office }, work);
+    app.get(TenantRunner).run({ officeId: office as OfficeId }, work);
 
   async function seedOffice(name: string): Promise<string> {
     const office = await raw.office.create({

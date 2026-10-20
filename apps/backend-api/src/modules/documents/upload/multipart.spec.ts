@@ -9,7 +9,7 @@ const FILE_ID = '01920000-0000-7000-8000-000000000001';
 
 type Part = { name: string; value: string } | { name: string; filename: string; data: Buffer };
 
-export function formRequest(parts: Part[], headers: Record<string, string> = {}): Request {
+function formRequest(parts: Part[], headers: Record<string, string> = {}): Request {
   const boundary = 'nlq-test-boundary';
   const chunks = parts.flatMap((part) => [
     Buffer.from(
@@ -71,6 +71,18 @@ describe('readUpload', () => {
         { field: 'file', message: 'validation.invalidCharacters' },
       ],
     });
+  });
+
+  it('should refuse a bad name even when the fields are valid', async () => {
+    await expect(
+      readUpload(
+        formRequest([
+          { name: 'fileId', value: FILE_ID },
+          { name: 'file', filename: '', data: Buffer.from('x') },
+        ]),
+        UploadDocumentFieldsSchema,
+      ),
+    ).rejects.toMatchObject({ code: 'VAL-001', details: [{ field: 'file' }] });
   });
 
   it('should take only the first file part, and refuse a form whose first file is not `file`', async () => {

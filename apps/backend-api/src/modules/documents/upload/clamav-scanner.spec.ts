@@ -54,7 +54,7 @@ describe('ClamavScanner', () => {
   afterEach(() => new Promise((resolve) => server.close(resolve)));
 
   it('should stream the body in chunks and report what clamd found', async () => {
-    let received = Buffer.alloc(0);
+    let received: Buffer = Buffer.alloc(0);
     server = await fakeClamd((body) => {
       received = body;
       return body.includes('EICAR') ? 'stream: Eicar FOUND\0' : 'stream: OK\0';
@@ -73,6 +73,11 @@ describe('ClamavScanner', () => {
         new AbortController().signal,
       ),
     ).resolves.toEqual({ infected: true, signature: 'Eicar' });
+    // A text stream yields strings, not buffers.
+    await expect(
+      scannerFor(server).scan(Readable.from(['plain text']), new AbortController().signal),
+    ).resolves.toEqual({ infected: false });
+    expect(received.toString()).toBe('plain text');
   });
 
   it('should fail when clamd is unreachable or the scan is aborted', async () => {

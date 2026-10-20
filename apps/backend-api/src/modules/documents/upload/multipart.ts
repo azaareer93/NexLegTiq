@@ -67,7 +67,9 @@ export function readUpload<S extends z.ZodType>(
         return;
       }
       const fields = schema.safeParse(raw);
-      const filename = OriginalFilenameSchema.safeParse(info.filename.split(/[/\\]/).pop() ?? '');
+      // busboy reports an empty `filename=""` as undefined, whatever its types say.
+      const sent = (info.filename as string | undefined) ?? '';
+      const filename = OriginalFilenameSchema.safeParse(sent.split(/[/\\]/).pop() ?? '');
       if (!fields.success || !filename.success) {
         stream.resume();
         reject(
