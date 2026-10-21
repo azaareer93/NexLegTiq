@@ -6,8 +6,10 @@ import axe from 'axe-core';
 import { HttpResponse } from 'msw';
 
 import { retryable, uploadProblem } from './document-upload';
+import { pollInterval } from './use-documents';
 import {
   api,
+  fail,
   http,
   ok,
   renderApp,
@@ -201,6 +203,18 @@ describe('document upload rules', () => {
     expect(uploadProblem({ name: 'a.tiff', size: 50 * 1024 * 1024 + 1 })).toBe('size');
   });
 
+  it('should poll while a recently changed document is pending, and not for old ones', () => {
+    const now = Date.parse('2026-10-21T10:00:00.000Z');
+    const recent = { updatedAt: '2026-10-21T09:58:00.000Z' };
+    const old = { updatedAt: '2026-10-21T09:00:00.000Z' };
+    expect(pollInterval([doc(DOC_ID, { status: 'SCANNING', ...recent })], now)).toBe(10_000);
+    expect(pollInterval([doc(DOC_ID, { status: 'PROCESSING', ...recent })], now)).toBe(10_000);
+    // Waiting for OCR (D-132): a socket event still updates it, no endless polling.
+    expect(pollInterval([doc(DOC_ID, { status: 'PROCESSING', ...old })], now)).toBe(false);
+    expect(pollInterval([doc(DOC_ID, { status: 'READY', ...recent })], now)).toBe(false);
+    expect(pollInterval(undefined, now)).toBe(false);
+  });
+
   it('should offer a retry only when it can help', () => {
     expect(retryable({ status: 'FAILED', processingErrorCode: 'EXT-002' })).toBe(true);
     expect(retryable({ status: 'FAILED', processingErrorCode: null })).toBe(true);
@@ -359,6 +373,109 @@ describe('documents tab (MVP-75)', () => {
           body: { name: 'Medical', parentId: CUSTOM_ID },
         }),
       );
+    },
+    SLOW,
+  );
+
+  it(
+    'should let a trainee upload and rename but not delete',
+    async () => {
+      setViewport(1280);
+      asRole('TRAINEE');
+      serve();
+      await openTab();
+      expect(screen.getByTestId('documents-upload')).toBeTruthy();
+      fireEvent.click(screen.getByTestId(`document-actions-${DOC_ID}`));
+      expect(await screen.findByText('Rename')).toBeTruthy();
+      expect(screen.queryByText('Delete')).toBeNull();
+    },
+    SLOW,
+  );
+
+  it(
+    'should offer an admin no writes at all',
+    async () => {
+      setViewport(1280);
+      asRole('ADMIN');
+      serve();
+      await openTab();
+      expect(screen.queryByTestId('documents-upload')).toBeNull();
+      expect(screen.queryByTestId('folder-new')).toBeNull();
+      expect(screen.queryByTestId(`document-actions-${DOC_ID}`)).toBeNull();
+    },
+    SLOW,
+  );
+
+  it('should show an error with a retry when the list cannot load', async () => {
+    setViewport(1280);
+    asRole('LAWYER');
+    serve();
+    let broken = true;
+    server.use(
+      http.get(api(`cases/${FILE_ID}/documents`), () => {
+        return broken ? fail(500, 'SYS-001') : page(DOCS);
+      }),
+    );
+    renderApp(`/cases/${FILE_ID}?tab=documents`, 'en');
+    // Cold start plus the query client's one retry: slower than a plain load under a full parallel run.
+    const retry = await screen.findByRole('button', { name: /try again/i }, { timeout: 2 * COLD });
+    broken = false;
+    fireEvent.click(retry);
+    expect(await screen.findByTestId(`document-row-${DOC_ID}`)).toBeTruthy();
+  }, 120_000);
+
+  it(
+    'should explain a failed upload and retry it with the same idempotency key',
+    async () => {
+      setViewport(1280);
+      asRole('LAWYER');
+      serve();
+      const keys: (string | null)[] = [];
+      server.use(
+        http.post(api('documents'), ({ request }) => {
+          keys.push(request.headers.get('idempotency-key'));
+          return keys.length === 1
+            ? fail(403, 'AUTH-103')
+            : ok({ documentId: DOC_ID, versionNumber: 1, status: 'UPLOADED' }, 202);
+        }),
+      );
+      await openTab();
+      fireEvent.click(screen.getByTestId('documents-upload'));
+      const panel = await screen.findByTestId('upload-panel');
+      const input = panel.querySelector('input[type="file"]');
+      if (!input) throw new Error('no file input');
+      fireEvent.change(input, {
+        target: { files: [new File(['%PDF-1.7'], 'Contract.pdf', { type: 'application/pdf' })] },
+      });
+      fireEvent.click(await within(panel).findByText('Upload 1 file'));
+      await waitFor(() => expect(keys).toHaveLength(1));
+      expect(
+        await within(panel).findByText('Your office has reached its plan limit.'),
+      ).toBeTruthy();
+      // The type and folder are locked: the retried key may already be stored with them.
+      await waitFor(() =>
+        expect(within(panel).getByTestId('upload-type').className).toContain('disabled'),
+      );
+      fireEvent.click(within(panel).getByText('Upload 1 file'));
+      await waitFor(() => expect(keys).toHaveLength(2));
+      expect(keys[1]).toBe(keys[0]);
+      expect(await within(panel).findByText('Uploaded, being checked')).toBeTruthy();
+    },
+    SLOW,
+  );
+
+  it(
+    'should not open the upload panel from the shortcut while a dialog has focus',
+    async () => {
+      setViewport(1280);
+      asRole('LAWYER');
+      serve();
+      await openTab();
+      fireEvent.click(screen.getByTestId('folder-new'));
+      const input = await screen.findByTestId('folder-create-dialog-input');
+      input.focus();
+      fireEvent.keyDown(document.body, { code: 'KeyU', ctrlKey: true, altKey: true });
+      expect(screen.queryByTestId('upload-panel')).toBeNull();
     },
     SLOW,
   );

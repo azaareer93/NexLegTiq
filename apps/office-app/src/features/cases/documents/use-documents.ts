@@ -2,6 +2,7 @@ import { documentsApi, foldersApi } from '@nexlegtiq/shared-api-client';
 import type { DocumentListParams, UploadInput } from '@nexlegtiq/shared-api-client';
 import type {
   CreateFolderRequest,
+  Document,
   UpdateDocumentRequest,
   UpdateFolderRequest,
 } from '@nexlegtiq/shared-contracts';
@@ -26,15 +27,21 @@ export const documentKeys = {
 /** Seconds between refreshes while a shown document is still being scanned or processed (the socket's fallback). */
 export const PENDING_POLL_MS = 10_000;
 
+/** Only recent changes are polled: images and scans stay PROCESSING until OCR exists (D-132), a socket event still updates them. */
+const POLL_WINDOW_MS = 10 * 60_000;
+const polled = (item: Document, now: number): boolean =>
+  PENDING_STATUSES.has(item.status) && now - Date.parse(item.updatedAt) < POLL_WINDOW_MS;
+
+/** The list's refetch interval: every 10 s while a recently changed document is still on its way to READY. */
+export const pollInterval = (items: readonly Document[] = [], now = Date.now()): number | false =>
+  items.some((item) => polled(item, now)) ? PENDING_POLL_MS : false;
+
 export const useDocuments = (fileId: string, query: DocumentListParams) =>
   useQuery({
     queryKey: documentKeys.list(fileId, query),
     queryFn: ({ signal }) => documents.forFile(fileId, query, signal),
     placeholderData: keepPreviousData,
-    refetchInterval: (state) =>
-      state.state.data?.items.some((item) => PENDING_STATUSES.has(item.status))
-        ? PENDING_POLL_MS
-        : false,
+    refetchInterval: (state) => pollInterval(state.state.data?.items),
   });
 
 export const useFolders = (fileId: string) =>

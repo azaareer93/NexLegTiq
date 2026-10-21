@@ -54,7 +54,7 @@ function DocumentName({ document }: { readonly document: Document }): React.JSX.
       {document.currentVersion > 1 ? (
         <Tooltip title={t('documents.list.versionLabel', { number: document.currentVersion })}>
           <Tag bordered={false}>
-            {t('documents.list.version', { number: document.currentVersion })}
+            <bdi>{t('documents.list.version', { number: document.currentVersion })}</bdi>
           </Tag>
         </Tooltip>
       ) : null}

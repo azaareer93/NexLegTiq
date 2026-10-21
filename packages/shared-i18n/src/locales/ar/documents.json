@@ -20,25 +20,24 @@
     "actions": "الإجراءات",
     "status": "الحالة",
     "language": "اللغة",
-    "version": "إ{{number}}",
+    "version": "إصدار {{number}}",
     "versionLabel": "الإصدار {{number}}",
     "confidential": "سري",
     "search": "البحث في المستندات",
     "empty": "لا توجد مستندات بعد",
     "emptyHint": "اسحب الملفات إلى هنا أو استخدم زر الرفع لإضافة أول مستند.",
-    "emptyFolder": "لا توجد مستندات في هذا المجلد",
-    "failedReason": "{{reason}}"
+    "emptyFolder": "لا توجد مستندات في هذا المجلد"
   },
   "size": {
     "bytes": "{{value}} بايت",
-    "kb": "{{value}} ك.ب",
-    "mb": "{{value}} م.ب"
+    "kb": "{{value}} كيلوبايت",
+    "mb": "{{value}} ميغابايت"
   },
   "upload": {
     "open": "رفع",
     "title": "رفع مستندات",
     "drop": "اسحب الملفات إلى هنا، أو انقر للاختيار",
-    "hint": "PDF وWord وExcel وCSV والصور، حتى 50 م.ب لكل ملف",
+    "hint": "PDF وWord وExcel وCSV والصور، حتى {{max}} ميغابايت لكل ملف",
     "type": "نوع المستند",
     "folder": "المجلد",
     "start_zero": "رفع {{count}} ملف",
@@ -55,7 +54,7 @@
     "error": "لم يُرفع",
     "problem": {
       "type": "هذا النوع من الملفات غير مقبول",
-      "size": "أكبر من 50 م.ب",
+      "size": "أكبر من {{max}} ميغابايت",
       "empty": "الملف فارغ"
     },
     "finished_zero": "لم يُرفع أي مستند",

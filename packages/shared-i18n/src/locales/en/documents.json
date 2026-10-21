@@ -26,8 +26,7 @@
     "search": "Search documents",
     "empty": "No documents yet",
     "emptyHint": "Drag files here or use Upload to add the first one.",
-    "emptyFolder": "No documents in this folder",
-    "failedReason": "{{reason}}"
+    "emptyFolder": "No documents in this folder"
   },
   "size": {
     "bytes": "{{value}} B",
@@ -38,7 +37,7 @@
     "open": "Upload",
     "title": "Upload documents",
     "drop": "Drag files here, or click to choose",
-    "hint": "PDF, Word, Excel, CSV and images, up to 50 MB each",
+    "hint": "PDF, Word, Excel, CSV and images, up to {{max}} MB each",
     "type": "Document type",
     "folder": "Folder",
     "start_one": "Upload {{count}} file",
@@ -51,7 +50,7 @@
     "error": "Not uploaded",
     "problem": {
       "type": "This type of file is not accepted",
-      "size": "Larger than 50 MB",
+      "size": "Larger than {{max}} MB",
       "empty": "The file is empty"
     },
     "finished_one": "{{count}} document uploaded",

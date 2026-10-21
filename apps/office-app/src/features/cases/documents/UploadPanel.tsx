@@ -5,10 +5,10 @@ import type { DocumentType } from '@nexlegtiq/shared-types';
 import { useApiErrorHandler } from '@nexlegtiq/shared-ui';
 import { isolate } from '@nexlegtiq/shared-utils';
 import { App, Button, Flex, Form, List, Modal, Progress, Select, Typography, Upload } from 'antd';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { ACCEPT_ATTRIBUTE, newItem } from './document-upload';
+import { ACCEPT_ATTRIBUTE, MAX_UPLOAD_MB, newItem } from './document-upload';
 import type { UploadItem } from './document-upload';
 import { useSize } from './DocumentsTable';
 import { useFolderName } from './FolderTree';
@@ -48,7 +48,7 @@ export function UploadPanel({
   const [documentType, setDocumentType] = useState<DocumentType>('OTHER');
   const [folderId, setFolderId] = useState<string | null>(defaultFolderId);
   const [running, setRunning] = useState(false);
-  const keys = useState(() => new Map<string, string>())[0];
+  const keys = useRef(new Map<string, string>()).current;
 
   const patch = (key: string, change: Partial<UploadItem>) =>
     setItems((list) => list.map((item) => (item.key === key ? { ...item, ...change } : item)));
@@ -76,10 +76,7 @@ export function UploadPanel({
         patch(item.key, { state: 'done', progress: 1 });
         done += 1;
       } catch (error) {
-        patch(item.key, {
-          state: 'error',
-          errorCode: (error as { code?: string }).code ?? 'SYS-001',
-        });
+        patch(item.key, { state: 'error', error });
       }
     }
     setRunning(false);
@@ -87,17 +84,16 @@ export function UploadPanel({
   };
 
   const close = () => {
-    if (running) return;
-    setItems([]);
-    onClose();
+    if (!running) onClose();
   };
+  // A retry reuses each failed file's key, which the server may already hold: its type and folder stay as sent.
+  const locked = running || items.some((item) => item.state === 'error');
 
   return (
     <Modal
       open={open}
       title={t('documents.upload.title')}
       onCancel={close}
-      destroyOnHidden
       width={640}
       data-testid="upload-panel"
       footer={
@@ -134,7 +130,7 @@ export function UploadPanel({
             <InboxOutlined />
           </p>
           <p className="ant-upload-text">{t('documents.upload.drop')}</p>
-          <p className="ant-upload-hint">{t('documents.upload.hint')}</p>
+          <p className="ant-upload-hint">{t('documents.upload.hint', { max: MAX_UPLOAD_MB })}</p>
         </Upload.Dragger>
         <Form layout="vertical">
           <Flex gap={12} wrap>
@@ -142,7 +138,7 @@ export function UploadPanel({
               <Select<DocumentType>
                 value={documentType}
                 onChange={setDocumentType}
-                disabled={running}
+                disabled={locked}
                 options={DOCUMENT_TYPES.map((type) => ({
                   value: type,
                   label: t(`enums.documentType.${type}`),
@@ -154,7 +150,7 @@ export function UploadPanel({
               <Select<string>
                 value={folderId ?? 'root'}
                 onChange={(value) => setFolderId(value === 'root' ? null : value)}
-                disabled={running}
+                disabled={locked}
                 options={[
                   { value: 'root', label: t('documents.folders.root') },
                   ...folders.map((folder) => ({ value: folder.id, label: folderName(folder) })),
@@ -172,7 +168,7 @@ export function UploadPanel({
               <List.Item
                 data-testid={`upload-item-${item.key}`}
                 actions={
-                  item.state === 'uploading' || item.state === 'done'
+                  running || item.state === 'uploading' || item.state === 'done'
                     ? []
                     : [
                         <Button
@@ -199,7 +195,7 @@ export function UploadPanel({
                   </Flex>
                   <ItemState
                     item={item}
-                    errorText={item.errorCode ? messageOf({ code: item.errorCode }) : ''}
+                    errorText={item.error === undefined ? '' : messageOf(item.error)}
                   />
                 </Flex>
               </List.Item>
@@ -222,7 +218,7 @@ function ItemState({
   if (item.state === 'refused') {
     return (
       <Typography.Text type="danger">
-        {t(`documents.upload.problem.${item.problem ?? 'type'}`)}
+        {t(`documents.upload.problem.${item.problem ?? 'type'}`, { max: MAX_UPLOAD_MB })}
       </Typography.Text>
     );
   }

@@ -1779,3 +1779,12 @@ with `delete:document` after a `ConfirmModal`. **Archived files offer no writes*
 **Deferred:** share with client and AI summarise (portal and AI-summary stories), download/preview and version history
 (the download story's UI), folder move/delete, drag-and-drop between folders, bulk actions, retyping and marking
 confidential from the list. Why: the documents a file holds are visible and manageable today, using only routes the API has.
+Review additions (same PR): **polling** covers only documents changed in the last 10 minutes — images and scans stay
+PROCESSING until OCR exists (D-132) and would otherwise be refetched every 10 s for as long as the tab is open (the
+`document.processed` event still updates them). A page emptied by a delete moves back to the last page with rows. While a
+batch uploads, its files cannot be removed from the queue; once a file has failed, the batch's type and folder are locked
+(its retry reuses the idempotency key, which the server may already hold with the first choice). The size limit in the
+texts comes from `MAX_UPLOAD_BYTES`; Arabic writes كيلوبايت/ميغابايت and "إصدار n" in full. **Ctrl+Alt shortcuts** share one
+hook (`useCtrlAltShortcut`) that also ignores keys while focus is inside a dialog, so Ctrl+Alt+U and the hearing drawer's
+Ctrl+Alt+H never open over each other. Actions are not hidden while the subscription is read-only (as on the Hearings
+tab: the banner explains it and the API refuses with AUTH-104).

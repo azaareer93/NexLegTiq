@@ -56,6 +56,7 @@ export function NameDialog({
         form={form}
         layout="vertical"
         noValidate
+        preserve={false}
         initialValues={{ name: initial ?? '' }}
         onFinish={() => void submit()}
       >

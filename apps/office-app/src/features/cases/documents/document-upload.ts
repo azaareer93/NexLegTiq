@@ -16,6 +16,9 @@ export const ACCEPTED_EXTENSIONS = [
 ] as const;
 export const ACCEPT_ATTRIBUTE = ACCEPTED_EXTENSIONS.map((ext) => `.${ext}`).join(',');
 
+/** The API limit in MiB, for the texts that name it. */
+export const MAX_UPLOAD_MB = MAX_UPLOAD_BYTES / (1024 * 1024);
+
 export type UploadProblem = 'type' | 'size' | 'empty';
 
 /** Why a picked file cannot be uploaded, or null when it can. */
@@ -39,8 +42,8 @@ export interface UploadItem {
   /** 0–1 while uploading. */
   readonly progress: number;
   readonly problem?: UploadProblem;
-  /** Error code of a failed upload (`errors.<code>`). */
-  readonly errorCode?: string;
+  /** Why the upload failed (shown with `messageOf`). */
+  readonly error?: unknown;
 }
 
 export const newItem = (file: File, key: string): UploadItem => {

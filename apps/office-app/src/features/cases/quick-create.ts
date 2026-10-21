@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { create } from 'zustand';
 
 /** Whether the quick-create case modal is open (D-123): opened from the shell, the cases list or Ctrl+Alt+N. */
@@ -23,6 +24,28 @@ export function isCtrlAltShortcut(event: KeyboardEvent, code: string): boolean {
     !event.isComposing &&
     event.code === code
   );
+}
+
+/**
+ * Runs `open` on Ctrl+Alt+<code> while `enabled`, but not while focus is inside a dialog (AntD modals and drawers trap
+ * focus), so a shortcut never opens one feature's dialog over another's.
+ */
+export function useCtrlAltShortcut(code: string, enabled: boolean, open: () => void): void {
+  // The latest callback, so the listener is attached once per `enabled` change, not on every render.
+  const latest = useRef(open);
+  latest.current = open;
+  useEffect(() => {
+    if (!enabled) return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      if (document.activeElement?.closest('[role="dialog"]')) return;
+      if (isCtrlAltShortcut(event, code)) {
+        event.preventDefault();
+        latest.current();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [code, enabled]);
 }
 
 /** Ctrl+Alt+N: a new case (D-123). */

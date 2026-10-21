@@ -3,7 +3,7 @@ import type { DocumentListParams } from '@nexlegtiq/shared-api-client';
 import type { Folder } from '@nexlegtiq/shared-contracts';
 import { EmptyState, ErrorState, LoadingSkeleton, useCan } from '@nexlegtiq/shared-ui';
 import { Button, Card, Col, Input, Row } from 'antd';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { DocumentsTable } from './DocumentsTable';
@@ -12,26 +12,9 @@ import { FolderTree } from './FolderTree';
 import type { FolderSelection } from './FolderTree';
 import { UploadPanel } from './UploadPanel';
 import { useDocuments, useFolders } from './use-documents';
-import { isCtrlAltShortcut } from '../quick-create';
+import { useCtrlAltShortcut } from '../quick-create';
 
 const PAGE_SIZE = 20;
-
-/** Ctrl+Alt+U opens the upload panel (physical key, so it works on an Arabic layout; ignored while typing). */
-function useUploadShortcut(enabled: boolean, open: () => void): void {
-  const latest = useRef(open);
-  latest.current = open;
-  useEffect(() => {
-    if (!enabled) return undefined;
-    const onKey = (event: KeyboardEvent) => {
-      if (isCtrlAltShortcut(event, 'KeyU')) {
-        event.preventDefault();
-        latest.current();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [enabled]);
-}
 
 /** The list part of the tab: error, loading, the two empty states, or the table. */
 function ListBody({
@@ -93,7 +76,8 @@ function UploadControls({
 }): React.JSX.Element {
   const { t } = useTranslation();
   const [uploading, setUploading] = useState(false);
-  useUploadShortcut(!uploading, () => setUploading(true));
+  // Ctrl+Alt+U (physical key; not while typing or inside a dialog).
+  useCtrlAltShortcut('KeyU', !uploading, () => setUploading(true));
   return (
     <>
       <Button
@@ -149,6 +133,11 @@ export function DocumentsTab({
   const [page, setPage] = useState(1);
   const folders = useFolders(fileId).data ?? [];
   const list = useDocuments(fileId, listQuery(selection, search, page));
+  // A page emptied by a delete (or a shorter list) goes back to the last page that has rows.
+  const totalPages = list.data?.pagination.totalPages ?? 0;
+  useEffect(() => {
+    if (totalPages > 0 && page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
   const folderId = folders.some((folder) => folder.id === selection) ? selection : null;
   const select = (next: FolderSelection) => {
     setSelection(next);
