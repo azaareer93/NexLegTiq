@@ -19,41 +19,34 @@ import { testEnv } from '../../config/env.fixture';
 import { parseEnv } from '../../config/env.schema';
 import type { PrismaService } from '../../database/prisma.service';
 import type { UnitOfWork } from '../../database/unit-of-work';
+import type { ClientInfo } from '../auth/client-info';
 
 const JOB = { documentId: '01920000-0000-7000-8000-0000000000d1', versionNumber: 2 };
 const WORDS = Array.from({ length: 600 }, (_, i) => `word${i}`).join(' ');
+const VERSION = {
+  storageKey: 'k',
+  mimeType: MIME.DOCX,
+  createdById: 'u2',
+  document: { officeId: 'o1', fileId: 'f1', documentType: 'PLEADING', name: 'Lease.docx' },
+};
 
 function extractionSetup({
-  version = {
-    storageKey: 'k',
-    mimeType: MIME.DOCX,
-    document: {
-      status: 'PROCESSING',
-      currentVersion: 2,
-      fileId: 'f1',
-      uploadedById: 'u1',
-      documentType: 'PLEADING',
-    },
-  } as unknown,
+  version = VERSION as unknown,
   updated = 1,
   autoSummary = 'false',
   body = buildDocx([WORDS]),
 } = {}) {
   const tx = {
-    document: {
-      updateMany: jest.fn().mockResolvedValue({ count: updated }),
-      findFirstOrThrow: jest.fn().mockResolvedValue({ officeId: 'o1' }),
-    },
+    document: { updateMany: jest.fn().mockResolvedValue({ count: updated }) },
     documentText: { upsert: jest.fn() },
   };
   const db = {
     documentVersion: { findFirst: jest.fn().mockResolvedValue(version) },
-    document: {
-      findFirst: jest.fn().mockResolvedValue({ uploadedById: 'u1', fileId: 'f1' }),
-      updateMany: jest.fn().mockResolvedValue({ count: updated }),
-    },
+    document: { updateMany: jest.fn().mockResolvedValue({ count: updated }) },
   };
   const realtime = { toUser: jest.fn() };
+  const queues = { enqueue: jest.fn() };
+  const storage = { getStream: jest.fn().mockResolvedValue(Readable.from([body])) };
   const logger = { setContext: jest.fn(), info: jest.fn() };
   const service = new DocumentExtraction(
     { db } as unknown as PrismaService,
@@ -61,20 +54,31 @@ function extractionSetup({
       run: (work: (t: unknown, after: (task: () => unknown) => void) => unknown) =>
         work(tx, (task) => void task()),
     } as unknown as UnitOfWork,
-    { getStream: jest.fn().mockResolvedValue(Readable.from([body])) } as unknown as StorageService,
+    storage as unknown as StorageService,
     realtime as unknown as RealtimePublisher,
+    queues as unknown as QueueProducer,
     new AppConfig(parseEnv(testEnv({ AI_AUTO_SUMMARY: autoSummary }))),
     logger as unknown as PinoLogger,
   );
-  return { service, tx, db, realtime, logger };
+  return { service, tx, db, realtime, queues, storage, logger };
 }
 
+const LIVE_PROCESSING = {
+  id: JOB.documentId,
+  currentVersion: 2,
+  status: 'PROCESSING',
+  deletedAt: null,
+};
+
 describe('DocumentExtraction', () => {
-  it('should store the text, make the document READY and tell the uploader', async () => {
-    const { service, tx, realtime, logger } = extractionSetup();
+  it('should store the text, make the document READY and tell the uploader of the version', async () => {
+    const { service, tx, db, realtime, logger } = extractionSetup();
     await expect(service.run(JOB)).resolves.toBe('READY');
+    expect(db.documentVersion.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { ...JOB, document: LIVE_PROCESSING } }),
+    );
     expect(tx.document.updateMany).toHaveBeenCalledWith({
-      where: { id: JOB.documentId, currentVersion: 2, status: 'PROCESSING' },
+      where: LIVE_PROCESSING,
       data: { status: 'READY', ocrStatus: 'DONE', processingErrorCode: null },
     });
     expect(tx.documentText.upsert).toHaveBeenCalledWith(
@@ -82,7 +86,7 @@ describe('DocumentExtraction', () => {
         create: expect.objectContaining({ officeId: 'o1', ocrEngine: 'docx', versionNumber: 2 }),
       }),
     );
-    expect(realtime.toUser).toHaveBeenCalledWith('u1', 'document.processed', {
+    expect(realtime.toUser).toHaveBeenCalledWith('u2', 'document.processed', {
       documentId: JOB.documentId,
       fileId: 'f1',
     });
@@ -95,52 +99,59 @@ describe('DocumentExtraction', () => {
     expect(logger.info).toHaveBeenCalledWith({ documentId: JOB.documentId }, 'Auto-summary wanted');
   });
 
-  it.each([
-    ['no version', null],
-    [
-      'a document not processing',
-      { storageKey: 'k', mimeType: MIME.DOCX, document: { status: 'READY', currentVersion: 2 } },
-    ],
-    [
-      'an older version',
-      {
-        storageKey: 'k',
-        mimeType: MIME.DOCX,
-        document: { status: 'PROCESSING', currentVersion: 3 },
-      },
-    ],
-  ])('should change nothing for %s', async (_label, version) => {
-    const { service, tx } = extractionSetup({ version });
-    await expect(service.run(JOB)).resolves.toBe('SUPERSEDED');
-    expect(tx.document.updateMany).not.toHaveBeenCalled();
-  });
-
-  it('should leave images for OCR and do nothing when the version moved on during extraction', async () => {
-    const image = extractionSetup({
-      version: {
-        storageKey: 'k',
-        mimeType: 'image/png',
-        document: { status: 'PROCESSING', currentVersion: 2 },
-      },
-    });
-    await expect(image.service.run(JOB)).resolves.toBe('NEEDS_OCR');
+  it('should change nothing for a version no longer processed, nor when the document moved on meanwhile', async () => {
+    const gone = extractionSetup({ version: null });
+    await expect(gone.service.run(JOB)).resolves.toBe('SUPERSEDED');
+    expect(gone.storage.getStream).not.toHaveBeenCalled();
     const raced = extractionSetup({ updated: 0 });
     await expect(raced.service.run(JOB)).resolves.toBe('SUPERSEDED');
     expect(raced.tx.documentText.upsert).not.toHaveBeenCalled();
     expect(raced.realtime.toUser).not.toHaveBeenCalled();
   });
 
-  it('should mark a failed extraction FAILED with EXT-002 and tell the uploader, only once', async () => {
-    const { service, db, realtime } = extractionSetup();
-    await service.markFailed(JOB);
+  it('should leave images for OCR without downloading them, and scan-like PDFs after reading them', async () => {
+    const image = extractionSetup({ version: { ...VERSION, mimeType: 'image/png' } });
+    await expect(image.service.run(JOB)).resolves.toBe('NEEDS_OCR');
+    expect(image.storage.getStream).not.toHaveBeenCalled();
+  });
+
+  it('should stop when the attempt was aborted', async () => {
+    const { service, tx } = extractionSetup();
+    const controller = new AbortController();
+    controller.abort();
+    await expect(service.run(JOB, controller.signal)).rejects.toThrow();
+    expect(tx.document.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('should mark a failed extraction FAILED with its code and tell the uploader, live and in-app', async () => {
+    const { service, db, realtime, queues } = extractionSetup();
+    await service.markFailed(JOB, 'VAL-005');
     expect(db.document.updateMany).toHaveBeenCalledWith({
-      where: { id: JOB.documentId, currentVersion: 2, status: 'PROCESSING' },
-      data: { status: 'FAILED', processingErrorCode: 'EXT-002' },
+      where: LIVE_PROCESSING,
+      data: { status: 'FAILED', processingErrorCode: 'VAL-005' },
     });
     expect(realtime.toUser).toHaveBeenCalledTimes(1);
-    const already = extractionSetup({ updated: 0 });
-    await already.service.markFailed(JOB);
-    expect(already.realtime.toUser).not.toHaveBeenCalled();
+    expect(queues.enqueue).toHaveBeenCalledWith(
+      'notification',
+      'create-notification',
+      expect.objectContaining({
+        userId: 'u2',
+        type: 'DOCUMENT_FAILED',
+        params: { documentId: JOB.documentId, name: 'Lease.docx', code: 'VAL-005' },
+      }),
+      expect.anything(),
+    );
+    await service.markFailed(JOB);
+    expect(db.document.updateMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ data: { status: 'FAILED', processingErrorCode: 'EXT-002' } }),
+    );
+    const gone = extractionSetup({ version: null });
+    await gone.service.markFailed(JOB);
+    const raced = extractionSetup({ updated: 0 });
+    await raced.service.markFailed(JOB);
+    expect([...gone.realtime.toUser.mock.calls, ...raced.realtime.toUser.mock.calls]).toHaveLength(
+      0,
+    );
   });
 });
 
@@ -170,7 +181,7 @@ describe('DocumentRetry', () => {
     );
     return { retry, tx, queues, context };
   }
-  const client = { ip: null, userAgent: null, requestId: null };
+  const client: ClientInfo = { ip: '127.0.0.1', userAgent: null, requestId: null };
 
   it('should send a failed extraction back to extraction and a failed scan back to the scan', async () => {
     const extraction = retrySetup({
@@ -180,7 +191,7 @@ describe('DocumentRetry', () => {
     });
     await expect(extraction.retry.retry(JOB.documentId, client)).resolves.toBe('document');
     expect(extraction.tx.document.updateMany).toHaveBeenCalledWith({
-      where: { id: JOB.documentId, status: 'FAILED' },
+      where: { id: JOB.documentId, status: 'FAILED', deletedAt: null },
       data: { status: 'PROCESSING', processingErrorCode: null },
     });
     expect(extraction.queues.enqueue).toHaveBeenCalledWith('ocr', 'process-document', JOB, {
@@ -200,6 +211,15 @@ describe('DocumentRetry', () => {
     await expect(
       retrySetup({ status: 'READY' }).retry.retry(JOB.documentId, client),
     ).rejects.toMatchObject({ code: 'BIZ-016' });
+    // An unreadable file (VAL-005) would only fail again.
+    const unreadable = retrySetup({
+      status: 'FAILED',
+      currentVersion: 1,
+      processingErrorCode: 'VAL-005',
+    });
+    await expect(unreadable.retry.retry(JOB.documentId, client)).rejects.toMatchObject({
+      code: 'BIZ-016',
+    });
     await expect(retrySetup(null).retry.retry(JOB.documentId, client)).rejects.toMatchObject({
       code: 'BIZ-016',
     });

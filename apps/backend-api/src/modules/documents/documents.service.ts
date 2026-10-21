@@ -5,7 +5,7 @@ import type { Request } from 'express';
 import { ClsService } from 'nestjs-cls';
 
 import { DocumentAccessService } from './document-access.service';
-import { documentJobId, SCAN_DOCUMENT_JOB } from './document-jobs';
+import { documentJobId, NEW_VERSION_STATE, SCAN_DOCUMENT_JOB } from './document-jobs';
 import type { DocumentJob } from './document-jobs';
 import { discardBody, readUpload } from './upload/multipart';
 import type { StoredUpload } from './upload/store-upload';
@@ -161,8 +161,7 @@ export class DocumentsService {
             ...mirror,
             sizeBytes: stored.sizeBytes,
             storageKey: stored.key,
-            status: 'SCANNING',
-            ocrStatus: 'PENDING',
+            ...NEW_VERSION_STATE,
           },
         });
         const changeNote = fields.changeNote || null;

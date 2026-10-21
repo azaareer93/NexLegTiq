@@ -1737,3 +1737,19 @@ logs — the document-summary story enqueues the summary there (with `enableAi` 
 `OCR_WORKER_CONCURRENCY` (1–20) and `OCR_JOB_TIMEOUT_MS` (10 s–10 min) override the `ocr` queue policy (D-084) when set
 (`TenantProcessor.timeoutMs` became overridable). **Not here:** OCR of scans and images (Tesseract, then Google Vision),
 language detection (`Document.language`), notifying the uploader by email.
+Review additions (same PR): **A shared worker must survive any upload** — Office files are checked against **zip bombs**
+before parsing (the central directory's declared sizes: at most 100 MB unpacked, a 100:1 ratio, 10,000 entries; ZIP64
+refused), sheets and PDFs are read with a **text budget** (collection stops at 5,000,000 characters), empty cells are
+skipped, PDFs are read **page by page** (at most 2,000 pages, never all pages at once) and their PDF.js document is
+always released, and the `ocr` queue's default concurrency drops from 10 to **2** (amends D-084;
+`OCR_WORKER_CONCURRENCY` raises it). Running the parsers in a worker thread with memory limits is **not done** — a
+crafted file can still hold the event loop for a while; that is the next step if it ever shows. Images, TIFF and `.doc`
+are no longer downloaded just to be sent to OCR; the attempt's abort signal stops a timed-out extraction before it writes.
+**Codes:** a file no parser can read (corrupt, encrypted, a zip bomb) is FAILED with **VAL-005** and its retry is refused
+(BIZ-016 — the same parse would fail again); a failure that may pass on retry (storage, a job that stalled more than
+BullMQ allows — now also treated as final, so a document never stays PROCESSING) is **EXT-002**. **The malware scan is
+never skipped:** a new version (and a scan that failed for good) clears `processingErrorCode`, so a retry after an older
+extraction failure goes back to the scan (`NEW_VERSION_STATE`); a FAILED document is downloadable only when it failed
+**after** a clean scan (a processing error code), like PROCESSING and READY. **Who is told:** the uploader of the
+version (not of the document), live (`document.processed`) and, on failure, by an in-app notification
+(`shell.notifications.documentFailed`, D-117's notification queue); deleted documents are never processed.

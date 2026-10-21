@@ -29,7 +29,7 @@ function setup(env: Record<string, string> = {}) {
     markFailed: jest.fn().mockResolvedValue(undefined),
   };
   const tenant = { run: jest.fn((_ctx: unknown, work: () => Promise<unknown>) => work()) };
-  const logger = { error: jest.fn() };
+  const logger = { error: jest.fn(), warn: jest.fn() };
   const processor = new OcrProcessor(
     tenant as unknown as TenantRunner,
     {} as PrismaService,
@@ -62,7 +62,10 @@ describe('OcrProcessor', () => {
       signal,
     );
     await expect(handle('process-document')).resolves.toEqual({ outcome: 'READY' });
-    expect(extraction.run).toHaveBeenCalledWith({ documentId: DATA.documentId, versionNumber: 1 });
+    expect(extraction.run).toHaveBeenCalledWith(
+      { documentId: DATA.documentId, versionNumber: 1 },
+      signal,
+    );
     await expect(handle('other')).rejects.toThrow('Unknown ocr job other');
   });
 
@@ -86,11 +89,20 @@ describe('OcrProcessor', () => {
     expect(extraction.markFailed).not.toHaveBeenCalled();
     await processor.onFailed(job('scan-document', 3), new Error('clamd down'));
     expect(scan.markFailed).toHaveBeenCalledWith({ documentId: DATA.documentId, versionNumber: 1 });
-    await processor.onFailed(job('process-document', 0), new UnrecoverableError('unreadable'));
-    expect(extraction.markFailed).toHaveBeenCalledWith({
-      documentId: DATA.documentId,
-      versionNumber: 1,
-    });
+    await processor.onFailed(job('process-document', 0), new UnrecoverableError('VAL-005'));
+    expect(extraction.markFailed).toHaveBeenCalledWith(
+      { documentId: DATA.documentId, versionNumber: 1 },
+      'VAL-005',
+    );
+    // A job BullMQ gave up on after stalling is final too (else the document stays PROCESSING).
+    await processor.onFailed(
+      job('process-document', 1),
+      new Error('job stalled more than allowable limit'),
+    );
+    expect(extraction.markFailed).toHaveBeenLastCalledWith(
+      { documentId: DATA.documentId, versionNumber: 1 },
+      'EXT-002',
+    );
     scan.markFailed.mockRejectedValueOnce(new Error('db down'));
     await processor.onFailed(job('scan-document', 0), new UnrecoverableError('bad'));
     expect(logger.error).toHaveBeenCalled();

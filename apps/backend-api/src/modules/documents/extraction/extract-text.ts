@@ -1,6 +1,8 @@
 import ExcelJS from 'exceljs';
 import mammoth from 'mammoth';
-import { extractText as pdfText, getDocumentProxy } from 'unpdf';
+import { getDocumentProxy } from 'unpdf';
+
+import { assertZipWithinLimits } from './zip-limits';
 
 /** The text of a document, or the sign that it needs OCR (scans, images, PDFs without a text layer — D-132). */
 export type Extraction =
@@ -16,6 +18,8 @@ export type Extraction =
 export const MIN_PDF_CHARS_PER_PAGE = 50;
 /** Text kept per version; the search vectors index the first 500,000 characters (D-119). */
 export const MAX_TEXT_CHARS = 5_000_000;
+/** Pages read from a PDF; the rest of a longer one is not indexed. */
+export const MAX_PDF_PAGES = 2000;
 
 export const MIME = {
   PDF: 'application/pdf',
@@ -24,7 +28,11 @@ export const MIME = {
   CSV: 'text/csv',
 } as const;
 
-/** A file that is not what its type says (corrupt, encrypted, truncated): extraction cannot succeed, retrying won't help. */
+/** Types read here; everything else (images, TIFF, legacy .doc) goes to OCR without being downloaded. */
+export const extractable = (mimeType: string): boolean =>
+  (Object.values(MIME) as string[]).includes(mimeType);
+
+/** A file that is not what its type says (corrupt, encrypted, truncated, a zip bomb): no retry will read it. */
 export class UnreadableDocumentError extends Error {
   constructor(engine: string, options?: { cause?: unknown }) {
     super(`The ${engine} content could not be read`, options);
@@ -38,49 +46,77 @@ const NUL = String.fromCharCode(0);
 const clip = (text: string): string =>
   (text.length > MAX_TEXT_CHARS ? text.slice(0, MAX_TEXT_CHARS) : text).replaceAll(NUL, '');
 
-/** Reads the text out of a stored version by its sniffed MIME type (D-126); other types go to OCR. */
+/** Collects lines until MAX_TEXT_CHARS: a huge sheet or PDF stops being read instead of being built whole. */
+class TextBudget {
+  private readonly lines: string[] = [];
+  private size = 0;
+
+  get full(): boolean {
+    return this.size >= MAX_TEXT_CHARS;
+  }
+
+  add(line: string): void {
+    this.lines.push(line);
+    this.size += line.length + 1;
+  }
+
+  text(separator: string): string {
+    return clip(this.lines.join(separator));
+  }
+}
+
+/**
+ * Reads the text out of a stored version by its sniffed MIME type (D-126). Office files are checked against zip bombs
+ * first, sheets and PDFs are read with a text budget, and PDFs page by page with a page cap — one upload must not exhaust
+ * the shared worker (D-132). Other types go to OCR.
+ */
 export async function extractText(content: Buffer, mimeType: string): Promise<Extraction> {
   switch (mimeType) {
     case MIME.DOCX:
       return { kind: 'TEXT', engine: 'docx', pageCount: null, text: clip(await docx(content)) };
     case MIME.XLSX:
-      return { kind: 'TEXT', engine: 'xlsx', pageCount: null, text: clip(await xlsx(content)) };
+      return { kind: 'TEXT', engine: 'xlsx', pageCount: null, text: await xlsx(content) };
     case MIME.CSV:
       return { kind: 'TEXT', engine: 'csv', pageCount: null, text: clip(csv(content)) };
     case MIME.PDF:
       return pdf(content);
     default:
-      // Images, TIFF and legacy .doc: the OCR path (Tesseract) handles them.
       return { kind: 'NEEDS_OCR' };
   }
 }
 
 async function docx(content: Buffer): Promise<string> {
   try {
+    assertZipWithinLimits(content);
     return (await mammoth.extractRawText({ buffer: content })).value;
   } catch (error) {
     throw new UnreadableDocumentError('docx', { cause: error });
   }
 }
 
-/** Every sheet in order, a heading line per sheet, cells separated by tabs (formulas give their last result). */
+/** Every sheet in order, a heading line per sheet, the cells that hold something separated by tabs. */
 async function xlsx(content: Buffer): Promise<string> {
-  const book = new ExcelJS.Workbook();
+  const budget = new TextBudget();
   try {
+    assertZipWithinLimits(content);
+    // In memory, bounded by the zip limits: exceljs's streaming reader fails on archives that list worksheets before
+    // the workbook (as exceljs itself writes them).
+    const book = new ExcelJS.Workbook();
     await book.xlsx.load(content as unknown as ArrayBuffer);
+    book.eachSheet((sheet) => {
+      if (budget.full) return;
+      budget.add(`# ${sheet.name}`);
+      sheet.eachRow((row) => {
+        if (budget.full) return;
+        const cells: string[] = [];
+        row.eachCell((cell) => cells.push(cell.text ?? ''));
+        budget.add(cells.join('\t'));
+      });
+    });
   } catch (error) {
     throw new UnreadableDocumentError('xlsx', { cause: error });
   }
-  const lines: string[] = [];
-  book.eachSheet((sheet) => {
-    lines.push(`# ${sheet.name}`);
-    sheet.eachRow((row) => {
-      const cells: string[] = [];
-      row.eachCell({ includeEmpty: true }, (cell) => cells.push(cell.text ?? ''));
-      lines.push(cells.join('\t').trimEnd());
-    });
-  });
-  return lines.join('\n');
+  return budget.text('\n');
 }
 
 /** UTF-8 (BOM stripped); a file that is not valid UTF-8 is read as Windows-1256, the common Arabic legacy encoding. */
@@ -92,19 +128,36 @@ function csv(content: Buffer): string {
   }
 }
 
+/** Page by page (never all pages at once), up to MAX_PDF_PAGES and the text budget; the document is always released. */
 async function pdf(content: Buffer): Promise<Extraction> {
-  let pages: string[];
+  const budget = new TextBudget();
   let pageCount: number;
+  let characters = 0;
+  let read = 0;
   try {
     const document = await getDocumentProxy(new Uint8Array(content));
-    const result = await pdfText(document, { mergePages: false });
-    pages = result.text;
-    pageCount = result.totalPages;
+    try {
+      pageCount = document.numPages;
+      for (
+        let number = 1;
+        number <= Math.min(pageCount, MAX_PDF_PAGES) && !budget.full;
+        number += 1
+      ) {
+        const page = await document.getPage(number);
+        const { items } = await page.getTextContent();
+        const text = items.map((item) => ('str' in item ? item.str : '')).join(' ');
+        page.cleanup();
+        characters += text.replace(/\s/g, '').length;
+        read += 1;
+        budget.add(text);
+      }
+    } finally {
+      // What unpdf calls itself: releases the parsed document and its worker-side state.
+      await document.loadingTask.destroy();
+    }
   } catch (error) {
     throw new UnreadableDocumentError('pdf', { cause: error });
   }
-  const characters = pages.reduce((sum, page) => sum + page.replace(/\s/g, '').length, 0);
-  if (pageCount === 0 || characters / pageCount < MIN_PDF_CHARS_PER_PAGE)
-    return { kind: 'NEEDS_OCR' };
-  return { kind: 'TEXT', engine: 'pdf-text-layer', pageCount, text: clip(pages.join('\n\f\n')) };
+  if (read === 0 || characters / read < MIN_PDF_CHARS_PER_PAGE) return { kind: 'NEEDS_OCR' };
+  return { kind: 'TEXT', engine: 'pdf-text-layer', pageCount, text: budget.text('\n\f\n') };
 }

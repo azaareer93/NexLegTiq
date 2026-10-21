@@ -73,6 +73,7 @@ describe('document text extraction (integration)', () => {
       app.get(UnitOfWork),
       app.get(StorageService),
       app.get(RealtimePublisher),
+      app.get(QueueProducer),
       app.get(AppConfig),
       quiet,
     );
@@ -248,6 +249,61 @@ describe('document text extraction (integration)', () => {
       where: { entityId: job.documentId, newValues: { path: ['retried'], equals: true } },
     });
     expect(audit?.oldValues).toEqual({ status: 'FAILED', processingErrorCode: 'EXT-002' });
+  });
+
+  it('should never let a new version skip its scan through an old failure (retry goes back to the scan)', async () => {
+    const v1 = await uploaded(buildPdf([LINE]), 'v1.pdf');
+    await inOffice(() => extraction().markFailed(v1));
+    // Version 2 arrives while v1 is FAILED with EXT-002, and its scan then fails for good.
+    const added = await http()
+      .post(`/api/v1/documents/${v1.documentId}/versions`)
+      .set(bearerFor(jwt, manager))
+      .attach('file', buildPdf([`Version two. ${LINE}`]), {
+        filename: 'v2.pdf',
+        contentType: 'application/octet-stream',
+      })
+      .expect(202);
+    const v2 = {
+      documentId: v1.documentId,
+      versionNumber: (added.body as { data: Job }).data.versionNumber,
+    };
+    await expect(document(v1.documentId).expect(200)).resolves.toMatchObject({
+      body: { data: { status: 'SCANNING', processingErrorCode: null } },
+    });
+    await inOffice(() => scanner().markFailed(v2));
+    const res = await http()
+      .post(`/api/v1/documents/${v1.documentId}/ocr/retry`)
+      .set(bearerFor(jwt, manager))
+      .expect(202);
+    expect(res.body.data).toMatchObject({ status: 'SCANNING', processingErrorCode: null });
+    // Not downloadable until scanned.
+    await expect(
+      http().get(`/api/v1/documents/${v1.documentId}/download`).set(bearerFor(jwt, manager)),
+    ).resolves.toMatchObject({ status: 422, body: { error: { code: 'BIZ-015' } } });
+  });
+
+  it('should keep a document whose extraction failed downloadable (it passed its scan)', async () => {
+    const job = await uploaded(buildPdf([LINE]), 'kept.pdf');
+    await inOffice(() => extraction().markFailed(job, 'VAL-005'));
+    await http()
+      .get(`/api/v1/documents/${job.documentId}/download`)
+      .set(bearerFor(jwt, manager))
+      .expect(200);
+    // An unreadable file is not retried.
+    await expect(
+      http().post(`/api/v1/documents/${job.documentId}/ocr/retry`).set(bearerFor(jwt, manager)),
+    ).resolves.toMatchObject({ status: 422, body: { error: { code: 'BIZ-016' } } });
+  });
+
+  it('should not process a document deleted in the meantime', async () => {
+    const job = await uploaded(buildPdf([LINE]), 'deleted.pdf');
+    await http()
+      .delete(`/api/v1/documents/${job.documentId}`)
+      .set(bearerFor(jwt, manager))
+      .expect(204);
+    await expect(inOffice(() => extraction().run(job))).resolves.toBe('SUPERSEDED');
+    const row = await raw.document.findUniqueOrThrow({ where: { id: job.documentId } });
+    expect(row.status).toBe('PROCESSING');
   });
 
   it('should send a failed scan back to the scan on retry', async () => {

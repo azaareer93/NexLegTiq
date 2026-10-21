@@ -13,6 +13,7 @@ import { TenantRunner } from '../../../common/tenancy/tenant-runner';
 import { AppConfig } from '../../../config/app-config';
 import { PrismaService } from '../../../database/prisma.service';
 import { DocumentExtraction } from '../document-extraction';
+import type { ProcessingFailure } from '../document-extraction';
 import { DocumentJobSchema, PROCESS_DOCUMENT_JOB, SCAN_DOCUMENT_JOB } from '../document-jobs';
 import type { DocumentJob } from '../document-jobs';
 import { DocumentScan } from '../document-scan';
@@ -61,10 +62,12 @@ export class OcrProcessor extends TenantProcessor<DocumentJob> implements OnAppl
     }
     if (job.name === PROCESS_DOCUMENT_JOB) {
       try {
-        return { outcome: await this.extraction.run({ documentId, versionNumber }) };
+        return { outcome: await this.extraction.run({ documentId, versionNumber }, signal) };
       } catch (error) {
-        if (error instanceof UnreadableDocumentError) throw new UnrecoverableError(error.message);
-        throw error;
+        if (!(error instanceof UnreadableDocumentError)) throw error;
+        // The parser's own message stays in the log; the job carries the code only.
+        this.logger.warn({ documentId, err: error.cause }, error.message);
+        throw new UnrecoverableError(UNREADABLE);
       }
     }
     throw new UnrecoverableError(`Unknown ocr job ${job.name}`);
@@ -74,11 +77,13 @@ export class OcrProcessor extends TenantProcessor<DocumentJob> implements OnAppl
   async onFailed(job: Job | undefined, error: Error): Promise<void> {
     const mark = job && this.markerFor(job.name);
     if (!job || !mark || !isFinalAttempt(job, error)) return;
+    const code =
+      error instanceof UnrecoverableError && error.message === UNREADABLE ? UNREADABLE : 'EXT-002';
     const tenant = parseTenantJob(job.data);
     const fields = DocumentJobSchema.safeParse(job.data);
     if (!tenant || !fields.success) return;
     try {
-      await this.tenant.run({ officeId: tenant.officeId }, () => mark.markFailed(fields.data));
+      await this.tenant.run({ officeId: tenant.officeId }, () => mark(fields.data, code));
     } catch (markError) {
       this.logger.error(
         { err: markError, documentId: fields.data.documentId },
@@ -88,13 +93,27 @@ export class OcrProcessor extends TenantProcessor<DocumentJob> implements OnAppl
   }
 
   /** Who marks a job FAILED after its last attempt: the scan or the extraction. */
-  private markerFor(name: string): { markFailed(job: DocumentJob): Promise<void> } | null {
-    if (name === SCAN_DOCUMENT_JOB) return this.scan;
-    return name === PROCESS_DOCUMENT_JOB ? this.extraction : null;
+  private markerFor(
+    name: string,
+  ): ((job: DocumentJob, code: ProcessingFailure) => Promise<void>) | null {
+    if (name === SCAN_DOCUMENT_JOB) return (job) => this.scan.markFailed(job);
+    return name === PROCESS_DOCUMENT_JOB
+      ? (job, code) => this.extraction.markFailed(job, code)
+      : null;
   }
 }
 
-/** An error that is not retried, or the last attempt. */
+/** The code of a file no parser can read (VAL-005: not what its type says): FAILED for good, no retry endpoint either. */
+const UNREADABLE = 'VAL-005';
+
+/**
+ * An error that is not retried, the last attempt, or a job BullMQ gave up on after stalling (the worker was blocked or
+ * died): otherwise the document would stay PROCESSING forever.
+ */
 function isFinalAttempt(job: Job, error: Error): boolean {
-  return error.name === 'UnrecoverableError' || job.attemptsMade >= (job.opts.attempts ?? 1);
+  return (
+    error.name === 'UnrecoverableError' ||
+    /stalled more than allowable limit/i.test(error.message) ||
+    job.attemptsMade >= (job.opts.attempts ?? 1)
+  );
 }

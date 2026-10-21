@@ -39,14 +39,15 @@ export class DocumentRetry {
         where: { id, deletedAt: null },
         select: { status: true, currentVersion: true, processingErrorCode: true },
       });
-      if (row?.status !== 'FAILED') {
+      // VAL-005: the file cannot be read; running the same parse again would only fail again.
+      if (row?.status !== 'FAILED' || row.processingErrorCode === 'VAL-005') {
         throw new BusinessRuleException('BIZ-016', 'Only a failed document can be retried');
       }
       const step = row.processingErrorCode ? 'process' : 'scan';
       const status = step === 'process' ? 'PROCESSING' : 'SCANNING';
       // Guarded on FAILED: two retries at once queue the work once.
       const { count } = await tx.document.updateMany({
-        where: { id, status: 'FAILED' },
+        where: { id, status: 'FAILED', deletedAt: null },
         data: { status, processingErrorCode: null },
       });
       if (count === 0)

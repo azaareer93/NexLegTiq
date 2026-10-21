@@ -31,7 +31,8 @@
     "empty": "No notifications yet.",
     "hearingReminder": "Upcoming hearing in file {{fileNumber}}",
     "fileReassigned": "File {{fileNumber}} is now assigned to you",
-    "documentQuarantined": "⁨{{name}}⁩ was blocked: it contains malware"
+    "documentQuarantined": "⁨{{name}}⁩ was blocked: it contains malware",
+    "documentFailed": "The text of ⁨{{name}}⁩ could not be read"
   },
   "profile": {
     "menu": "Account menu",
