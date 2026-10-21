@@ -26,7 +26,7 @@ Budgets: < 30 s for ≤ 10 pages; timeouts → FAILED with retry button.
 
 Implementation (D-130, `apps/backend-api/src/modules/ai`): `AiExecutor.execute` / `BaseAiService`, `AiProviders` (OpenAI and
 Gemini over `fetch`, fake provider for tests), `AiJobs` + `AiJobRegistry` + `AiProcessor` for the `ai` queue, `GET /jobs/:id`,
-`AiJob` and `AiUsage` tables. Real providers refuse to run until the PII redactor replaces the pass-through `AI_REDACTOR`.
+`AiJob` and `AiUsage` tables. `PiiRedactor` (D-131) is the `AI_REDACTOR`: names, emails, phones, ids and bank numbers become placeholders before any call.
 
 Architecture (`modules/ai`):
 - `AiProvider` interface → `OpenAiProvider` (primary), `GeminiProvider` (fallback), `AnthropicProvider` (optional, config switch).

@@ -19,14 +19,15 @@ import { parseEnv } from '../../config/env.schema';
 const OFFICE = '01900000-0000-7000-8000-0000000000aa';
 const Summary = z.object({ summary: z.string().min(1).max(200), parties: z.array(z.string()) });
 
-/** Replaces every listed name with [PARTY_n] and back — the shape the real redactor (D-057) will have. */
+/** Replaces every listed name with [PARTY_n] and back, numbered across the texts — the redactor's shape (D-131). */
 const nameRedactor: AiRedactor = {
   redactsPii: true,
-  redact(text, { names }) {
-    let redacted = text;
-    names.forEach((name, index) => (redacted = redacted.split(name).join(`[PARTY_${index + 1}]`)));
+  redact(texts, { names }) {
+    const one = (text: string) =>
+      names.reduce((out, name, index) => out.split(name).join(`[PARTY_${index + 1}]`), text);
     return {
-      text: redacted,
+      texts: texts.map(one),
+      stats: { PARTY: names.length * texts.length },
       restore: (value) =>
         names.reduce((out, name, index) => out.split(`[PARTY_${index + 1}]`).join(name), value),
     };
@@ -109,6 +110,8 @@ describe('AiExecutor (D-130)', () => {
         provider: 'fake',
         cached: false,
         userId: 'user-1',
+        // Counts from the user text and the system prompt (two names each) — never the values.
+        redactionStats: { PARTY: 4 },
       }),
     );
     expect(cache.set).toHaveBeenCalledWith(

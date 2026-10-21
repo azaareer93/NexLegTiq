@@ -1402,20 +1402,22 @@ model AiJob {
 /// One AI provider call (or cache hit) for cost tracking and the monthly quota (D-130, ai-ocr.md CostTracker).
 /// Append-only: no updatedAt, UPDATE revoked from the app role.
 model AiUsage {
-  id           String   @id @default(uuid(7)) @db.Uuid
-  officeId     String   @map("office_id") @db.Uuid
+  id             String   @id @default(uuid(7)) @db.Uuid
+  officeId       String   @map("office_id") @db.Uuid
   /// Who asked; null for work the system started (auto-summary after OCR).
-  userId       String?  @map("user_id") @db.Uuid
-  feature      String
-  provider     String
-  model        String
-  inputTokens  Int      @map("input_tokens")
-  outputTokens Int      @map("output_tokens")
-  costUsd      Decimal  @map("cost_usd") @db.Decimal(10, 6)
-  durationMs   Int      @map("duration_ms")
+  userId         String?  @map("user_id") @db.Uuid
+  feature        String
+  provider       String
+  model          String
+  inputTokens    Int      @map("input_tokens")
+  outputTokens   Int      @map("output_tokens")
+  costUsd        Decimal  @map("cost_usd") @db.Decimal(10, 6)
+  durationMs     Int      @map("duration_ms")
   /// Served from the cache: no provider call, not counted against the quota.
-  cached       Boolean  @default(false)
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  cached         Boolean  @default(false)
+  /// How many values of each kind the PII redactor replaced, e.g. {"PARTY":3,"PHONE":1} (D-131) — counts, never values.
+  redactionStats Json     @default("{}") @map("redaction_stats")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   office Office @relation(fields: [officeId], references: [id])
   user   User?  @relation(fields: [userId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
