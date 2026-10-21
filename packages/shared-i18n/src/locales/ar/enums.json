@@ -188,5 +188,18 @@
     "PAST_DUE": "متأخر السداد",
     "CANCELLED": "مُلغى",
     "EXPIRED": "منتهٍ"
+  },
+  "aiSourceType": {
+    "DOCUMENT": "مستند",
+    "SESSION": "جلسة",
+    "WITNESS_STATEMENT": "شهادة",
+    "COURT_RULING": "حكم المحكمة",
+    "OPPOSING_BRIEF": "مذكرة الخصم"
+  },
+  "aiJobStatus": {
+    "QUEUED": "في الانتظار",
+    "RUNNING": "قيد المعالجة",
+    "SUCCEEDED": "مكتملة",
+    "FAILED": "فشلت"
   }
 }

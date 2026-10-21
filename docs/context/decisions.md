@@ -1554,6 +1554,72 @@ responsible lawyer once more than the reminder scheduler does (one primary-key l
 environment needs its own `BULLMQ_PREFIX` if Redis is ever shared. **Left open:** the portal namespace with its own
 token check and `client:{id}` rooms (Client Portal story), and the document and AI events (their stories emit them).
 
+**D-130 — AI foundation: providers, the executor, jobs and usage** · Accepted (MVP-83, 2026-10-20)
+MVP-83 left the SDKs, the circuit breaker, how the foundation can ship before the PII redactor, the job model and how
+the quota is counted open. → **Providers** (`src/modules/ai/providers`): an `AiProvider` interface with **OpenAI** (chat
+completions, JSON mode, `store: false`) and **Gemini** (`generateContent`, `responseJsonSchema`, key in the
+`x-goog-api-key` header, never the URL) called over `fetch` — no SDKs (a few fields each, like Resend in D-085); a
+deterministic **`FakeAiProvider`** (per-feature fixtures, scripted answers and errors, SHA-256 echo otherwise) is the
+only provider in tests and CI. Anthropic (optional in the ticket) is not built. **Config** (Zod env, documented in
+`.env.example`): `AI_PRIMARY_PROVIDER` / `AI_FALLBACK_PROVIDER` = `openai|gemini|fake|none` (default `none` = AI off,
+AI-001), each used provider needs its `*_API_KEY` and `*_MODEL` (model names are configuration), the fallback must differ
+from the primary, `fake` is refused in production; `AI_MAX_OUTPUT_TOKENS` 4096, `AI_TEMPERATURE` 0.2, `AI_TIMEOUT_MS` 45 s
+per attempt (inside the `ai` queue's 120 s), `AI_CACHE_TTL` 24 h, `AI_MODEL_PRICES` (USD per million tokens by model; an
+unlisted model costs 0, the tokens stay). Keys are redacted from logs. **Fallback** only when a provider is
+**unavailable** — timeout, network, 429, 5xx, or a 200 that is not the expected JSON — never on a refused request (other
+4xx: AI-003 when the input is too long, else AI-001) nor on invalid output. All unavailable → AI-002 if the last one was
+rate limited, else AI-001. **Circuit breaker** per provider and process: 5 failures in a row open it for 30 s, then one
+trial call; a refused request does not count. **`AiExecutor.execute({feature, prompt, schema, redactionContext,
+cacheKey?, ttlSeconds?, userId?, signal?})`** (features extend `BaseAiService`): availability (`AiAccess`: provider
+configured → AI-001; office `enableAi` → **AI-005**; plan flag `ai` → AUTH-102; monthly quota → AUTH-103) → cache → PII
+redaction → provider → JSON parse + Zod validation with **one repair call** (the problem is named by paths and issue codes,
+never by content) → re-hydration → validation again → usage row → cache. Still invalid → **AI-004** (the usage row is
+written anyway: the calls cost). User text over 400,000 characters → AI-003 (features chunk long documents). **PII
+redaction fails closed (D-057):** the redactor is its own story; until it replaces the `AI_REDACTOR` provider, a
+`PassThroughRedactor` (`redactsPii: false`) stands in, and the executor **refuses every provider that sends text out**
+(AI-001) — only the fake provider runs. Prompts are versioned files (`prompts/<name>.v<N>.ts`; the shared rules are
+`legal-assistant.v1`); the version is stored with every result and is part of the cache key. **Cache:** Redis under
+`o:{officeId}:ai:…` (`CacheKeys.tenant`, D-058), best effort (a Redis failure is a miss); a cached value the schema no
+longer accepts is ignored. **Usage** (`AiUsage`, tenant table, append-only — UPDATE revoked from the app role): one row per
+answer with provider, model, tokens (both calls of a repair), cost (`Decimal(10,6)`, decimal.js), duration and `cached`;
+**the quota counts provider calls (not cache hits) since the start of the UTC month** (`EntitlementsService.aiCallsThisMonth`,
+now also `usage.aiThisMonth` of `GET /offices/me/subscription`, amends D-122). **Jobs** (`AiJob`, tenant table: type,
+`sourceType` = `AiSourceType` (D-039's list, now in shared-types with AR/EN labels), `sourceId`, status
+QUEUED|RUNNING|SUCCEEDED|FAILED, `errorCode`, attempts, `result` = ids only, creator): `AiJobs.enqueue` checks availability,
+writes the row and queues `ai/<type>` after the commit (job id = the row id) → 202 `{jobId, status}`. One `AiProcessor`
+consumes the queue and dispatches to the handler a feature registered in `AiJobRegistry`; an unknown job fails
+(SYS-001). Only availability errors (AI-001, AI-002, SYS-001) are retried; anything else fails at once; the last failed
+attempt marks the job FAILED with its code. Success and failure push `ai.job.completed|failed` (D-129) to the creator.
+**`GET /jobs/:id`** (`use:ai`) shows a job to **its creator only** — it may concern a file a colleague cannot see; anyone
+else, another office or a malformed id → 404. **Not here:** `AiSummary` and every feature (document and session summary
+stories), the evaluation set, the daily cost alert (`AI_COST_ALERT_THRESHOLD_USD`), per-plan input caps, and the real
+redactor. Why: every AI feature gets fallback, validation, caching, quota and cost tracking from one place, and no text
+reaches a provider before PII redaction exists.
+Review additions (same PR): **amends D-122** — `assertAiQuota()` now counts itself (`EntitlementsService.aiCallsThisMonth`),
+so D-122's "the AI usage records arrive with the AI quota story" is done; and implements **D-014**'s 202 + job id for AI.
+**Order:** enablement (provider, office switch, plan flag) → cache → **quota** → call: a cached answer is served even when
+the quota is used up. **Quota unit:** one AI request = one usage row of a provider answer — a repaired answer counts once,
+though both calls are paid and recorded in the same row. **Usage is recorded in a `finally`**: an answer already received
+is recorded even when the repair call then fails. **Cost** is computed per call at the **configured** model name
+(`AI_MODEL_PRICES` key; providers answer with dated snapshot names) and summed — a repair from the fallback is priced
+at its own rate. **Deadline:** one `execute` has **100 s** for every attempt (primary, fallback, repair), inside the
+queue's 120 s; missing it is AI-001. **Breaker:** a half-open trial ended by an abort or an unexpected error is released
+(it no longer keeps a provider off until restart); a refused request does not count. **Refusals** — a 4xx, a safety block
+(Gemini `promptFeedback.blockReason`, a `SAFETY`/`RECITATION`… finish, OpenAI `refusal` or `content_filter`) — are final:
+no fallback, no breaker count (one office's document cannot switch a provider off for everyone), and **not retried** by
+the worker (`AiFinalException`, also for "no provider" and "no redactor"). **Jobs:** only a RUNNING job succeeds (a late
+attempt changes nothing and tells nobody); `result` is checked to hold ids and counts only (`AiJobResultSchema`) — AI
+text never lands in the row; CHECKs tie `error_code` to FAILED and `finished_at` to a finished job; reading a job needs a
+caller. **Hardening:** `AiProviders` is not exported (features reach a model only through `AiExecutor`); the system
+prompt is redacted too (case data belongs in the user text); the repair instruction is a **separate message**, never
+appended to the document, and the system rules say the user message is material, not instructions; a provider's error
+body is only searched (first 4 KB) for "too long", never kept; `$schema` is stripped from the JSON Schema sent;
+Gemini's thinking tokens count as output; the cache key is `[feature, …parts, promptVersion]` (two features can no
+longer share an entry); the fake provider keeps its last 100 requests. **Gemini retention:** it has no `store: false`
+— production must use a paid Gemini API account whose terms exclude training and retention (D-057), or leave Gemini
+out. **Known limits:** the quota check is not atomic — parallel jobs of one office (worker concurrency 5) can exceed it by
+a few requests; a job whose enqueue was lost after the commit, or that was skipped because its office was suspended,
+stays QUEUED (no sweep yet); job fields are not limited per job type yet (each feature's handler validates its own).
 .**D-126 — Document uploads: streaming, type sniffing, the malware scan, versions and idempotency** · Accepted (MVP-72, 2026-10-20)
 MVP-72 left the form layout, how the type is judged, what the scan does with each result, retries of an upload and who sees a
 confidential document open. → **Upload** `POST /documents` (`upload:document`; the file must be visible and not archived —
@@ -1707,6 +1773,52 @@ plural forms (Arabic zero/one/two/few/many/other). **Known limit:** the pickers 
 device's zone; on a device whose zone skips that wall time (a DST gap at night) the picker may show it an hour off — irrelevant at
 court hours.
 
+**D-131 — PII redaction before LLM calls** · Accepted (MVP-84, 2026-10-21) · Amends D-130
+MVP-84 left the patterns, how names are matched in Arabic, the placeholder scheme, where redaction counts live and the
+"office toggle" open. → **`PiiRedactor`** (`src/modules/ai/pii-redactor.ts`) is now the `AI_REDACTOR`, so real providers
+may run (D-130's fail-closed rule stays: a redactor that does not redact still blocks them). It replaces, in this order:
+**emails**; **IBANs** (two letters, two digits, 11–30 characters, spaces allowed); **phones** — international with the
+country codes of our markets (+970/972/962/966/971/965/974/968/973/961/964/212/20, plus 1/44) or `00`, local mobiles
+(05x — PS, IL, SA, AE —, 07[789] JO, 01[0125] EG; 3–4 + 3–4 digits) and local landlines (0[2–9] + 7–8 digits), separators
+allowed; **bank and card numbers** (15–19 digits); **national ids** (any run of 9–14 digits: PS 9, JO/SA 10, EG 14); then
+**names** from `RedactionContext.names` — the feature passes the file's clients, parties, witnesses and lawyers. Digit
+patterns match Arabic-Indic and Persian digits too (matched on a Western-digit copy, spliced back by index). A name matches
+however it is written: Arabic letter variants (alef/hamza forms, ya/alef maqsura/ya-hamza, ha/ta marbuta, waw/waw-hamza),
+tashkeel, the dagger alef and tatweel between letters, any whitespace between words (a name split across lines),
+any case, and an attached و/ف/ب/ل/ك prefix; never inside a longer word (السالمي is not سالم). Full names are replaced
+first (longest first), then each word of a name of 3+ letters that is not a particle (بن، ابن، بنت، أبو، أم، عبد، ال,
+bin, ibn, abu, al, el, mr, dr…), so "Mr. Haddad" is covered too. **Placeholders** `[PARTY_n]`, `[EMAIL_n]`, `[PHONE_n]`,
+`[IBAN_n]`, `[ACCOUNT_n]`, `[ID_n]` are stable within one call (variants of one value share one; numbers follow the
+matching order); `restore` puts back the original number or email exactly and a name in the spelling the case uses;
+unknown placeholders stay as they are. **The mapping lives only in the returned object in the job's memory** — never
+stored, cached (the cache holds the re-hydrated answer, the office's own data) or logged. **Counts** per kind (user text
+and system prompt together) are stored as `AiUsage.redactionStats` (JSON, default `{}`, migration
+`ai_usage_redaction_stats`) — counts only, never values. **Office toggle:** redaction cannot be switched off in the MVP,
+so there is no setting; offices that want no AI at all use `enableAi` (AI-005). **Tests:** 40+ Arabic/English fixtures
+(hamza and alef forms, marks, tatweel, prefixes, line breaks, look-alike words, all phone formats, Arabic-Indic digits,
+ids, IBANs, cards, and dates/amounts/file numbers left alone) and a seeded property test (500 random texts without PII
+come back unchanged through redact and restore). **Known limits:** names not in the context (a judge's or a third
+person's name the file does not list) are not found — there is no NER; a 9–14 digit number that is not an id (a court
+case number written without separators) is redacted too (safe side; it comes back on restore); text that already contains
+a placeholder-looking token such as `[PARTY_1]` may be restored to a name; nicknames and transliterations (Ahmad / Ahmed /
+أحمد) are matched only when the context lists them.
+Review additions (same PR): **one redaction per call** — `redact(texts[], context)` numbers the system prompt and the user
+text together, so `[PARTY_1]` is one person in both and `restore` knows every placeholder. **Context:** `names` are
+**people** (matched whole and by identifying words), `organisations` are matched **whole only** (their words — شركة،
+النور، Trading — are common words); single words are skipped when they are particles or common words (على، إلى، في…,
+the, of…; a person called علي is then matched by full name only), punctuation is stripped first. **Linear time:** every
+pattern is anchored and bounded (the e-mail pattern had been quadratic — 400,000 characters without an `@` took minutes,
+synchronously, blocking the worker); a test runs 400,000-character inputs. **More formats:** NFKC first (PDF presentation
+forms, decomposed accents — what is sent and restored is the normalised text); invisible characters (bidi marks, joiners,
+soft hyphen) inside names and numbers; two attached prefixes (ولأحمد); Persian ی/ک; hyphenated names (Sarah-Jane, words
+split on hyphens; regex escaping fixed — a hyphenated name used to throw); phones in any grouping (0599-123-456,
+(02) 2951234, spaces around a dash); ids and card/bank numbers with separators (one digit-group pattern, 9–14 digits an
+id, 15–19 an account); IBANs in any case, without the capital words that may follow. **Placeholders:** a placeholder-
+looking token already in the source gets a word joiner (`[PARTY⁠_1]`) so `restore` leaves it alone; a person called like
+a placeholder kind ("Phone") no longer rewrites an existing placeholder. **Who builds the context:** the AI feature
+stories (document and session summaries) pass the file's clients, parties, witnesses and team, and its organisations.
+**Known limits** (in addition): bank accounts under 9 digits; a court case number of 9+ digits written without letters
+is redacted as an id (restored on output); names written in another script than the context lists (Ahmad vs أحمد).
 **D-132 — Text extraction worker, FAILED documents and retry** · Accepted (MVP-73, 2026-10-21)
 MVP-73 left the libraries, what "READY" means for documents that still need OCR, where a failure's code lives, who may
 retry and how the auto-summary hook looks. → **Extraction** (`DocumentExtraction`, run by the `ocr` worker's

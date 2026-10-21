@@ -38,15 +38,15 @@ export class SubscriptionsController {
     if (!this.cls.get('permissions')?.includes('manage:subscription')) {
       return { ...status, limits: null, usage: null };
     }
-    const [users, storageMb] = await Promise.all([
+    const [users, storageMb, aiThisMonth] = await Promise.all([
       this.entitlements.activeUsers(),
       this.entitlements.storageMb(),
+      this.entitlements.aiCallsThisMonth(),
     ]);
     return {
       ...status,
       limits: { users: e.maxUsers, storageMb: e.storageQuotaMb, aiMonthly: e.aiQuotaMonthly },
-      // AI requests are not recorded yet: the AI usage records join with the AI quota story.
-      usage: { users, storageMb, aiThisMonth: 0 },
+      usage: { users, storageMb, aiThisMonth },
     };
   }
 }

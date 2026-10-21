@@ -75,10 +75,10 @@ export class EntitlementsService {
     }
   }
 
-  /** 403 AUTH-103 when the office has used its monthly AI requests; `usedThisMonth` comes from the AI usage records. */
-  async assertAiQuota(usedThisMonth: number): Promise<void> {
+  /** 403 AUTH-103 when the office has used its monthly AI requests (provider calls this UTC month, D-130). */
+  async assertAiQuota(): Promise<void> {
     const { aiQuotaMonthly } = await this.current();
-    if (aiQuotaMonthly !== null && usedThisMonth >= aiQuotaMonthly) {
+    if (aiQuotaMonthly !== null && (await this.aiCallsThisMonth()) >= aiQuotaMonthly) {
       throw new AppException('AUTH-103', 'Monthly AI quota of the plan reached');
     }
   }
@@ -86,6 +86,13 @@ export class EntitlementsService {
   /** Active users, for the usage view. */
   activeUsers(): Promise<number> {
     return this.subscriptions.activeUsers();
+  }
+
+  /** AI provider calls this UTC month, for the quota and the usage view. */
+  aiCallsThisMonth(now = new Date()): Promise<number> {
+    return this.subscriptions.aiCallsSince(
+      new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)),
+    );
   }
 
   /** Storage used in whole MiB, rounded up (a 1-byte file counts as 1 MB). */

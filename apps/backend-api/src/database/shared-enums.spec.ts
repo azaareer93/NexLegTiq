@@ -21,6 +21,8 @@ import {
   SESSION_TYPES,
   SUBSCRIPTION_STATUSES,
   TASK_STATUSES,
+  AI_JOB_STATUSES,
+  AI_SOURCE_TYPES,
 } from '@nexlegtiq/shared-types';
 
 import {
@@ -46,6 +48,8 @@ import {
   SessionType,
   SubscriptionStatus,
   TaskStatus,
+  AiJobStatus,
+  AiSourceType,
 } from '../generated/prisma/enums';
 
 /** The enums in shared-types are hand-written copies of the Prisma enums used by the apps and contracts. */
@@ -63,6 +67,8 @@ describe('shared-types enums match the Prisma schema', () => {
     ['PartyType', PARTY_TYPES, PartyType],
     ['BillingMethod', BILLING_METHODS, BillingMethod],
     ['TaskStatus', TASK_STATUSES, TaskStatus],
+    ['AiSourceType', AI_SOURCE_TYPES, AiSourceType],
+    ['AiJobStatus', AI_JOB_STATUSES, AiJobStatus],
     ['SubscriptionStatus', SUBSCRIPTION_STATUSES, SubscriptionStatus],
     ['CourtType', COURT_TYPES, CourtType],
     ['SessionType', SESSION_TYPES, SessionType],
