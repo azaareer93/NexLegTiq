@@ -89,6 +89,12 @@ const EnvObject = z.object({
   EMAIL_VERIFICATION_ENFORCED: z.stringbool().default(false),
   // Bull Board at /admin/queues (D-084). Unauthenticated Express middleware: local debugging only, refused in production.
   BULL_BOARD_ENABLED: z.stringbool().default(false),
+
+  // Text extraction worker (D-132): `ocr` queue concurrency and per-job timeout; unset = the queue policy (D-084).
+  OCR_WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(20).optional(),
+  OCR_JOB_TIMEOUT_MS: z.coerce.number().int().min(10_000).max(600_000).optional(),
+  // Ask for a summary after extraction (ai-ocr.md OCR step 6); off until the document-summary story enqueues it.
+  AI_AUTO_SUMMARY: z.stringbool().default(false),
 });
 
 type RawEnv = z.output<typeof EnvObject>;

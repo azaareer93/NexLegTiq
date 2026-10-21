@@ -41,6 +41,7 @@ export const ERROR_CODES = [
   'BIZ-013',
   'BIZ-014',
   'BIZ-015',
+  'BIZ-016',
   'AI-001',
   'AI-002',
   'AI-003',

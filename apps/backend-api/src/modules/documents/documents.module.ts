@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { CaseDocumentsController } from './case-documents.controller';
 import { DocumentAccessService } from './document-access.service';
 import { DocumentRecordsService } from './document-records.service';
+import { DocumentRetry } from './document-retry';
 import { DocumentsController } from './documents.controller';
 import { DocumentsService } from './documents.service';
 import { FoldersController } from './folders.controller';
@@ -23,6 +24,7 @@ import { LegalFilesModule } from '../legal-files/legal-files.module';
     DocumentRecordsService,
     DocumentAccessService,
     UploadIntake,
+    DocumentRetry,
   ],
   exports: [DocumentAccessService],
 })

@@ -29,7 +29,7 @@ AUTH-100 permission denied · 101 insufficient role · 102 plan feature not avai
 VAL-001 invalid input · 002 email · 003 phone · 004 date · 005 file type · 006 file too large · 007 required
 RES-001 not found (incl. cross-tenant) · 002 already exists · 003 conflict/version · 004 deleted
 BIZ-001 last office manager · 002 case already closed · 003 open tasks block close · 004 session conflict ·
-005 retainer insufficient · 006 invoice immutable · 007 file archived · 008 user limit reached · 009 party conflict of interest · 010 client has open files · 011 court or judge still referenced · 012 session not scheduled (cancelled or held) · 013 folder not empty · 014 system folder is fixed · 015 document not scanned clean yet (scanning or failed)
+005 retainer insufficient · 006 invoice immutable · 007 file archived · 008 user limit reached · 009 party conflict of interest · 010 client has open files · 011 court or judge still referenced · 012 session not scheduled (cancelled or held) · 013 folder not empty · 014 system folder is fixed · 015 document not scanned clean yet (scanning or failed) · 016 document has not failed (nothing to retry)
 AI-001 provider unavailable · 002 rate limited · 003 input too large · 004 output invalid · 005 AI disabled for office
 STO-001 upload failed · 002 download failed · 003 delete failed · 004 malware detected
 EXT-001 email provider · 002 OCR provider
@@ -67,7 +67,7 @@ GET `cases/:id/sessions?when=upcoming|past` · POST `sessions/reminders/:id/ack`
 **documents**: POST `documents` (multipart, fields before `file`: fileId, documentType, folderId?, sessionId?, isConfidential?; `Idempotency-Key`) → 202 `{documentId, versionNumber, status}` (413 VAL-006 > 50 MiB, 415 VAL-005 type, 403 AUTH-103 quota; D-126) ·
 GET `cases/:id/documents?folderId|root&documentType&status&search&sort&page&limit` · GET/PATCH/DELETE `documents/:id` (D-128) · GET `documents/:id/download?version` →
 `{downloadUrl, expiresIn: 300}` · POST `documents/:id/versions` (multipart: changeNote?, file → 202, D-126) · GET `documents/:id/versions` (newest first, D-126) · GET `documents/:id/text` ·
-POST `documents/:id/share` / `unshare` · POST `documents/:id/ocr/retry` · GET/POST `cases/:id/folders`,
+POST `documents/:id/share` / `unshare` · POST `documents/:id/ocr/retry` (FAILED only → 202, else 422 BIZ-016; D-132) · GET/POST `cases/:id/folders`,
 PATCH/DELETE `cases/:id/folders/:folderId` (system folders fixed → 422 BIZ-014; non-empty → 422 BIZ-013) — D-119
 **tasks**: CRUD `tasks` (`?fileId, assignee=me|<userId>, status, priority, dueBefore, overdue`, page/limit) · PATCH `tasks/:id/status` · PATCH `tasks/reorder` (204) · POST `tasks/bulk-assign` (200 `{updated}`) — D-098
 **billing**: CRUD `time-entries` · POST `time-entries/timer/start|stop` · POST `invoices` (from time entries, `fileId?` null=consolidated) ·
