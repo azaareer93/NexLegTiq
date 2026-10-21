@@ -10,7 +10,7 @@ import { AiFinalException, AiProviders } from './ai-providers';
 import type { ProviderAnswer } from './ai-providers';
 import { AiUsageRecorder } from './ai-usage';
 import { AI_REDACTOR, restoreDeep } from './redaction';
-import type { AiRedactor, Redacted, RedactionContext } from './redaction';
+import type { AiRedactor, RedactionContext } from './redaction';
 import type { RequestContext } from '../../common/context/request-context';
 import { AppException } from '../../common/errors/app.exception';
 import { AppConfig } from '../../config/app-config';
@@ -130,15 +130,18 @@ export class AiExecutor {
     if (options.prompt.user.length > MAX_INPUT_CHARS) {
       throw new AiFinalException('AI-003', 'Input too large for the AI model');
     }
-    const redacted = this.redactor.redact(options.prompt.user, options.redactionContext);
-    const redactedSystem = this.redactor.redact(options.prompt.system, options.redactionContext);
-    const system = redactedSystem.text;
-    const stats = mergeStats(redacted.stats, redactedSystem.stats);
+    // One redaction for both texts: a placeholder means the same person in the system prompt and the user text.
+    const redacted = this.redactor.redact(
+      [options.prompt.system, options.prompt.user],
+      options.redactionContext,
+    );
+    const [system = '', user = ''] = redacted.texts;
+    const stats = redacted.stats;
     const answers: ProviderAnswer[] = [];
     const started = Date.now();
     let value: unknown;
     try {
-      value = await this.ask(options, system, redacted, answers);
+      value = await this.ask(options, system, user, answers);
     } finally {
       await this.record(options, answers, Date.now() - started, stats);
     }
@@ -159,14 +162,14 @@ export class AiExecutor {
   private async ask<T>(
     options: ExecuteOptions<T>,
     system: string,
-    redacted: Redacted,
+    user: string,
     answers: ProviderAnswer[],
   ): Promise<unknown> {
     const deadline = AbortSignal.timeout(EXECUTE_DEADLINE_MS);
     const request = {
       feature: options.feature,
       system,
-      user: redacted.text,
+      user,
       jsonSchema: z.toJSONSchema(options.schema, { io: 'input', unrepresentable: 'any' }),
       maxOutputTokens: this.config.ai.maxOutputTokens,
       temperature: this.config.ai.temperature,
@@ -227,15 +230,6 @@ export class AiExecutor {
     if (!officeId) throw new Error('No office in the context of an AI call');
     return officeId;
   }
-}
-
-/** Adds up the redaction counts of the user text and the system prompt. */
-function mergeStats(...all: readonly Readonly<Record<string, number>>[]): Record<string, number> {
-  const merged: Record<string, number> = {};
-  for (const stats of all) {
-    for (const [kind, count] of Object.entries(stats)) merged[kind] = (merged[kind] ?? 0) + count;
-  }
-  return merged;
 }
 
 /** Parses and validates an answer; `problem` names paths and issue codes only (never the text). */

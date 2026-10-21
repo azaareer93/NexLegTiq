@@ -1,11 +1,14 @@
-/** What the redactor knows about the case: the names to hide (the file's clients, parties, witnesses — D-057). */
+/** What the redactor knows about the case (D-057, D-131): the names to hide. */
 export interface RedactionContext {
+  /** People of the file: clients, parties, witnesses, lawyers — matched whole and by their identifying words. */
   readonly names: readonly string[];
+  /** Companies and bodies of the file — matched whole only (their words are common words). */
+  readonly organisations?: readonly string[];
 }
 
 export interface Redacted {
-  /** The text with PII replaced by stable placeholders (`[PARTY_1]`). */
-  readonly text: string;
+  /** The texts with PII replaced by placeholders (`[PARTY_1]`), numbered across all of them, in the order given. */
+  readonly texts: readonly string[];
   /** Puts the original values back into a string of the answer. */
   restore(value: string): string;
   /** How many values of each kind were replaced (for the usage record; never the values). */
@@ -19,7 +22,8 @@ export interface Redacted {
  */
 export interface AiRedactor {
   readonly redactsPii: boolean;
-  redact(text: string, context: RedactionContext): Redacted;
+  /** Redacts several texts of one call together (system prompt and user text): one numbering, one `restore`. */
+  redact(texts: readonly string[], context: RedactionContext): Redacted;
 }
 
 export const AI_REDACTOR = Symbol('AI_REDACTOR');
@@ -27,8 +31,8 @@ export const AI_REDACTOR = Symbol('AI_REDACTOR');
 export class PassThroughRedactor implements AiRedactor {
   readonly redactsPii = false;
 
-  redact(text: string): Redacted {
-    return { text, restore: (value) => value, stats: {} };
+  redact(texts: readonly string[]): Redacted {
+    return { texts, restore: (value) => value, stats: {} };
   }
 }
 

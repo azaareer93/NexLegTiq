@@ -1802,3 +1802,20 @@ person's name the file does not list) are not found — there is no NER; a 9–1
 case number written without separators) is redacted too (safe side; it comes back on restore); text that already contains
 a placeholder-looking token such as `[PARTY_1]` may be restored to a name; nicknames and transliterations (Ahmad / Ahmed /
 أحمد) are matched only when the context lists them.
+Review additions (same PR): **one redaction per call** — `redact(texts[], context)` numbers the system prompt and the user
+text together, so `[PARTY_1]` is one person in both and `restore` knows every placeholder. **Context:** `names` are
+**people** (matched whole and by identifying words), `organisations` are matched **whole only** (their words — شركة،
+النور، Trading — are common words); single words are skipped when they are particles or common words (على، إلى، في…,
+the, of…; a person called علي is then matched by full name only), punctuation is stripped first. **Linear time:** every
+pattern is anchored and bounded (the e-mail pattern had been quadratic — 400,000 characters without an `@` took minutes,
+synchronously, blocking the worker); a test runs 400,000-character inputs. **More formats:** NFKC first (PDF presentation
+forms, decomposed accents — what is sent and restored is the normalised text); invisible characters (bidi marks, joiners,
+soft hyphen) inside names and numbers; two attached prefixes (ولأحمد); Persian ی/ک; hyphenated names (Sarah-Jane, words
+split on hyphens; regex escaping fixed — a hyphenated name used to throw); phones in any grouping (0599-123-456,
+(02) 2951234, spaces around a dash); ids and card/bank numbers with separators (one digit-group pattern, 9–14 digits an
+id, 15–19 an account); IBANs in any case, without the capital words that may follow. **Placeholders:** a placeholder-
+looking token already in the source gets a word joiner (`[PARTY⁠_1]`) so `restore` leaves it alone; a person called like
+a placeholder kind ("Phone") no longer rewrites an existing placeholder. **Who builds the context:** the AI feature
+stories (document and session summaries) pass the file's clients, parties, witnesses and team, and its organisations.
+**Known limits** (in addition): bank accounts under 9 digits; a court case number of 9+ digits written without letters
+is redacted as an id (restored on output); names written in another script than the context lists (Ahmad vs أحمد).
