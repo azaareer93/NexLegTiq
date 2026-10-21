@@ -21,9 +21,10 @@ import {
   ValidationException,
 } from '../../common/errors/app.exception';
 import { PaginatedResult } from '../../common/http/paginated-result';
+import { RealtimePublisher } from '../../common/realtime/realtime.publisher';
 import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
-import type { ScopedTransaction } from '../../database/unit-of-work';
+import type { AfterCommit, ScopedTransaction } from '../../database/unit-of-work';
 import type { Prisma } from '../../generated/prisma/client';
 import type { ClientInfo } from '../auth/client-info';
 import { truncateUserAgent } from '../auth/client-info';
@@ -38,6 +39,8 @@ const EDITABLE = {
   assignedToId: true,
 } satisfies Prisma.TaskSelect;
 
+type TaskRef = { readonly id: string; readonly fileId: string | null };
+
 /** Tasks API (MVP-76, D-098). Access rules live in TaskAccessService. */
 @Injectable()
 export class TasksService {
@@ -48,6 +51,7 @@ export class TasksService {
     private readonly files: CaseAccessService,
     private readonly access: TaskAccessService,
     private readonly tasks: TasksRepository,
+    private readonly realtime: RealtimePublisher,
   ) {}
 
   async create(input: CreateTaskRequest, client: ClientInfo): Promise<Task> {
@@ -56,7 +60,7 @@ export class TasksService {
     if (fileId) await this.files.assertFileAccess(fileId, 'write');
     const assignedToId = input.assignedToId ?? me;
     if (assignedToId !== me) this.assertHolds('assign:task');
-    const id = await this.uow.run(async (tx) => {
+    const id = await this.uow.run(async (tx, afterCommit) => {
       await assertAssignable(tx, assignedToId, fileId);
       const { _max } = await tx.task.aggregate({
         where: { status: 'TODO' },
@@ -85,7 +89,11 @@ export class TasksService {
           assignedToId,
         }),
       });
-      await this.notifyAssigned(tx, assignedToId, task.id, input.title);
+      await this.notifyAssigned(tx, afterCommit, assignedToId, {
+        id: task.id,
+        fileId,
+        title: input.title,
+      });
       return task.id;
     });
     return this.tasks.get(id);
@@ -123,7 +131,7 @@ export class TasksService {
   /** Edits the task; only changed fields are written and audited. A new assignee is checked and notified. */
   async update(id: string, input: UpdateTaskRequest, client: ClientInfo): Promise<Task> {
     const task = await this.access.findFor(id, 'edit');
-    await this.uow.run(async (tx) => {
+    await this.uow.run(async (tx, afterCommit) => {
       const before = await tx.task.findFirst({ where: { id }, select: EDITABLE });
       if (!before) throw new ResourceNotFoundException();
       const { old, next } = changes(
@@ -142,9 +150,10 @@ export class TasksService {
         data: { ...rest, ...(dueDate !== undefined && { dueDate: toDbDateOrNull(dueDate) }) },
       });
       await tx.auditLog.create({ data: this.audit(client, id, 'UPDATE', old, next) });
+      afterCommit(() => this.updated(task), 'realtime task.updated');
       if (assignee) {
         const title = (next['title'] as string | undefined) ?? task.title;
-        await this.notifyAssigned(tx, assignee, id, title);
+        await this.notifyAssigned(tx, afterCommit, assignee, { id, fileId: task.fileId, title });
       }
     });
     return this.tasks.get(id);
@@ -161,7 +170,7 @@ export class TasksService {
   ): Promise<Task> {
     const task = await this.access.findFor(id, 'status');
     if (task.status === input.status) return this.tasks.get(id);
-    await this.uow.run(async (tx) => {
+    await this.uow.run(async (tx, afterCommit) => {
       const done = input.status === 'DONE';
       // Guarded on the status read above: a concurrent move makes this one fail instead of completing twice.
       const { count } = await tx.task.updateMany({
@@ -185,6 +194,7 @@ export class TasksService {
       await tx.auditLog.create({
         data: this.audit(client, id, 'UPDATE', { status: task.status }, { status: input.status }),
       });
+      afterCommit(() => this.updated(task), 'realtime task.updated');
     });
     return this.tasks.get(id);
   }
@@ -217,7 +227,7 @@ export class TasksService {
   async bulkAssign(input: BulkAssignTasksRequest, client: ClientInfo): Promise<BulkAssignResult> {
     const tasks = await this.access.findAllFor(input.taskIds);
     const changed = tasks.filter((task) => task.assignedToId !== input.assignedToId);
-    await this.uow.run(async (tx) => {
+    await this.uow.run(async (tx, afterCommit) => {
       for (const fileId of new Set(tasks.map((task) => task.fileId))) {
         await assertAssignable(tx, input.assignedToId, fileId);
       }
@@ -235,29 +245,43 @@ export class TasksService {
             { assignedToId: input.assignedToId },
           ),
         });
-        await this.notifyAssigned(tx, input.assignedToId, task.id, task.title);
+        await this.notifyAssigned(tx, afterCommit, input.assignedToId, task);
+        afterCommit(() => this.updated(task), 'realtime task.updated');
       }
     });
     return { updated: changed.length };
   }
 
-  /** In-app `task.assigned` notification for a colleague (not for assigning to oneself). */
+  /**
+   * In-app `task.assigned` notification for a colleague (not for assigning to oneself), pushed to their open apps after
+   * the commit (D-129).
+   */
   private async notifyAssigned(
     tx: ScopedTransaction,
+    afterCommit: AfterCommit,
     userId: string,
-    taskId: string,
-    title: string,
+    task: TaskRef & { readonly title: string },
   ): Promise<void> {
     if (userId === this.access.actorId()) return;
-    await tx.notification.create({
+    const notification = await tx.notification.create({
       data: {
         officeId: this.officeId(),
         userId,
         type: 'task.assigned',
         titleKey: 'common.notifications.taskAssigned',
-        params: { taskId, title },
+        params: { taskId: task.id, title: task.title },
       },
+      select: { id: true },
     });
+    afterCommit(async () => {
+      this.realtime.toUser(userId, 'task.assigned', { taskId: task.id, fileId: task.fileId });
+      this.realtime.toUser(userId, 'notification', { notificationId: notification.id });
+    }, 'realtime task.assigned');
+  }
+
+  /** Tells the (previous) assignee their task changed (D-129); a new assignee gets `task.assigned` instead. */
+  private async updated({ id, fileId, assignedToId }: TaskRef & { assignedToId: string }) {
+    this.realtime.toUser(assignedToId, 'task.updated', { taskId: id, fileId });
   }
 
   private assertHolds(permission: 'assign:task'): void {

@@ -64,7 +64,7 @@ timeline event → enqueue async work → audit log → invalidate cache → str
 ### Queues (D-011)
 | Queue | Priority | Jobs | Retry |
 |---|---|---|---|
-| `ocr` | high | `scan-document` (ClamAV, D-126), `process-document` | 3× exp 1s, timeout 60s |
+| `ocr` | high | `scan-document` (ClamAV, D-126), `process-document` | 3× exp 1s, timeout 60s; concurrency 2 (D-132) |
 | `ai` | medium | `summarize-document`, `summarize-session` | 2× 10s, timeout 120s |
 | `reminder` | high | `send-session-reminder`, `send-task-reminder` (delayed jobs), `reconcile-reminders` (daily scheduler, D-117) | 3× exp |
 | `email` | low | `send-email` | 3× fixed 5s |
@@ -84,6 +84,10 @@ D-058); invalidate by explicit keys or `SCAN` patterns (never `KEYS`). Default T
 socket.io namespace `/ws`, auth via access token, rooms `office:{officeId}`, `user:{userId}`.
 Events: `document.processed`, `document.summary.ready`, `session.scheduled`, `session.reminder`,
 `task.assigned`, `task.updated`, `notification`, `ai.job.completed|failed`.
+Implementation (D-129): `src/common/realtime/` — the socket.io server path is the default `/socket.io` (not under
+`/api/v1`), shared across API instances by `@socket.io/redis-adapter`; `RealtimePublisher.toUser|toUsers|toOffice` emits
+through Redis from the API or the worker; payloads are ids only (`shared-contracts/realtime.contract.ts`). Office app:
+`features/realtime` (`useRealtime`, `useInvalidateOn`, `RealtimeBridge` in the shell).
 
 ## Frontend (office-app, client-portal, admin-panel)
 React 19, Vite 8, **React Router 8** (data router: `createBrowserRouter` + `RouterProvider`, D-010), AntD 6 (D-087; `ConfigProvider` with theme tokens, `direction`, `locale`), `@ant-design/icons`,

@@ -39,7 +39,8 @@ const policy = (jobs: DefaultJobOptions, timeoutMs: number, concurrency: number)
 
 /** Per-queue defaults from the architecture.md queue table. */
 export const QUEUE_POLICY: Readonly<Record<QueueName, QueuePolicy>> = {
-  ocr: policy({ attempts: 3, backoff: { type: 'exponential', delay: 1000 } }, 60_000, 10),
+  // Concurrency 2 (D-132): extraction parses up to 50 MB files in the worker process; OCR_WORKER_CONCURRENCY raises it.
+  ocr: policy({ attempts: 3, backoff: { type: 'exponential', delay: 1000 } }, 60_000, 2),
   ai: policy({ attempts: 2, backoff: { type: 'fixed', delay: 10_000 } }, 120_000, 5),
   reminder: policy({ attempts: 3, backoff: { type: 'exponential', delay: 1000 } }, 30_000, 10),
   email: policy({ attempts: 3, backoff: { type: 'fixed', delay: 5000 } }, 30_000, 2),

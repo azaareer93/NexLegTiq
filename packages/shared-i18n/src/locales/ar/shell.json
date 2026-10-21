@@ -31,7 +31,8 @@
     "empty": "لا توجد إشعارات بعد.",
     "hearingReminder": "جلسة قادمة في الملف {{fileNumber}}",
     "fileReassigned": "أُسند إليك الملف {{fileNumber}}",
-    "documentQuarantined": "حُجب المستند ⁨{{name}}⁩ لاحتوائه على برمجية خبيثة"
+    "documentQuarantined": "حُجب المستند ⁨{{name}}⁩ لاحتوائه على برمجية خبيثة",
+    "documentFailed": "تعذّر استخراج نص المستند ⁨{{name}}⁩"
   },
   "profile": {
     "menu": "قائمة الحساب",

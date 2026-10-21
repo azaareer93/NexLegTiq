@@ -1,3 +1,4 @@
+import { AI_JOB_STATUSES, AI_SOURCE_TYPES } from './ai.js';
 import { COURT_TYPES } from './court.js';
 import {
   DOCUMENT_LANGUAGES,
@@ -46,6 +47,8 @@ describe('enum value lists', () => {
       DOCUMENT_LANGUAGES,
       FOLDER_SYSTEM_KEYS,
       SUBSCRIPTION_STATUSES,
+      AI_SOURCE_TYPES,
+      AI_JOB_STATUSES,
     }),
   )('%s should hold unique UPPER_SNAKE values', (_name, values) => {
     expect(values.length).toBeGreaterThan(0);

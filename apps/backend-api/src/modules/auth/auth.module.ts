@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 
+import { AccessTokenVerifier } from './access-token-verifier';
 import { AccountMailer } from './account-mailer';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -33,9 +34,10 @@ import { AppConfig } from '../../config/app-config';
     PasswordRepository,
     PasswordHasher,
     JwtAuthGuard,
+    AccessTokenVerifier,
     RefreshTokenRepository,
     LoginAttemptRepository,
   ],
-  exports: [JwtAuthGuard],
+  exports: [JwtAuthGuard, AccessTokenVerifier],
 })
 export class AuthModule {}

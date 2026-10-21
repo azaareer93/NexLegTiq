@@ -188,5 +188,18 @@
     "PAST_DUE": "Payment overdue",
     "CANCELLED": "Cancelled",
     "EXPIRED": "Expired"
+  },
+  "aiSourceType": {
+    "DOCUMENT": "Document",
+    "SESSION": "Hearing",
+    "WITNESS_STATEMENT": "Testimony",
+    "COURT_RULING": "Court ruling",
+    "OPPOSING_BRIEF": "Opposing brief"
+  },
+  "aiJobStatus": {
+    "QUEUED": "Queued",
+    "RUNNING": "In progress",
+    "SUCCEEDED": "Completed",
+    "FAILED": "Failed"
   }
 }

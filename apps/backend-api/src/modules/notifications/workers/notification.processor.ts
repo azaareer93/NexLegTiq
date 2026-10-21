@@ -7,6 +7,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { QUEUE, workerOptions } from '../../../common/queue/queues';
 import type { TenantJobData } from '../../../common/queue/tenant-job';
 import { TenantProcessor } from '../../../common/queue/tenant-processor';
+import { RealtimePublisher } from '../../../common/realtime/realtime.publisher';
 import { TenantRunner } from '../../../common/tenancy/tenant-runner';
 import { PrismaService } from '../../../database/prisma.service';
 import { CREATE_NOTIFICATION_JOB, NotificationJobSchema } from '../notification-job';
@@ -22,7 +23,12 @@ import type { NotificationJob } from '../notification-job';
 export class NotificationProcessor extends TenantProcessor<NotificationJob> {
   protected readonly schema = NotificationJobSchema;
 
-  constructor(tenant: TenantRunner, prisma: PrismaService, logger: PinoLogger) {
+  constructor(
+    tenant: TenantRunner,
+    prisma: PrismaService,
+    logger: PinoLogger,
+    private readonly realtime: RealtimePublisher,
+  ) {
     super(tenant, prisma, logger);
   }
 
@@ -35,6 +41,7 @@ export class NotificationProcessor extends TenantProcessor<NotificationJob> {
       data: { officeId, userId, type, titleKey, params, link, channel: 'IN_APP' },
       select: { id: true },
     });
+    this.realtime.toUser(userId, 'notification', { notificationId: id });
     return { notificationId: id };
   }
 }

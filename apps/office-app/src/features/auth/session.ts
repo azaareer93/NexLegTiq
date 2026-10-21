@@ -173,7 +173,7 @@ export function endSession(reason: SignOutReason | null): void {
 }
 
 /** The server refused the session (no cookie, expired, revoked, inactive): the user must sign in. */
-const isRefusal = (error: unknown): boolean =>
+export const isRefusal = (error: unknown): boolean =>
   error instanceof ApiError &&
   (error.status === 401 || error.code === 'AUTH-006' || error.code === 'AUTH-010');
 

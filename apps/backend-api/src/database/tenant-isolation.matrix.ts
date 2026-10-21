@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
 import {
+  aiJobIn,
+  aiUsageIn,
   clientIn,
   documentIn,
   documentTextIn,
@@ -310,4 +312,6 @@ export const TENANT_ISOLATION_MATRIX: readonly TenantResource[] = [
   { model: 'Document', create: documentIn, update: { name: 'Renamed' } },
   { model: 'DocumentVersion', create: versionIn, update: { changeNote: 'Changed' } },
   { model: 'DocumentText', create: documentTextIn, update: { text: 'Changed' } },
+  { model: 'AiJob', create: aiJobIn, update: { status: 'RUNNING' } },
+  { model: 'AiUsage', create: aiUsageIn, update: { cached: true } },
 ];

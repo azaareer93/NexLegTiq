@@ -84,6 +84,8 @@ export const DocumentSchema = z.object({
   currentVersion: z.number().int().min(1),
   status: z.enum(DOCUMENT_STATUSES),
   ocrStatus: z.enum(OCR_STATUSES),
+  /** Why processing FAILED (EXT-002: the text could not be extracted); null otherwise — the app shows `errors.<code>`. */
+  processingErrorCode: z.string().nullable(),
   isConfidential: z.boolean(),
   sharedWithClient: z.boolean(),
   uploadedBy: z.object({ id: z.uuid(), fullName: z.string() }),

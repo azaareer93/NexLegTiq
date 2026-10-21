@@ -20,6 +20,7 @@ import {
   ResourceNotFoundException,
   ValidationException,
 } from '../../common/errors/app.exception';
+import type { RealtimePublisher } from '../../common/realtime/realtime.publisher';
 import type { PrismaService } from '../../database/prisma.service';
 import type { UnitOfWork } from '../../database/unit-of-work';
 import type { CaseAccessService } from '../legal-files/case-access.service';
@@ -64,6 +65,7 @@ function setup(row: SessionState = state(), role: Role = 'LAWYER') {
     user: { findFirst: jest.fn().mockResolvedValue({ id: LAWYER, role: 'LAWYER' }) },
     legalFile: {
       count: jest.fn().mockResolvedValue(1),
+      findFirstOrThrow: jest.fn().mockResolvedValue({ responsibleLawyerId: LAWYER }),
       findMany: jest.fn().mockResolvedValue([]),
     },
     court: { count: jest.fn().mockResolvedValue(1) },
@@ -107,7 +109,11 @@ function setup(row: SessionState = state(), role: Role = 'LAWYER') {
     uow,
     prisma,
     files,
-    new SessionWriter(cls, files, scheduler),
+    new SessionWriter(cls, files, scheduler, {
+      toUser: jest.fn(),
+      toUsers: jest.fn(),
+      toOffice: jest.fn(),
+    } as unknown as RealtimePublisher),
     repo as unknown as SessionsRepository,
     scheduler,
   );

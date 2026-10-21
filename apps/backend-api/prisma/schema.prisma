@@ -294,6 +294,22 @@ enum FolderSystemKey {
   CLIENT_UPLOADS
 }
 
+/// What an AI job or output is about (D-039 AiSummarySourceType; D-130).
+enum AiSourceType {
+  DOCUMENT
+  SESSION
+  WITNESS_STATEMENT
+  COURT_RULING
+  OPPOSING_BRIEF
+}
+
+enum AiJobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
 // ─── Tenancy & identity ─────────────────────────────────────────────────────────────────────────────────────────
 
 /// The tenant. Every tenant-owned row references it.
@@ -326,6 +342,8 @@ model Office {
   subscriptions       Subscription[]
   auditLogs           AuditLog[]
   notifications       Notification[]
+  aiJobs              AiJob[]
+  aiUsages            AiUsage[]
   clients             Client[]
   contactPersons      ContactPerson[]
   legalFiles          LegalFile[]
@@ -421,6 +439,9 @@ model User {
   documentVersions    DocumentVersion[]        @relation("DocumentVersionCreator")
 
   /// Target of the composite (user_id, office_id) FKs: a child row can never name a user of another office (D-079).
+  aiJobs   AiJob[]
+  aiUsages AiUsage[]
+
   @@unique([id, officeId])
   @@index([officeId, role])
   @@map("users")
@@ -1139,35 +1160,37 @@ model DocumentFolder {
 
 /// A document of a file (D-035, D-119). Mirrors its current DocumentVersion (storage key, size, checksum, type).
 model Document {
-  id               String            @id @default(uuid(7)) @db.Uuid
-  officeId         String            @map("office_id") @db.Uuid
-  fileId           String            @map("file_id") @db.Uuid
+  id                  String            @id @default(uuid(7)) @db.Uuid
+  officeId            String            @map("office_id") @db.Uuid
+  fileId              String            @map("file_id") @db.Uuid
   /// Null = the file's root. A folder of the same file.
-  folderId         String?           @map("folder_id") @db.Uuid
+  folderId            String?           @map("folder_id") @db.Uuid
   /// The hearing the document belongs to, of the same file.
-  sessionId        String?           @map("session_id") @db.Uuid
+  sessionId           String?           @map("session_id") @db.Uuid
   /// Display name; the uploaded name (Arabic included) is kept as is in `originalFilename`.
-  name             String
-  originalFilename String            @map("original_filename")
-  documentType     DocumentType      @default(OTHER) @map("document_type")
-  mimeType         String            @map("mime_type")
-  sizeBytes        BigInt            @map("size_bytes")
-  checksumSha256   String            @map("checksum_sha256") @db.Char(64)
+  name                String
+  originalFilename    String            @map("original_filename")
+  documentType        DocumentType      @default(OTHER) @map("document_type")
+  mimeType            String            @map("mime_type")
+  sizeBytes           BigInt            @map("size_bytes")
+  checksumSha256      String            @map("checksum_sha256") @db.Char(64)
   /// `{officeId}/{fileId}/{documentId}/{uuid}.{ext}` (D-035); never derived from the original name.
-  storageKey       String            @unique @map("storage_key")
-  currentVersion   Int               @default(1) @map("current_version")
-  status           DocumentStatus    @default(UPLOADED)
-  ocrStatus        OcrStatus         @default(PENDING) @map("ocr_status")
-  language         DocumentLanguage?
-  isConfidential   Boolean           @default(false) @map("is_confidential")
-  sharedWithClient Boolean           @default(false) @map("shared_with_client")
+  storageKey          String            @unique @map("storage_key")
+  currentVersion      Int               @default(1) @map("current_version")
+  status              DocumentStatus    @default(UPLOADED)
+  ocrStatus           OcrStatus         @default(PENDING) @map("ocr_status")
+  /// Error code of a FAILED processing step (EXT-002 extraction; null for a failed scan) — D-132.
+  processingErrorCode String?           @map("processing_error_code")
+  language            DocumentLanguage?
+  isConfidential      Boolean           @default(false) @map("is_confidential")
+  sharedWithClient    Boolean           @default(false) @map("shared_with_client")
   /// The office user who uploaded it; portal uploads add `uploadedByClientUserId` with the Client Portal (D-119).
-  uploadedById     String            @map("uploaded_by_id") @db.Uuid
+  uploadedById        String            @map("uploaded_by_id") @db.Uuid
   /// The client's `Idempotency-Key` of the upload that created it: a retry returns this document (D-126).
-  idempotencyKey   String?           @map("idempotency_key")
-  deletedAt        DateTime?         @map("deleted_at") @db.Timestamptz(3)
-  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  idempotencyKey      String?           @map("idempotency_key")
+  deletedAt           DateTime?         @map("deleted_at") @db.Timestamptz(3)
+  createdAt           DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   office     Office            @relation(fields: [officeId], references: [id])
   file       LegalFile         @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
@@ -1349,4 +1372,59 @@ model Notification {
   // "My notifications, newest first"; unread counts filter on read_at within the same (office, user) range.
   @@index([officeId, userId, createdAt(sort: Desc)])
   @@map("notifications")
+}
+
+/// An asynchronous AI request (D-130): created QUEUED with its `ai` queue job, moved by the worker. Seen only by its
+/// creator (`GET /jobs/:id`); `result` holds ids of what was produced, never the AI text itself.
+model AiJob {
+  id          String        @id @default(uuid(7)) @db.Uuid
+  officeId    String        @map("office_id") @db.Uuid
+  /// The `ai` queue job name, e.g. summarize-document.
+  type        String
+  sourceType  AiSourceType? @map("source_type")
+  sourceId    String?       @map("source_id") @db.Uuid
+  status      AiJobStatus   @default(QUEUED)
+  /// Error code (AI-001…005, SYS-001) of a FAILED job; never a provider message.
+  errorCode   String?       @map("error_code")
+  attempts    Int           @default(0)
+  result      Json?
+  createdById String        @map("created_by_id") @db.Uuid
+  startedAt   DateTime?     @map("started_at") @db.Timestamptz(3)
+  finishedAt  DateTime?     @map("finished_at") @db.Timestamptz(3)
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office    Office @relation(fields: [officeId], references: [id])
+  createdBy User   @relation(fields: [createdById, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([officeId, createdById, createdAt(sort: Desc)])
+  @@map("ai_jobs")
+}
+
+/// One AI provider call (or cache hit) for cost tracking and the monthly quota (D-130, ai-ocr.md CostTracker).
+/// Append-only: no updatedAt, UPDATE revoked from the app role.
+model AiUsage {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  officeId       String   @map("office_id") @db.Uuid
+  /// Who asked; null for work the system started (auto-summary after OCR).
+  userId         String?  @map("user_id") @db.Uuid
+  feature        String
+  provider       String
+  model          String
+  inputTokens    Int      @map("input_tokens")
+  outputTokens   Int      @map("output_tokens")
+  costUsd        Decimal  @map("cost_usd") @db.Decimal(10, 6)
+  durationMs     Int      @map("duration_ms")
+  /// Served from the cache: no provider call, not counted against the quota.
+  cached         Boolean  @default(false)
+  /// How many values of each kind the PII redactor replaced, e.g. {"PARTY":3,"PHONE":1} (D-131) — counts, never values.
+  redactionStats Json     @default("{}") @map("redaction_stats")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  office Office @relation(fields: [officeId], references: [id])
+  user   User?  @relation(fields: [userId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
+
+  // Monthly quota: provider calls of the office since the start of the month.
+  @@index([officeId, createdAt])
+  @@map("ai_usages")
 }

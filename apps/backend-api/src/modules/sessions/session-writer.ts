@@ -6,6 +6,7 @@ import { ReminderScheduler } from './reminder-scheduler';
 import { effectiveEnd, MAX_SESSION_MS } from './session-rules';
 import type { RequestContext } from '../../common/context/request-context';
 import { BusinessRuleException, ValidationException } from '../../common/errors/app.exception';
+import { RealtimePublisher } from '../../common/realtime/realtime.publisher';
 import type { AfterCommit, ScopedTransaction } from '../../database/unit-of-work';
 import type { Prisma } from '../../generated/prisma/client';
 import type { ClientInfo } from '../auth/client-info';
@@ -64,6 +65,7 @@ export class SessionWriter {
     private readonly cls: ClsService<RequestContext>,
     private readonly files: CaseAccessService,
     private readonly reminders: ReminderScheduler,
+    private readonly realtime: RealtimePublisher,
   ) {}
 
   /**
@@ -101,6 +103,16 @@ export class SessionWriter {
       select: { id: true },
     });
     await this.reminders.schedule(tx, afterCommit, { ...input, id }, reminderDays);
+    const { responsibleLawyerId } = await tx.legalFile.findFirstOrThrow({
+      where: { id: input.fileId },
+      select: { responsibleLawyerId: true },
+    });
+    afterCommit(async () => {
+      this.realtime.toUsers([input.attendingLawyerId, responsibleLawyerId], 'session.scheduled', {
+        sessionId: id,
+        fileId: input.fileId,
+      });
+    }, 'realtime session.scheduled');
     await this.event(tx, input.fileId, id, 'SESSION_CREATED', {
       sessionType: input.sessionType,
       startsAt: input.startsAt.toISOString(),

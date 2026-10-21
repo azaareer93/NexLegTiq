@@ -36,6 +36,8 @@ const ENUM_LABELS = {
   FOLDER_SYSTEM_KEYS: 'folderSystemKey',
   REMINDER_STATUSES: 'reminderStatus',
   SUBSCRIPTION_STATUSES: 'subscriptionStatus',
+  AI_SOURCE_TYPES: 'aiSourceType',
+  AI_JOB_STATUSES: 'aiJobStatus',
 } as const;
 /** Value lists translated elsewhere (`errors.*`, `common.language.*`), or not shown to users yet (permissions, D-087). */
 const LABELLED_ELSEWHERE = ['ERROR_CODES', 'SUPPORTED_LOCALES', 'PERMISSIONS'];

@@ -45,6 +45,7 @@ const DOCUMENT_SELECT = {
   currentVersion: true,
   status: true,
   ocrStatus: true,
+  processingErrorCode: true,
   isConfidential: true,
   sharedWithClient: true,
   createdAt: true,
@@ -62,9 +63,14 @@ const toDocument = ({ sizeBytes, createdAt, updatedAt, ...row }: DocumentRow): D
 });
 
 /** Only a version that passed its malware scan is offered (D-126): PROCESSING and READY. */
-function assertDownloadable(status: Document['status']): void {
+function assertDownloadable(status: Document['status'], processingErrorCode: string | null): void {
   if (status === 'QUARANTINED') throw new AppException('STO-004', 'The document was quarantined');
-  if (status !== 'PROCESSING' && status !== 'READY') {
+  // FAILED with a processing error code failed after a clean scan (extraction): it is still offered (D-132).
+  const scannedClean =
+    status === 'PROCESSING' ||
+    status === 'READY' ||
+    (status === 'FAILED' && processingErrorCode !== null);
+  if (!scannedClean) {
     throw new BusinessRuleException('BIZ-015', 'The document is not scanned clean yet');
   }
 }
@@ -227,10 +233,10 @@ export class DocumentRecordsService {
     await this.documents.assertDocumentAccess(id, 'read');
     const document = await this.prisma.db.document.findFirst({
       where: { id, deletedAt: null },
-      select: { status: true, currentVersion: true, ocrStatus: true },
+      select: { status: true, currentVersion: true, ocrStatus: true, processingErrorCode: true },
     });
     if (!document) throw new ResourceNotFoundException();
-    assertDownloadable(document.status);
+    assertDownloadable(document.status, document.processingErrorCode);
     return document;
   }
 

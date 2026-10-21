@@ -16,6 +16,9 @@ Upload (`POST /documents`, streamed to object storage, ≤ 50 MB, allow-listed M
    enqueue `ai:summarize-document`.
 Budgets: < 30 s for ≤ 10 pages; timeouts → FAILED with retry button.
 
+Implementation (D-132): `DocumentExtraction` (DOCX/XLSX/CSV, PDF text layer → `DocumentText`, READY, `document.processed`), other
+inputs wait for OCR (PROCESSING, `ocrStatus` PENDING); failures FAILED with EXT-002, `POST documents/:id/ocr/retry`.
+
 ## AI module (MVP features)
 | Feature | Trigger | Output schema |
 |---|---|---|
@@ -23,6 +26,10 @@ Budgets: < 30 s for ≤ 10 pages; timeouts → FAILED with retry button.
 | Session summary + next steps (P0) | `POST sessions/:id/outcome` with minutes > 100 words, or manual | `SessionSummarySchema { summary, keyFacts[], nextSteps[{action, dueInDays?}], riskAssessment: LOW|MEDIUM|HIGH }` |
 | Witness statement summary (P1-in-MVP) | manual | same as document summary |
 "Create tasks from next steps" creates Task rows with `sourceType=AI_NEXT_STEP` after the user confirms (never silently).
+
+Implementation (D-130, `apps/backend-api/src/modules/ai`): `AiExecutor.execute` / `BaseAiService`, `AiProviders` (OpenAI and
+Gemini over `fetch`, fake provider for tests), `AiJobs` + `AiJobRegistry` + `AiProcessor` for the `ai` queue, `GET /jobs/:id`,
+`AiJob` and `AiUsage` tables. `PiiRedactor` (D-131) is the `AI_REDACTOR`: names, emails, phones, ids and bank numbers become placeholders before any call.
 
 Architecture (`modules/ai`):
 - `AiProvider` interface → `OpenAiProvider` (primary), `GeminiProvider` (fallback), `AnthropicProvider` (optional, config switch).

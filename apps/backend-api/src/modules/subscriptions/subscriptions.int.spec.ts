@@ -237,8 +237,25 @@ describe('subscriptions and entitlements (HTTP + PostgreSQL)', () => {
     await expect(
       inOffice(manager, () => entitlements.assertStorageFor(quota + 1n)),
     ).rejects.toMatchObject({ code: 'AUTH-103' });
-    await inOffice(manager, () => entitlements.assertAiQuota(4));
-    await expect(inOffice(manager, () => entitlements.assertAiQuota(5))).rejects.toMatchObject({
+    // The free plan allows 5 AI requests a month: provider calls count, cache hits do not (D-130).
+    const usage = (cached: boolean) => ({
+      officeId: manager.officeId,
+      userId: manager.userId,
+      feature: 'quota-test',
+      provider: 'fake',
+      model: 'fake-1',
+      inputTokens: 1,
+      outputTokens: 1,
+      costUsd: '0',
+      durationMs: 1,
+      cached,
+    });
+    await raw.aiUsage.createMany({
+      data: [...Array.from({ length: 4 }, () => usage(false)), usage(true)],
+    });
+    await inOffice(manager, () => entitlements.assertAiQuota());
+    await raw.aiUsage.create({ data: usage(false) });
+    await expect(inOffice(manager, () => entitlements.assertAiQuota())).rejects.toMatchObject({
       code: 'AUTH-103',
     });
     await expect(
