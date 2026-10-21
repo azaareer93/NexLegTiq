@@ -117,7 +117,11 @@ export class DocumentScan {
 
   /** After the last failed attempt: the version could not be scanned, so it is never offered as clean. */
   async markFailed(job: DocumentJob): Promise<void> {
-    await this.prisma.db.document.updateMany({ where: scanning(job), data: { status: 'FAILED' } });
+    // No processing error code: a FAILED document without one is retried from the scan (D-132).
+    await this.prisma.db.document.updateMany({
+      where: scanning(job),
+      data: { status: 'FAILED', processingErrorCode: null },
+    });
   }
 
   private officeId(): string {

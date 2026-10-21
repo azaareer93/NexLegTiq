@@ -39,6 +39,7 @@ import type { Request } from 'express';
 import { ClsService } from 'nestjs-cls';
 
 import { DocumentRecordsService } from './document-records.service';
+import { DocumentRetry } from './document-retry';
 import { DocumentsService } from './documents.service';
 import type { RequestContext } from '../../common/context/request-context';
 import { ResourceNotFoundException } from '../../common/errors/app.exception';
@@ -66,6 +67,7 @@ export class DocumentsController {
   constructor(
     private readonly documents: DocumentsService,
     private readonly records: DocumentRecordsService,
+    private readonly retries: DocumentRetry,
     private readonly cls: ClsService<RequestContext>,
   ) {}
 
@@ -136,6 +138,18 @@ export class DocumentsController {
   })
   async remove(@Param('id', uuid) id: string, @Req() req: Request): Promise<void> {
     await this.records.remove(id, this.client(req));
+  }
+
+  @Post(':id/ocr/retry')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @RequirePermissions('upload:document')
+  @ApiOperation({
+    summary:
+      'Run the failed step of a FAILED document again (extraction or scan); 422 BIZ-016 otherwise',
+  })
+  @ApiZodResponse(HttpStatus.ACCEPTED, DocumentSchema)
+  retry(@Param('id', uuid) id: string, @Req() req: Request): Promise<Document> {
+    return this.retries.retry(id, this.client(req));
   }
 
   @Get(':id/download')

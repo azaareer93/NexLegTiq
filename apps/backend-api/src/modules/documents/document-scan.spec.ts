@@ -110,7 +110,7 @@ describe('DocumentScan', () => {
     const { scan, db } = setup({ infected: false });
     await scan.markFailed(JOB);
     expect(db.document.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { status: 'FAILED' } }),
+      expect.objectContaining({ data: { status: 'FAILED', processingErrorCode: null } }),
     );
     const noOffice = setup({ infected: true, signature: 'x' }, { office: null });
     await expect(noOffice.scan.run(JOB, signal)).rejects.toThrow('No office');

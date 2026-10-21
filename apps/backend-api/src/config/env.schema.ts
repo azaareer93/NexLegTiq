@@ -122,6 +122,11 @@ const EnvObject = z.object({
     })
     .pipe(z.record(z.string(), z.object({ input: z.number().min(0), output: z.number().min(0) })))
     .default({}),
+  // Text extraction worker (D-132): `ocr` queue concurrency and per-job timeout; unset = the queue policy (D-084).
+  OCR_WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(20).optional(),
+  OCR_JOB_TIMEOUT_MS: z.coerce.number().int().min(10_000).max(600_000).optional(),
+  // Ask for a summary after extraction (ai-ocr.md OCR step 6); off until the document-summary story enqueues it.
+  AI_AUTO_SUMMARY: z.stringbool().default(false),
 });
 
 type RawEnv = z.output<typeof EnvObject>;

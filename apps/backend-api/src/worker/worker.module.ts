@@ -11,6 +11,7 @@ import { AiModule } from '../modules/ai/ai.module';
 import { AiProcessor } from '../modules/ai/workers/ai.processor';
 import { PasswordResetLinks } from '../modules/auth/password-reset-links';
 import { VerificationLinks } from '../modules/auth/verification-links';
+import { DocumentExtraction } from '../modules/documents/document-extraction';
 import { DocumentScan } from '../modules/documents/document-scan';
 import { ClamavScanner } from '../modules/documents/upload/clamav-scanner';
 import { OcrProcessor } from '../modules/documents/workers/ocr.processor';
@@ -46,6 +47,7 @@ import { SubscriptionsModule } from '../modules/subscriptions/subscriptions.modu
     AiProcessor,
     OcrProcessor,
     DocumentScan,
+    DocumentExtraction,
     ClamavScanner,
   ],
 })

@@ -16,6 +16,9 @@ Upload (`POST /documents`, streamed to object storage, ≤ 50 MB, allow-listed M
    enqueue `ai:summarize-document`.
 Budgets: < 30 s for ≤ 10 pages; timeouts → FAILED with retry button.
 
+Implementation (D-132): `DocumentExtraction` (DOCX/XLSX/CSV, PDF text layer → `DocumentText`, READY, `document.processed`), other
+inputs wait for OCR (PROCESSING, `ocrStatus` PENDING); failures FAILED with EXT-002, `POST documents/:id/ocr/retry`.
+
 ## AI module (MVP features)
 | Feature | Trigger | Output schema |
 |---|---|---|

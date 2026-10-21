@@ -123,6 +123,19 @@ export class AppConfig {
     return this.#env.ENCRYPTION_KEY;
   }
 
+  get ocr(): {
+    readonly concurrency?: number;
+    readonly timeoutMs?: number;
+    readonly autoSummary: boolean;
+  } {
+    const env = this.#env;
+    return {
+      ...(env.OCR_WORKER_CONCURRENCY ? { concurrency: env.OCR_WORKER_CONCURRENCY } : {}),
+      ...(env.OCR_JOB_TIMEOUT_MS ? { timeoutMs: env.OCR_JOB_TIMEOUT_MS } : {}),
+      autoSummary: env.AI_AUTO_SUMMARY,
+    };
+  }
+
   get clamav(): { readonly host: string; readonly port: number } {
     return { host: this.#env.CLAMAV_HOST, port: this.#env.CLAMAV_PORT };
   }
