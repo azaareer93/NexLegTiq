@@ -1753,3 +1753,29 @@ extraction failure goes back to the scan (`NEW_VERSION_STATE`); a FAILED documen
 **after** a clean scan (a processing error code), like PROCESSING and READY. **Who is told:** the uploader of the
 version (not of the document), live (`document.processed`) and, on failure, by an in-app notification
 (`shell.notifications.documentFailed`, D-117's notification queue); deleted documents are never processed.
+
+**D-133 — Documents tab: folder tree, upload panel, live status and what waits for other stories** · Accepted (MVP-75, 2026-10-21)
+MVP-75 asks for a folder tree, a list with status chips, multi-file drag-and-drop upload with progress, live status and
+actions, but sharing with the client (portal), AI summaries and previews have no endpoint or story yet. → `?tab=documents`
+of the file page (`apps/office-app/src/features/cases/documents`, `documents` namespace). **Folder tree** (AntD `Tree`):
+"All documents", "Not in a folder" (`folderId=root`) and the file's folders nested by `parentId`, system folders labelled
+`enums.folderSystemKey.*`, with their document counts; selecting one filters the list and returns to page 1. New folder
+goes **inside the selected folder** (else at the root); only custom folders offer rename (system folders refuse it, BIZ-014).
+Moving and deleting folders is left to a later UI (the API has both). **List** (server-paginated, 20 a page, search on
+Enter): name with a version badge when `currentVersion > 1` and a "confidential" tag, type, status (`StatusTag`; a FAILED
+document's tooltip says why — `errors.EXT-002|VAL-005`), language (new `language` field on `DocumentSchema`, null until
+detected), uploaded by, last change, size (B/KB/MB in the reader's digits). **Live status:** the realtime bridge already
+invalidates `['documents']` on `document.processed` (D-129); as a fallback the list **polls every 10 s while a shown
+document is UPLOADED, SCANNING or PROCESSING**, and stops when none is. **Upload panel** (button or **Ctrl+Alt+U**,
+physical `KeyU`, ignored while typing): `Upload.Dragger`, several files at once, each checked here for extension (the
+D-035 list), emptiness and the 50 MB limit before anything is sent (the API sniffs the bytes again); one document type
+(default OTHER) and folder (default: the selected folder) for the batch; files go **one after the other** with their own
+progress bar (`ApiRequest.onUploadProgress`, new in shared-api-client) and an idempotency key made once per file, so
+"try again" after a failure never creates a second document; a failed file shows `errors.<code>`. The panel is mounted per
+opening (fresh queue). **Actions** (⋮ per row, UI only, the API re-checks): rename, move to folder and "try again" (a
+FAILED document whose code is not VAL-005 — an unreadable file cannot be fixed by a retry) with `upload:document`; delete
+with `delete:document` after a `ConfirmModal`. **Archived files offer no writes** (D-052). Shared API client:
+`documentsApi` (`forFile`, `upload`, `update`, `remove`, `retry`) and `foldersApi` (`list`, `create`, `update`).
+**Deferred:** share with client and AI summarise (portal and AI-summary stories), download/preview and version history
+(the download story's UI), folder move/delete, drag-and-drop between folders, bulk actions, retyping and marking
+confidential from the list. Why: the documents a file holds are visible and manageable today, using only routes the API has.

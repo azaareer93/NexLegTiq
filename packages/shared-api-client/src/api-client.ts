@@ -36,6 +36,8 @@ export interface ApiRequest {
   readonly query?: Readonly<Record<string, string | number | boolean | undefined>>;
   readonly headers?: Readonly<Record<string, string>>;
   readonly signal?: AbortSignal;
+  /** Upload progress of the request body (multipart uploads), as a fraction 0–1. */
+  readonly onUploadProgress?: (fraction: number) => void;
 }
 
 export interface ApiClient {
@@ -185,6 +187,10 @@ export function createApiClient(config: ApiClientConfig): ApiClient {
         data: request.body,
         params: request.query,
         signal: request.signal,
+        ...(request.onUploadProgress && {
+          onUploadProgress: (event: { loaded: number; total?: number }) =>
+            request.onUploadProgress?.(event.total ? Math.min(event.loaded / event.total, 1) : 0),
+        }),
         headers: { ...request.headers, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       });
     } catch (error) {
