@@ -1706,3 +1706,34 @@ separators are translation keys (Arabic "، "), names, rooms, times and the shor
 plural forms (Arabic zero/one/two/few/many/other). **Known limit:** the pickers hold the office's wall clock as a date in the
 device's zone; on a device whose zone skips that wall time (a DST gap at night) the picker may show it an hour off — irrelevant at
 court hours.
+
+**D-132 — Text extraction worker, FAILED documents and retry** · Accepted (MVP-73, 2026-10-21)
+MVP-73 left the libraries, what "READY" means for documents that still need OCR, where a failure's code lives, who may
+retry and how the auto-summary hook looks. → **Extraction** (`DocumentExtraction`, run by the `ocr` worker's
+`process-document` job in the document's office, after a clean scan — D-126): by the version's sniffed MIME type,
+**DOCX** with `mammoth`, **XLSX** with `exceljs` (every sheet in order under a `# <sheet>` line, cells tab-separated,
+formulas by their last result), **CSV** decoded as UTF-8 (BOM stripped) or, when that fails, Windows-1256 (legacy Arabic
+exports), **PDF** with `unpdf` (PDF.js; text per page, pages separated by a form feed) when the text layer averages ≥ 50
+non-space characters a page; everything else — images, TIFF, legacy `.doc`, scanned PDFs — **waits for the OCR path**
+(Tesseract story): the document stays PROCESSING with `ocrStatus` PENDING and the job ends `NEEDS_OCR`. Text is capped at
+5,000,000 characters (the search vectors index the first 500,000, D-119) and NUL characters are dropped (PostgreSQL text).
+The `DocumentText` row of the version (`ocrEngine` = docx|xlsx|csv|pdf-text-layer, `pageCount` for PDFs,
+`ocrConfidence` null) is upserted with the document turning **READY, `ocrStatus` DONE** in one transaction, guarded on
+"still PROCESSING and still the current version" (a replaced version or a second run changes nothing); the trigger fills
+the search vectors. The uploader's app gets **`document.processed`** (D-129, ids only) when the document is ready and
+when it fails. **Libraries:** pinned settled releases (`unpdf` 1.8.1, `mammoth` 1.12.3, `exceljs` 4.4.0 — no SheetJS: its
+npm package carries unpatched advisories); `unpdf` loads its PDF.js bundle with a dynamic `import()`, which production Node
+runs natively (npm packages stay external, D-103), and **Jest needs `--experimental-vm-modules`**: the backend `test` and
+`integration` targets set `NODE_OPTIONS` (integration became a `nx:run-commands` target to carry it). **Failures:** a file
+that cannot be read (corrupt, encrypted, truncated) fails at once (`UnrecoverableError`, no retry would help); other errors
+(storage) are retried by the queue; after the last attempt the document is **FAILED with `processingErrorCode` EXT-002**
+(new nullable column; a failed malware scan stays FAILED with no code). **Retry** `POST /documents/:id/ocr/retry`
+(`upload:document`, the file visible and not archived — D-119's `contribute`): only a FAILED document → 202 with the
+document, back to the step that failed (extraction → PROCESSING, scan → SCANNING) and its job queued again after the commit
+under a new job id; anything else → **422 BIZ-016** (new: "document has not failed"); the change is guarded on FAILED (two
+retries queue the work once) and audited (UPDATE, `{retried: true}`). **Auto-summary hook:** `autoSummaryWanted` (a
+PLEADING, EVIDENCE, JUDGMENT or COURT_ORDER over 500 words) behind **`AI_AUTO_SUMMARY`** (default false); for now it only
+logs — the document-summary story enqueues the summary there (with `enableAi` and the quota, D-130). **Configuration:**
+`OCR_WORKER_CONCURRENCY` (1–20) and `OCR_JOB_TIMEOUT_MS` (10 s–10 min) override the `ocr` queue policy (D-084) when set
+(`TenantProcessor.timeoutMs` became overridable). **Not here:** OCR of scans and images (Tesseract, then Google Vision),
+language detection (`Document.language`), notifying the uploader by email.

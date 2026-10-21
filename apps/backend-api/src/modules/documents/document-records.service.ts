@@ -45,6 +45,7 @@ const DOCUMENT_SELECT = {
   currentVersion: true,
   status: true,
   ocrStatus: true,
+  processingErrorCode: true,
   isConfidential: true,
   sharedWithClient: true,
   createdAt: true,

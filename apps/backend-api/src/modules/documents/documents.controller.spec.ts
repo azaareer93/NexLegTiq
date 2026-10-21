@@ -3,6 +3,7 @@ import type { ClsService } from 'nestjs-cls';
 
 import { CaseDocumentsController } from './case-documents.controller';
 import type { DocumentRecordsService } from './document-records.service';
+import type { DocumentRetry } from './document-retry';
 import { DocumentsController } from './documents.controller';
 import type { DocumentsService } from './documents.service';
 import type { RequestContext } from '../../common/context/request-context';
@@ -22,12 +23,14 @@ describe('DocumentsController', () => {
       download: jest.fn().mockResolvedValue('link'),
       text: jest.fn().mockResolvedValue('text'),
     };
+    const retries = { retry: jest.fn().mockResolvedValue('retried') };
     const req = { ip: '127.0.0.1', get: () => 'jest' } as unknown as Request;
     for (const active of [true, false]) {
       const cls = { isActive: () => active, getId: () => 'req-12345678' };
       const controller = new DocumentsController(
         service as unknown as DocumentsService,
         records as unknown as DocumentRecordsService,
+        retries as unknown as DocumentRetry,
         cls as unknown as ClsService<RequestContext>,
       );
       await expect(controller.upload(req, 'key-12345')).resolves.toBe('uploaded');
@@ -38,6 +41,7 @@ describe('DocumentsController', () => {
       await controller.remove('d1', req);
       await expect(controller.download('d1', { version: 2 }, req)).resolves.toBe('link');
       await expect(controller.text('d1', { page: 1 }, req)).resolves.toBe('text');
+      await expect(controller.retry('d1', req)).resolves.toBe('retried');
     }
     expect(service.upload).toHaveBeenCalledWith(
       req,

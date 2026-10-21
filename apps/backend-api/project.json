@@ -113,10 +113,20 @@
       }
     },
     "integration": {
-      "executor": "@nx/jest:jest",
+      "executor": "nx:run-commands",
       "options": {
-        "jestConfig": "apps/backend-api/jest.integration.config.cjs",
-        "runInBand": true
+        "command": "jest --config jest.integration.config.cjs --runInBand",
+        "cwd": "apps/backend-api",
+        "env": {
+          "NODE_OPTIONS": "--experimental-vm-modules"
+        }
+      }
+    },
+    "test": {
+      "options": {
+        "env": {
+          "NODE_OPTIONS": "--experimental-vm-modules"
+        }
       }
     }
   }

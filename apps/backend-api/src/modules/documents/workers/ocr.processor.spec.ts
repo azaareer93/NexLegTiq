@@ -1,10 +1,16 @@
+import { UnrecoverableError } from 'bullmq';
 import type { Job } from 'bullmq';
 import type { PinoLogger } from 'nestjs-pino';
 
 import { OcrProcessor } from './ocr.processor';
 import type { TenantRunner } from '../../../common/tenancy/tenant-runner';
+import { AppConfig } from '../../../config/app-config';
+import { testEnv } from '../../../config/env.fixture';
+import { parseEnv } from '../../../config/env.schema';
 import type { PrismaService } from '../../../database/prisma.service';
+import type { DocumentExtraction } from '../document-extraction';
 import type { DocumentScan } from '../document-scan';
+import { UnreadableDocumentError } from '../extraction/extract-text';
 
 const DATA = {
   officeId: '01920000-0000-7000-8000-0000000000a1',
@@ -13,9 +19,13 @@ const DATA = {
   versionNumber: 1,
 };
 
-function setup() {
+function setup(env: Record<string, string> = {}) {
   const scan = {
     run: jest.fn().mockResolvedValue('CLEAN'),
+    markFailed: jest.fn().mockResolvedValue(undefined),
+  };
+  const extraction = {
+    run: jest.fn().mockResolvedValue('READY'),
     markFailed: jest.fn().mockResolvedValue(undefined),
   };
   const tenant = { run: jest.fn((_ctx: unknown, work: () => Promise<unknown>) => work()) };
@@ -25,44 +35,81 @@ function setup() {
     {} as PrismaService,
     logger as unknown as PinoLogger,
     scan as unknown as DocumentScan,
+    extraction as unknown as DocumentExtraction,
+    new AppConfig(parseEnv(testEnv(env))),
   );
-  return { processor, scan, tenant, logger };
+  return { processor, scan, extraction, tenant, logger };
 }
 
 const job = (name: string, attemptsMade = 0) =>
   ({ name, data: DATA, attemptsMade, opts: { attempts: 3 } }) as unknown as Job;
 
-type Handle = { handle(job: Job, signal: AbortSignal): Promise<unknown> };
+type Internals = {
+  handle(job: Job, signal: AbortSignal): Promise<unknown>;
+  timeoutMs(policyMs: number): number;
+  worker: { concurrency: number };
+};
 
 describe('OcrProcessor', () => {
   const signal = new AbortController().signal;
 
-  it('should scan, skip text extraction until it exists, and refuse unknown jobs', async () => {
-    const { processor, scan } = setup();
-    const handle = (name: string) => (processor as unknown as Handle).handle(job(name), signal);
+  it('should scan, extract text and refuse unknown jobs', async () => {
+    const { processor, scan, extraction } = setup();
+    const handle = (name: string) => (processor as unknown as Internals).handle(job(name), signal);
     await expect(handle('scan-document')).resolves.toEqual({ outcome: 'CLEAN' });
     expect(scan.run).toHaveBeenCalledWith(
       { documentId: DATA.documentId, versionNumber: 1 },
       signal,
     );
-    await expect(handle('process-document')).resolves.toEqual({
-      skipped: 'TEXT_EXTRACTION_NOT_BUILT',
-    });
+    await expect(handle('process-document')).resolves.toEqual({ outcome: 'READY' });
+    expect(extraction.run).toHaveBeenCalledWith({ documentId: DATA.documentId, versionNumber: 1 });
     await expect(handle('other')).rejects.toThrow('Unknown ocr job other');
   });
 
-  it('should mark the document FAILED only after the last attempt of a scan', async () => {
-    const { processor, scan, logger } = setup();
+  it('should fail an unreadable file at once and let other extraction errors be retried', async () => {
+    const { processor, extraction } = setup();
+    const handle = () =>
+      (processor as unknown as Internals).handle(job('process-document'), signal);
+    extraction.run.mockRejectedValueOnce(new UnreadableDocumentError('pdf'));
+    await expect(handle()).rejects.toBeInstanceOf(UnrecoverableError);
+    extraction.run.mockRejectedValueOnce(new Error('storage down'));
+    await expect(handle()).rejects.toThrow('storage down');
+  });
+
+  it('should mark the failed step FAILED only after its last attempt', async () => {
+    const { processor, scan, extraction, logger } = setup();
     await processor.onFailed(job('scan-document', 1), new Error('clamd down'));
-    expect(scan.markFailed).not.toHaveBeenCalled();
-    await processor.onFailed(job('process-document', 3), new Error('x'));
+    await processor.onFailed(job('process-document', 2), new Error('storage down'));
+    await processor.onFailed(job('other', 3), new Error('x'));
     await processor.onFailed(undefined, new Error('x'));
     expect(scan.markFailed).not.toHaveBeenCalled();
+    expect(extraction.markFailed).not.toHaveBeenCalled();
     await processor.onFailed(job('scan-document', 3), new Error('clamd down'));
     expect(scan.markFailed).toHaveBeenCalledWith({ documentId: DATA.documentId, versionNumber: 1 });
+    await processor.onFailed(job('process-document', 0), new UnrecoverableError('unreadable'));
+    expect(extraction.markFailed).toHaveBeenCalledWith({
+      documentId: DATA.documentId,
+      versionNumber: 1,
+    });
     scan.markFailed.mockRejectedValueOnce(new Error('db down'));
-    const unrecoverable = Object.assign(new Error('bad'), { name: 'UnrecoverableError' });
-    await processor.onFailed(job('scan-document', 0), unrecoverable);
+    await processor.onFailed(job('scan-document', 0), new UnrecoverableError('bad'));
     expect(logger.error).toHaveBeenCalled();
+  });
+
+  it('should take concurrency and the attempt timeout from the configuration when set', () => {
+    const configured = setup({
+      OCR_WORKER_CONCURRENCY: '3',
+      OCR_JOB_TIMEOUT_MS: '45000',
+    }).processor;
+    const internals = configured as unknown as Internals;
+    Object.defineProperty(configured, 'worker', { value: { concurrency: 1 } });
+    configured.onApplicationBootstrap();
+    expect(internals.worker.concurrency).toBe(3);
+    expect(internals.timeoutMs(120_000)).toBe(45_000);
+    const defaults = setup().processor;
+    Object.defineProperty(defaults, 'worker', { value: { concurrency: 2 } });
+    defaults.onApplicationBootstrap();
+    expect((defaults as unknown as Internals).worker.concurrency).toBe(2);
+    expect((defaults as unknown as Internals).timeoutMs(120_000)).toBe(120_000);
   });
 });

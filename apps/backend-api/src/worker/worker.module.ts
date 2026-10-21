@@ -9,6 +9,7 @@ import { StorageModule } from '../common/storage/storage.module';
 import { DatabaseModule } from '../database/database.module';
 import { PasswordResetLinks } from '../modules/auth/password-reset-links';
 import { VerificationLinks } from '../modules/auth/verification-links';
+import { DocumentExtraction } from '../modules/documents/document-extraction';
 import { DocumentScan } from '../modules/documents/document-scan';
 import { ClamavScanner } from '../modules/documents/upload/clamav-scanner';
 import { OcrProcessor } from '../modules/documents/workers/ocr.processor';
@@ -33,6 +34,7 @@ import { ReminderProcessor } from '../modules/sessions/workers/reminder.processo
     ReminderScheduler,
     OcrProcessor,
     DocumentScan,
+    DocumentExtraction,
     ClamavScanner,
   ],
 })

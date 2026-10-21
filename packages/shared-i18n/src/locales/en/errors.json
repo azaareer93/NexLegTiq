@@ -40,6 +40,7 @@
   "BIZ-013": "This folder is not empty. Move or delete its documents and subfolders first.",
   "BIZ-014": "Default folders cannot be renamed, moved or deleted.",
   "BIZ-015": "This document is still being checked or could not be checked, so it cannot be opened yet.",
+  "BIZ-016": "This document has not failed, so there is nothing to retry.",
   "AI-001": "The AI service is unavailable right now. Try again later.",
   "AI-002": "Too many AI requests. Try again in a moment.",
   "AI-003": "The text is too long for the AI to process.",

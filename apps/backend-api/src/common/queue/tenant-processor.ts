@@ -56,6 +56,11 @@ export abstract class TenantProcessor<T extends object> extends WorkerHost {
 
   protected abstract handle(job: Job<T & TenantJobData>, signal: AbortSignal): Promise<unknown>;
 
+  /** The attempt timeout; a processor may take it from its own configuration (D-132). */
+  protected timeoutMs(policyMs: number): number {
+    return policyMs;
+  }
+
   /** Registered with the worker as it is created: without a listener a Redis error would crash the worker process. */
   @OnWorkerEvent('error')
   onWorkerError(error: Error): void {
@@ -83,7 +88,10 @@ export abstract class TenantProcessor<T extends object> extends WorkerHost {
             this.logger.warn(fields, 'Office is inactive; job skipped');
             return SKIPPED_OFFICE_INACTIVE;
           }
-          return withTimeout((signal) => this.handle(job, signal), policy.timeoutMs);
+          return withTimeout(
+            (signal) => this.handle(job, signal),
+            this.timeoutMs(policy.timeoutMs),
+          );
         },
       );
     } catch (error) {
