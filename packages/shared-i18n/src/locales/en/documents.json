@@ -1,0 +1,75 @@
+{
+  "folders": {
+    "title": "Folders",
+    "all": "All documents",
+    "root": "Not in a folder",
+    "new": "New folder",
+    "rename": "Rename folder",
+    "name": "Folder name",
+    "create": "Create",
+    "save": "Save",
+    "created": "Folder created",
+    "renamed": "Folder renamed"
+  },
+  "list": {
+    "name": "Name",
+    "type": "Type",
+    "uploadedBy": "Uploaded by",
+    "updatedAt": "Last change",
+    "size": "Size",
+    "actions": "Actions",
+    "status": "Status",
+    "language": "Language",
+    "version": "v{{number}}",
+    "versionLabel": "Version {{number}}",
+    "confidential": "Confidential",
+    "search": "Search documents",
+    "empty": "No documents yet",
+    "emptyHint": "Drag files here or use Upload to add the first one.",
+    "emptyFolder": "No documents in this folder"
+  },
+  "size": {
+    "bytes": "{{value}} B",
+    "kb": "{{value}} KB",
+    "mb": "{{value}} MB"
+  },
+  "upload": {
+    "open": "Upload",
+    "title": "Upload documents",
+    "drop": "Drag files here, or click to choose",
+    "hint": "PDF, Word, Excel, CSV and images, up to {{max}} MB each",
+    "type": "Document type",
+    "folder": "Folder",
+    "start_one": "Upload {{count}} file",
+    "start_other": "Upload {{count}} files",
+    "close": "Close",
+    "remove": "Remove {{name}} from the list",
+    "waiting": "Waiting",
+    "uploading": "Uploading",
+    "done": "Uploaded, being checked",
+    "error": "Not uploaded",
+    "problem": {
+      "type": "This type of file is not accepted",
+      "size": "Larger than {{max}} MB",
+      "empty": "The file is empty"
+    },
+    "finished_one": "{{count}} document uploaded",
+    "finished_other": "{{count}} documents uploaded"
+  },
+  "actions": {
+    "menu": "Actions for {{name}}",
+    "rename": "Rename",
+    "move": "Move to folder",
+    "delete": "Delete",
+    "retry": "Try again",
+    "renameTitle": "Rename document",
+    "moveTitle": "Move document",
+    "deleteTitle": "Delete this document?",
+    "deleteBody": "{{name}} will be removed from the file.",
+    "save": "Save",
+    "renamed": "Document renamed",
+    "moved": "Document moved",
+    "deleted": "Document deleted",
+    "retried": "Processing started again"
+  }
+}

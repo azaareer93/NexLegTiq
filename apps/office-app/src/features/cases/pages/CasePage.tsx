@@ -29,6 +29,7 @@ import { caseKeys, useCase, useDeleteCase } from '../api/use-cases';
 import { FileStatusTag } from '../components/case-cells';
 import { CaseDetailsTab } from '../components/CaseDetailsTab';
 import { EditCaseDrawer } from '../components/EditCaseDrawer';
+import { DocumentsTab } from '../documents/DocumentsTab';
 import { fileActions, readTab, visibleTabs } from '../file-page';
 import type { FileActions } from '../file-page';
 import { useHearingShortcut, useSessionRights } from '../sessions/session-rights';
@@ -192,6 +193,9 @@ function FileView({
 
   const tabContent = (key: string) => {
     if (key === 'details') return <CaseDetailsTab file={file} onOpenHearing={setHearing} />;
+    if (key === 'documents') {
+      return <DocumentsTab fileId={file.id} archived={file.status === 'ARCHIVED'} />;
+    }
     if (key === 'sessions') {
       return <SessionsTab fileId={file.id} canCreate={sessionRights.create} onOpen={setHearing} />;
     }

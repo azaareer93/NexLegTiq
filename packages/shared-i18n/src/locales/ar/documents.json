@@ -1,0 +1,83 @@
+{
+  "folders": {
+    "title": "المجلدات",
+    "all": "كل المستندات",
+    "root": "خارج المجلدات",
+    "new": "مجلد جديد",
+    "rename": "إعادة تسمية المجلد",
+    "name": "اسم المجلد",
+    "create": "إنشاء",
+    "save": "حفظ",
+    "created": "أُنشئ المجلد",
+    "renamed": "أُعيدت تسمية المجلد"
+  },
+  "list": {
+    "name": "الاسم",
+    "type": "النوع",
+    "uploadedBy": "رفعه",
+    "updatedAt": "آخر تعديل",
+    "size": "الحجم",
+    "actions": "الإجراءات",
+    "status": "الحالة",
+    "language": "اللغة",
+    "version": "إصدار {{number}}",
+    "versionLabel": "الإصدار {{number}}",
+    "confidential": "سري",
+    "search": "البحث في المستندات",
+    "empty": "لا توجد مستندات بعد",
+    "emptyHint": "اسحب الملفات إلى هنا أو استخدم زر الرفع لإضافة أول مستند.",
+    "emptyFolder": "لا توجد مستندات في هذا المجلد"
+  },
+  "size": {
+    "bytes": "{{value}} بايت",
+    "kb": "{{value}} كيلوبايت",
+    "mb": "{{value}} ميغابايت"
+  },
+  "upload": {
+    "open": "رفع",
+    "title": "رفع مستندات",
+    "drop": "اسحب الملفات إلى هنا، أو انقر للاختيار",
+    "hint": "PDF وWord وExcel وCSV والصور، حتى {{max}} ميغابايت لكل ملف",
+    "type": "نوع المستند",
+    "folder": "المجلد",
+    "start_zero": "رفع {{count}} ملف",
+    "start_one": "رفع ملف واحد",
+    "start_two": "رفع ملفين",
+    "start_few": "رفع {{count}} ملفات",
+    "start_many": "رفع {{count}} ملفًا",
+    "start_other": "رفع {{count}} ملف",
+    "close": "إغلاق",
+    "remove": "إزالة {{name}} من القائمة",
+    "waiting": "في الانتظار",
+    "uploading": "جارٍ الرفع",
+    "done": "رُفع، قيد الفحص",
+    "error": "لم يُرفع",
+    "problem": {
+      "type": "هذا النوع من الملفات غير مقبول",
+      "size": "أكبر من {{max}} ميغابايت",
+      "empty": "الملف فارغ"
+    },
+    "finished_zero": "لم يُرفع أي مستند",
+    "finished_one": "رُفع مستند واحد",
+    "finished_two": "رُفع مستندان",
+    "finished_few": "رُفعت {{count}} مستندات",
+    "finished_many": "رُفع {{count}} مستندًا",
+    "finished_other": "رُفع {{count}} مستند"
+  },
+  "actions": {
+    "menu": "إجراءات {{name}}",
+    "rename": "إعادة تسمية",
+    "move": "نقل إلى مجلد",
+    "delete": "حذف",
+    "retry": "إعادة المحاولة",
+    "renameTitle": "إعادة تسمية المستند",
+    "moveTitle": "نقل المستند",
+    "deleteTitle": "حذف هذا المستند؟",
+    "deleteBody": "سيُزال {{name}} من الملف.",
+    "save": "حفظ",
+    "renamed": "أُعيدت تسمية المستند",
+    "moved": "نُقل المستند",
+    "deleted": "حُذف المستند",
+    "retried": "بدأت المعالجة من جديد"
+  }
+}
