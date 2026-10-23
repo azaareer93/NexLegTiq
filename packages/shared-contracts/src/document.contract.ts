@@ -1,4 +1,9 @@
-import { DOCUMENT_STATUSES, DOCUMENT_TYPES, OCR_STATUSES } from '@nexlegtiq/shared-types';
+import {
+  DOCUMENT_LANGUAGES,
+  DOCUMENT_STATUSES,
+  DOCUMENT_TYPES,
+  OCR_STATUSES,
+} from '@nexlegtiq/shared-types';
 import { z } from 'zod';
 
 import { longText, plainText, searchText, sortParam } from './fields.js';
@@ -86,6 +91,8 @@ export const DocumentSchema = z.object({
   ocrStatus: z.enum(OCR_STATUSES),
   /** Why processing FAILED (EXT-002: the text could not be extracted); null otherwise — the app shows `errors.<code>`. */
   processingErrorCode: z.string().nullable(),
+  /** Detected language of the text; null until detected (D-133). */
+  language: z.enum(DOCUMENT_LANGUAGES).nullable(),
   isConfidential: z.boolean(),
   sharedWithClient: z.boolean(),
   uploadedBy: z.object({ id: z.uuid(), fullName: z.string() }),

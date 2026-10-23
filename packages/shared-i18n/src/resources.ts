@@ -4,6 +4,7 @@ import arAuth from './locales/ar/auth.json' with { type: 'json' };
 import arCases from './locales/ar/cases.json' with { type: 'json' };
 import arClients from './locales/ar/clients.json' with { type: 'json' };
 import arCommon from './locales/ar/common.json' with { type: 'json' };
+import arDocuments from './locales/ar/documents.json' with { type: 'json' };
 import arEnums from './locales/ar/enums.json' with { type: 'json' };
 import arErrors from './locales/ar/errors.json' with { type: 'json' };
 import arLegal from './locales/ar/legal.json' with { type: 'json' };
@@ -16,6 +17,7 @@ import enAuth from './locales/en/auth.json' with { type: 'json' };
 import enCases from './locales/en/cases.json' with { type: 'json' };
 import enClients from './locales/en/clients.json' with { type: 'json' };
 import enCommon from './locales/en/common.json' with { type: 'json' };
+import enDocuments from './locales/en/documents.json' with { type: 'json' };
 import enEnums from './locales/en/enums.json' with { type: 'json' };
 import enErrors from './locales/en/errors.json' with { type: 'json' };
 import enLegal from './locales/en/legal.json' with { type: 'json' };
@@ -37,6 +39,7 @@ const en = {
   cases: enCases,
   clients: enClients,
   sessions: enSessions,
+  documents: enDocuments,
   settings: enSettings,
   team: enTeam,
 };
@@ -51,6 +54,7 @@ const ar = {
   cases: arCases,
   clients: arClients,
   sessions: arSessions,
+  documents: arDocuments,
   settings: arSettings,
   team: arTeam,
 };

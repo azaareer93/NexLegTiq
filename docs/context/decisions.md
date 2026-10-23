@@ -1918,3 +1918,37 @@ an account, as `/auth/register` already does (D-032). **Not done:** pending invi
 leaves (the office still wants the invitee; revoke them from the team page); no daily per-office cap on invitation emails
 (the per-invitation cooldown, the seat limit and the IP throttles bound it); a manager need not have verified their own
 email to invite (verification is not enforced yet, D-083).
+**D-133 — Documents tab: folder tree, upload panel, live status and what waits for other stories** · Accepted (MVP-75, 2026-10-21)
+MVP-75 asks for a folder tree, a list with status chips, multi-file drag-and-drop upload with progress, live status and
+actions, but sharing with the client (portal), AI summaries and previews have no endpoint or story yet. → `?tab=documents`
+of the file page (`apps/office-app/src/features/cases/documents`, `documents` namespace). **Folder tree** (AntD `Tree`):
+"All documents", "Not in a folder" (`folderId=root`) and the file's folders nested by `parentId`, system folders labelled
+`enums.folderSystemKey.*`, with their document counts; selecting one filters the list and returns to page 1. New folder
+goes **inside the selected folder** (else at the root); only custom folders offer rename (system folders refuse it, BIZ-014).
+Moving and deleting folders is left to a later UI (the API has both). **List** (server-paginated, 20 a page, search on
+Enter): name with a version badge when `currentVersion > 1` and a "confidential" tag, type, status (`StatusTag`; a FAILED
+document's tooltip says why — `errors.EXT-002|VAL-005`), language (new `language` field on `DocumentSchema`, null until
+detected), uploaded by, last change, size (B/KB/MB in the reader's digits). **Live status:** the realtime bridge already
+invalidates `['documents']` on `document.processed` (D-129); as a fallback the list **polls every 10 s while a shown
+document is UPLOADED, SCANNING or PROCESSING**, and stops when none is. **Upload panel** (button or **Ctrl+Alt+U**,
+physical `KeyU`, ignored while typing): `Upload.Dragger`, several files at once, each checked here for extension (the
+D-035 list), emptiness and the 50 MB limit before anything is sent (the API sniffs the bytes again); one document type
+(default OTHER) and folder (default: the selected folder) for the batch; files go **one after the other** with their own
+progress bar (`ApiRequest.onUploadProgress`, new in shared-api-client) and an idempotency key made once per file, so
+"try again" after a failure never creates a second document; a failed file shows `errors.<code>`. The panel is mounted per
+opening (fresh queue). **Actions** (⋮ per row, UI only, the API re-checks): rename, move to folder and "try again" (a
+FAILED document whose code is not VAL-005 — an unreadable file cannot be fixed by a retry) with `upload:document`; delete
+with `delete:document` after a `ConfirmModal`. **Archived files offer no writes** (D-052). Shared API client:
+`documentsApi` (`forFile`, `upload`, `update`, `remove`, `retry`) and `foldersApi` (`list`, `create`, `update`).
+**Deferred:** share with client and AI summarise (portal and AI-summary stories), download/preview and version history
+(the download story's UI), folder move/delete, drag-and-drop between folders, bulk actions, retyping and marking
+confidential from the list. Why: the documents a file holds are visible and manageable today, using only routes the API has.
+Review additions (same PR): **polling** covers only documents changed in the last 10 minutes — images and scans stay
+PROCESSING until OCR exists (D-132) and would otherwise be refetched every 10 s for as long as the tab is open (the
+`document.processed` event still updates them). A page emptied by a delete moves back to the last page with rows. While a
+batch uploads, its files cannot be removed from the queue; once a file has failed, the batch's type and folder are locked
+(its retry reuses the idempotency key, which the server may already hold with the first choice). The size limit in the
+texts comes from `MAX_UPLOAD_BYTES`; Arabic writes كيلوبايت/ميغابايت and "إصدار n" in full. **Ctrl+Alt shortcuts** share one
+hook (`useCtrlAltShortcut`) that also ignores keys while focus is inside a dialog, so Ctrl+Alt+U and the hearing drawer's
+Ctrl+Alt+H never open over each other. Actions are not hidden while the subscription is read-only (as on the Hearings
+tab: the banner explains it and the API refuses with AUTH-104).
