@@ -9,7 +9,7 @@
     "@nexlegtiq/shared-types": "workspace:*",
     "@nexlegtiq/shared-ui": "workspace:*",
     "@nexlegtiq/shared-utils": "workspace:*",
-    "zod": "^4.6.5",
+    "zod": "^4.6.6",
     "socket.io-client": "4.8.3"
   }
 }

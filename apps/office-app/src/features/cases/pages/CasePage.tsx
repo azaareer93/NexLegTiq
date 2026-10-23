@@ -25,6 +25,7 @@ import { useLocation, useNavigate, useParams, useSearchParams } from 'react-rout
 
 import { useSession } from '../../auth';
 import { NotFoundPage } from '../../shell/components/status-pages';
+import { TasksView } from '../../tasks';
 import { caseKeys, useCase, useDeleteCase } from '../api/use-cases';
 import { FileStatusTag } from '../components/case-cells';
 import { CaseDetailsTab } from '../components/CaseDetailsTab';
@@ -195,6 +196,9 @@ function FileView({
     if (key === 'details') return <CaseDetailsTab file={file} onOpenHearing={setHearing} />;
     if (key === 'documents') {
       return <DocumentsTab fileId={file.id} archived={file.status === 'ARCHIVED'} />;
+    }
+    if (key === 'tasks') {
+      return <TasksView scope={{ fileId: file.id }} readOnly={file.status === 'ARCHIVED'} />;
     }
     if (key === 'sessions') {
       return <SessionsTab fileId={file.id} canCreate={sessionRights.create} onOpen={setHearing} />;

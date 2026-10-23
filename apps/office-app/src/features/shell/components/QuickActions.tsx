@@ -4,13 +4,14 @@ import {
   PlusOutlined,
   UserAddOutlined,
 } from '@ant-design/icons';
-import { EmptyState, useCan } from '@nexlegtiq/shared-ui';
-import { Button, Dropdown, Modal } from 'antd';
+import { useCan } from '@nexlegtiq/shared-ui';
+import { Button, Dropdown } from 'antd';
 import type { MenuProps } from 'antd';
 import { lazy, Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { openQuickCreateCase } from '../../cases';
+import { openTaskDrawer } from '../../tasks';
 
 // Its own chunk, loaded the first time + Client is used (as the case modal is).
 const ClientDrawer = lazy(async () => ({
@@ -22,14 +23,13 @@ type QuickAction = (typeof QUICK_ACTIONS)[number];
 const isQuickAction = (key: string): key is QuickAction =>
   (QUICK_ACTIONS as readonly string[]).includes(key);
 
-/** + Case, + Client, + Task for who may create them: the quick-create case modal, the client drawer, and a placeholder for tasks. */
+/** + Case, + Client, + Task for who may create them: the quick-create case modal, the client drawer, the task drawer. */
 export function QuickActions({
   compact = false,
 }: {
   readonly compact?: boolean;
 }): React.JSX.Element | null {
   const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
   const [clientOpen, setClientOpen] = useState(false);
   const can: Record<QuickAction, boolean> = {
     file: useCan('create:case'),
@@ -55,7 +55,7 @@ export function QuickActions({
   const onClick: MenuProps['onClick'] = ({ key }) => {
     if (key === 'file') openQuickCreateCase();
     else if (key === 'client') setClientOpen(true);
-    else if (isQuickAction(key)) setOpen(true);
+    else if (isQuickAction(key)) openTaskDrawer();
   };
   return (
     <>
@@ -69,15 +69,6 @@ export function QuickActions({
           {compact ? null : t('shell.quick.label')}
         </Button>
       </Dropdown>
-      <Modal
-        open={open}
-        onCancel={() => setOpen(false)}
-        footer={null}
-        title={t('shell.quick.task')}
-        data-testid="quick-placeholder"
-      >
-        <EmptyState title={t('shell.comingSoon.title')} description={t('shell.comingSoon.body')} />
-      </Modal>
       {clientOpen ? (
         <Suspense fallback={null}>
           <ClientDrawer open clientId={null} onClose={() => setClientOpen(false)} />

@@ -11,6 +11,7 @@ import arLegal from './locales/ar/legal.json' with { type: 'json' };
 import arSessions from './locales/ar/sessions.json' with { type: 'json' };
 import arSettings from './locales/ar/settings.json' with { type: 'json' };
 import arShell from './locales/ar/shell.json' with { type: 'json' };
+import arTasks from './locales/ar/tasks.json' with { type: 'json' };
 import arTeam from './locales/ar/team.json' with { type: 'json' };
 import arValidation from './locales/ar/validation.json' with { type: 'json' };
 import enAuth from './locales/en/auth.json' with { type: 'json' };
@@ -24,6 +25,7 @@ import enLegal from './locales/en/legal.json' with { type: 'json' };
 import enSessions from './locales/en/sessions.json' with { type: 'json' };
 import enSettings from './locales/en/settings.json' with { type: 'json' };
 import enShell from './locales/en/shell.json' with { type: 'json' };
+import enTasks from './locales/en/tasks.json' with { type: 'json' };
 import enTeam from './locales/en/team.json' with { type: 'json' };
 import enValidation from './locales/en/validation.json' with { type: 'json' };
 import type { I18N_NAMESPACES, I18nNamespace } from './namespaces.js';
@@ -40,6 +42,7 @@ const en = {
   clients: enClients,
   sessions: enSessions,
   documents: enDocuments,
+  tasks: enTasks,
   settings: enSettings,
   team: enTeam,
 };
@@ -55,6 +58,7 @@ const ar = {
   clients: arClients,
   sessions: arSessions,
   documents: arDocuments,
+  tasks: arTasks,
   settings: arSettings,
   team: arTeam,
 };

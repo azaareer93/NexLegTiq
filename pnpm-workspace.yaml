@@ -21,3 +21,5 @@ overrides:
   'js-yaml@>=5.0.0 <5.4.1': ^5.4.2 # GHSA-r3ph-w7gj-g6xm
   # Reached through the Prisma CLI (c12 > magicast) and build tools (PostCSS, Vite); a patch release, same API.
   'source-map-js@<1.2.2': ^1.2.2 # GHSA-68fv-2mgg-jv7q
+  # Express 5 (via @nestjs/platform-express) allows ^2.3.0; a minor release of the same API until Nest's express range moves.
+  'body-parser@>=2.0.0 <2.4.0': ^2.4.0 # GHSA-27r3-jxmh-p828
