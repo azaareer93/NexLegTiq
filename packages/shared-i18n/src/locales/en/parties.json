@@ -1,0 +1,69 @@
+{
+  "tab": {
+    "add": "Add party",
+    "empty": "No parties on this file yet",
+    "emptyHint": "Add the plaintiffs, defendants and other people or organisations involved.",
+    "loadFailed": "The parties could not be loaded."
+  },
+  "row": {
+    "person": "Person",
+    "organisation": "Organisation",
+    "nationalId": "National ID: {{value}}",
+    "taxId": "Tax ID: {{value}}",
+    "representative": "Represented by {{name}}",
+    "edit": "Edit role of {{name}}",
+    "remove": "Remove {{name}} from the file"
+  },
+  "add": {
+    "title": "Add a party",
+    "existing": "Existing party",
+    "new": "New party",
+    "search": "Search by name or ID number",
+    "pick": "Party",
+    "noMatch": "No party matches. Add it as a new party.",
+    "partyType": "Role",
+    "roleLabel": "Role description (optional)",
+    "submit": "Add",
+    "added": "Party added"
+  },
+  "form": {
+    "kind": "Type",
+    "fullName": "Full name",
+    "companyName": "Organisation name",
+    "nationalId": "National ID",
+    "taxId": "Tax ID",
+    "phone": "Phone",
+    "email": "Email",
+    "address": "Address",
+    "legalRepresentative": "Legal representative",
+    "notes": "Notes",
+    "encrypted": "Stored encrypted"
+  },
+  "edit": {
+    "title": "Change role",
+    "saved": "Role saved"
+  },
+  "remove": {
+    "title": "Remove this party from the file?",
+    "body": "<name>{{name}}</name> stays in the office's party list and can be added again.",
+    "confirm": "Remove",
+    "removed": "Party removed"
+  },
+  "conflicts": {
+    "title": "Possible conflict of interest",
+    "intro": "Check these before working on the file. Each one stays open until someone records why the office may proceed.",
+    "reason": {
+      "ADVERSE_ON_OTHER_FILE": "<party>{{party}}</party> is on the other side of the dispute in <file>{{file}}</file>.",
+      "CLIENT_ON_OTHER_FILE": "<party>{{party}}</party> is the office's client in <file>{{file}}</file>."
+    },
+    "hiddenFile": "a file you cannot open",
+    "notes": "Note: why the office may proceed",
+    "proceed": "Proceed with note",
+    "close": "Close",
+    "cancelAdd": "Cancel and remove the party",
+    "resolved": "Conflict recorded as reviewed",
+    "banner_one": "This file has an unresolved conflict of interest.",
+    "banner_other": "This file has {{count}} unresolved conflicts of interest.",
+    "review": "Review"
+  }
+}
