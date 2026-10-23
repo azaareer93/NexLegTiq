@@ -183,7 +183,7 @@ describe('Accept invitation page (D-134)', () => {
     async () => {
       let body: unknown;
       server.use(
-        http.get(api(`auth/invites/${token}`), () => ok(preview)),
+        http.post(api('auth/invites/preview'), () => ok(preview)),
         http.post(api('auth/accept-invite'), async ({ request }) => {
           body = await request.json();
           return ok(SESSION, 201);
@@ -216,10 +216,42 @@ describe('Accept invitation page (D-134)', () => {
   it(
     'should explain a used or expired link',
     async () => {
-      server.use(http.get(api(`auth/invites/${token}`), () => fail(410, 'RES-004')));
+      server.use(http.post(api('auth/invites/preview'), () => fail(410, 'RES-004')));
       renderApp(`/accept-invite?token=${token}`);
       expect(await screen.findByTestId('invite-invalid', {}, { timeout: COLD })).toBeTruthy();
       expect(screen.getByText('This invitation is no longer valid')).toBeTruthy();
+    },
+    SLOW,
+  );
+
+  it(
+    'should explain a suspended office without offering a retry',
+    async () => {
+      server.use(http.post(api('auth/invites/preview'), () => fail(403, 'AUTH-006')));
+      renderApp(`/accept-invite?token=${token}`);
+      expect(
+        await screen.findByText(
+          'This account or office is not active. Contact your office manager.',
+          {},
+          { timeout: COLD },
+        ),
+      ).toBeTruthy();
+      expect(screen.queryByRole('button', { name: /try again/i })).toBeNull();
+    },
+    SLOW,
+  );
+
+  it(
+    'should render in Arabic, right to left, and pass axe',
+    async () => {
+      server.use(http.post(api('auth/invites/preview'), () => ok(preview)));
+      renderApp(`/accept-invite?token=${token}`, 'ar');
+      await screen.findByTestId('invite-intro', {}, { timeout: COLD });
+      expect(document.documentElement.dir).toBe('rtl');
+      const { violations } = await axe.run(document.body, {
+        rules: { 'color-contrast': { enabled: false }, region: { enabled: false } },
+      });
+      expect(violations.map((violation) => violation.id)).toEqual([]);
     },
     SLOW,
   );

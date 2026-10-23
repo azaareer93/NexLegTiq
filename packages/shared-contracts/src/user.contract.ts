@@ -65,7 +65,7 @@ export const InviteUserSchema = z.object({
   /** A note shown in the invitation email. */
   message: longText(500).optional(),
 });
-export type InviteUserRequest = z.input<typeof InviteUserSchema>;
+export type InviteUserRequest = z.infer<typeof InviteUserSchema>;
 
 /** A row of `GET /users/invitations`: pending invitations, EXPIRED once their link has lapsed (resend renews it). */
 export const InvitationSchema = z.object({

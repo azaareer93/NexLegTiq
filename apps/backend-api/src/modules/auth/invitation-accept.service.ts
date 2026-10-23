@@ -20,6 +20,7 @@ import { RealtimePublisher } from '../../common/realtime/realtime.publisher';
 import { TenantRunner } from '../../common/tenancy/tenant-runner';
 import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
+import { EntitlementsService } from '../subscriptions/entitlements.service';
 
 const INVALID_LINK = 'Invitation link is invalid or has expired';
 
@@ -38,6 +39,7 @@ export class InvitationAcceptService {
     private readonly auth: AuthService,
     private readonly passwords: PasswordHasher,
     private readonly realtime: RealtimePublisher,
+    private readonly entitlements: EntitlementsService,
   ) {}
 
   async preview(token: string): Promise<InvitePreview> {
@@ -71,6 +73,9 @@ export class InvitationAcceptService {
     const userId = uuidV7(now.getTime());
     const { officeId } = invitation;
     return this.tenant.run(tenantContextFor(officeId, userId, client), async () => {
+      // A public route, so SubscriptionGuard never sees it: an office whose subscription ended gains no users (D-122).
+      if ((await this.entitlements.current()).readOnly)
+        throw new AppException('AUTH-104', 'Subscription ended: the office is read-only');
       const { user, opened } = await this.uow.run(async (tx, afterCommit) => {
         // Conditional: a revoke, a second accept or the expiry between the read and here wins.
         const claimed = await tx.officeInvitation.updateMany({
@@ -119,12 +124,16 @@ export class InvitationAcceptService {
             requestId: client.requestId,
           },
         });
-        const inviter = invitation.invitedBy;
-        if (inviter.isActive) {
+        // Every active office manager is told (W2), not only the inviter, who may have left since.
+        const managers = await tx.user.findMany({
+          where: { role: 'OFFICE_MANAGER', isActive: true },
+          select: { id: true },
+        });
+        for (const manager of managers) {
           const notification = await tx.notification.create({
             data: {
               officeId,
-              userId: inviter.id,
+              userId: manager.id,
               type: 'invitation.accepted',
               titleKey: 'shell.notifications.invitationAccepted',
               params: { userId, name: body.fullName },
@@ -133,7 +142,7 @@ export class InvitationAcceptService {
             select: { id: true },
           });
           afterCommit(async () => {
-            this.realtime.toUser(inviter.id, 'notification', { notificationId: notification.id });
+            this.realtime.toUser(manager.id, 'notification', { notificationId: notification.id });
           }, 'realtime notification');
         }
         const opened = await this.auth.openSession(tx, user, { rememberMe: false, now, client });
@@ -156,7 +165,7 @@ export class InvitationAcceptService {
         status: true,
         expiresAt: true,
         office: { select: { name: true, defaultLanguage: true, isActive: true } },
-        invitedBy: { select: { id: true, fullName: true, isActive: true } },
+        invitedBy: { select: { fullName: true } },
       },
     });
     if (!invitation || invitation.status !== 'PENDING' || invitation.expiresAt <= now)

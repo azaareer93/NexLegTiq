@@ -101,7 +101,7 @@ export function authApi(client: ApiClient) {
     /** What the invitation link offers (410 RES-004 when it is no longer valid). */
     invitePreview: (token: string, signal?: AbortSignal): Promise<InvitePreview> =>
       client.request(
-        { method: 'GET', path: `auth/invites/${encodeURIComponent(token)}`, signal },
+        { method: 'POST', path: 'auth/invites/preview', body: { token }, signal },
         InvitePreviewSchema,
       ),
     /**

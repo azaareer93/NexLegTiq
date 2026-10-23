@@ -92,13 +92,7 @@ export function InviteModal({ onClose }: InviteModalProps): React.JSX.Element {
           {(fields, { add, remove }) => (
             <Flex vertical gap={8}>
               {fields.map((field, index) => (
-                <Flex
-                  key={field.key}
-                  gap={8}
-                  align="start"
-                  wrap
-                  data-testid={`invite-row-${index}`}
-                >
+                <Flex key={field.key} gap={8} align="end" wrap data-testid={`invite-row-${index}`}>
                   <Form.Item
                     name={[field.name, 'email']}
                     label={t('team.invite.email')}
@@ -139,7 +133,6 @@ export function InviteModal({ onClose }: InviteModalProps): React.JSX.Element {
                       icon={<DeleteOutlined />}
                       aria-label={t('team.invite.removeRow', { row: index + 1 })}
                       onClick={() => remove(field.name)}
-                      style={{ marginBlockStart: 30 }}
                       data-testid={`invite-remove-${index}`}
                     />
                   ) : null}

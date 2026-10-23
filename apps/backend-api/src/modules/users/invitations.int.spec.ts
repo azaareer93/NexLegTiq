@@ -5,7 +5,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import type { AuthSession, Invitation, InvitePreview } from '@nexlegtiq/shared-contracts';
-import type { Role } from '@nexlegtiq/shared-types';
+import type { OfficeId, Role } from '@nexlegtiq/shared-types';
 import request from 'supertest';
 
 import { AppModule } from '../../app/app.module';
@@ -18,6 +18,7 @@ import { TENANT_MODELS } from '../../database/tenant-models';
 import type { PrismaClient } from '../../generated/prisma/client';
 import { bearerFor } from '../auth/auth.test-helper';
 import { REFRESH_COOKIE } from '../auth/refresh-token';
+import { EntitlementsService } from '../subscriptions/entitlements.service';
 import { liveSubscription } from '../subscriptions/subscription.test-helper';
 
 type Delegate = { deleteMany(args: unknown): Promise<unknown> };
@@ -168,7 +169,7 @@ describe('invitations (HTTP + PostgreSQL)', () => {
     ]);
 
     const token = await linkFor(invitation.id);
-    const preview = await http().get(`/api/v1/auth/invites/${token}`).expect(200);
+    const preview = await http().post('/api/v1/auth/invites/preview').send({ token }).expect(200);
     expect((preview.body as { data: InvitePreview }).data).toMatchObject({
       officeName: 'Invite office',
       inviterName: 'OFFICE_MANAGER person',
@@ -206,7 +207,7 @@ describe('invitations (HTTP + PostgreSQL)', () => {
 
     // Single use: the link is spent, and the list no longer shows it.
     expect(((await accept(token).expect(410)).body as ErrorBody).error.code).toBe('RES-004');
-    await http().get(`/api/v1/auth/invites/${token}`).expect(410);
+    await http().post('/api/v1/auth/invites/preview').send({ token }).expect(410);
     const after = await http().get('/api/v1/users/invitations').set(bearerFor(jwt, manager));
     expect((after.body as { data: Invitation[] }).data).toEqual([]);
   });
@@ -261,7 +262,7 @@ describe('invitations (HTTP + PostgreSQL)', () => {
 
     await raw.officeInvitation.update({
       where: { id },
-      data: { expiresAt: new Date(Date.now() - 1000) },
+      data: { expiresAt: new Date(Date.now() - 1000), updatedAt: new Date(Date.now() - 120_000) },
     });
     await accept(token).expect(410);
     const listed = await http().get('/api/v1/users/invitations').set(bearerFor(jwt, manager));
@@ -273,13 +274,61 @@ describe('invitations (HTTP + PostgreSQL)', () => {
       .expect(200);
     expect((resent.body as { data: Invitation }).data.status).toBe('PENDING');
     expect(enqueue).toHaveBeenLastCalledWith('email', 'send-invitation', { invitationId: id });
+    // The resend rotated the link at once: the old token is dead even before the worker sends the new one.
+    await accept(token).expect(410);
+    // One email a minute per invitation.
+    const again = await http()
+      .post(`/api/v1/users/invitations/${id}/resend`)
+      .set(bearerFor(jwt, manager))
+      .expect(429);
+    expect((again.body as ErrorBody).error.code).toBe('RATE-001');
     token = await linkFor(id);
 
     await http().delete(`/api/v1/users/invitations/${id}`).set(bearerFor(jwt, manager)).expect(204);
     await accept(token).expect(410);
     await http()
-      .get(`/api/v1/auth/invites/${'x'.repeat(40)}`)
+      .post('/api/v1/auth/invites/preview')
+      .send({ token: 'x'.repeat(40) })
       .expect(410);
+  });
+
+  it('should give the last seat to one of two invitations sent at once', async () => {
+    const { manager } = await office(2);
+    const results = await Promise.all(
+      ['p', 'q'].map((name) =>
+        invite(manager, { email: `${name}-${randomUUID()}@example.test`, role: 'LAWYER' }),
+      ),
+    );
+    expect(results.map((res) => res.status).sort()).toEqual([201, 422]);
+  });
+
+  it('should let only the first of two offices that invited the same person win (409 RES-002)', async () => {
+    const first = await office();
+    const second = await office();
+    const email = `twice-${randomUUID()}@example.test`;
+    const one = await invite(first.manager, { email, role: 'LAWYER' }).expect(201);
+    const two = await invite(second.manager, { email, role: 'PARALEGAL' }).expect(201);
+    const tokens = await Promise.all(
+      [one, two].map((res) => linkFor((res.body as { data: Invitation }).data.id)),
+    );
+    const [a, b] = await Promise.all(tokens.map((token) => accept(token)));
+    expect([a?.status, b?.status].sort()).toEqual([201, 409]);
+    expect(await raw.user.count({ where: { email } })).toBe(1);
+  });
+
+  it('should refuse to add a user to an office whose subscription ended (AUTH-104)', async () => {
+    const { manager, officeId } = await office();
+    const created = await invite(manager, {
+      email: `ro-${randomUUID()}@example.test`,
+      role: 'LAWYER',
+    }).expect(201);
+    const token = await linkFor((created.body as { data: Invitation }).data.id);
+    await raw.subscription.updateMany({ where: { officeId }, data: { status: 'CANCELLED' } });
+    app.get(EntitlementsService).invalidate(officeId as OfficeId);
+    expect(((await accept(token).expect(403)).body as ErrorBody).error.code).toBe('AUTH-104');
+    await invite(manager, { email: `ro2-${randomUUID()}@example.test`, role: 'LAWYER' }).expect(
+      403,
+    );
   });
 
   it('should keep invitations to managers and inside the office', async () => {

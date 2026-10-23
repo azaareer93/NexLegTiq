@@ -47,7 +47,7 @@ uploads 20/min ·
 ## Endpoint map (MVP)
 **auth**: POST `auth/register` (office signup, 201 + session like login) · POST `auth/login` · POST `auth/refresh` · POST `auth/logout` ·
 POST `auth/forgot-password` (always 200) · POST `auth/reset-password` (204; 410 RES-004 for an invalid/used/expired link, D-086) · POST `auth/verify-email` (204; 410 RES-004 for an invalid/used/expired link) · POST `auth/resend-verification` (always 202, D-085) · POST `auth/accept-invite` (201 + session like login; 410 RES-004 for an invalid/used/revoked/expired link, D-134) ·
-GET `auth/invites/:token` (preview; same 410)
+POST `auth/invites/preview` (`{token}` in the body, never in a URL; same 410)
 **users**: GET/PATCH `users/me` · GET `users/directory` (active colleagues' name and role for pickers; roles that create cases, tasks or sessions, D-123) · POST `users/me/password` (204; wrong current password → 400 VAL-001, D-086) · GET `users` (office team) · POST `users/invite` (one person; 409 RES-002 email taken or already invited, 422 BIZ-008 plan full, D-134) ·
 GET `users/invitations` · POST `users/invitations/:id/resend` · DELETE `users/invitations/:id` (204) · PATCH `users/:id/role` · POST `users/:id/deactivate` (with reassignment) ·
 POST `users/:id/reactivate` (seat check, BIZ-008) · GET `users/:id/open-files` — D-124

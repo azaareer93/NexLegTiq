@@ -124,7 +124,11 @@ export const InviteTokenSchema = z
   .min(16, 'validation.invalidToken')
   .max(128, 'validation.invalidToken');
 
-/** `GET /auth/invites/:token`: what the accept page shows before the person signs up (410 RES-004 when invalid). */
+/** `POST /auth/invites/preview`: the token in the body, so it never sits in a URL or an access log (D-134). */
+export const InvitePreviewRequestSchema = z.object({ token: InviteTokenSchema });
+export type InvitePreviewRequest = z.infer<typeof InvitePreviewRequestSchema>;
+
+/** What the accept page shows before the person signs up (410 RES-004 when invalid). */
 export const InvitePreviewSchema = z.object({
   officeName: z.string(),
   inviterName: z.string(),

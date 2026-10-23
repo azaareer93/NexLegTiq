@@ -12,6 +12,7 @@ const teamKeys = {
   all: ['users'] as const,
   team: ['users', 'team'] as const,
   openFiles: (id: string) => ['users', 'open-files', id] as const,
+  invitations: ['users', 'invitations'] as const,
 };
 
 /** `GET /users` (D-124): the office team, active users first. */
@@ -54,7 +55,7 @@ export const useReactivate = () => useTeamMutation((id: string) => users.reactiv
 /** `GET /users/invitations` (D-134): pending invitations, newest first. */
 export const useInvitations = () =>
   useQuery({
-    queryKey: [...teamKeys.all, 'invitations'] as const,
+    queryKey: teamKeys.invitations,
     queryFn: ({ signal }) => users.invitations(signal),
   });
 

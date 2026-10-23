@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Post, Req, Res } from '@nestjs/common';
 import {
   ApiAcceptedResponse,
   ApiCookieAuth,
@@ -10,8 +10,8 @@ import { Throttle } from '@nestjs/throttler';
 import {
   AcceptInviteRequestSchema,
   AuthSessionSchema,
+  InvitePreviewRequestSchema,
   InvitePreviewSchema,
-  InviteTokenSchema,
   LoginRequestSchema,
   RegisterRequestSchema,
   ResendVerificationRequestSchema,
@@ -21,6 +21,7 @@ import type {
   AcceptInviteRequest,
   AuthSession,
   InvitePreview,
+  InvitePreviewRequest,
   LoginRequest,
   RegisterRequest,
   ResendVerificationRequest,
@@ -113,17 +114,19 @@ export class AuthController {
     await this.signup.resendVerification(body, this.client(req));
   }
 
-  @Get('invites/:token')
+  @Post('invites/preview')
+  @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 10, ttl: MINUTE_MS } })
   @ApiOperation({
     summary:
       'Preview an invitation from its link (410 RES-004 if invalid, used, revoked or expired)',
   })
+  @ApiZodBody(InvitePreviewRequestSchema)
   @ApiZodResponse(200, InvitePreviewSchema)
   invitePreview(
-    @Param('token', new ZodValidationPipe(InviteTokenSchema)) token: string,
+    @Body(new ZodValidationPipe(InvitePreviewRequestSchema)) body: InvitePreviewRequest,
   ): Promise<InvitePreview> {
-    return this.invitations.preview(token);
+    return this.invitations.preview(body.token);
   }
 
   @Post('accept-invite')

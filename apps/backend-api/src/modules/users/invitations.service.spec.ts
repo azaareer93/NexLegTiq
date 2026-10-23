@@ -19,6 +19,7 @@ const invitation = (extra: object = {}) => ({
   fullName: null,
   expiresAt: FUTURE,
   createdAt: new Date('2026-10-23T10:00:00Z'),
+  updatedAt: new Date('2026-10-23T10:00:00Z'),
   invitedBy: { id: 'manager-1', fullName: 'Basma' },
   ...extra,
 });
@@ -71,7 +72,7 @@ describe('InvitationsService (D-134)', () => {
   it('should close a lapsed invitation, check the seat, store the row and send it after the commit', async () => {
     const { service, tx, entitlements, queues, after } = setup();
     const created = await service.invite(
-      { email: ' Nadia@Example.test ', role: 'LAWYER', message: '' },
+      { email: 'nadia@example.test', role: 'LAWYER', message: '' },
       client,
     );
     expect(created).toMatchObject({ id: 'inv-1', status: 'PENDING' });
@@ -135,5 +136,17 @@ describe('InvitationsService (D-134)', () => {
     await expect(setup({ found: null }).service.resend('x', client)).rejects.toMatchObject({
       code: 'RES-001',
     });
+    expect(live.tx.officeInvitation.update).toHaveBeenCalledWith({
+      where: { id: 'inv-1' },
+      data: { expiresAt: expect.any(Date), tokenHash: expect.any(String) },
+    });
+  });
+
+  it('should refuse a second resend within a minute (RATE-001)', async () => {
+    const recent = setup({ found: invitation({ updatedAt: new Date() }) });
+    await expect(recent.service.resend('inv-1', client)).rejects.toMatchObject({
+      code: 'RATE-001',
+    });
+    expect(recent.after).toHaveLength(0);
   });
 });

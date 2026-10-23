@@ -33,7 +33,7 @@
     "fileReassigned": "File {{fileNumber}} is now assigned to you",
     "documentQuarantined": "⁨{{name}}⁩ was blocked: it contains malware",
     "documentFailed": "The text of ⁨{{name}}⁩ could not be read",
-    "invitationAccepted": "{{name}} accepted your invitation"
+    "invitationAccepted": "⁨{{name}}⁩ accepted your invitation"
   },
   "profile": {
     "menu": "Account menu",

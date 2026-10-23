@@ -6,6 +6,7 @@ import { ClsService } from 'nestjs-cls';
 import { hashOpaqueToken, newOpaqueToken } from '../../common/auth/opaque-token';
 import type { RequestContext } from '../../common/context/request-context';
 import {
+  AppException,
   ResourceConflictException,
   ResourceNotFoundException,
 } from '../../common/errors/app.exception';
@@ -22,6 +23,8 @@ import { EntitlementsService } from '../subscriptions/entitlements.service';
 
 /** shortcut: no paging — an office has a handful of pending invitations; page it if that ever passes 500. */
 const MAX_INVITATIONS = 500;
+/** Since the last send or link rotation (the row's `updatedAt`). */
+const RESEND_COOLDOWN_MS = 60_000;
 
 const INVITATION_SELECT = {
   id: true,
@@ -62,7 +65,7 @@ export class InvitationsService {
   async invite(input: InviteUserRequest, client: ClientInfo): Promise<Invitation> {
     const officeId = this.officeId();
     const now = new Date();
-    const email = input.email.trim().toLowerCase();
+    const { email } = input;
     const id = await this.uow.run(async (tx, afterCommit) => {
       await this.lockTeam(tx);
       // unscoped: emails are unique across offices (D-032), so a user of any office makes the address unavailable.
@@ -145,12 +148,19 @@ export class InvitationsService {
       await this.lockTeam(tx);
       const invitation = await tx.officeInvitation.findFirst({
         where: { id, status: 'PENDING' },
-        select: { expiresAt: true },
+        select: { expiresAt: true, updatedAt: true },
       });
       if (!invitation) throw new ResourceNotFoundException();
+      // One email a minute per invitation: resend must not turn our domain into a mailer for the manager's note.
+      if (now.getTime() - invitation.updatedAt.getTime() < RESEND_COOLDOWN_MS)
+        throw new AppException('RATE-001', 'Wait a minute before sending this invitation again');
       if (invitation.expiresAt <= now) await this.entitlements.assertUserSlot();
       const expiresAt = new Date(now.getTime() + INVITATION_DAYS * DAY_MS);
-      await tx.officeInvitation.update({ where: { id }, data: { expiresAt } });
+      // The old link dies now, not only when the worker sends the new one (the enqueue may fail).
+      await tx.officeInvitation.update({
+        where: { id },
+        data: { expiresAt, tokenHash: hashOpaqueToken(newOpaqueToken()) },
+      });
       await tx.auditLog.create({
         data: this.audit(
           client,

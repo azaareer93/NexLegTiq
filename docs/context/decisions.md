@@ -1885,18 +1885,17 @@ never sent; after the commit `email/send-invitation {invitationId}` is queued an
 hash of a new token — conditional on PENDING, so a revoke racing the send wins — and emails the raw link
 `{OFFICE_APP_URL}/accept-invite?token=…` in the **office's default language** (the invitee has no language yet) with the
 inviter, office, days left and the manager's note (`invite` template gains an optional, escaped `message`). Each attempt
-rotates the link, so each attempt is its own message. No per-invitation rate limit beyond the route's: only managers send.
-**Acceptance** (public): `GET /auth/invites/:token` (10/min per IP) → `{officeName, inviterName, email, role, fullName,
+rotates the link, so each attempt is its own message.
+**Acceptance** (public): `POST /auth/invites/preview {token}` (10/min per IP) → `{officeName, inviterName, email, role, fullName,
 expiresAt}`; `POST /auth/accept-invite` `{token, fullName, password, phone?, acceptTerms, acceptPrivacy}` (5/min) → 201 +
 session + refresh cookie like login. Unknown, used, revoked and expired links → **410 RES-004** (both routes, as for
 verification and reset links); a suspended office → 403 AUTH-006; the password policy applies, and "not the email" is
 checked by the server against the invitation's address (VAL-001 on `password`); an email taken since the invitation → 409
 RES-002. One transaction in the invitation's office: the invitation is claimed (conditional on PENDING and unexpired), the
 user is created with its role, the office's language and **`emailVerifiedAt` set** (the link proves the address, D-083), ToS
-and Privacy acceptance rows (D-083 versions), a `CREATE User` audit row (actor = the new user), an in-app notification to the
-inviting manager (`invitation.accepted`, `shell.notifications.invitationAccepted`, link `/team`, pushed live after the
-commit, D-129) if still active, and the session. The token travels in the path; request logs show only the route template
-(`serializeRequest`), never the token. **Office app:** `/team` gets an **Invite** button (a modal with rows of email, role —
+and Privacy acceptance rows (D-083 versions), a `CREATE User` audit row (actor = the new user), an in-app notification to every
+active office manager (`invitation.accepted`, `shell.notifications.invitationAccepted`, link `/team`, pushed live after the
+commit, D-129), and the session. **Office app:** `/team` gets an **Invite** button (a modal with rows of email, role —
 default LAWYER — and optional name, plus one note for all; rows are sent one after the other, the sent ones leave the form
 and a refused row stays with its reason) and a **Pending invitations** table (email and name, role, inviter, status, expiry,
 resend, revoke after a confirm). `/accept-invite` (public, signed in or not, like the reset page): the token is read once and
@@ -1906,3 +1905,16 @@ optional phone and the two acceptances; success signs in as the new user (a prev
 every control has a `data-testid`), invitation emails in the invitee's own language (no such choice exists before they
 join). Why: a manager can grow the team without a token ever leaving the database's hash, and an invitation can neither
 take a seat the plan does not have nor be used twice.
+Review additions (same PR): **the token never sits in a URL** — the preview is a POST with the token in the body (the
+ticket's `GET /auth/invites/:token` would leave it in proxy and CDN access logs; amends api-conventions.md). **Resend
+rotates the link at once** (a fresh, never-sent hash in the same update), so the old link dies even if the email job is
+lost, and is limited to **one per invitation per minute** (429 RATE-001; the row's `updatedAt` marks the last send or
+rotation); invite is throttled at 20/min and resend at 10/min per IP — our domain must not become a mailer for a manager's
+note. **Accepting into a read-only office** (subscription ended, D-122) is refused with 403 AUTH-104: the public route is
+never seen by `SubscriptionGuard`, so the service checks it. **Every active office manager is notified**, not only the
+inviter (who may have left or been demoted; the ticket says "OM notified"). Two offices' invitees racing for one email:
+the loser's P2002 maps to 409 RES-002 (tested). The 409 for an email held in another office discloses that the address has
+an account, as `/auth/register` already does (D-032). **Not done:** pending invitations stay valid when their inviter
+leaves (the office still wants the invitee; revoke them from the team page); no daily per-office cap on invitation emails
+(the per-invitation cooldown, the seat limit and the IP throttles bound it); a manager need not have verified their own
+email to invite (verification is not enforced yet, D-083).

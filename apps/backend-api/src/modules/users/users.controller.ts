@@ -12,6 +12,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiNoContentResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import {
   ChangeRoleSchema,
   DeactivateUserSchema,
@@ -81,6 +82,8 @@ export class UsersController {
 
   @Post('invite')
   @HttpCode(HttpStatus.CREATED)
+  // Each call emails someone outside the office (D-134).
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @RequirePermissions('manage:users')
   @ApiOperation({
     summary:
@@ -105,6 +108,7 @@ export class UsersController {
 
   @Post('invitations/:id/resend')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @RequirePermissions('manage:users')
   @ApiOperation({ summary: 'Send a pending invitation again with a new 7-day link' })
   @ApiZodResponse(HttpStatus.OK, InvitationSchema)
