@@ -5,7 +5,7 @@
 - **W1 Signup** — office + OFFICE_MANAGER + subscription (PS freemium / global trial) + settings + default folders/task templates;
   welcome email; empty-state dashboard with quick-start checklist.
 - **W2 Invite** — OM invites (email, role, message) → email link (7d) → accept (name, password, phone) → user active → OM notified.
-  Plan user limit enforced at invite and accept (`BIZ-008`).
+  Plan user limit enforced at invite and at the resend of an expired invite — a pending invite holds its seat (`BIZ-008`, D-134).
 - **W3/W7 OM dashboard & oversight** — office totals, revenue this month, top lawyers by billable hours, hearings this week, overdue tasks,
   activity; OM/SL see all files; every action audited.
 - **W4 Settings** — reminder days, default billing rate/method, jurisdiction, enable AI/OCR, file-number format; new files/users inherit.

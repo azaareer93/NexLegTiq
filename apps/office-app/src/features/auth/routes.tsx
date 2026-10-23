@@ -2,7 +2,7 @@ import type { RouteObject } from 'react-router';
 
 import { GuestOnly } from './components/guards';
 
-/** Public auth pages, lazy-loaded. Reset and verify links work whether or not someone is signed in. */
+/** Public auth pages, lazy-loaded. Reset, verify and invitation links work whether or not someone is signed in. */
 export const authRoutes: RouteObject[] = [
   {
     element: <GuestOnly />,
@@ -28,6 +28,10 @@ export const authRoutes: RouteObject[] = [
     lazy: async () => ({
       Component: (await import('./pages/ResetPasswordPage')).ResetPasswordPage,
     }),
+  },
+  {
+    path: '/accept-invite',
+    lazy: async () => ({ Component: (await import('./pages/AcceptInvitePage')).AcceptInvitePage }),
   },
   {
     path: '/verify-email',

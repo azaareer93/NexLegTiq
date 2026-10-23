@@ -1866,6 +1866,58 @@ extraction failure goes back to the scan (`NEW_VERSION_STATE`); a FAILED documen
 version (not of the document), live (`document.processed`) and, on failure, by an in-app notification
 (`shell.notifications.documentFailed`, D-117's notification queue); deleted documents are never processed.
 
+**D-134 — Team invitations: links made by the worker, seats, acceptance and the invite UI** · Accepted (MVP-49, 2026-10-23)
+MVP-49 left the token hand-off, what "exists anywhere" means, the invitee's language, who is notified and how several rows
+are sent open. → **API** (`src/modules/users`, all `manage:users` = OFFICE_MANAGER): `POST /users/invite` `{email, role,
+fullName?, message?}` — one person per call (the team page sends one call per row, so each row gets its own answer); any
+role but OFFICE_MANAGER (400 VAL-001 `validation.inviteRole`; a manager is made by changing a member's role); an email held
+by a user of **any** office (D-032) or by a PENDING, unexpired invitation of this office → 409 RES-002; another office may
+invite the same person (whoever accepts first wins, the other gets 409 on accept). A lapsed PENDING row is closed as EXPIRED
+first, so the address can be invited again (one PENDING row per office + email, D-079). `GET /users/invitations` lists
+PENDING rows newest first, shown as EXPIRED once their 7 days have passed; `POST /users/invitations/:id/resend` (200) renews
+the 7 days and sends a new link (the old one stops working); `DELETE /users/invitations/:id` (204) revokes — anything not
+PENDING, another office's or a malformed id is 404. **Seats:** a pending, unexpired invitation holds a seat (D-122):
+invite, and resending an expired one, call `assertUserSlot` (422 BIZ-008) under the office's team advisory lock (D-124), so
+two invitations at once cannot take the last seat; accepting does not re-check (the seat was held). New column
+`office_invitations.full_name` (the name typed, offered on the accept page). Every change has an audit row
+(`OfficeInvitation` CREATE/UPDATE). **Links (the D-085 pattern):** the row is created with the hash of a random token that is
+never sent; after the commit `email/send-invitation {invitationId}` is queued and the worker (`InvitationLinks`) stores the
+hash of a new token — conditional on PENDING, so a revoke racing the send wins — and emails the raw link
+`{OFFICE_APP_URL}/accept-invite?token=…` in the **office's default language** (the invitee has no language yet) with the
+inviter, office, days left and the manager's note (`invite` template gains an optional, escaped `message`). Each attempt
+rotates the link, so each attempt is its own message.
+**Acceptance** (public): `POST /auth/invites/preview {token}` (10/min per IP) → `{officeName, inviterName, email, role, fullName,
+expiresAt}`; `POST /auth/accept-invite` `{token, fullName, password, phone?, acceptTerms, acceptPrivacy}` (5/min) → 201 +
+session + refresh cookie like login. Unknown, used, revoked and expired links → **410 RES-004** (both routes, as for
+verification and reset links); a suspended office → 403 AUTH-006; the password policy applies, and "not the email" is
+checked by the server against the invitation's address (VAL-001 on `password`); an email taken since the invitation → 409
+RES-002. One transaction in the invitation's office: the invitation is claimed (conditional on PENDING and unexpired), the
+user is created with its role, the office's language and **`emailVerifiedAt` set** (the link proves the address, D-083), ToS
+and Privacy acceptance rows (D-083 versions), a `CREATE User` audit row (actor = the new user), an in-app notification to every
+active office manager (`invitation.accepted`, `shell.notifications.invitationAccepted`, link `/team`, pushed live after the
+commit, D-129), and the session. **Office app:** `/team` gets an **Invite** button (a modal with rows of email, role —
+default LAWYER — and optional name, plus one note for all; rows are sent one after the other, the sent ones leave the form
+and a refused row stays with its reason) and a **Pending invitations** table (email and name, role, inviter, status, expiry,
+resend, revoke after a confirm). `/accept-invite` (public, signed in or not, like the reset page): the token is read once and
+removed from the address bar, the page shows office, inviter, email and role, then asks for name (prefilled), password,
+optional phone and the two acceptances; success signs in as the new user (a previous user's data is cleared,
+`startSession`) and broadcasts `signedIn`. **Not done here:** the Cypress invite → accept journey in Arabic (the E2E story;
+every control has a `data-testid`), invitation emails in the invitee's own language (no such choice exists before they
+join). Why: a manager can grow the team without a token ever leaving the database's hash, and an invitation can neither
+take a seat the plan does not have nor be used twice.
+Review additions (same PR): **the token never sits in a URL** — the preview is a POST with the token in the body (the
+ticket's `GET /auth/invites/:token` would leave it in proxy and CDN access logs; amends api-conventions.md). **Resend
+rotates the link at once** (a fresh, never-sent hash in the same update), so the old link dies even if the email job is
+lost, and is limited to **one per invitation per minute** (429 RATE-001; the row's `updatedAt` marks the last send or
+rotation); invite is throttled at 20/min and resend at 10/min per IP — our domain must not become a mailer for a manager's
+note. **Accepting into a read-only office** (subscription ended, D-122) is refused with 403 AUTH-104: the public route is
+never seen by `SubscriptionGuard`, so the service checks it. **Every active office manager is notified**, not only the
+inviter (who may have left or been demoted; the ticket says "OM notified"). Two offices' invitees racing for one email:
+the loser's P2002 maps to 409 RES-002 (tested). The 409 for an email held in another office discloses that the address has
+an account, as `/auth/register` already does (D-032). **Not done:** pending invitations stay valid when their inviter
+leaves (the office still wants the invitee; revoke them from the team page); no daily per-office cap on invitation emails
+(the per-invitation cooldown, the seat limit and the IP throttles bound it); a manager need not have verified their own
+email to invite (verification is not enforced yet, D-083).
 **D-133 — Documents tab: folder tree, upload panel, live status and what waits for other stories** · Accepted (MVP-75, 2026-10-21)
 MVP-75 asks for a folder tree, a list with status chips, multi-file drag-and-drop upload with progress, live status and
 actions, but sharing with the client (portal), AI summaries and previews have no endpoint or story yet. → `?tab=documents`

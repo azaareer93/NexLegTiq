@@ -20,20 +20,31 @@ import { useTranslation } from 'react-i18next';
 import { useSession } from '../../auth';
 import { useChangeRole, useReactivate, useTeam } from '../api/use-team';
 import { DeactivateModal } from '../components/DeactivateModal';
+import { InvitationsTable } from '../components/InvitationsTable';
+import { InviteModal } from '../components/InviteModal';
 
 /**
  * `/team` (`manage:users`, D-091, D-124): the office's people with role, status, open files and last sign-in; the role is
  * changed in place, deactivation goes through the reassignment wizard. Your own row is read-only (no locking yourself out).
+ * New people are invited from here, and pending invitations are listed below the team (D-134).
  */
 export function TeamPage(): React.JSX.Element {
   const { t } = useTranslation();
   const { referenceOf } = useApiErrorHandler();
   const team = useTeam();
   const [leaving, setLeaving] = useState<TeamMember | null>(null);
+  const [inviting, setInviting] = useState(false);
   const columns = useColumns(setLeaving);
   return (
     <Flex vertical gap={16} component="section" data-testid="page-team">
-      <PageHeader title={t('team.title')} />
+      <PageHeader
+        title={t('team.title')}
+        extra={
+          <Button type="primary" onClick={() => setInviting(true)} data-testid="team-invite">
+            {t('team.invite.action')}
+          </Button>
+        }
+      />
       {team.isError ? (
         <ErrorState
           code={
@@ -57,6 +68,8 @@ export function TeamPage(): React.JSX.Element {
           }
         />
       )}
+      <InvitationsTable />
+      {inviting ? <InviteModal onClose={() => setInviting(false)} /> : null}
       {leaving ? (
         <DeactivateModal member={leaving} team={team.data ?? []} onClose={() => setLeaving(null)} />
       ) : null}
