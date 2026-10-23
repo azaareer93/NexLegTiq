@@ -116,3 +116,35 @@ export const AuthSessionSchema = z.object({
   user: AuthUserSchema,
 });
 export type AuthSession = z.infer<typeof AuthSessionSchema>;
+
+/** The emailed invitation token (D-134): as long as the other account links. */
+export const InviteTokenSchema = z
+  .string()
+  .trim()
+  .min(16, 'validation.invalidToken')
+  .max(128, 'validation.invalidToken');
+
+/** `GET /auth/invites/:token`: what the accept page shows before the person signs up (410 RES-004 when invalid). */
+export const InvitePreviewSchema = z.object({
+  officeName: z.string(),
+  inviterName: z.string(),
+  email: z.string(),
+  role: z.enum(ROLES),
+  fullName: z.string().nullable(),
+  expiresAt: z.iso.datetime(),
+});
+export type InvitePreview = z.infer<typeof InvitePreviewSchema>;
+
+/**
+ * `POST /auth/accept-invite`: creates the invited user and signs them in like /auth/login. The email comes from the
+ * invitation, so "not the email" is checked by the server (VAL-001 on `password`). Terms and Privacy as at signup (D-083).
+ */
+export const AcceptInviteRequestSchema = z.object({
+  token: InviteTokenSchema,
+  fullName: plainText(120).pipe(z.string().min(2, 'validation.tooShort')),
+  password: NewPasswordSchema,
+  phone: PhoneSchema.optional(),
+  acceptTerms: z.literal(true, 'validation.mustAcceptTerms'),
+  acceptPrivacy: z.literal(true, 'validation.mustAcceptPrivacy'),
+});
+export type AcceptInviteRequest = z.infer<typeof AcceptInviteRequestSchema>;

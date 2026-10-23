@@ -1,5 +1,5 @@
 import { usersApi } from '@nexlegtiq/shared-api-client';
-import type { DeactivateUserRequest } from '@nexlegtiq/shared-contracts';
+import type { DeactivateUserRequest, InviteUserRequest } from '@nexlegtiq/shared-contracts';
 import type { Role } from '@nexlegtiq/shared-types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -7,7 +7,7 @@ import { apiClient, subscriptionKey } from '../../auth';
 
 const users = usersApi(apiClient);
 
-/** Everything under `['users']`: the team, a user's open files and the pickers' directory (D-123). */
+/** Everything under `['users']`: the team, a user's open files, invitations and the pickers' directory (D-123). */
 const teamKeys = {
   all: ['users'] as const,
   team: ['users', 'team'] as const,
@@ -50,3 +50,19 @@ export const useDeactivate = () =>
   );
 
 export const useReactivate = () => useTeamMutation((id: string) => users.reactivate(id));
+
+/** `GET /users/invitations` (D-134): pending invitations, newest first. */
+export const useInvitations = () =>
+  useQuery({
+    queryKey: [...teamKeys.all, 'invitations'] as const,
+    queryFn: ({ signal }) => users.invitations(signal),
+  });
+
+/** One invitation per call; the modal sends its rows one after the other. Pending invitations hold seats (D-122). */
+export const useInvite = () => useTeamMutation((body: InviteUserRequest) => users.invite(body));
+
+export const useResendInvitation = () =>
+  useTeamMutation((id: string) => users.resendInvitation(id));
+
+export const useRevokeInvitation = () =>
+  useTeamMutation((id: string) => users.revokeInvitation(id));

@@ -9,6 +9,7 @@ import { StorageModule } from '../common/storage/storage.module';
 import { DatabaseModule } from '../database/database.module';
 import { AiModule } from '../modules/ai/ai.module';
 import { AiProcessor } from '../modules/ai/workers/ai.processor';
+import { InvitationLinks } from '../modules/auth/invitation-links';
 import { PasswordResetLinks } from '../modules/auth/password-reset-links';
 import { VerificationLinks } from '../modules/auth/verification-links';
 import { DocumentExtraction } from '../modules/documents/document-extraction';
@@ -40,6 +41,7 @@ import { SubscriptionsModule } from '../modules/subscriptions/subscriptions.modu
     EmailProcessor,
     VerificationLinks,
     PasswordResetLinks,
+    InvitationLinks,
     NotificationProcessor,
     ReminderProcessor,
     ReminderDelivery,

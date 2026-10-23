@@ -1,6 +1,7 @@
 import type { Request } from 'express';
 import type { ClsService } from 'nestjs-cls';
 
+import type { InvitationsService } from './invitations.service';
 import type { TeamService } from './team.service';
 import { UsersController } from './users.controller';
 import { UsersRepository } from './users.repository';
@@ -17,6 +18,7 @@ describe('users directory (D-123)', () => {
     const controller = new UsersController(
       new UsersRepository(prisma),
       {} as TeamService,
+      {} as InvitationsService,
       {} as ClsService<RequestContext>,
     );
     await expect(controller.directory()).resolves.toEqual([
@@ -44,6 +46,7 @@ describe('users controller → team service (D-124)', () => {
     const controller = new UsersController(
       {} as UsersRepository,
       team as unknown as TeamService,
+      {} as InvitationsService,
       cls,
     );
     const req = { ip: '127.0.0.1', headers: {}, get: () => undefined } as unknown as Request;

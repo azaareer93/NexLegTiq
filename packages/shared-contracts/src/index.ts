@@ -1,5 +1,6 @@
 export { LocaleSchema } from './locale.contract.js';
 export {
+  AcceptInviteRequestSchema,
   AuthSessionSchema,
   AuthUserSchema,
   ChangePasswordRequestSchema,
@@ -8,13 +9,17 @@ export {
   RegisterRequestSchema,
   ResendVerificationRequestSchema,
   ResetPasswordRequestSchema,
+  InvitePreviewSchema,
+  InviteTokenSchema,
   VerifyEmailRequestSchema,
 } from './auth.contract.js';
 export type {
+  AcceptInviteRequest,
   AuthSession,
   AuthUser,
   ChangePasswordRequest,
   ForgotPasswordRequest,
+  InvitePreview,
   LoginRequest,
   RegisterRequest,
   ResendVerificationRequest,
@@ -144,6 +149,9 @@ export {
   ChangeRoleSchema,
   DeactivateUserSchema,
   DirectoryUserSchema,
+  INVITABLE_ROLES,
+  InvitationSchema,
+  InviteUserSchema,
   TeamMemberSchema,
   UserOpenFileSchema,
 } from './user.contract.js';
@@ -151,6 +159,8 @@ export type {
   ChangeRoleRequest,
   DeactivateUserRequest,
   DirectoryUser,
+  Invitation,
+  InviteUserRequest,
   TeamMember,
   UserOpenFile,
 } from './user.contract.js';

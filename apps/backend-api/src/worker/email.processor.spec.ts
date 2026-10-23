@@ -12,6 +12,7 @@ import { AppConfig } from '../config/app-config';
 import { testEnv } from '../config/env.fixture';
 import { parseEnv } from '../config/env.schema';
 import type { PrismaService } from '../database/prisma.service';
+import type { InvitationLinks } from '../modules/auth/invitation-links';
 import type { PasswordResetLinks } from '../modules/auth/password-reset-links';
 import type { VerificationLinks } from '../modules/auth/verification-links';
 
@@ -33,6 +34,17 @@ function setup(
     locale: 'EN',
     vars: { name: 'Omar', link: `${APP}/reset-password?token=t`, minutes: 60 },
   });
+  const issueInvite = jest.fn().mockResolvedValue({
+    to: 'new@b.test',
+    locale: 'AR',
+    vars: {
+      officeName: 'مكتب العدل',
+      inviterName: 'سارة',
+      link: `${APP}/accept-invite?token=t`,
+      days: 7,
+      message: 'أهلًا بك',
+    },
+  });
   const prisma = {
     db: { office: { findFirst: jest.fn().mockResolvedValue({ isActive: true }) } },
   } as unknown as PrismaService;
@@ -51,6 +63,7 @@ function setup(
     { send } as unknown as MailTransport,
     { issue } as unknown as VerificationLinks,
     { issue: issueReset } as unknown as PasswordResetLinks,
+    { issue: issueInvite } as unknown as InvitationLinks,
     config,
   );
   const job = (name: string, data: object, attemptsMade = 0) =>
@@ -61,7 +74,7 @@ function setup(
       attemptsMade,
       data: { officeId: OFFICE, requestId: null, ...data },
     }) as Job<never>;
-  return { processor, send, issue, issueReset, job };
+  return { processor, send, issue, issueReset, issueInvite, job };
 }
 
 const reset = {
@@ -105,6 +118,25 @@ describe('EmailProcessor', () => {
 
     issueReset.mockResolvedValueOnce(null);
     await expect(processor.process(job('send-password-reset', { userId: USER }))).resolves.toEqual(
+      SKIPPED_NOTHING_TO_SEND,
+    );
+  });
+
+  it('should issue an invitation link in the worker and email it with the manager note, one message per attempt', async () => {
+    const { processor, send, issueInvite, job } = setup();
+    const invitationId = '0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b';
+    await expect(processor.process(job('send-invitation', { invitationId }, 1))).resolves.toEqual({
+      sent: 'invite',
+    });
+    expect(issueInvite).toHaveBeenCalledWith(invitationId, expect.any(Date));
+    const [to, mail, options] = send.mock.calls[0] ?? [];
+    expect(to).toBe('new@b.test');
+    expect(mail.html).toContain('أهلًا بك');
+    expect(mail.text).toContain('accept-invite?token=t');
+    expect(options).toEqual({ signal: expect.any(AbortSignal), idempotencyKey: '7-1' });
+
+    issueInvite.mockResolvedValueOnce(null);
+    await expect(processor.process(job('send-invitation', { invitationId }))).resolves.toEqual(
       SKIPPED_NOTHING_TO_SEND,
     );
   });

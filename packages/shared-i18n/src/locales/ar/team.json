@@ -30,5 +30,40 @@
     "confirm": "إيقاف الحساب",
     "done": "تم إيقاف حساب {{name}}"
   },
-  "reactivateTitle": "إعادة تفعيل حساب {{name}}"
+  "reactivateTitle": "إعادة تفعيل حساب {{name}}",
+  "invite": {
+    "action": "دعوة",
+    "title": "دعوة أعضاء الفريق",
+    "email": "البريد الإلكتروني",
+    "role": "الدور",
+    "fullName": "الاسم (اختياري)",
+    "message": "ملاحظة شخصية (اختيارية)",
+    "addRow": "إضافة شخص آخر",
+    "removeRow": "حذف الصف {{row}}",
+    "submit": "إرسال الدعوات",
+    "sent_zero": "لم تُرسل أي دعوة",
+    "sent_one": "أُرسلت دعوة واحدة",
+    "sent_two": "أُرسلت دعوتان",
+    "sent_few": "أُرسلت {{count}} دعوات",
+    "sent_many": "أُرسلت {{count}} دعوة",
+    "sent_other": "أُرسلت {{count}} دعوة"
+  },
+  "invitations": {
+    "title": "الدعوات المعلّقة",
+    "empty": "لا توجد دعوات معلّقة.",
+    "invitedBy": "أرسلها",
+    "expires": "تنتهي",
+    "status": {
+      "PENDING": "بانتظار القبول",
+      "EXPIRED": "منتهية"
+    },
+    "resend": "إعادة الإرسال",
+    "resendOf": "إعادة إرسال الدعوة إلى {{email}}",
+    "resent": "أُعيد إرسال الدعوة",
+    "revoke": "إلغاء",
+    "revokeOf": "إلغاء الدعوة المرسلة إلى {{email}}",
+    "revokeTitle": "إلغاء هذه الدعوة؟",
+    "revokeBody": "سيتوقف الرابط المرسل إلى {{email}} عن العمل.",
+    "revoked": "أُلغيت الدعوة"
+  }
 }

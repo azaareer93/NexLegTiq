@@ -19,8 +19,12 @@ import {
   SEND_PASSWORD_RESET_JOB,
   SEND_VERIFICATION_EMAIL_JOB,
 } from '../modules/auth/account-mailer';
+import { InvitationLinks, SEND_INVITATION_JOB } from '../modules/auth/invitation-links';
+import type { InvitationEmail } from '../modules/auth/invitation-links';
 import { PasswordResetLinks } from '../modules/auth/password-reset-links';
+import type { PasswordResetEmail } from '../modules/auth/password-reset-links';
 import { VerificationLinks } from '../modules/auth/verification-links';
+import type { VerificationEmail } from '../modules/auth/verification-links';
 
 const locale = z.enum(['AR', 'EN']);
 /** One variant per template, so each email's variables are checked before rendering (D-085). */
@@ -50,11 +54,23 @@ const SendEmailSchema = z.discriminatedUnion('template', [
     vars: MAIL_TEMPLATE_SCHEMAS['hearing-reminder'],
   }),
 ]);
-/** `send-email` (any template, rendered here), or `send-verification-email` / `send-password-reset` (the link is created here). */
-const EmailJobSchema = z.union([SendEmailSchema, z.object({ userId: z.uuid() })]);
+/**
+ * `send-email` (any template, rendered here), or `send-verification-email` / `send-password-reset` / `send-invitation`
+ * (the link is created here).
+ */
+const EmailJobSchema = z.union([
+  SendEmailSchema,
+  z.object({ userId: z.uuid() }),
+  z.object({ invitationId: z.uuid() }),
+]);
 type EmailJob = z.infer<typeof EmailJobSchema>;
 
 export const SKIPPED_NOTHING_TO_SEND = { skipped: 'NOTHING_TO_SEND' } as const;
+
+type LinkedEmail =
+  | { template: 'verify-email'; email: VerificationEmail }
+  | { template: 'password-reset'; email: PasswordResetEmail }
+  | { template: 'invite'; email: InvitationEmail };
 
 /**
  * The single consumer of the `email` queue (one processor per queue: BullMQ hands every job of a queue to its workers).
@@ -74,6 +90,7 @@ export class EmailProcessor extends TenantProcessor<EmailJob> {
     private readonly transport: MailTransport,
     private readonly links: VerificationLinks,
     private readonly resetLinks: PasswordResetLinks,
+    private readonly invitationLinks: InvitationLinks,
     private readonly config: AppConfig,
   ) {
     super(tenant, prisma, logger);
@@ -84,28 +101,15 @@ export class EmailProcessor extends TenantProcessor<EmailJob> {
     signal: AbortSignal,
   ): Promise<unknown> {
     const data = job.data;
-    if (job.name === SEND_VERIFICATION_EMAIL_JOB && 'userId' in data) {
-      const email = await this.links.issue(data.userId, new Date(), {
-        retry: job.attemptsMade > 0,
-      });
-      if (!email) return SKIPPED_NOTHING_TO_SEND;
+    const linked = await this.issueLink(job.name, data, job.attemptsMade > 0);
+    if (linked === null) return SKIPPED_NOTHING_TO_SEND;
+    if (linked) {
       // Each attempt issues its own link, so each attempt is its own message for de-duplication.
-      await this.deliver(email.to, 'verify-email', email.locale, email.vars, {
+      await this.deliver(linked.email.to, linked.template, linked.email.locale, linked.email.vars, {
         signal,
         idempotencyKey: `${job.id}-${job.attemptsMade}`,
       });
-      return { sent: 'verify-email' };
-    }
-    if (job.name === SEND_PASSWORD_RESET_JOB && 'userId' in data) {
-      const email = await this.resetLinks.issue(data.userId, new Date(), {
-        retry: job.attemptsMade > 0,
-      });
-      if (!email) return SKIPPED_NOTHING_TO_SEND;
-      await this.deliver(email.to, 'password-reset', email.locale, email.vars, {
-        signal,
-        idempotencyKey: `${job.id}-${job.attemptsMade}`,
-      });
-      return { sent: 'password-reset' };
+      return { sent: linked.template };
     }
     if (job.name === SEND_EMAIL_JOB && 'template' in data) {
       await this.deliver(
@@ -121,6 +125,31 @@ export class EmailProcessor extends TenantProcessor<EmailJob> {
       return { sent: data.template };
     }
     throw new UnrecoverableError(`Unknown email job ${job.name}`);
+  }
+
+  /**
+   * The emails whose link the worker creates (verification, reset, invitation): the template and what to send, null when
+   * there is nothing to send, undefined for any other job.
+   */
+  private async issueLink(
+    name: string,
+    data: EmailJob,
+    retry: boolean,
+  ): Promise<LinkedEmail | null | undefined> {
+    const now = new Date();
+    if (name === SEND_VERIFICATION_EMAIL_JOB && 'userId' in data) {
+      const email = await this.links.issue(data.userId, now, { retry });
+      return email && { template: 'verify-email', email };
+    }
+    if (name === SEND_PASSWORD_RESET_JOB && 'userId' in data) {
+      const email = await this.resetLinks.issue(data.userId, now, { retry });
+      return email && { template: 'password-reset', email };
+    }
+    if (name === SEND_INVITATION_JOB && 'invitationId' in data) {
+      const email = await this.invitationLinks.issue(data.invitationId, now);
+      return email && { template: 'invite', email };
+    }
+    return undefined;
   }
 
   private async deliver<T extends MailTemplateName>(

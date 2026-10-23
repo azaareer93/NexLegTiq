@@ -32,7 +32,8 @@
     "hearingReminder": "Upcoming hearing in file {{fileNumber}}",
     "fileReassigned": "File {{fileNumber}} is now assigned to you",
     "documentQuarantined": "⁨{{name}}⁩ was blocked: it contains malware",
-    "documentFailed": "The text of ⁨{{name}}⁩ could not be read"
+    "documentFailed": "The text of ⁨{{name}}⁩ could not be read",
+    "invitationAccepted": "{{name}} accepted your invitation"
   },
   "profile": {
     "menu": "Account menu",

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -10,11 +11,13 @@ import {
   Post,
   Req,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiNoContentResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ChangeRoleSchema,
   DeactivateUserSchema,
   DirectoryUserSchema,
+  InvitationSchema,
+  InviteUserSchema,
   TeamMemberSchema,
   UserOpenFileSchema,
 } from '@nexlegtiq/shared-contracts';
@@ -22,12 +25,15 @@ import type {
   ChangeRoleRequest,
   DeactivateUserRequest,
   DirectoryUser,
+  Invitation,
+  InviteUserRequest,
   TeamMember,
   UserOpenFile,
 } from '@nexlegtiq/shared-contracts';
 import type { Request } from 'express';
 import { ClsService } from 'nestjs-cls';
 
+import { InvitationsService } from './invitations.service';
 import { TeamService } from './team.service';
 import { UsersRepository } from './users.repository';
 import type { RequestContext } from '../../common/context/request-context';
@@ -49,6 +55,7 @@ export class UsersController {
   constructor(
     private readonly users: UsersRepository,
     private readonly team: TeamService,
+    private readonly invitations: InvitationsService,
     private readonly cls: ClsService<RequestContext>,
   ) {}
 
@@ -70,6 +77,48 @@ export class UsersController {
   @ApiZodResponse(HttpStatus.OK, TeamMemberSchema.array())
   list(): Promise<TeamMember[]> {
     return this.team.list();
+  }
+
+  @Post('invite')
+  @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions('manage:users')
+  @ApiOperation({
+    summary:
+      'Invite someone by email with a role (409 RES-002 if the email exists or is invited; 422 BIZ-008 when the plan is full)',
+  })
+  @ApiZodBody(InviteUserSchema)
+  @ApiZodResponse(HttpStatus.CREATED, InvitationSchema)
+  invite(
+    @Body(new ZodValidationPipe(InviteUserSchema)) body: InviteUserRequest,
+    @Req() req: Request,
+  ): Promise<Invitation> {
+    return this.invitations.invite(body, this.client(req));
+  }
+
+  @Get('invitations')
+  @RequirePermissions('manage:users')
+  @ApiOperation({ summary: 'Pending invitations, newest first (EXPIRED once the link lapsed)' })
+  @ApiZodResponse(HttpStatus.OK, InvitationSchema.array())
+  listInvitations(): Promise<Invitation[]> {
+    return this.invitations.list();
+  }
+
+  @Post('invitations/:id/resend')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('manage:users')
+  @ApiOperation({ summary: 'Send a pending invitation again with a new 7-day link' })
+  @ApiZodResponse(HttpStatus.OK, InvitationSchema)
+  resendInvitation(@Param('id', userId) id: string, @Req() req: Request): Promise<Invitation> {
+    return this.invitations.resend(id, this.client(req));
+  }
+
+  @Delete('invitations/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @RequirePermissions('manage:users')
+  @ApiOperation({ summary: 'Revoke a pending invitation (its link stops working)' })
+  @ApiNoContentResponse({ description: 'Revoked' })
+  revokeInvitation(@Param('id', userId) id: string, @Req() req: Request): Promise<void> {
+    return this.invitations.revoke(id, this.client(req));
   }
 
   @Get(':id/open-files')

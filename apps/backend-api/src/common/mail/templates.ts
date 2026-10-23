@@ -13,7 +13,14 @@ const shortText = (max: number) => z.string().trim().max(max);
 /** Variables of each template, validated in the worker before rendering (D-085). Links are built by the sender. */
 export const MAIL_TEMPLATE_SCHEMAS = {
   'verify-email': z.object({ name, link, days: count }),
-  invite: z.object({ officeName: name, inviterName: name, link, days: count }),
+  invite: z.object({
+    officeName: name,
+    inviterName: name,
+    link,
+    days: count,
+    /** The manager's note (D-134); empty for none. */
+    message: shortText(500).default(''),
+  }),
   'password-reset': z.object({ name, link, minutes: count }),
   'hearing-reminder': z.object({
     name,
@@ -27,7 +34,7 @@ export const MAIL_TEMPLATE_SCHEMAS = {
   }),
 } as const;
 export type MailTemplateName = keyof typeof MAIL_TEMPLATE_SCHEMAS;
-export type MailTemplates = { [K in MailTemplateName]: z.infer<(typeof MAIL_TEMPLATE_SCHEMAS)[K]> };
+export type MailTemplates = { [K in MailTemplateName]: z.input<(typeof MAIL_TEMPLATE_SCHEMAS)[K]> };
 export const MAIL_TEMPLATE_NAMES = Object.keys(MAIL_TEMPLATE_SCHEMAS) as MailTemplateName[];
 
 /**
@@ -99,6 +106,7 @@ This link expires in {{period}}. If you did not create this account, you can ign
       subject: `دعوة للانضمام إلى ${iso('officeName')} في NexLegTiq`,
       html: `<p>مرحبًا،</p>
 <p>دعاك <bdi>{{inviterName}}</bdi> للانضمام إلى مكتب <bdi>{{officeName}}</bdi> في <bdi dir="ltr">NexLegTiq</bdi>.</p>
+{{#if message}}<p><bdi>{{message}}</bdi></p>{{/if}}
 <p>{{> button label="قبول الدعوة"}}</p>
 {{> fallback}}
 <p>تنتهي هذه الدعوة خلال {{period}}.</p>`,
@@ -107,12 +115,17 @@ This link expires in {{period}}. If you did not create this account, you can ign
 دعاك ${iso('inviterName')} للانضمام إلى مكتب ${iso('officeName')} في NexLegTiq:
 {{link}}
 
+{{#if message}}
+${iso('message')}
+
+{{/if}}
 تنتهي هذه الدعوة خلال {{period}}.`,
     },
     EN: {
       subject: `Invitation to join ${iso('officeName')} on NexLegTiq`,
       html: `<p>Hello,</p>
 <p><bdi>{{inviterName}}</bdi> has invited you to join <bdi>{{officeName}}</bdi> on NexLegTiq.</p>
+{{#if message}}<p><bdi>{{message}}</bdi></p>{{/if}}
 <p>{{> button label="Accept invitation"}}</p>
 {{> fallback}}
 <p>This invitation expires in {{period}}.</p>`,
@@ -121,6 +134,10 @@ This link expires in {{period}}. If you did not create this account, you can ign
 ${iso('inviterName')} has invited you to join ${iso('officeName')} on NexLegTiq:
 {{link}}
 
+{{#if message}}
+${iso('message')}
+
+{{/if}}
 This invitation expires in {{period}}.`,
     },
   },
@@ -308,10 +325,12 @@ export function renderMail<T extends MailTemplateName>(
 ): RenderedMail {
   const parts = compiled[template][locale];
   const period = PERIOD_OF[template];
+  // Parsed here too, so optional variables get their defaults (strict Handlebars refuses a missing one).
+  const parsed = MAIL_TEMPLATE_SCHEMAS[template].parse(vars) as Record<string, unknown>;
   const context = {
-    ...vars,
+    ...parsed,
     ...(period && {
-      period: duration(Number((vars as Record<string, unknown>)[period.key]), period.unit, locale),
+      period: duration(Number(parsed[period.key]), period.unit, locale),
     }),
     fallbackLabel: FOOTER[locale].fallback,
   };

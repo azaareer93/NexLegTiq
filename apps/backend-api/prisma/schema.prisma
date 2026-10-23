@@ -476,6 +476,8 @@ model OfficeInvitation {
   status      InvitationStatus @default(PENDING)
   expiresAt   DateTime         @map("expires_at") @db.Timestamptz(3)
   invitedById String           @map("invited_by_id") @db.Uuid
+  /// The name the manager typed, offered on the accept page (D-134).
+  fullName    String?          @map("full_name")
   message     String?
   acceptedAt  DateTime?        @map("accepted_at") @db.Timestamptz(3)
   createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
