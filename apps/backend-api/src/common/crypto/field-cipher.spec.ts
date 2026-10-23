@@ -34,4 +34,17 @@ describe('FieldCipher', () => {
       expect(() => cipher.decrypt(bad, context)).toThrow('Unsupported ciphertext format');
     }
   });
+
+  it('should give equal blind indexes for the same identifier however it is typed, and nothing else (D-135)', () => {
+    const scope = 'national_id:office-a';
+    const index = cipher.blindIndex('401234567', scope);
+    expect(index).toMatch(/^[0-9a-f]{64}$/);
+    expect(cipher.blindIndex('٤٠١ 234-567', scope)).toBe(index);
+    expect(cipher.blindIndex('ab-12', scope)).toBe(cipher.blindIndex('AB12', scope));
+    expect(cipher.blindIndex('401234567', 'national_id:office-b')).not.toBe(index);
+    expect(cipher.blindIndex('401234568', scope)).not.toBe(index);
+    expect(cipherWith('f'.repeat(63) + 'e').blindIndex('401234567', scope)).not.toBe(index);
+    expect(cipher.blindIndex(' - ', scope)).toBeNull();
+    expect(cipher.blindIndex(null, scope)).toBeNull();
+  });
 });

@@ -16,6 +16,7 @@ export const I18N_NAMESPACES = [
   'settings',
   'sessions',
   'documents',
+  'parties',
   'team',
 ] as const;
 

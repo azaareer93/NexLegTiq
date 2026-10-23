@@ -217,3 +217,29 @@ export type {
   UploadDocumentFields,
   UploadVersionFields,
 } from './document.contract.js';
+export {
+  AddFilePartyResultSchema,
+  AddFilePartySchema,
+  CONFLICT_REASONS,
+  ConflictQuerySchema,
+  ConflictSchema,
+  FilePartySchema,
+  NewPartySchema,
+  PartyQuerySchema,
+  PartySchema,
+  ResolveConflictSchema,
+  UpdateFilePartySchema,
+} from './party.contract.js';
+export type {
+  AddFilePartyRequest,
+  AddFilePartyResult,
+  Conflict,
+  ConflictQuery,
+  ConflictReason,
+  FileParty,
+  NewPartyRequest,
+  Party,
+  PartyQuery,
+  ResolveConflictRequest,
+  UpdateFilePartyRequest,
+} from './party.contract.js';

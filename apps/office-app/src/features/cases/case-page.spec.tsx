@@ -213,8 +213,8 @@ describe('file page', () => {
       // A lawyer cannot open Audit: the link falls back to Details, and the tab is not offered.
       expect(screen.getByTestId('case-details')).toBeTruthy();
       expect(screen.queryByTestId('tab-audit')).toBeNull();
-      fireEvent.click(screen.getByTestId('tab-parties'));
-      await waitFor(() => expect(router.state.location.search).toBe('?tab=parties'));
+      fireEvent.click(screen.getByTestId('tab-timeline'));
+      await waitFor(() => expect(router.state.location.search).toBe('?tab=timeline'));
       expect(await screen.findByText('Coming soon')).toBeTruthy();
       fireEvent.click(screen.getByTestId('tab-details'));
       await waitFor(() => expect(router.state.location.search).toBe(''));

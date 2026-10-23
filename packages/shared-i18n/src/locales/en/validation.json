@@ -56,5 +56,7 @@
   "reassignAllFiles": "Choose a new responsible lawyer for every open file.",
   "unknownSession": "The selected hearing does not belong to this case.",
   "idempotencyKey": "The request key must be 8 to 128 letters, digits, - or _.",
+  "partyChoice": "Choose an existing party or enter a new one, not both.",
+  "unknownParty": "This party does not exist in your office.",
   "inviteRole": "Choose a role other than office manager."
 }

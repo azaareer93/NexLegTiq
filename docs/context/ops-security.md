@@ -11,6 +11,8 @@
   access check + audit `DOWNLOAD`.
 - Data at rest: managed PG with encrypted storage + encrypted backups; object storage SSE; app-level AES-256-GCM for
   non-searchable sensitive fields (D-056) with `ENCRYPTION_KEY` (32 bytes hex) + key version prefix for rotation.
+  Identifiers that must be found by exact value also get a blind index (HMAC-SHA256 under a key derived from
+  `ENCRYPTION_KEY` with HKDF; D-135): rotating the key means re-encrypting the fields **and** recomputing every index.
 - Secrets: never in repo; `.env.example` only; GitHub Environments for CI/CD; boot-time Zod validation.
 - Logging: Pino JSON with redaction; request id propagated to jobs; no PII in logs beyond ids.
 - Containers: non-root, read-only FS, `cap_drop: ALL`, `no-new-privileges`, tmpfs `/tmp`, resource limits; Trivy scan in CI.

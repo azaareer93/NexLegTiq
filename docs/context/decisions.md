@@ -1953,6 +1953,60 @@ hook (`useCtrlAltShortcut`) that also ignores keys while focus is inside a dialo
 Ctrl+Alt+H never open over each other. Actions are not hidden while the subscription is read-only (as on the Hearings
 tab: the banner explains it and the API refuses with AUTH-104).
 
+**D-135 — Parties, identifier blind indexes and the conflict-of-interest check** · Accepted (MVP-62, 2026-10-23) · Amends D-056
+MVP-62 asks to search parties by national and tax id, which D-056 keeps encrypted and "never searched", and leaves open
+which roles are "adverse" and what the check compares a party with. → **Blind indexes (amends D-056):** `FieldCipher.blindIndex`
+= HMAC-SHA256 under a key derived from `ENCRYPTION_KEY` (HKDF, info `nexlegtiq blind index v1`), over the identifier with
+digits made Western and everything but letters and digits dropped, upper-cased, scoped `national_id:<officeId>` /
+`tax_id:<officeId>`. Stored in new columns `national_id_index` / `tax_id_index` on **parties and clients** (clients write
+them on create and update; same scope, so a party can be matched to a client), indexed per office. Exact match only;
+the identifiers themselves stay AES-GCM ciphertext. Rows saved before this migration get their index when the id is next
+written (no backfill: it needs the key). Party tax ids are now always encrypted, as clients' are (D-108); one stored in
+plain text before is read as is. **Registry:** `GET /parties?search=` (ANY of `view:all|assigned:cases`; 20, at most 50,
+by name): Arabic-normalised substring of the name (`nlq_normalize_ar`, trigram GIN expression index) or an exact national
+or tax id; rows carry name, type and contacts — no identifiers or notes (parties are office-wide, also those of
+confidential files). **File parties:** `GET /cases/:id/parties` (read access; identifiers and notes decrypted),
+`POST /cases/:id/parties` `{partyId | party, partyType, roleLabel?}` (exactly one of the two, `validation.partyChoice`;
+another office's or unknown party → 400 `validation.unknownParty`), `PATCH /cases/:id/parties/:filePartyId`
+`{partyType?, roleLabel?}`, `DELETE` (204; the party stays in the registry) — all with ANY of `edit:any|assigned:case`
+and write access to the file (D-096). The same party twice in the same role → 409 RES-002. Add writes a `PARTY_ADDED`
+timeline event (`{partyId, name, partyType}`) and audit rows (`Party` CREATE with ids and notes as `[encrypted]`,
+`FileParty` CREATE/UPDATE/DELETE). **Conflict check** (W9), run in the add's transaction and again when a party is
+retyped: **adverse roles** are the dispute sides — PLAINTIFF, DEFENDANT, APPELLANT, RESPONDENT, PROSECUTION (third parties,
+guarantors, signatories and interested parties are not). A conflict is recorded when the party (1) is on **another open
+file** (live, OPEN or SUSPENDED) **in an adverse role**, whatever its role here (`ADVERSE_ON_OTHER_FILE`), or (2) is
+adverse here and is **the client of another open file** — same national/tax id index, or the same Arabic-normalised name
+as the client's display, full or company name (`CLIENT_ON_OTHER_FILE`). A pair of files and party is recorded once,
+whichever came first, and a resolved conflict is never raised again. **Conflicts warn, never block:** the add answers 201
+with `{fileParty, conflicts[]}` (every open conflict of that party on that file); BIZ-009 is not used. `GET /conflicts`
+(`resolved`, `fileId`, paginated) lists conflicts with at least one file the reader can open; a file the reader cannot
+open (scope or confidentiality) is `null` — only that a conflict exists is shown, as for hearing conflicts (D-116).
+`PATCH /conflicts/:id/resolve {notes}` needs write access to either file; resolving twice → **422 BIZ-017** (new: "conflict
+already resolved"), so the first note stays; audited. Removing the last role of a party from a file deletes its open
+conflicts on that file (resolved ones stay as history). **Not done here:** the Parties tab, conflict modal and banner
+(their UI story), editing a party's own details (name, ids, notes) after creation, party attendance at sessions, and
+checking a new **client** against existing adverse parties (the client form would run the same rule). **Known limits:**
+name matching is exact after normalisation (no fuzzy similarity) and misses a client stored only with an id saved before
+this migration; rule (1) also flags a repeat opponent (the same company sued twice), which the lawyer resolves with a
+note. Why: the conflict check works on encrypted identifiers without decrypting a table, and never reveals a file the
+reader may not open.
+Review additions (same PR): **the check is symmetric and complete** — it no longer depends on the order roles were
+added: a pair of open files conflicts over a party when it has roles on both and **either** role is a dispute side, or it is
+adverse on one and the client of the other (both directions). Every add, retype and removal **re-syncs** the party's open
+conflicts on that file: missing pairs are created in one statement, open ones that no longer hold (the party removed or
+made neutral) are deleted with a `ConflictOfInterest` DELETE audit row each, resolved ones are never touched. **Writes lock
+the party row** (`FOR UPDATE`) so two simultaneous changes about the same party see each other (tested: two parallel adds
+record each pair once), and **lock and re-check the file** (`FOR NO KEY UPDATE`: deleted meanwhile → 404, archived →
+BIZ-007), as D-119/D-126 writes do. **Registry search needs `edit:any|assigned:case`** (it is a picker for adding parties;
+trainees and outside collaborators no longer see names and contacts of parties on files they cannot open).
+**Resolution notes** are returned only to readers who can open both files (a note may describe the confidential matter);
+`GET /conflicts?fileId=` on a file the reader cannot open is 404. "Fuzzy" in W9 is read as Arabic-normalised substring for
+names and exact match for identifiers (D-059's trigram similarity ranking is left to global search). Rotating
+`ENCRYPTION_KEY` must recompute the blind indexes too (ops-security.md). **Not done (also):** an existing adverse party
+becoming the client of a new file is checked only when that party is next added or retyped (the client/case-creation
+flows should call the same sync); party notes and identifiers belong to the party and are shown on every file it is on;
+the conflict check can confirm that a guessed national id belongs to some client (`otherFile: null`), a risk accepted for
+holders of edit rights; detection compares client names without an index (fine at office scale).
 **D-136 — Audit service, VIEW throttling and the retention purge** · Accepted (MVP-104, 2026-10-23)
 MVP-104 asks for one audit service used everywhere, VIEW auditing, DB-level protection and a retention job, while every
 module already wrote its own rows (53 writes, 16 builders) and D-079 left the purge to "the migrator". → **Service**
@@ -1993,3 +2047,35 @@ is audited in full (D-125); keys that were not sent are dropped, not stored as n
 statement**, so a first run over years of rows is never one huge DELETE. The function schema-qualifies its tables.
 `AuditService.log` is the entry point for new code; the existing modules keep their builders, which delegate to the shared
 `auditRow` (same row, same redaction) — their callers already pass the request facts explicitly.
+
+**D-137 — Parties tab, the conflict modal and the file-page banner** · Accepted (MVP-142, 2026-10-23)
+MVP-142 asks for the file's parties by role, search-and-reuse or create, a conflict modal with "proceed with note /
+cancel / reassign" and a file-page banner, on top of D-135's API. → `?tab=parties` (`apps/office-app/src/features/cases/
+parties`, `parties` namespace; shared API client `partiesApi`): parties grouped in `PARTY_TYPES` order (empty roles left
+out), each with name (`<Bdi>`), person/organisation, role description, phone and email (`<Ltr>`), and the identifiers and
+representative D-135 decrypts for readers of the file (isolated). **Add** (a modal): "existing party" searches the registry
+on the server as you type (debounced, `GET /parties`) or "new party" (person or organisation, the D-135 fields, identifiers
+and notes marked "stored encrypted"); role (default DEFENDANT) and an optional role description; empty inputs are left out
+of the request. **Edit** changes role and description only (party details stay as created, D-135); **remove** asks first
+(the party stays in the registry). **Conflicts:** when an add or a retype answers with `conflicts[]`, the modal lists each
+one ("X is on the other side of the dispute in <file>" / "X is the office's client in <file>"; the file number is a link,
+or "a file you cannot open" when D-135 hides it) with: **proceed with note** — one note, required, recorded on every listed
+conflict with `PATCH /conflicts/:id/resolve` one after the other; **cancel** — right after an add, takes the party off the
+file again (`DELETE`, which also withdraws its open conflicts, D-135); **close** — leaves them open. **Banner:** the file
+page reads the file's open conflicts (`GET /conflicts?fileId&resolved=false`, first 100) and, while there are any, shows a
+warning with the count (Arabic plural forms) and "review", which opens the same modal without "cancel". A failed load hides
+the banner. **Rights (UI only, the API re-checks):** add, edit, remove and "proceed" need write access to the file — the
+header's Edit right (`edit:any:case`, or `edit:assigned:case` when assigned; nothing on an archived file, D-052); others see
+the parties and the banner, read-only. **Deviation — "reassign":** reassigning the file needs the file lifecycle story's
+route, which does not exist yet (the header's Reassign is still "coming soon", D-118); until then the conflict stays open
+and the banner keeps warning. **Tests:** component tests with MSW (grouping, add existing with a conflict and its note, cancel
+removing the party, a new party's request, a trainee's read-only view, the banner in Arabic and its resolve, the
+non-editor's banner without "proceed"), axe on the tab in both languages, and the client's routes. Why: conflict warnings
+reach the lawyer on the file itself, and acting on them leaves a note the office can show later.
+Review additions (same PR): a retry of "proceed" after a partial failure skips conflicts already recorded (BIZ-017) and
+finishes the rest; editing only the role description does not reopen the modal (only a new role can raise conflicts);
+"cancel" removes only the row just added — a party created in the dialog stays in the registry, and conflicts of another
+role the party already had on the file stay open; a disabled "reassign the file" button marks the deferred choice; picker
+options add the party's phone or email (isolated) to tell apart people of the same name; every parties query is refreshed
+after a write (the other file's conflicts and the registry change too); server field errors on a new party's own fields
+are shown as a notification (the contract check in the browser catches them first).
