@@ -25,6 +25,7 @@ function setup({
   users = 1,
   invitations = 0,
   usedBytes = 0n,
+  aiCalls = 0,
   maxUsers = 3 as number | null,
   permissions = permissionsFor('OFFICE_MANAGER') as readonly Permission[] | undefined,
 } = {}) {
@@ -40,6 +41,7 @@ function setup({
     subscriptionOf,
     activeUsers: jest.fn().mockResolvedValue(users),
     pendingInvitations: jest.fn().mockResolvedValue(invitations),
+    aiCallsSince: jest.fn().mockResolvedValue(aiCalls),
   } as unknown as SubscriptionsRepository;
   const context: Record<string, unknown> = { officeId: OFFICE, permissions };
   const cls = {
@@ -93,8 +95,10 @@ describe('EntitlementsService (D-122)', () => {
     const { service } = setup({ usedBytes: MIB - 10n });
     await expect(service.assertStorageFor(10n)).resolves.toBeUndefined();
     await expect(service.assertStorageFor(11n)).rejects.toMatchObject({ code: 'AUTH-103' });
-    await expect(service.assertAiQuota(4)).resolves.toBeUndefined();
-    await expect(service.assertAiQuota(5)).rejects.toMatchObject({ code: 'AUTH-103' });
+    await expect(setup({ aiCalls: 4 }).service.assertAiQuota()).resolves.toBeUndefined();
+    await expect(setup({ aiCalls: 5 }).service.assertAiQuota()).rejects.toMatchObject({
+      code: 'AUTH-103',
+    });
     await expect(service.assertFeature('ai')).resolves.toBeUndefined();
     await expect(service.assertFeature('googleVisionOcr')).rejects.toMatchObject({
       code: 'AUTH-102',

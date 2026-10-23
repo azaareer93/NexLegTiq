@@ -175,6 +175,8 @@ export {
   RealtimePayloadSchemas,
 } from './realtime.contract.js';
 export type { RealtimeEvent, RealtimePayload } from './realtime.contract.js';
+export { AiJobAcceptedSchema, AiJobSchema } from './ai.contract.js';
+export type { AiJob, AiJobAccepted } from './ai.contract.js';
 export {
   DocumentQuerySchema,
   DocumentSchema,

@@ -84,3 +84,21 @@ export const documentTextIn = async (db: PrismaClient, office: SeededOffice) =>
       text: 'Isolation text',
     },
   });
+
+export const aiJobIn = (db: PrismaClient, { officeId, userId }: SeededOffice) =>
+  db.aiJob.create({ data: { officeId, createdById: userId, type: 'isolation-test' } });
+
+export const aiUsageIn = (db: PrismaClient, { officeId, userId }: SeededOffice) =>
+  db.aiUsage.create({
+    data: {
+      officeId,
+      userId,
+      feature: 'isolation-test',
+      provider: 'fake',
+      model: 'fake-1',
+      inputTokens: 1,
+      outputTokens: 1,
+      costUsd: '0',
+      durationMs: 1,
+    },
+  });

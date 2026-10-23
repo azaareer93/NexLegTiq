@@ -38,6 +38,8 @@ export const TENANT_MODELS = [
   'Document',
   'DocumentVersion',
   'DocumentText',
+  'AiJob',
+  'AiUsage',
 ] as const satisfies readonly Prisma.ModelName[];
 
 export type TenantModel = (typeof TENANT_MODELS)[number];
