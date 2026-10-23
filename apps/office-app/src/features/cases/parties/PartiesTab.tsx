@@ -11,7 +11,7 @@ import {
   Ltr,
   useApiErrorHandler,
 } from '@nexlegtiq/shared-ui';
-import { isolate } from '@nexlegtiq/shared-utils';
+import { isolate, isolateLtr } from '@nexlegtiq/shared-utils';
 import { App, Button, Card, Flex, List, Tag, Typography } from 'antd';
 import { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
@@ -33,8 +33,8 @@ export function groupByRole(parties: readonly FileParty[]): [PartyType, FilePart
 function PartyDetails({ party }: { readonly party: FileParty['party'] }): React.JSX.Element {
   const { t } = useTranslation();
   const facts = [
-    party.nationalId && t('parties.row.nationalId', { value: isolate(party.nationalId) }),
-    party.taxId && t('parties.row.taxId', { value: isolate(party.taxId) }),
+    party.nationalId && t('parties.row.nationalId', { value: isolateLtr(party.nationalId) }),
+    party.taxId && t('parties.row.taxId', { value: isolateLtr(party.taxId) }),
     party.legalRepresentative &&
       t('parties.row.representative', { name: isolate(party.legalRepresentative) }),
   ].filter(Boolean);
@@ -98,7 +98,9 @@ function PartyRow({
           <Bdi>{party.name}</Bdi>
           <Tag>{t(party.isIndividual ? 'parties.row.person' : 'parties.row.organisation')}</Tag>
           {row.roleLabel ? (
-            <Typography.Text type="secondary">{row.roleLabel}</Typography.Text>
+            <Typography.Text type="secondary">
+              <Bdi>{row.roleLabel}</Bdi>
+            </Typography.Text>
           ) : null}
         </Flex>
         <PartyDetails party={party} />
@@ -181,6 +183,7 @@ export function PartiesTab({
   const [removing, setRemoving] = useState<FileParty | null>(null);
   const [raised, setRaised] = useState<Raised | null>(null);
 
+  const addedId = raised?.addedId;
   const showConflicts = (result: AddFilePartyResult, addedId?: string) => {
     if (result.conflicts.length > 0) setRaised({ conflicts: result.conflicts, addedId });
   };
@@ -207,16 +210,19 @@ export function PartiesTab({
         </Flex>
       ) : null}
       <PartyGroups parties={parties} canEdit={canEdit} onEdit={setEditing} onRemove={setRemoving} />
-      <AddPartyModal
-        open={adding}
-        fileId={fileId}
-        onClose={() => setAdding(false)}
-        onAdded={(result) => {
-          setAdding(false);
-          void message.success(t('parties.add.added'));
-          showConflicts(result, result.fileParty.id);
-        }}
-      />
+      {/* Mounted per opening: a fresh form, starting on "existing party". */}
+      {adding ? (
+        <AddPartyModal
+          open
+          fileId={fileId}
+          onClose={() => setAdding(false)}
+          onAdded={(result) => {
+            setAdding(false);
+            void message.success(t('parties.add.added'));
+            showConflicts(result, result.fileParty.id);
+          }}
+        />
+      ) : null}
       <EditRoleModal
         fileId={fileId}
         row={editing}
@@ -243,8 +249,8 @@ export function PartiesTab({
         fileId={fileId}
         conflicts={raised?.conflicts ?? []}
         canResolve={canEdit}
-        {...(raised?.addedId && {
-          onCancelAdd: () => remove.mutateAsync(raised.addedId as string),
+        {...(addedId && {
+          onCancelAdd: () => remove.mutateAsync(addedId),
         })}
         onClose={() => setRaised(null)}
       />

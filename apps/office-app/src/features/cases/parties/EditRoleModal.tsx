@@ -9,6 +9,18 @@ import { useTranslation } from 'react-i18next';
 import { useUpdateParty } from './use-parties';
 import { zodRule } from '../../auth/forms';
 
+/** Only what changed; a cleared description is `null`. */
+export function roleChanges(
+  row: FileParty,
+  values: { partyType: PartyType; roleLabel?: string },
+): { partyType?: PartyType; roleLabel?: string | null } {
+  const roleLabel = values.roleLabel?.trim() || null;
+  return {
+    ...(values.partyType !== row.partyType && { partyType: values.partyType }),
+    ...(roleLabel !== row.roleLabel && { roleLabel }),
+  };
+}
+
 /** Change a party's role on this file; a retype may raise or clear conflicts (D-135). */
 export function EditRoleModal({
   fileId,
@@ -30,17 +42,14 @@ export function EditRoleModal({
     if (!row) return;
     const values = await form.validateFields().catch(() => null);
     if (!values) return;
-    const roleLabel = values.roleLabel?.trim() || null;
-    const body = {
-      ...(values.partyType !== row.partyType && { partyType: values.partyType }),
-      ...(roleLabel !== row.roleLabel && { roleLabel }),
-    };
+    const body = roleChanges(row, values);
     if (Object.keys(body).length === 0) return onClose();
     try {
       const result = await update.mutateAsync({ id: row.id, body });
       void message.success(t('parties.edit.saved'));
       onClose();
-      onConflicts(result);
+      // Only a new role can raise conflicts; a label edit would just repeat the known ones.
+      if (body.partyType) onConflicts(result);
     } catch (error) {
       if (!applyToForm(form, error, ['partyType', 'roleLabel'])) notify(error);
     }

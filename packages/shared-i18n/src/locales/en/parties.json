@@ -2,15 +2,14 @@
   "tab": {
     "add": "Add party",
     "empty": "No parties on this file yet",
-    "emptyHint": "Add the plaintiffs, defendants and other people or organisations involved.",
-    "loadFailed": "The parties could not be loaded."
+    "emptyHint": "Add the plaintiffs, defendants and other people or organisations involved."
   },
   "row": {
     "person": "Person",
     "organisation": "Organisation",
     "nationalId": "National ID: {{value}}",
     "taxId": "Tax ID: {{value}}",
-    "representative": "Represented by {{name}}",
+    "representative": "Representative: {{name}}",
     "edit": "Edit role of {{name}}",
     "remove": "Remove {{name}} from the file"
   },
@@ -59,6 +58,7 @@
     "hiddenFile": "a file you cannot open",
     "notes": "Note: why the office may proceed",
     "proceed": "Proceed with note",
+    "reassign": "Reassign the file",
     "close": "Close",
     "cancelAdd": "Cancel and remove the party",
     "resolved": "Conflict recorded as reviewed",

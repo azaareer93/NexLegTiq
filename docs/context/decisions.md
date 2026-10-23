@@ -2072,3 +2072,10 @@ and the banner keeps warning. **Tests:** component tests with MSW (grouping, add
 removing the party, a new party's request, a trainee's read-only view, the banner in Arabic and its resolve, the
 non-editor's banner without "proceed"), axe on the tab in both languages, and the client's routes. Why: conflict warnings
 reach the lawyer on the file itself, and acting on them leaves a note the office can show later.
+Review additions (same PR): a retry of "proceed" after a partial failure skips conflicts already recorded (BIZ-017) and
+finishes the rest; editing only the role description does not reopen the modal (only a new role can raise conflicts);
+"cancel" removes only the row just added — a party created in the dialog stays in the registry, and conflicts of another
+role the party already had on the file stay open; a disabled "reassign the file" button marks the deferred choice; picker
+options add the party's phone or email (isolated) to tell apart people of the same name; every parties query is refreshed
+after a write (the other file's conflicts and the registry change too); server field errors on a new party's own fields
+are shown as a notification (the contract check in the browser catches them first).

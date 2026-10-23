@@ -1,7 +1,8 @@
 import { ResolveConflictSchema } from '@nexlegtiq/shared-contracts';
 import type { Conflict } from '@nexlegtiq/shared-contracts';
-import { useApiErrorHandler } from '@nexlegtiq/shared-ui';
-import { App, Button, Form, Input, List, Modal, Typography } from 'antd';
+import { isApiError, Ltr, useApiErrorHandler } from '@nexlegtiq/shared-ui';
+import { App, Button, Form, Input, List, Modal, Tooltip, Typography } from 'antd';
+import { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 
@@ -13,6 +14,15 @@ export function otherFileOf(conflict: Conflict, fileId: string): Conflict['file'
   if (conflict.file?.id === fileId) return conflict.otherFile;
   if (conflict.otherFile?.id === fileId) return conflict.file;
   return conflict.otherFile;
+}
+
+/** The other file's number as a link, isolated left to right (D-092); `Trans` passes the number as children. */
+function FileLink({ to, children }: { readonly to: string; readonly children?: React.ReactNode }) {
+  return (
+    <Link to={to}>
+      <Ltr>{children}</Ltr>
+    </Link>
+  );
 }
 
 function ConflictLine({
@@ -35,7 +45,7 @@ function ConflictLine({
         components={{
           party: <bdi />,
           // A file the reader may open is a link; its number reads left to right (D-092).
-          file: other ? <Link to={`/cases/${other.id}`} dir="ltr" /> : <span />,
+          file: other ? <FileLink to={`/cases/${other.id}`} /> : <span />,
         }}
       />
     </List.Item>
@@ -67,15 +77,20 @@ export function ConflictsModal({
   const { applyToForm, notify } = useApiErrorHandler();
   const [form] = Form.useForm<{ notes: string }>();
   const resolve = useResolveConflict(fileId);
+  const [cancelling, setCancelling] = useState(false);
 
   const proceed = async () => {
     const values = await form.validateFields().catch(() => null);
     if (!values) return;
     const { notes } = values;
     try {
-      // One after the other: a failure stops with the rest still open, and the list refreshes.
+      // One after the other; a retry after a partial failure skips those already recorded (BIZ-017).
       for (const conflict of conflicts) {
-        await resolve.mutateAsync({ id: conflict.id, notes: notes.trim() });
+        await resolve
+          .mutateAsync({ id: conflict.id, notes: notes.trim() })
+          .catch((error: unknown) => {
+            if (!isApiError(error) || error.code !== 'BIZ-017') throw error;
+          });
       }
       void message.success(t('parties.conflicts.resolved'));
       onClose();
@@ -84,11 +99,14 @@ export function ConflictsModal({
     }
   };
   const cancelAdd = async () => {
+    setCancelling(true);
     try {
       await onCancelAdd?.();
       onClose();
     } catch (error) {
       notify(error);
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -104,12 +122,20 @@ export function ConflictsModal({
           <Button
             key="cancel"
             danger
+            loading={cancelling}
+            disabled={resolve.isPending}
             onClick={() => void cancelAdd()}
             data-testid="conflicts-cancel-add"
           >
             {t('parties.conflicts.cancelAdd')}
           </Button>
         ) : null,
+        // Reassigning the file needs the file lifecycle route, not built yet (D-137); shown so the choice is visible.
+        <Tooltip key="reassign" title={t('shell.comingSoon.title')}>
+          <Button disabled data-testid="conflicts-reassign">
+            {t('parties.conflicts.reassign')}
+          </Button>
+        </Tooltip>,
         <Button key="close" onClick={onClose} data-testid="conflicts-close">
           {t('parties.conflicts.close')}
         </Button>,
@@ -118,13 +144,14 @@ export function ConflictsModal({
             key="proceed"
             type="primary"
             loading={resolve.isPending}
+            disabled={cancelling}
             onClick={() => void proceed()}
             data-testid="conflicts-proceed"
           >
             {t('parties.conflicts.proceed')}
           </Button>
         ) : null,
-      ]}
+      ].filter(Boolean)}
     >
       <Typography.Paragraph>{t('parties.conflicts.intro')}</Typography.Paragraph>
       <List

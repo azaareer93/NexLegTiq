@@ -3,6 +3,7 @@ import type { AddFilePartyResult } from '@nexlegtiq/shared-contracts';
 import { PARTY_TYPES } from '@nexlegtiq/shared-types';
 import type { PartyType } from '@nexlegtiq/shared-types';
 import { useApiErrorHandler } from '@nexlegtiq/shared-ui';
+import { isolate, isolateLtr } from '@nexlegtiq/shared-utils';
 import { Flex, Form, Input, Modal, Segmented, Select } from 'antd';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -51,7 +52,16 @@ function PartyPicker(): React.JSX.Element {
         showSearch={{ filterOption: false, searchValue: text, onSearch: setText }}
         loading={found.isFetching}
         notFoundContent={search && !found.isFetching ? t('parties.add.noMatch') : null}
-        options={(found.data ?? []).map((party) => ({ value: party.id, label: party.name }))}
+        options={(found.data ?? []).map((party) => {
+          // A contact tells apart two parties of the same name, right before the conflict check.
+          const contact = party.phone ?? party.email;
+          const name = isolate(party.name);
+          return {
+            value: party.id,
+            title: party.name,
+            label: contact ? `${name} · ${isolateLtr(contact)}` : name,
+          };
+        })}
         data-testid="party-picker"
       />
     </Form.Item>
@@ -75,12 +85,12 @@ export function AddPartyModal({
   const [mode, setMode] = useState<Mode>('existing');
   const { applyToForm, notify } = useApiErrorHandler();
   const add = useAddParty(fileId);
-  const message = (key: string) => t(key as never);
+  const translate = (key: string) => t(key as never);
 
   const submit = async () => {
     const values = await form.validateFields().catch(() => null);
     if (!values) return;
-    const body = parseForm(AddFilePartySchema, addRequest(mode, values), form, message);
+    const body = parseForm(AddFilePartySchema, addRequest(mode, values), form, translate);
     if (!body) return;
     try {
       onAdded(await add.mutateAsync(body));
@@ -132,7 +142,7 @@ export function AddPartyModal({
           <Form.Item
             name="roleLabel"
             label={t('parties.add.roleLabel')}
-            rules={zodRule(AddFilePartySchema.shape.roleLabel, message)}
+            rules={zodRule(AddFilePartySchema.shape.roleLabel, translate)}
           >
             <Input maxLength={100} data-testid="party-role-label" />
           </Form.Item>

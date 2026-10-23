@@ -14,7 +14,7 @@ export const partyKeys = {
   conflicts: (fileId: string) => ['parties', 'conflicts', fileId] as const,
 };
 
-/** One page holds every open conflict the banner needs; a file with more is shown as "100+" by the total. */
+/** The modal lists the first 100 open conflicts; the banner counts them all (the page total). */
 const CONFLICT_PAGE = 100;
 
 export const useFileParties = (fileId: string) =>
@@ -45,8 +45,8 @@ function usePartyWrite<A, R>(fileId: string, write: (args: A) => Promise<R>) {
   return useMutation({
     mutationFn: write,
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: partyKeys.file(fileId) });
-      void queryClient.invalidateQueries({ queryKey: partyKeys.conflicts(fileId) });
+      // Every parties query: the other file's conflicts and the registry search change too.
+      void queryClient.invalidateQueries({ queryKey: ['parties'] });
       void queryClient.invalidateQueries({ queryKey: caseKeys.detail(fileId) });
     },
   });

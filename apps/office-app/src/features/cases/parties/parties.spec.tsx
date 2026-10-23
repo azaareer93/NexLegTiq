@@ -10,6 +10,7 @@ import { otherFileOf } from './ConflictsModal';
 import { groupByRole } from './PartiesTab';
 import {
   api,
+  fail,
   http,
   ok,
   renderApp,
@@ -339,6 +340,117 @@ describe('parties tab', () => {
       const tab = await openTab();
       expect(within(tab).queryByTestId('party-add')).toBeNull();
       expect(within(tab).queryByTestId(`party-edit-${FP_DEFENDANT}`)).toBeNull();
+    },
+    SLOW,
+  );
+});
+
+describe('parties tab changes', () => {
+  const SECOND = '01920000-0000-7000-8000-0000000009c2';
+
+  it(
+    'should retype a party, send only the change, and show the conflicts it raised without "cancel"',
+    async () => {
+      asRole('LAWYER');
+      const calls = serve();
+      const patches: unknown[] = [];
+      server.use(
+        http.patch(api(`cases/${FILE_ID}/parties/${FP_DEFENDANT}`), async ({ request }) => {
+          patches.push(await request.json());
+          return ok({ fileParty: PARTIES[0], conflicts: [CONFLICT] });
+        }),
+      );
+      await openTab();
+      fireEvent.click(screen.getByTestId(`party-edit-${FP_DEFENDANT}`));
+      const dialog = await screen.findByTestId('edit-party-modal');
+      fireEvent.mouseDown(within(dialog).getAllByRole('combobox')[0] as HTMLElement);
+      fireEvent.click(await screen.findByTitle('Plaintiff'));
+      fireEvent.change(within(dialog).getByTestId('edit-party-role-label'), {
+        target: { value: 'Second defendant' },
+      });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+      const modal = await screen.findByTestId('conflicts-modal', {}, { timeout: COLD });
+      expect(patches).toEqual([{ partyType: 'PLAINTIFF', roleLabel: 'Second defendant' }]);
+      expect(within(modal).queryByTestId('conflicts-cancel-add')).toBeNull();
+      expect(within(modal).getByTestId('conflicts-reassign').closest('button')?.disabled).toBe(
+        true,
+      );
+      expect(calls.writes).toEqual([]);
+    },
+    SLOW,
+  );
+
+  it(
+    'should remove a party after asking',
+    async () => {
+      asRole('LAWYER');
+      serve();
+      let removed = false;
+      server.use(
+        http.delete(api(`cases/${FILE_ID}/parties/${FP_DEFENDANT}`), () => {
+          removed = true;
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+      await openTab();
+      fireEvent.click(screen.getByTestId(`party-remove-${FP_DEFENDANT}`));
+      expect(removed).toBe(false);
+      fireEvent.click(await screen.findByRole('button', { name: 'Remove' }));
+      await waitFor(() => expect(removed).toBe(true));
+    },
+    SLOW,
+  );
+
+  it(
+    'should finish the remaining conflicts on retry after one failed',
+    async () => {
+      asRole('LAWYER');
+      serve({ open: [CONFLICT, { ...CONFLICT, id: SECOND }] });
+      const attempts: string[] = [];
+      let failSecond = true;
+      server.use(
+        http.patch(api(`conflicts/${CONFLICT_ID}/resolve`), () => {
+          attempts.push('first');
+          // Already recorded on the first try.
+          return attempts.length > 1 ? fail(422, 'BIZ-017') : ok({ ...CONFLICT, resolved: true });
+        }),
+        http.patch(api(`conflicts/${SECOND}/resolve`), () => {
+          attempts.push('second');
+          if (failSecond) {
+            failSecond = false;
+            return fail(500, 'SYS-001');
+          }
+          return ok({ ...CONFLICT, id: SECOND, resolved: true });
+        }),
+      );
+      renderApp(`/cases/${FILE_ID}`, 'en');
+      fireEvent.click(await screen.findByTestId('conflict-banner-review', {}, { timeout: COLD }));
+      const modal = await screen.findByTestId('conflicts-modal');
+      fireEvent.change(within(modal).getByTestId('conflicts-notes'), {
+        target: { value: 'Consented' },
+      });
+      fireEvent.click(within(modal).getByTestId('conflicts-proceed'));
+      await waitFor(() => expect(attempts).toEqual(['first', 'second']));
+      fireEvent.click(within(modal).getByTestId('conflicts-proceed'));
+      await waitFor(() => expect(attempts).toEqual(['first', 'second', 'first', 'second']));
+      await waitFor(() => expect(screen.queryByTestId('conflicts-modal')).toBeNull());
+    },
+    SLOW,
+  );
+
+  it(
+    'should keep an archived file read-only and hide the banner when conflicts cannot be loaded',
+    async () => {
+      asRole('OFFICE_MANAGER');
+      serve();
+      server.use(
+        http.get(api(`cases/${FILE_ID}`), () => ok({ ...FILE, status: 'ARCHIVED' })),
+        http.get(api('conflicts'), () => fail(500, 'SYS-001')),
+      );
+      const tab = await openTab();
+      expect(within(tab).queryByTestId('party-add')).toBeNull();
+      expect(within(tab).queryByTestId(`party-remove-${FP_DEFENDANT}`)).toBeNull();
+      expect(screen.queryByTestId('conflict-banner')).toBeNull();
     },
     SLOW,
   );
