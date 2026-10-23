@@ -1931,3 +1931,13 @@ minutes write one VIEW with the request's user agent, request id and IP. **Not d
 platform-admin actors (the portal and admin realms do not exist yet: `AuditLog.platformAdminId` is there, `clientUserId`
 comes with the portal); audit rows for reads other than files and documents. Why: one place decides what an audit row
 contains and hides, and the log can age out without the app ever being able to rewrite it.
+Review additions (same PR): **the purge honours the longest retention ever set** — `office_settings.max_audit_retention_days`,
+kept by a trigger as the highest value the setting has had (never lowered, whatever the app writes), is what
+`nlq_purge_audit_logs` uses; lowering the setting (D-125 allows it) no longer deletes history already kept, as D-060's
+"upward only" intends. **The shared redaction covers credentials only**: encrypted identifiers stay redacted by the modules
+that own them (clients and contacts `[encrypted]`, parties), because the same key is plaintext elsewhere — an office's tax id
+is audited in full (D-125); keys that were not sent are dropped, not stored as null (null means "cleared" in a diff).
+**A failed VIEW write is logged and swallowed**, never turning a successful read into a 500. **The purge runs one office per
+statement**, so a first run over years of rows is never one huge DELETE. The function schema-qualifies its tables.
+`AuditService.log` is the entry point for new code; the existing modules keep their builders, which delegate to the shared
+`auditRow` (same row, same redaction) — their callers already pass the request facts explicitly.

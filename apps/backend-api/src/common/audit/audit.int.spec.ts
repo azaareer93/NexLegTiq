@@ -6,15 +6,18 @@ import { Test } from '@nestjs/testing';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import request from 'supertest';
 
+import { AuditRetentionProcessor } from './audit-retention.processor';
 import { AppModule } from '../../app/app.module';
 import { configureApp } from '../../app/configure-app';
 import { integrationEnv } from '../../config/env.fixture';
 import { PrismaService } from '../../database/prisma.service';
+import { TENANT_MODELS } from '../../database/tenant-models';
 import type { PrismaClient } from '../../generated/prisma/client';
 import { bearerFor } from '../../modules/auth/auth.test-helper';
 import { liveSubscription } from '../../modules/subscriptions/subscription.test-helper';
 
 const DAY_MS = 86_400_000;
+type Delegate = { deleteMany(args: unknown): Promise<unknown> };
 
 /** The audit service, append-only grants, retention purge and VIEW throttling (MVP-104, D-136) on real PostgreSQL. */
 describe('audit log (HTTP + PostgreSQL)', () => {
@@ -58,7 +61,10 @@ describe('audit log (HTTP + PostgreSQL)', () => {
 
   beforeAll(async () => {
     Object.assign(process.env, integrationEnv(), { EMAIL_VERIFICATION_ENFORCED: 'false' });
-    const module = await Test.createTestingModule({ imports: [AppModule] })
+    const module = await Test.createTestingModule({
+      imports: [AppModule],
+      providers: [AuditRetentionProcessor],
+    })
       .overrideProvider(ThrottlerGuard)
       .useValue({ canActivate: () => true })
       .compile();
@@ -81,12 +87,17 @@ describe('audit log (HTTP + PostgreSQL)', () => {
     if (raw) {
       const where = { officeId: { in: officeIds } };
       // Test cleanup runs as the superuser: the log is append-only only for the app role.
-      await raw.auditLog.deleteMany({ where });
-      await raw.legalFile.deleteMany({ where });
+      for (const model of [...TENANT_MODELS].filter((name) => name !== 'User').reverse()) {
+        const delegate = (raw as unknown as Record<string, Delegate>)[
+          model.charAt(0).toLowerCase() + model.slice(1)
+        ];
+        await delegate?.deleteMany({ where });
+      }
       await raw.user.deleteMany({ where });
       await raw.subscription.deleteMany({ where });
-      await raw.officeSettings.deleteMany({ where });
       await raw.office.deleteMany({ where: { id: { in: officeIds } } });
+      await raw.$executeRaw`REVOKE ALL ON audit_logs FROM nlq_audit_probe`;
+      await raw.$executeRaw`REVOKE ALL ON FUNCTION nlq_purge_audit_logs(uuid) FROM nlq_audit_probe`;
     }
     await app?.close();
     process.env = savedEnv;
@@ -178,5 +189,75 @@ describe('audit log (HTTP + PostgreSQL)', () => {
         where: { entityType: 'LegalFile', entityId: file.id, action: 'VIEW' },
       }),
     ).toBe(2);
+  });
+  it('should never purge below the longest retention an office ever set, inactive offices included', async () => {
+    const lowered = await office(730);
+    await raw.officeSettings.update({
+      where: { officeId: lowered.officeId },
+      data: { auditRetentionDays: 365, maxAuditRetentionDays: 365 },
+    });
+    expect(
+      (await raw.officeSettings.findUniqueOrThrow({ where: { officeId: lowered.officeId } }))
+        .maxAuditRetentionDays,
+    ).toBe(730);
+    const inactive = await office(365);
+    await raw.office.update({ where: { id: inactive.officeId }, data: { isActive: false } });
+    for (const { officeId } of [lowered, inactive]) {
+      await row(officeId, 500);
+      await row(officeId, 800);
+    }
+    await app.get(AuditRetentionProcessor).purge();
+    const left = (officeId: string) =>
+      raw.auditLog.count({ where: { officeId, entityType: 'Probe' } });
+    // Lowering the setting kept the 730-day history; the suspended office's old rows aged out.
+    expect(await left(lowered.officeId)).toBe(1);
+    expect(await left(inactive.officeId)).toBe(0);
+  });
+
+  it('should audit an update with only the changed fields, an office tax id in clear and a client id encrypted', async () => {
+    const manager = await office();
+    const file = await raw.legalFile.create({
+      data: {
+        officeId: manager.officeId,
+        fileNumber: `D-${randomUUID().slice(0, 8)}`,
+        title: 'Before',
+        fileType: 'LITIGATION',
+        responsibleLawyerId: manager.userId,
+        jurisdiction: 'PALESTINE',
+        currency: 'ILS',
+      },
+    });
+    await http()
+      .patch(`/api/v1/cases/${file.id}`)
+      .set(bearerFor(jwt, manager))
+      .send({ title: 'After', priority: 'MEDIUM' })
+      .expect(200);
+    const update = await raw.auditLog.findFirstOrThrow({
+      where: { entityType: 'LegalFile', entityId: file.id, action: 'UPDATE' },
+    });
+    expect(update.oldValues).toEqual({ title: 'Before' });
+    expect(update.newValues).toEqual({ title: 'After' });
+
+    await http()
+      .patch('/api/v1/offices/me')
+      .set(bearerFor(jwt, manager))
+      .send({ taxId: '562-334-111' })
+      .expect(200);
+    const officeRow = await raw.auditLog.findFirstOrThrow({
+      where: { officeId: manager.officeId, entityType: 'Office', action: 'UPDATE' },
+    });
+    expect(officeRow.newValues).toMatchObject({ taxId: '562-334-111' });
+
+    const created = await http()
+      .post('/api/v1/clients')
+      .set(bearerFor(jwt, manager))
+      .send({ clientType: 'INDIVIDUAL', displayName: 'Client', nationalId: '401234567' })
+      .expect(201);
+    const clientId = (created.body as { data: { id: string } }).data.id;
+    const clientRow = await raw.auditLog.findFirstOrThrow({
+      where: { entityType: 'Client', entityId: clientId, action: 'CREATE' },
+    });
+    expect(JSON.stringify(clientRow.newValues)).not.toContain('401234567');
+    expect(clientRow.newValues).toMatchObject({ nationalId: '[encrypted]' });
   });
 });

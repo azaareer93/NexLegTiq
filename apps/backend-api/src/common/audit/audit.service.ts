@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ClsService } from 'nestjs-cls';
+import { PinoLogger } from 'nestjs-pino';
 
 import { PrismaService } from '../../database/prisma.service';
 import type { ScopedTransaction } from '../../database/unit-of-work';
@@ -11,8 +12,11 @@ const MAX_USER_AGENT = 512;
 /** One VIEW row per user and entity in this window (MVP-104): reading a file all day is one fact, not hundreds. */
 export const VIEW_THROTTLE_MS = 10 * 60_000;
 
-/** Values never written in clear: encrypted identifiers (D-056) and credentials. The log records that they changed. */
-const ENCRYPTED_FIELDS = new Set(['nationalId', 'taxId']);
+/**
+ * Credentials, never written in clear whatever the entity. Encrypted identifiers are redacted by the modules that own
+ * them (clients, parties: `[encrypted]`), because the same key can be plaintext elsewhere — an office's tax id is
+ * audited in full (D-125).
+ */
 const SECRET_FIELDS = new Set([
   'password',
   'passwordHash',
@@ -43,18 +47,16 @@ export interface AuditEntry {
   readonly userId?: string | null;
 }
 
-/** Copies `values` with secrets replaced: `[encrypted]` for encrypted identifiers, `[redacted]` for credentials. */
+/** Copies `values` with credentials replaced by `[redacted]` (top-level keys; audit values are flat field maps). */
 export function redact(values: object | null | undefined): Prisma.InputJsonObject | undefined {
   if (!values) return undefined;
   const entries = Object.entries(values as Record<string, unknown>).map(
-    ([key, value]): [string, unknown] => {
-      if (value === null || value === undefined) return [key, null];
-      if (ENCRYPTED_FIELDS.has(key)) return [key, '[encrypted]'];
-      if (SECRET_FIELDS.has(key)) return [key, '[redacted]'];
-      return [key, value];
-    },
+    ([key, value]): [string, unknown] =>
+      SECRET_FIELDS.has(key) && value !== null && value !== undefined
+        ? [key, '[redacted]']
+        : [key, value],
   );
-  // Through JSON: dates become ISO strings and decimals plain values, as stored in a JSON column.
+  // Through JSON: dates become ISO strings, decimals plain values, and undefined (not sent) keys are dropped.
   return JSON.parse(JSON.stringify(Object.fromEntries(entries))) as Prisma.InputJsonObject;
 }
 
@@ -93,7 +95,10 @@ export class AuditService {
   constructor(
     private readonly cls: ClsService<RequestContext>,
     private readonly prisma: PrismaService,
-  ) {}
+    private readonly logger: PinoLogger,
+  ) {
+    this.logger.setContext(AuditService.name);
+  }
 
   /** The row for `entry`; for callers that batch it with other writes. */
   row(entry: AuditEntry, client: AuditClient = {}): Prisma.AuditLogUncheckedCreateInput {
@@ -125,9 +130,20 @@ export class AuditService {
 
   /**
    * A VIEW of a legal file or document by the current user, at most once per user and entity every 10 minutes. Not part
-   * of a write: a failure is the caller's to swallow or not (reads should not fail because of it).
+   * of a write: a failure is logged and swallowed (reads never fail because of it). Two opens in the same instant may
+   * both write a row (no lock; accepted).
    */
   async view(entityType: 'LegalFile' | 'Document', entityId: string): Promise<boolean> {
+    try {
+      return await this.recordView(entityType, entityId);
+    } catch (error) {
+      // The read has succeeded; a lost VIEW row is logged rather than turning it into a 500.
+      this.logger.error({ err: error, entityType, entityId }, 'Could not audit a VIEW');
+      return false;
+    }
+  }
+
+  private async recordView(entityType: 'LegalFile' | 'Document', entityId: string) {
     const userId = this.cls.get('userId');
     if (!userId) return false;
     const recent = await this.prisma.db.auditLog.findFirst({

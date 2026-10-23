@@ -68,9 +68,15 @@ export class AuditRetentionProcessor
   /** Every office, active or not: a suspended office's old rows age out too. */
   async purge(): Promise<{ readonly removed: number }> {
     // unscoped: the daily purge covers every office; the function limits each office to its own retention.
-    const [row] = await this.prisma.unscoped().$queryRaw<{ removed: number | null }[]>`
-      SELECT sum(nlq_purge_audit_logs(id))::int AS removed FROM offices`;
-    const removed = row?.removed ?? 0;
+    const raw = this.prisma.unscoped();
+    const offices = await raw.office.findMany({ select: { id: true }, orderBy: { id: 'asc' } });
+    let removed = 0;
+    // One office per statement (and transaction): a first run over years of rows never holds one huge DELETE.
+    for (const { id } of offices) {
+      const [row] = await raw.$queryRaw<{ removed: number }[]>`
+        SELECT nlq_purge_audit_logs(${id}::uuid) AS removed`;
+      removed += row?.removed ?? 0;
+    }
     this.logger.info({ removed }, 'Audit log retention applied');
     return { removed };
   }
