@@ -1900,3 +1900,34 @@ texts comes from `MAX_UPLOAD_BYTES`; Arabic writes كيلوبايت/ميغابا
 hook (`useCtrlAltShortcut`) that also ignores keys while focus is inside a dialog, so Ctrl+Alt+U and the hearing drawer's
 Ctrl+Alt+H never open over each other. Actions are not hidden while the subscription is read-only (as on the Hearings
 tab: the banner explains it and the API refuses with AUTH-104).
+
+**D-136 — Audit service, VIEW throttling and the retention purge** · Accepted (MVP-104, 2026-10-23)
+MVP-104 asks for one audit service used everywhere, VIEW auditing, DB-level protection and a retention job, while every
+module already wrote its own rows (53 writes, 16 builders) and D-079 left the purge to "the migrator". → **Service**
+(`src/common/audit/audit.service.ts`, provided by the global `DatabaseModule` next to Prisma): `AuditService.log(tx, entry,
+client?)` / `row(entry, client?)` fill office, actor, IP, user agent and request id from the request context — the CLS
+now also holds `ip` (Express' `req.ip`, so `TRUST_PROXY_HOPS` applies) and `userAgent`, set when the request starts —
+and any `AuditClient` field passed (null included) overrides it; the row is written in the caller's transaction. The pure
+`auditRow(entry, client)` is the same row for code that already knows its office and actor; **every module's audit builder
+now delegates to it** (cases, tasks, sessions, documents, document versions/retry, folders, clients and contacts, courts,
+judges and prosecutors, offices, team, sign-in, password, signup, the permission guard), so redaction, the 512-character
+user-agent cap and the row shape live in one place; their call sites are unchanged (one transaction per change, as
+before). The worker's malware row keeps its literal shape (no user, no request). **Redaction:** values of `nationalId`
+and `taxId` are stored as `[encrypted]`, credentials (`password`, `passwordHash`, `currentPassword`, `newPassword`,
+`token`, `tokenHash`, `refreshToken`, `mfaSecret`) as `[redacted]`; values go through JSON (dates as ISO strings). The diff
+helper stays `common/audit/changes.ts` (only changed fields, decimals compared as numbers). **VIEW:** `GET /cases/:id` and
+`GET /documents/:id` write a `VIEW` row at most **once per user and entity every 10 minutes** (a lookup of the newest
+VIEW by the office/entity index); a document's text pages and downloads keep their own per-request rows (D-128). Two
+requests in the same instant may both write one (accepted). **Append-only + retention:** the app role keeps INSERT/SELECT
+only on `audit_logs` (D-079); the purge is `nlq_purge_audit_logs(office_id)`, a `SECURITY DEFINER` function owned by the
+migrator (`search_path` pinned) that deletes that office's rows older than `office_settings.audit_retention_days`, never
+fewer than 365 days (D-060), and is the only DELETE the app role can cause; `EXECUTE` is granted to `nexlegtiq_app`
+(migration and `db-roles.sql`). The worker runs it daily at 03:00 UTC for every office (active or not) from
+`AuditRetentionProcessor`, a job scheduler on the **`report` queue** — its single consumer for now; report jobs join that
+processor when they come (one processor per queue, D-085). **Tests:** a role with exactly the app's grants cannot UPDATE or
+DELETE audit rows but can run the purge; the purge keeps 365 or 730 days per office; three opens of a file within ten
+minutes write one VIEW with the request's user agent, request id and IP. **Not done here:** the audit viewer and export
+(their UI story, which must hide rows of files and documents the reader cannot see — D-096, D-126); client-user and
+platform-admin actors (the portal and admin realms do not exist yet: `AuditLog.platformAdminId` is there, `clientUserId`
+comes with the portal); audit rows for reads other than files and documents. Why: one place decides what an audit row
+contains and hides, and the log can age out without the app ever being able to rewrite it.

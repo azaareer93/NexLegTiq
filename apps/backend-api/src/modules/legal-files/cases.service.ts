@@ -13,6 +13,7 @@ import { CaseAccessService } from './case-access.service';
 import { CasesRepository } from './cases.repository';
 import { FileNumberService } from './file-number.service';
 import { assertParticipants } from './participants';
+import { auditRow } from '../../common/audit/audit.service';
 import { changes } from '../../common/audit/changes';
 import type { RequestContext } from '../../common/context/request-context';
 import {
@@ -25,7 +26,6 @@ import { UnitOfWork } from '../../database/unit-of-work';
 import type { ScopedTransaction } from '../../database/unit-of-work';
 import { Prisma } from '../../generated/prisma/client';
 import type { ClientInfo } from '../auth/client-info';
-import { truncateUserAgent } from '../auth/client-info';
 import { assertCourtRefs, nextCourtRefs } from '../courts/court-refs';
 
 /** The office's calendar date in its time zone (D-092): a file opened at 01:00 in Hebron is opened that day. */
@@ -211,18 +211,18 @@ export class CasesService {
     oldValues: object | null,
     newValues: object | null,
   ) {
-    return {
-      officeId: this.officeId(),
-      userId: this.actorId(),
-      entityType: 'LegalFile',
-      entityId,
-      action,
-      ...(oldValues && { oldValues: JSON.parse(JSON.stringify(oldValues)) as object }),
-      ...(newValues && { newValues: JSON.parse(JSON.stringify(newValues)) as object }),
-      ipAddress: client.ip,
-      userAgent: truncateUserAgent(client.userAgent),
-      requestId: client.requestId,
-    };
+    return auditRow(
+      {
+        officeId: this.officeId(),
+        userId: this.actorId(),
+        entityType: 'LegalFile',
+        entityId,
+        action,
+        oldValues,
+        newValues,
+      },
+      client,
+    );
   }
 
   // A missing caller is a programming error (guarded routes always set it): 500 SYS-001, never a 403 that hides it.

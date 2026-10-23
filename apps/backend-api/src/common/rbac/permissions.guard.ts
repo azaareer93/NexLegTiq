@@ -14,7 +14,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { CONDITIONS_CHECKED_KEY, PERMISSIONS_KEY } from './permissions.decorator';
 import type { PermissionRequirement } from './permissions.decorator';
 import { PrismaService } from '../../database/prisma.service';
-import type { Prisma } from '../../generated/prisma/client';
+import { auditRow } from '../audit/audit.service';
 import type { AuthPrincipal, RequestContext } from '../context/request-context';
 import { AppException, PermissionDeniedException } from '../errors/app.exception';
 import { DEFAULT_MESSAGE } from '../errors/error-catalog';
@@ -28,8 +28,6 @@ type GuardedRequest = RoutedRequest & {
   method?: string;
   headers: Record<string, string | string[] | undefined>;
 };
-
-const MAX_USER_AGENT = 512;
 
 /**
  * Global guard for `@RequirePermissions` (ALL) / `@RequireAnyPermission` (ANY), D-051 / D-081. Runs after the JWT guard
@@ -98,22 +96,26 @@ export class PermissionsGuard implements CanActivate {
     request: GuardedRequest,
   ): Promise<void> {
     const requestId = this.cls.isActive() ? this.cls.getId() : undefined;
-    const data: Prisma.AuditLogUncheckedCreateInput = {
-      officeId: principal.officeId,
-      userId: principal.userId,
-      entityType: 'Route',
-      action: 'PERMISSION_DENIED',
-      newValues: {
-        method: request.method ?? null,
-        route: routeTemplateOf(request) ?? null,
-        mode: requirement.mode,
-        required: [...requirement.permissions],
-        role: principal.role,
+    const data = auditRow(
+      {
+        officeId: principal.officeId,
+        userId: principal.userId,
+        entityType: 'Route',
+        action: 'PERMISSION_DENIED',
+        newValues: {
+          method: request.method ?? null,
+          route: routeTemplateOf(request) ?? null,
+          mode: requirement.mode,
+          required: [...requirement.permissions],
+          role: principal.role,
+        },
       },
-      ipAddress: request.ip ?? null,
-      userAgent: firstHeader(request.headers['user-agent'])?.slice(0, MAX_USER_AGENT) ?? null,
-      requestId: requestId ?? null,
-    };
+      {
+        ip: request.ip ?? null,
+        userAgent: firstHeader(request.headers['user-agent']) ?? null,
+        requestId: requestId ?? null,
+      },
+    );
     try {
       await this.tenant.run(
         { officeId: principal.officeId, userId: principal.userId, requestId },

@@ -20,6 +20,9 @@ export interface RequestContext extends ClsStore {
   /** Derived from `role` by TenantInterceptor (ROLE_PERMISSIONS), never taken from the token. */
   permissions?: readonly Permission[];
   realm?: AuthRealm;
+  /** Client address (behind TRUST_PROXY_HOPS) and user agent, set when the request starts; for audit rows (D-136). */
+  ip?: string;
+  userAgent?: string;
 }
 
 /**

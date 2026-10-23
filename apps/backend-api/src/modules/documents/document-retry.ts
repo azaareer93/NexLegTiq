@@ -6,12 +6,12 @@ import { DocumentAccessService } from './document-access.service';
 import { documentJobId, PROCESS_DOCUMENT_JOB, SCAN_DOCUMENT_JOB } from './document-jobs';
 import { DocumentRecordsService } from './document-records.service';
 import { UploadIntake } from './upload/upload-intake';
+import { auditRow } from '../../common/audit/audit.service';
 import type { RequestContext } from '../../common/context/request-context';
 import { BusinessRuleException } from '../../common/errors/app.exception';
 import { QueueProducer } from '../../common/queue/queue-producer';
 import { QUEUE } from '../../common/queue/queues';
 import { UnitOfWork } from '../../database/unit-of-work';
-import { truncateUserAgent } from '../auth/client-info';
 import type { ClientInfo } from '../auth/client-info';
 
 /**
@@ -74,17 +74,17 @@ export class DocumentRetry {
     const userId = this.cls.get('userId');
     const officeId = this.cls.get('officeId');
     if (!userId || !officeId) throw new Error('No office caller in the request context');
-    return {
-      officeId,
-      userId,
-      entityType: 'Document',
-      entityId: id,
-      action: 'UPDATE' as const,
-      oldValues: { status: 'FAILED', processingErrorCode: errorCode },
-      newValues: { status, retried: true },
-      ipAddress: client.ip,
-      userAgent: truncateUserAgent(client.userAgent),
-      requestId: client.requestId,
-    };
+    return auditRow(
+      {
+        officeId,
+        userId,
+        entityType: 'Document',
+        entityId: id,
+        action: 'UPDATE',
+        oldValues: { status: 'FAILED', processingErrorCode: errorCode },
+        newValues: { status, retried: true },
+      },
+      client,
+    );
   }
 }

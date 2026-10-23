@@ -15,6 +15,7 @@ import { LoginAttemptRepository } from './login-attempt.repository';
 import { PasswordHasher } from './password-hasher';
 import { refreshExpiry, rotatedExpiry } from './refresh-token';
 import { RefreshTokenRepository, USER_FOR_SESSION } from './refresh-token.repository';
+import { auditRow } from '../../common/audit/audit.service';
 import { hashOpaqueToken, newOpaqueToken } from '../../common/auth/opaque-token';
 import { AppException } from '../../common/errors/app.exception';
 import { TenantRunner } from '../../common/tenancy/tenant-runner';
@@ -265,17 +266,17 @@ export class AuthService {
     details?: Prisma.InputJsonObject,
   ) {
     await tx.auditLog.create({
-      data: {
-        officeId: user.officeId,
-        userId: user.id,
-        entityType: 'User',
-        entityId: user.id,
-        action,
-        newValues: details,
-        ipAddress: client.ip,
-        userAgent: truncateUserAgent(client.userAgent),
-        requestId: client.requestId,
-      },
+      data: auditRow(
+        {
+          officeId: user.officeId,
+          userId: user.id,
+          entityType: 'User',
+          entityId: user.id,
+          action,
+          newValues: details ?? null,
+        },
+        client,
+      ),
     });
   }
 }
