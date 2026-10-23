@@ -39,7 +39,8 @@ function setup({
   existing = partyRow() as object | null,
   filePartyBefore = { partyType: 'THIRD_PARTY', roleLabel: null, party: partyRow() } as
     object | null,
-  remaining = 0,
+  conflictRows = [] as object[],
+  fileStatus = { status: 'OPEN', deleted: false } as object | null,
 } = {}) {
   const fileParty = {
     id: 'fp1',
@@ -61,12 +62,22 @@ function setup({
       findMany: jest.fn().mockResolvedValue([]),
       update: jest.fn(),
       delete: jest.fn(),
-      count: jest.fn().mockResolvedValue(remaining),
     },
-    conflictOfInterest: { findFirst: jest.fn(), create: jest.fn(), deleteMany: jest.fn() },
+    conflictOfInterest: {
+      findMany: jest.fn().mockResolvedValue(conflictRows),
+      createMany: jest.fn(),
+      deleteMany: jest.fn(),
+    },
     caseTimelineEvent: { create: jest.fn() },
     auditLog: { create: jest.fn() },
-    $queryRaw: jest.fn().mockResolvedValue([]),
+    // The file lock answers with the file's state; the party lock and the client lookup with nothing.
+    $queryRaw: jest
+      .fn()
+      .mockImplementation((sql: TemplateStringsArray) =>
+        Promise.resolve(
+          sql.join('').includes('FROM legal_files') && fileStatus ? [fileStatus] : [],
+        ),
+      ),
   };
   const db = {
     ...tx,
@@ -123,6 +134,21 @@ describe('PartiesService (D-135)', () => {
     expect(tx.caseTimelineEvent.create).toHaveBeenCalled();
   });
 
+  it('should check the file again inside the write: deleted → 404, archived → BIZ-007', async () => {
+    const body = { partyId: 'p1', partyType: 'PLAINTIFF' } as const;
+    await expect(setup({ fileStatus: null }).service.add(FILE, body, client)).rejects.toMatchObject(
+      {
+        code: 'RES-001',
+      },
+    );
+    await expect(
+      setup({ fileStatus: { status: 'OPEN', deleted: true } }).service.add(FILE, body, client),
+    ).rejects.toMatchObject({ code: 'RES-001' });
+    await expect(
+      setup({ fileStatus: { status: 'ARCHIVED', deleted: false } }).service.add(FILE, body, client),
+    ).rejects.toMatchObject({ code: 'BIZ-007' });
+  });
+
   it('should refuse an unknown existing party', async () => {
     await expect(
       setup({ existing: null }).service.add(FILE, { partyId: 'x', partyType: 'PLAINTIFF' }, client),
@@ -144,17 +170,19 @@ describe('PartiesService (D-135)', () => {
     ).rejects.toMatchObject({ code: 'RES-001' });
   });
 
-  it('should drop open conflicts only when the party has left the file', async () => {
-    const gone = setup({ filePartyBefore: { partyId: 'p1', partyType: 'DEFENDANT' } });
-    await gone.service.remove(FILE, 'fp1', client);
-    expect(gone.tx.conflictOfInterest.deleteMany).toHaveBeenCalled();
-
-    const stays = setup({
-      filePartyBefore: { partyId: 'p1', partyType: 'DEFENDANT' },
-      remaining: 1,
+  it('should withdraw, with an audit row, the open conflicts that no longer hold once the party is removed', async () => {
+    const removed = { partyId: 'p1', partyType: 'DEFENDANT', party: partyRow() };
+    const gone = setup({
+      filePartyBefore: removed,
+      conflictRows: [{ id: 'c1', fileIdA: FILE, fileIdB: 'g', resolved: false }],
     });
-    await stays.service.remove(FILE, 'fp1', client);
-    expect(stays.tx.conflictOfInterest.deleteMany).not.toHaveBeenCalled();
+    await gone.service.remove(FILE, 'fp1', client);
+    expect(gone.tx.conflictOfInterest.deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ['c1'] } },
+    });
+    expect(gone.tx.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ entityType: 'ConflictOfInterest', action: 'DELETE' }),
+    });
 
     await expect(
       setup({ filePartyBefore: null }).service.remove(FILE, 'x', client),

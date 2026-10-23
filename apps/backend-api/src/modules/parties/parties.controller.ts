@@ -69,8 +69,9 @@ export class PartiesController {
     private readonly cls: ClsService<RequestContext>,
   ) {}
 
+  // A picker for adding parties: only for people who may add them (the registry spans confidential files too).
   @Get('parties')
-  @RequireAnyPermission(...READ)
+  @RequireAnyPermission(...EDIT)
   @ApiOperation({
     summary: 'Find parties to reuse: Arabic-normalised name, or an exact national or tax id',
   })

@@ -45,6 +45,8 @@ export class ConflictsService {
   ) {}
 
   async list(query: ConflictQuery): Promise<PaginatedResult<Conflict>> {
+    // Filtering by a file the reader cannot open would tell them it has conflicts: 404, as for any route on it.
+    if (query.fileId) await this.access.assertFileAccess(query.fileId, 'read');
     const visible = this.access.visibleWhere();
     const where: Prisma.ConflictOfInterestWhereInput = {
       OR: [{ fileA: visible }, { fileB: visible }],
@@ -112,12 +114,11 @@ export class ConflictsService {
         },
       });
     });
-    const [row] = await this.prisma.db.conflictOfInterest.findMany({
+    const row = await this.prisma.db.conflictOfInterest.findFirst({
       where: { id },
       select: CONFLICT_SELECT,
     });
-    if (!row) throw new ResourceNotFoundException();
-    const [presented] = await this.present([row]);
+    const [presented] = row ? await this.present([row]) : [];
     if (!presented) throw new ResourceNotFoundException();
     return presented;
   }
@@ -154,7 +155,9 @@ export class ConflictsService {
               otherFile: shown(row.fileB),
               detectedAt: row.detectedAt.toISOString(),
               resolved: row.resolved,
-              resolutionNotes: row.resolutionNotes,
+              // The note may describe either matter: only for readers who can open both.
+              resolutionNotes:
+                visible.has(row.fileA.id) && visible.has(row.fileB.id) ? row.resolutionNotes : null,
               resolvedAt: row.resolvedAt?.toISOString() ?? null,
             },
           ]

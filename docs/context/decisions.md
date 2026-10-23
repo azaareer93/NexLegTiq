@@ -1938,3 +1938,20 @@ name matching is exact after normalisation (no fuzzy similarity) and misses a cl
 this migration; rule (1) also flags a repeat opponent (the same company sued twice), which the lawyer resolves with a
 note. Why: the conflict check works on encrypted identifiers without decrypting a table, and never reveals a file the
 reader may not open.
+Review additions (same PR): **the check is symmetric and complete** — it no longer depends on the order roles were
+added: a pair of open files conflicts over a party when it has roles on both and **either** role is a dispute side, or it is
+adverse on one and the client of the other (both directions). Every add, retype and removal **re-syncs** the party's open
+conflicts on that file: missing pairs are created in one statement, open ones that no longer hold (the party removed or
+made neutral) are deleted with a `ConflictOfInterest` DELETE audit row each, resolved ones are never touched. **Writes lock
+the party row** (`FOR UPDATE`) so two simultaneous changes about the same party see each other (tested: two parallel adds
+record each pair once), and **lock and re-check the file** (`FOR NO KEY UPDATE`: deleted meanwhile → 404, archived →
+BIZ-007), as D-119/D-126 writes do. **Registry search needs `edit:any|assigned:case`** (it is a picker for adding parties;
+trainees and outside collaborators no longer see names and contacts of parties on files they cannot open).
+**Resolution notes** are returned only to readers who can open both files (a note may describe the confidential matter);
+`GET /conflicts?fileId=` on a file the reader cannot open is 404. "Fuzzy" in W9 is read as Arabic-normalised substring for
+names and exact match for identifiers (D-059's trigram similarity ranking is left to global search). Rotating
+`ENCRYPTION_KEY` must recompute the blind indexes too (ops-security.md). **Not done (also):** an existing adverse party
+becoming the client of a new file is checked only when that party is next added or retyped (the client/case-creation
+flows should call the same sync); party notes and identifiers belong to the party and are shown on every file it is on;
+the conflict check can confirm that a guessed national id belongs to some client (`otherFile: null`), a risk accepted for
+holders of edit rights; detection compares client names without an index (fine at office scale).

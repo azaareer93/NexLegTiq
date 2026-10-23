@@ -58,7 +58,12 @@ describe('parties and conflicts (HTTP + PostgreSQL)', () => {
 
   async function file(
     lawyer: Seeded,
-    extra: { status?: 'OPEN' | 'CLOSED'; isConfidential?: boolean; clientName?: string } = {},
+    extra: {
+      status?: 'OPEN' | 'CLOSED' | 'SUSPENDED' | 'ARCHIVED';
+      isConfidential?: boolean;
+      clientName?: string;
+      deletedAt?: Date;
+    } = {},
   ) {
     const created = await raw.legalFile.create({
       data: {
@@ -68,6 +73,7 @@ describe('parties and conflicts (HTTP + PostgreSQL)', () => {
         fileType: 'LITIGATION',
         status: extra.status ?? 'OPEN',
         isConfidential: extra.isConfidential ?? false,
+        deletedAt: extra.deletedAt ?? null,
         responsibleLawyerId: lawyer.userId,
         jurisdiction: 'PALESTINE',
         currency: 'ILS',
@@ -283,10 +289,19 @@ describe('parties and conflicts (HTTP + PostgreSQL)', () => {
       .set(bearerFor(jwt, lawyer))
       .send({ notes: 'Different person, checked the ID card' })
       .expect(200);
+    // The note may describe the confidential matter: only a reader of both files sees it.
     expect((resolved.body as { data: Conflict }).data).toMatchObject({
       resolved: true,
-      resolutionNotes: 'Different person, checked the ID card',
+      resolutionNotes: null,
     });
+    const asManager = await http()
+      .get('/api/v1/conflicts')
+      .query({ resolved: 'true' })
+      .set(bearerFor(jwt, manager))
+      .expect(200);
+    expect((asManager.body as { data: Conflict[] }).data[0]?.resolutionNotes).toBe(
+      'Different person, checked the ID card',
+    );
     const twice = await http()
       .patch(`/api/v1/conflicts/${conflict?.id}/resolve`)
       .set(bearerFor(jwt, lawyer))
@@ -362,5 +377,139 @@ describe('parties and conflicts (HTTP + PostgreSQL)', () => {
     expect((search.body as { data: Party[] }).data).toEqual([]);
     const otherFile = await file(other.manager);
     await add(other.manager, otherFile.id, { partyId, partyType: 'PLAINTIFF' }).expect(400);
+  });
+  const partyIdOf = (res: { body: unknown }) =>
+    (res.body as { data: AddFilePartyResult }).data.fileParty.party.id;
+  const conflictsOf = (res: { body: unknown }) =>
+    (res.body as { data: AddFilePartyResult }).data.conflicts;
+
+  it('should find the conflict whichever role came first, on suspended files, but not on deleted ones', async () => {
+    const { manager } = await office();
+    const witnessFile = await file(manager, { status: 'SUSPENDED' });
+    const first = await add(manager, witnessFile.id, {
+      party: person('Nabil Witness'),
+      partyType: 'THIRD_PARTY',
+    }).expect(201);
+    expect(conflictsOf(first)).toEqual([]);
+    const partyId = partyIdOf(first);
+    const adverseFile = await file(manager);
+    const second = await add(manager, adverseFile.id, { partyId, partyType: 'DEFENDANT' }).expect(
+      201,
+    );
+    expect(conflictsOf(second)).toMatchObject([
+      { reason: 'ADVERSE_ON_OTHER_FILE', otherFile: { id: witnessFile.id } },
+    ]);
+
+    const deleted = await file(manager, { deletedAt: new Date() });
+    await raw.fileParty.create({
+      data: { officeId: manager.officeId, fileId: deleted.id, partyId, partyType: 'PLAINTIFF' },
+    });
+    const third = await file(manager);
+    const again = await add(manager, third.id, { partyId, partyType: 'THIRD_PARTY' }).expect(201);
+    // The suspended and the open file conflict (the party is a defendant there); the deleted one never does.
+    expect(conflictsOf(again).map((c) => c.otherFile?.id)).toEqual([adverseFile.id]);
+  });
+
+  it('should record one conflict for two simultaneous adds of the same party', async () => {
+    const { manager } = await office();
+    const seed = await file(manager);
+    const created = await add(manager, seed.id, {
+      party: person('Racing Party'),
+      partyType: 'THIRD_PARTY',
+    }).expect(201);
+    const partyId = partyIdOf(created);
+    const [x, y] = [await file(manager), await file(manager)];
+    await Promise.all([
+      add(manager, x.id, { partyId, partyType: 'DEFENDANT' }).expect(201),
+      add(manager, y.id, { partyId, partyType: 'PLAINTIFF' }).expect(201),
+    ]);
+    const rows = await raw.conflictOfInterest.findMany({ where: { partyId } });
+    const pairs = rows.map((row) => [row.fileIdA, row.fileIdB].sort().join());
+    // seed–x, seed–y and x–y, each once.
+    expect(new Set(pairs).size).toBe(3);
+    expect(rows).toHaveLength(3);
+  });
+
+  it('should match a client created through the API by its id, and drop the conflict when the role becomes neutral', async () => {
+    const { manager } = await office();
+    const clientFile = await file(manager);
+    const createdClient = await http()
+      .post('/api/v1/clients')
+      .set(bearerFor(jwt, manager))
+      .send({ clientType: 'INDIVIDUAL', displayName: 'Huda Client', nationalId: '٨٨٨ ٧٧٧ ٦٦٦' })
+      .expect(201);
+    const clientId = (createdClient.body as { data: { id: string } }).data.id;
+    expect((await raw.client.findUniqueOrThrow({ where: { id: clientId } })).nationalIdIndex).toBe(
+      app.get(FieldCipher).blindIndex('888777666', `national_id:${manager.officeId}`),
+    );
+    await raw.fileClient.create({
+      data: { officeId: manager.officeId, fileId: clientFile.id, clientId, isPrimary: true },
+    });
+    const target = await file(manager);
+    const res = await add(manager, target.id, {
+      party: person('Someone Else', { nationalId: '888-777-666' }),
+      partyType: 'APPELLANT',
+    }).expect(201);
+    expect(conflictsOf(res)).toMatchObject([{ reason: 'CLIENT_ON_OTHER_FILE' }]);
+    const filePartyId = (res.body as { data: AddFilePartyResult }).data.fileParty.id;
+    const neutral = await http()
+      .patch(`/api/v1/cases/${target.id}/parties/${filePartyId}`)
+      .set(bearerFor(jwt, manager))
+      .send({ partyType: 'INTERESTED_PARTY' })
+      .expect(200);
+    expect(conflictsOf(neutral)).toEqual([]);
+    expect(
+      await raw.auditLog.count({ where: { entityType: 'ConflictOfInterest', action: 'DELETE' } }),
+    ).toBeGreaterThan(0);
+
+    // The same identifier in another office matches nothing there.
+    const other = await office();
+    const found = await http()
+      .get('/api/v1/parties')
+      .query({ search: '888777666' })
+      .set(bearerFor(jwt, other.manager))
+      .expect(200);
+    expect((found.body as { data: Party[] }).data).toEqual([]);
+  });
+
+  it('should refuse a duplicate role, an archived file, other offices on conflicts, and the registry to trainees', async () => {
+    const { manager, officeId } = await office();
+    const target = await file(manager);
+    const created = await add(manager, target.id, {
+      party: person('Twice'),
+      partyType: 'PLAINTIFF',
+    }).expect(201);
+    const twice = await add(manager, target.id, {
+      partyId: partyIdOf(created),
+      partyType: 'PLAINTIFF',
+    }).expect(409);
+    expect((twice.body as ErrorBody).error.code).toBe('RES-002');
+    const archived = await file(manager, { status: 'ARCHIVED' });
+    const refused = await add(manager, archived.id, {
+      party: person('Late'),
+      partyType: 'PLAINTIFF',
+    }).expect(422);
+    expect((refused.body as ErrorBody).error.code).toBe('BIZ-007');
+
+    const trainee = await user(officeId, 'TRAINEE');
+    await http().get('/api/v1/parties').set(bearerFor(jwt, trainee)).expect(403);
+
+    const second = await file(manager);
+    const conflict = await add(manager, second.id, {
+      partyId: partyIdOf(created),
+      partyType: 'DEFENDANT',
+    }).expect(201);
+    const [found] = conflictsOf(conflict);
+    const other = await office();
+    await http()
+      .patch(`/api/v1/conflicts/${found?.id}/resolve`)
+      .set(bearerFor(jwt, other.manager))
+      .send({ notes: 'no' })
+      .expect(404);
+    await http()
+      .get('/api/v1/conflicts')
+      .query({ fileId: target.id })
+      .set(bearerFor(jwt, other.manager))
+      .expect(404);
   });
 });

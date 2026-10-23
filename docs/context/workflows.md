@@ -14,8 +14,9 @@
   (`{YEAR}-{TYPE}-{SEQ}`), timeline `FILE_OPENED`, tasks auto-created from TaskTemplates for the file type (due = open + N days).
   Target: < 2 minutes for a first-time user.
 - **W8 Lawyer scope** — LAWYER/PARALEGAL/TRAINEE/X see assigned files only; SL sees all.
-- **W9 Conflict check** — adding a party: search office parties (name/nationalId/taxId fuzzy) → if the party is on another file on an
-  adverse side (or is that file's client) → create ConflictOfInterest + warning modal: proceed with note / cancel / reassign.
+- **W9 Conflict check** — adding a party: search office parties (Arabic-normalised name substring, exact nationalId/taxId) → if the
+  party is on another open file and either role is a dispute side (or it is adverse on one file and the other's client) →
+  ConflictOfInterest + warning (never blocks): proceed and resolve with a note, or remove the party (D-135).
 - **W10 Invoicing** — select client (+ optional file) and period → unbilled billable time entries → Draft invoice with line items + tax →
   send (email PDF, optionally share to portal) → mark paid. Consolidated per client when `fileId` null.
 - **Hearing lifecycle** — create (conflict check same lawyer overlapping → 409 unless acknowledged) → reminders at 7/3/1 days (email + in-app,

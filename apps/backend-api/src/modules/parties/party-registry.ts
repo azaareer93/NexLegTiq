@@ -157,7 +157,7 @@ export class PartyRegistry {
 
   audit(
     client: ClientInfo,
-    entityType: 'Party' | 'FileParty',
+    entityType: 'Party' | 'FileParty' | 'ConflictOfInterest',
     entityId: string,
     action: 'CREATE' | 'UPDATE' | 'DELETE',
     oldValues: object | null,

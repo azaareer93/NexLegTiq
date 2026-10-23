@@ -1,6 +1,6 @@
 import type { ClsService } from 'nestjs-cls';
 
-import { detectConflicts } from './conflict-detection';
+import { syncConflicts } from './conflict-detection';
 import { ConflictsService } from './conflicts.service';
 import type { RequestContext } from '../../common/context/request-context';
 import { AppException, ResourceNotFoundException } from '../../common/errors/app.exception';
@@ -33,7 +33,8 @@ function setup({
     conflictOfInterest: {
       findMany: jest.fn().mockResolvedValue([row(), row({ id: 'c2', reason: 'LEGACY' })]),
       count: jest.fn().mockResolvedValue(2),
-      findFirst: jest.fn().mockResolvedValue(found),
+      // The lookup, then the read of the resolved row.
+      findFirst: jest.fn().mockResolvedValueOnce(found).mockResolvedValue(row()),
     },
     legalFile: { findMany: jest.fn().mockResolvedValue(visible.map((id) => ({ id }))) },
   };
@@ -62,7 +63,7 @@ function setup({
 
 describe('ConflictsService (D-135)', () => {
   it('should hide files the reader cannot open and drop unknown reasons', async () => {
-    const page = await setup().service.list({ page: 1, limit: 20, resolved: 'false', fileId: 'a' });
+    const page = await setup().service.list({ page: 1, limit: 20, resolved: 'false', fileId: 'b' });
     expect(page.items).toEqual([
       expect.objectContaining({
         id: 'c1',
@@ -96,32 +97,88 @@ describe('ConflictsService (D-135)', () => {
   });
 });
 
-describe('detectConflicts (D-135)', () => {
+describe('syncConflicts (D-135)', () => {
   function tx({
-    adverse = [] as object[],
-    clients = [] as object[],
-    known = null as object | null,
+    roles = [] as { fileId: string; partyType: string }[],
+    clients = [] as string[],
+    existing = [] as object[],
   } = {}) {
     return {
-      fileParty: { findMany: jest.fn().mockResolvedValue(adverse) },
-      $queryRaw: jest.fn().mockResolvedValue(clients),
-      conflictOfInterest: { findFirst: jest.fn().mockResolvedValue(known), create: jest.fn() },
+      fileParty: { findMany: jest.fn().mockResolvedValue(roles) },
+      $queryRaw: jest.fn().mockResolvedValue(clients.map((file_id) => ({ file_id }))),
+      conflictOfInterest: {
+        findMany: jest.fn().mockResolvedValue(existing),
+        createMany: jest.fn(),
+        deleteMany: jest.fn(),
+      },
     };
   }
   const party = { id: 'p1', name: 'Omar', nationalIdIndex: 'n', taxIdIndex: null };
+  const run = (t: ReturnType<typeof tx>) =>
+    syncConflicts(t as unknown as ScopedTransaction, 'o1', 'f', party);
+  const created = (t: ReturnType<typeof tx>) =>
+    (t.conflictOfInterest.createMany.mock.calls[0]?.[0] as { data: object[] } | undefined)?.data ??
+    [];
 
-  it('should record each new pair once, check clients only for adverse roles, and skip known pairs', async () => {
-    const t = tx({ adverse: [{ fileId: 'g1' }], clients: [{ file_id: 'g2' }] });
-    await detectConflicts(t as unknown as ScopedTransaction, 'o1', 'f', party, 'DEFENDANT');
-    expect(t.conflictOfInterest.create).toHaveBeenCalledTimes(2);
+  it('should flag a pair when either role is a dispute side, whichever came first', async () => {
+    const witnessFirst = tx({
+      roles: [
+        { fileId: 'f', partyType: 'DEFENDANT' },
+        { fileId: 'g', partyType: 'THIRD_PARTY' },
+      ],
+    });
+    await run(witnessFirst);
+    expect(created(witnessFirst)).toEqual([
+      expect.objectContaining({ fileIdB: 'g', reason: 'ADVERSE_ON_OTHER_FILE' }),
+    ]);
+    const neutral = tx({
+      roles: [
+        { fileId: 'f', partyType: 'GUARANTOR' },
+        { fileId: 'g', partyType: 'THIRD_PARTY' },
+      ],
+    });
+    await run(neutral);
+    expect(neutral.conflictOfInterest.createMany).not.toHaveBeenCalled();
+  });
 
-    const neutral = tx({ clients: [{ file_id: 'g2' }] });
-    await detectConflicts(neutral as unknown as ScopedTransaction, 'o1', 'f', party, 'GUARANTOR');
-    expect(neutral.$queryRaw).not.toHaveBeenCalled();
-    expect(neutral.conflictOfInterest.create).not.toHaveBeenCalled();
+  it('should flag the client of another file when adverse here, and an adverse role elsewhere when the client here', async () => {
+    const adverse = tx({ roles: [{ fileId: 'f', partyType: 'PLAINTIFF' }], clients: ['g'] });
+    await run(adverse);
+    expect(created(adverse)).toEqual([
+      expect.objectContaining({ fileIdB: 'g', reason: 'CLIENT_ON_OTHER_FILE' }),
+    ]);
+    const clientHere = tx({
+      roles: [
+        { fileId: 'f', partyType: 'THIRD_PARTY' },
+        { fileId: 'g', partyType: 'DEFENDANT' },
+      ],
+      clients: ['f'],
+    });
+    await run(clientHere);
+    expect(created(clientHere)).toEqual([
+      expect.objectContaining({ fileIdB: 'g', reason: 'CLIENT_ON_OTHER_FILE' }),
+    ]);
+  });
 
-    const known = tx({ adverse: [{ fileId: 'g1' }], known: { id: 'c' } });
-    await detectConflicts(known as unknown as ScopedTransaction, 'o1', 'f', party, 'THIRD_PARTY');
-    expect(known.conflictOfInterest.create).not.toHaveBeenCalled();
+  it('should withdraw open conflicts that no longer hold, keep resolved ones, and not record a pair twice', async () => {
+    const t = tx({
+      roles: [{ fileId: 'g', partyType: 'DEFENDANT' }],
+      existing: [
+        { id: 'c1', fileIdA: 'g', fileIdB: 'f', resolved: false },
+        { id: 'c2', fileIdA: 'f', fileIdB: 'h', resolved: true },
+      ],
+    });
+    await expect(run(t)).resolves.toEqual([{ id: 'c1', otherFileId: 'g' }]);
+    expect(t.conflictOfInterest.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['c1'] } } });
+
+    const known = tx({
+      roles: [
+        { fileId: 'f', partyType: 'DEFENDANT' },
+        { fileId: 'g', partyType: 'DEFENDANT' },
+      ],
+      existing: [{ id: 'c1', fileIdA: 'g', fileIdB: 'f', resolved: true }],
+    });
+    await expect(run(known)).resolves.toEqual([]);
+    expect(known.conflictOfInterest.createMany).not.toHaveBeenCalled();
   });
 });
