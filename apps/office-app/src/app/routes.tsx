@@ -13,6 +13,7 @@ import {
   RouteError,
 } from '../features/shell';
 import type { NavKey } from '../features/shell';
+import { tasksRoutes } from '../features/tasks';
 import { teamRoutes } from '../features/team';
 
 /** A lazy placeholder page, until its feature replaces it (its own chunk: the module is only imported here). */
@@ -28,6 +29,7 @@ const FEATURE_ROUTES: Partial<Record<NavKey, RouteObject[]>> = {
   cases: casesRoutes,
   clients: clientsRoutes,
   settings: settingsRoutes,
+  tasks: tasksRoutes,
   team: teamRoutes,
 };
 

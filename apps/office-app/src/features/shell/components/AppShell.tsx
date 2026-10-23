@@ -17,6 +17,7 @@ import { APP_NAME } from '../../../app/app-name';
 import { useSession } from '../../auth';
 import { QuickCreateCaseHost } from '../../cases';
 import { RealtimeBridge } from '../../realtime';
+import { TaskDrawerHost } from '../../tasks';
 import { navKeyOf, PRIMARY_KEYS, useNavItems } from '../nav';
 
 /** Height of the phone bottom bar, which the content keeps clear of (plus the iPhone home-indicator area). */
@@ -160,6 +161,7 @@ export function AppShell(): React.JSX.Element {
         <ReadOnlyBanner />
         <VerifyBanner />
         <QuickCreateCaseHost />
+        <TaskDrawerHost />
         <RealtimeBridge />
         <Layout.Content
           style={{
