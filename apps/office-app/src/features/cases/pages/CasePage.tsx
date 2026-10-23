@@ -32,6 +32,8 @@ import { EditCaseDrawer } from '../components/EditCaseDrawer';
 import { DocumentsTab } from '../documents/DocumentsTab';
 import { fileActions, readTab, visibleTabs } from '../file-page';
 import type { FileActions } from '../file-page';
+import { ConflictBanner } from '../parties/ConflictBanner';
+import { PartiesTab } from '../parties/PartiesTab';
 import { useHearingShortcut, useSessionRights } from '../sessions/session-rights';
 import { SessionDrawer } from '../sessions/SessionDrawer';
 import { SessionsTab } from '../sessions/SessionsTab';
@@ -196,6 +198,7 @@ function FileView({
     if (key === 'documents') {
       return <DocumentsTab fileId={file.id} archived={file.status === 'ARCHIVED'} />;
     }
+    if (key === 'parties') return <PartiesTab fileId={file.id} canEdit={actions.edit} />;
     if (key === 'sessions') {
       return <SessionsTab fileId={file.id} canCreate={sessionRights.create} onOpen={setHearing} />;
     }
@@ -227,6 +230,7 @@ function FileView({
             data-testid="case-archived-banner"
           />
         ) : null}
+        <ConflictBanner fileId={file.id} canResolve={actions.edit} />
         <Tabs
           activeKey={tab}
           onChange={selectTab}
