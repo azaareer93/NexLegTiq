@@ -11,6 +11,7 @@ import { ClsService } from 'nestjs-cls';
 import { DocumentAccessService } from './document-access.service';
 import type { AccessibleDocument } from './document-access.service';
 import { UploadIntake } from './upload/upload-intake';
+import { auditRow } from '../../common/audit/audit.service';
 import { changes } from '../../common/audit/changes';
 import type { RequestContext } from '../../common/context/request-context';
 import {
@@ -26,7 +27,6 @@ import { UnitOfWork } from '../../database/unit-of-work';
 import type { ScopedTransaction } from '../../database/unit-of-work';
 import type { Prisma } from '../../generated/prisma/client';
 import type { ClientInfo } from '../auth/client-info';
-import { truncateUserAgent } from '../auth/client-info';
 import { CaseAccessService } from '../legal-files/case-access.service';
 
 /** Characters per page of `GET /documents/:id/text`. */
@@ -286,17 +286,17 @@ export class DocumentRecordsService {
   ) {
     const userId = this.cls.get('userId');
     if (!userId) throw new Error('No office caller in the request context');
-    return {
-      officeId: this.officeId(),
-      userId,
-      entityType: 'Document',
-      entityId,
-      action,
-      ...(oldValues && { oldValues: oldValues as object }),
-      newValues: newValues as object,
-      ipAddress: caller.ip,
-      userAgent: truncateUserAgent(caller.userAgent),
-      requestId: caller.requestId,
-    };
+    return auditRow(
+      {
+        officeId: this.officeId(),
+        userId,
+        entityType: 'Document',
+        entityId,
+        action,
+        oldValues,
+        newValues,
+      },
+      caller,
+    );
   }
 }

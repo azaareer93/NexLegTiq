@@ -32,7 +32,8 @@
     "hearingReminder": "جلسة قادمة في الملف {{fileNumber}}",
     "fileReassigned": "أُسند إليك الملف {{fileNumber}}",
     "documentQuarantined": "حُجب المستند ⁨{{name}}⁩ لاحتوائه على برمجية خبيثة",
-    "documentFailed": "تعذّر استخراج نص المستند ⁨{{name}}⁩"
+    "documentFailed": "تعذّر استخراج نص المستند ⁨{{name}}⁩",
+    "invitationAccepted": "قُبلت دعوتك من ⁨{{name}}⁩"
   },
   "profile": {
     "menu": "قائمة الحساب",

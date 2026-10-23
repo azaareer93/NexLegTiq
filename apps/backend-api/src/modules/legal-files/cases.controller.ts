@@ -31,6 +31,7 @@ import type { Request } from 'express';
 import { ClsService } from 'nestjs-cls';
 
 import { CasesService } from './cases.service';
+import { AuditService } from '../../common/audit/audit.service';
 import type { RequestContext } from '../../common/context/request-context';
 import { ResourceNotFoundException } from '../../common/errors/app.exception';
 import type { PaginatedResult } from '../../common/http/paginated-result';
@@ -51,6 +52,7 @@ export class CasesController {
   constructor(
     private readonly cases: CasesService,
     private readonly cls: ClsService<RequestContext>,
+    private readonly audit: AuditService,
   ) {}
 
   @Post()
@@ -80,8 +82,11 @@ export class CasesController {
   @RequireAnyPermission('view:all:cases', 'view:assigned:cases')
   @ApiOperation({ summary: 'A file with its clients, team and counts (404 if not visible)' })
   @ApiZodResponse(HttpStatus.OK, CaseSchema)
-  get(@Param('id', fileId) id: string): Promise<Case> {
-    return this.cases.get(id);
+  async get(@Param('id', fileId) id: string): Promise<Case> {
+    const file = await this.cases.get(id);
+    // Opening a file is audited, once per user and file every 10 minutes (D-136).
+    await this.audit.view('LegalFile', id);
+    return file;
   }
 
   @Patch(':id')

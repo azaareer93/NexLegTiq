@@ -8,14 +8,20 @@ import {
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import {
+  AcceptInviteRequestSchema,
   AuthSessionSchema,
+  InvitePreviewRequestSchema,
+  InvitePreviewSchema,
   LoginRequestSchema,
   RegisterRequestSchema,
   ResendVerificationRequestSchema,
   VerifyEmailRequestSchema,
 } from '@nexlegtiq/shared-contracts';
 import type {
+  AcceptInviteRequest,
   AuthSession,
+  InvitePreview,
+  InvitePreviewRequest,
   LoginRequest,
   RegisterRequest,
   ResendVerificationRequest,
@@ -29,6 +35,7 @@ import type { IssuedSession } from './auth.service';
 import { clientFromRequest } from './client-info';
 import type { ClientInfo } from './client-info';
 import { assertCookieRequestOrigin } from './csrf';
+import { InvitationAcceptService } from './invitation-accept.service';
 import { REFRESH_COOKIE, refreshCookieOptions } from './refresh-token';
 import { SignupService } from './signup.service';
 import { Public } from '../../common/auth/public.decorator';
@@ -42,7 +49,10 @@ const MINUTE_MS = 60_000;
 /** Refusals that mean the cookie is dead; any other error (CSRF, rate limit, outage) leaves it alone. */
 const DEAD_COOKIE_CODES = new Set(['AUTH-004', 'AUTH-005', 'AUTH-006', 'AUTH-010']);
 
-/** `/api/v1/auth` — signup, email verification, login, refresh, logout (auth-rbac.md, Flows; D-050, D-053, D-055, D-083). */
+/**
+ * `/api/v1/auth` — signup, email verification, invitations, login, refresh, logout (auth-rbac.md, Flows; D-050, D-053,
+ * D-055, D-083, D-134).
+ */
 @ApiTags('auth')
 @Public()
 @Controller('auth')
@@ -50,6 +60,7 @@ export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly signup: SignupService,
+    private readonly invitations: InvitationAcceptService,
     private readonly config: AppConfig,
     private readonly cls: ClsService<RequestContext>,
   ) {}
@@ -101,6 +112,38 @@ export class AuthController {
     @Req() req: Request,
   ): Promise<void> {
     await this.signup.resendVerification(body, this.client(req));
+  }
+
+  @Post('invites/preview')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 10, ttl: MINUTE_MS } })
+  @ApiOperation({
+    summary:
+      'Preview an invitation from its link (410 RES-004 if invalid, used, revoked or expired)',
+  })
+  @ApiZodBody(InvitePreviewRequestSchema)
+  @ApiZodResponse(200, InvitePreviewSchema)
+  invitePreview(
+    @Body(new ZodValidationPipe(InvitePreviewRequestSchema)) body: InvitePreviewRequest,
+  ): Promise<InvitePreview> {
+    return this.invitations.preview(body.token);
+  }
+
+  @Post('accept-invite')
+  @HttpCode(HttpStatus.CREATED)
+  @Throttle({ default: { limit: 5, ttl: MINUTE_MS } })
+  @ApiOperation({
+    summary:
+      'Accept an invitation: creates the user and logs in like /auth/login (410 RES-004 if the link is invalid)',
+  })
+  @ApiZodBody(AcceptInviteRequestSchema)
+  @ApiZodResponse(201, AuthSessionSchema)
+  async acceptInvite(
+    @Body(new ZodValidationPipe(AcceptInviteRequestSchema)) body: AcceptInviteRequest,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AuthSession> {
+    return this.respond(await this.invitations.accept(body, this.client(req)), res);
   }
 
   @Post('login')

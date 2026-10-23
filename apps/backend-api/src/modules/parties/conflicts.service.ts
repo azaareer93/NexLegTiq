@@ -3,6 +3,7 @@ import { CONFLICT_REASONS } from '@nexlegtiq/shared-contracts';
 import type { Conflict, ConflictQuery, ConflictReason } from '@nexlegtiq/shared-contracts';
 import { ClsService } from 'nestjs-cls';
 
+import { auditRow } from '../../common/audit/audit.service';
 import type { RequestContext } from '../../common/context/request-context';
 import { AppException, ResourceNotFoundException } from '../../common/errors/app.exception';
 import { PaginatedResult } from '../../common/http/paginated-result';
@@ -10,7 +11,6 @@ import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { Prisma } from '../../generated/prisma/client';
 import type { ClientInfo } from '../auth/client-info';
-import { truncateUserAgent } from '../auth/client-info';
 import { CaseAccessService } from '../legal-files/case-access.service';
 
 const FILE = { select: { id: true, fileNumber: true, title: true } } as const;
@@ -100,18 +100,18 @@ export class ConflictsService {
       if (done.count === 0)
         throw new AppException('BIZ-017', 'The conflict has already been resolved');
       await tx.auditLog.create({
-        data: {
-          officeId: this.officeId(),
-          userId,
-          entityType: 'ConflictOfInterest',
-          entityId: id,
-          action: 'UPDATE',
-          oldValues: { resolved: false },
-          newValues: { resolved: true, resolutionNotes: notes },
-          ipAddress: client.ip,
-          userAgent: truncateUserAgent(client.userAgent),
-          requestId: client.requestId,
-        },
+        data: auditRow(
+          {
+            officeId: this.officeId(),
+            userId,
+            entityType: 'ConflictOfInterest',
+            entityId: id,
+            action: 'UPDATE',
+            oldValues: { resolved: false },
+            newValues: { resolved: true, resolutionNotes: notes },
+          },
+          client,
+        ),
       });
     });
     const row = await this.prisma.db.conflictOfInterest.findFirst({

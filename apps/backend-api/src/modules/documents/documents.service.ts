@@ -10,6 +10,7 @@ import type { DocumentJob } from './document-jobs';
 import { discardBody, readUpload } from './upload/multipart';
 import type { StoredUpload } from './upload/store-upload';
 import { UploadIntake } from './upload/upload-intake';
+import { auditRow } from '../../common/audit/audit.service';
 import type { RequestContext } from '../../common/context/request-context';
 import {
   ResourceConflictException,
@@ -24,7 +25,6 @@ import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { AfterCommit, ScopedTransaction } from '../../database/unit-of-work';
 import type { ClientInfo } from '../auth/client-info';
-import { truncateUserAgent } from '../auth/client-info';
 
 /** A client-chosen retry key (api-conventions.md: `Idempotency-Key`). */
 const IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{8,128}$/;
@@ -298,18 +298,18 @@ export class DocumentsService {
     oldValues: Record<string, unknown> | null,
     newValues: Record<string, unknown>,
   ) {
-    return {
-      officeId: this.officeId(),
-      userId: this.userId(),
-      entityType: 'Document',
-      entityId,
-      action,
-      ...(oldValues && { oldValues: oldValues as object }),
-      newValues: newValues as object,
-      ipAddress: caller.ip,
-      userAgent: truncateUserAgent(caller.userAgent),
-      requestId: caller.requestId,
-    };
+    return auditRow(
+      {
+        officeId: this.officeId(),
+        userId: this.userId(),
+        entityType: 'Document',
+        entityId,
+        action,
+        oldValues,
+        newValues,
+      },
+      caller,
+    );
   }
 
   private userId(): string {

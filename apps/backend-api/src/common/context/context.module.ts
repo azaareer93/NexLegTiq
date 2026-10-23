@@ -10,8 +10,12 @@ const CLS_MIDDLEWARE_OPTIONS: ClsMiddlewareOptions = {
   generateId: true,
   idGenerator: (req: IncomingMessage) => ensureRequestId(req),
   // pino-http skips genReqId once `req.id` exists, so the response header is echoed here.
-  setup: (_cls, req: IncomingMessage, res: ServerResponse) => {
+  setup: (cls, req: IncomingMessage & { ip?: string }, res: ServerResponse) => {
     ensureRequestId(req, res);
+    // Express has resolved `req.ip` (trust proxy) by now: audit rows read both from here (D-136).
+    if (req.ip) cls.set('ip', req.ip);
+    const agent = req.headers['user-agent'];
+    if (agent) cls.set('userAgent', agent);
   },
 };
 

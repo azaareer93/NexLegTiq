@@ -48,7 +48,10 @@ const FILES: UserOpenFile[] = [
 ];
 
 function serveTeam(team: TeamMember[] = TEAM): void {
-  server.use(http.get(api('users'), () => ok(team)));
+  server.use(
+    http.get(api('users'), () => ok(team)),
+    http.get(api('users/invitations'), () => ok([])),
+  );
 }
 
 async function openTeam(locale: 'en' | 'ar' = 'en'): Promise<HTMLElement> {

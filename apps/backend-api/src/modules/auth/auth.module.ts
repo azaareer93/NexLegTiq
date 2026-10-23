@@ -5,6 +5,7 @@ import { AccessTokenVerifier } from './access-token-verifier';
 import { AccountMailer } from './account-mailer';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { InvitationAcceptService } from './invitation-accept.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { LoginAttemptRepository } from './login-attempt.repository';
 import { PasswordHasher } from './password-hasher';
@@ -29,6 +30,7 @@ import { AppConfig } from '../../config/app-config';
     AuthService,
     SignupService,
     SignupRepository,
+    InvitationAcceptService,
     AccountMailer,
     PasswordService,
     PasswordRepository,

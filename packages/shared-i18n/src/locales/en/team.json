@@ -30,5 +30,36 @@
     "confirm": "Deactivate",
     "done": "{{name}} has been deactivated"
   },
-  "reactivateTitle": "Reactivate {{name}}"
+  "reactivateTitle": "Reactivate {{name}}",
+  "invite": {
+    "action": "Invite",
+    "title": "Invite team members",
+    "email": "Email",
+    "role": "Role",
+    "fullName": "Name (optional)",
+    "message": "Personal note (optional)",
+    "addRow": "Add another person",
+    "removeRow": "Remove row {{row}}",
+    "submit": "Send invitations",
+    "sent_one": "{{count}} invitation sent",
+    "sent_other": "{{count}} invitations sent"
+  },
+  "invitations": {
+    "title": "Pending invitations",
+    "empty": "No pending invitations.",
+    "invitedBy": "Invited by",
+    "expires": "Expires",
+    "status": {
+      "PENDING": "Pending",
+      "EXPIRED": "Expired"
+    },
+    "resend": "Send again",
+    "resendOf": "Send the invitation to {{email}} again",
+    "resent": "Invitation sent again",
+    "revoke": "Revoke",
+    "revokeOf": "Revoke the invitation to {{email}}",
+    "revokeTitle": "Revoke this invitation?",
+    "revokeBody": "The link sent to {{email}} will stop working.",
+    "revoked": "Invitation revoked"
+  }
 }

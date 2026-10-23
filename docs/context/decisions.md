@@ -1866,6 +1866,58 @@ extraction failure goes back to the scan (`NEW_VERSION_STATE`); a FAILED documen
 version (not of the document), live (`document.processed`) and, on failure, by an in-app notification
 (`shell.notifications.documentFailed`, D-117's notification queue); deleted documents are never processed.
 
+**D-134 — Team invitations: links made by the worker, seats, acceptance and the invite UI** · Accepted (MVP-49, 2026-10-23)
+MVP-49 left the token hand-off, what "exists anywhere" means, the invitee's language, who is notified and how several rows
+are sent open. → **API** (`src/modules/users`, all `manage:users` = OFFICE_MANAGER): `POST /users/invite` `{email, role,
+fullName?, message?}` — one person per call (the team page sends one call per row, so each row gets its own answer); any
+role but OFFICE_MANAGER (400 VAL-001 `validation.inviteRole`; a manager is made by changing a member's role); an email held
+by a user of **any** office (D-032) or by a PENDING, unexpired invitation of this office → 409 RES-002; another office may
+invite the same person (whoever accepts first wins, the other gets 409 on accept). A lapsed PENDING row is closed as EXPIRED
+first, so the address can be invited again (one PENDING row per office + email, D-079). `GET /users/invitations` lists
+PENDING rows newest first, shown as EXPIRED once their 7 days have passed; `POST /users/invitations/:id/resend` (200) renews
+the 7 days and sends a new link (the old one stops working); `DELETE /users/invitations/:id` (204) revokes — anything not
+PENDING, another office's or a malformed id is 404. **Seats:** a pending, unexpired invitation holds a seat (D-122):
+invite, and resending an expired one, call `assertUserSlot` (422 BIZ-008) under the office's team advisory lock (D-124), so
+two invitations at once cannot take the last seat; accepting does not re-check (the seat was held). New column
+`office_invitations.full_name` (the name typed, offered on the accept page). Every change has an audit row
+(`OfficeInvitation` CREATE/UPDATE). **Links (the D-085 pattern):** the row is created with the hash of a random token that is
+never sent; after the commit `email/send-invitation {invitationId}` is queued and the worker (`InvitationLinks`) stores the
+hash of a new token — conditional on PENDING, so a revoke racing the send wins — and emails the raw link
+`{OFFICE_APP_URL}/accept-invite?token=…` in the **office's default language** (the invitee has no language yet) with the
+inviter, office, days left and the manager's note (`invite` template gains an optional, escaped `message`). Each attempt
+rotates the link, so each attempt is its own message.
+**Acceptance** (public): `POST /auth/invites/preview {token}` (10/min per IP) → `{officeName, inviterName, email, role, fullName,
+expiresAt}`; `POST /auth/accept-invite` `{token, fullName, password, phone?, acceptTerms, acceptPrivacy}` (5/min) → 201 +
+session + refresh cookie like login. Unknown, used, revoked and expired links → **410 RES-004** (both routes, as for
+verification and reset links); a suspended office → 403 AUTH-006; the password policy applies, and "not the email" is
+checked by the server against the invitation's address (VAL-001 on `password`); an email taken since the invitation → 409
+RES-002. One transaction in the invitation's office: the invitation is claimed (conditional on PENDING and unexpired), the
+user is created with its role, the office's language and **`emailVerifiedAt` set** (the link proves the address, D-083), ToS
+and Privacy acceptance rows (D-083 versions), a `CREATE User` audit row (actor = the new user), an in-app notification to every
+active office manager (`invitation.accepted`, `shell.notifications.invitationAccepted`, link `/team`, pushed live after the
+commit, D-129), and the session. **Office app:** `/team` gets an **Invite** button (a modal with rows of email, role —
+default LAWYER — and optional name, plus one note for all; rows are sent one after the other, the sent ones leave the form
+and a refused row stays with its reason) and a **Pending invitations** table (email and name, role, inviter, status, expiry,
+resend, revoke after a confirm). `/accept-invite` (public, signed in or not, like the reset page): the token is read once and
+removed from the address bar, the page shows office, inviter, email and role, then asks for name (prefilled), password,
+optional phone and the two acceptances; success signs in as the new user (a previous user's data is cleared,
+`startSession`) and broadcasts `signedIn`. **Not done here:** the Cypress invite → accept journey in Arabic (the E2E story;
+every control has a `data-testid`), invitation emails in the invitee's own language (no such choice exists before they
+join). Why: a manager can grow the team without a token ever leaving the database's hash, and an invitation can neither
+take a seat the plan does not have nor be used twice.
+Review additions (same PR): **the token never sits in a URL** — the preview is a POST with the token in the body (the
+ticket's `GET /auth/invites/:token` would leave it in proxy and CDN access logs; amends api-conventions.md). **Resend
+rotates the link at once** (a fresh, never-sent hash in the same update), so the old link dies even if the email job is
+lost, and is limited to **one per invitation per minute** (429 RATE-001; the row's `updatedAt` marks the last send or
+rotation); invite is throttled at 20/min and resend at 10/min per IP — our domain must not become a mailer for a manager's
+note. **Accepting into a read-only office** (subscription ended, D-122) is refused with 403 AUTH-104: the public route is
+never seen by `SubscriptionGuard`, so the service checks it. **Every active office manager is notified**, not only the
+inviter (who may have left or been demoted; the ticket says "OM notified"). Two offices' invitees racing for one email:
+the loser's P2002 maps to 409 RES-002 (tested). The 409 for an email held in another office discloses that the address has
+an account, as `/auth/register` already does (D-032). **Not done:** pending invitations stay valid when their inviter
+leaves (the office still wants the invitee; revoke them from the team page); no daily per-office cap on invitation emails
+(the per-invitation cooldown, the seat limit and the IP throttles bound it); a manager need not have verified their own
+email to invite (verification is not enforced yet, D-083).
 **D-133 — Documents tab: folder tree, upload panel, live status and what waits for other stories** · Accepted (MVP-75, 2026-10-21)
 MVP-75 asks for a folder tree, a list with status chips, multi-file drag-and-drop upload with progress, live status and
 actions, but sharing with the client (portal), AI summaries and previews have no endpoint or story yet. → `?tab=documents`
@@ -1955,3 +2007,43 @@ becoming the client of a new file is checked only when that party is next added 
 flows should call the same sync); party notes and identifiers belong to the party and are shown on every file it is on;
 the conflict check can confirm that a guessed national id belongs to some client (`otherFile: null`), a risk accepted for
 holders of edit rights; detection compares client names without an index (fine at office scale).
+**D-136 — Audit service, VIEW throttling and the retention purge** · Accepted (MVP-104, 2026-10-23)
+MVP-104 asks for one audit service used everywhere, VIEW auditing, DB-level protection and a retention job, while every
+module already wrote its own rows (53 writes, 16 builders) and D-079 left the purge to "the migrator". → **Service**
+(`src/common/audit/audit.service.ts`, provided by the global `DatabaseModule` next to Prisma): `AuditService.log(tx, entry,
+client?)` / `row(entry, client?)` fill office, actor, IP, user agent and request id from the request context — the CLS
+now also holds `ip` (Express' `req.ip`, so `TRUST_PROXY_HOPS` applies) and `userAgent`, set when the request starts —
+and any `AuditClient` field passed (null included) overrides it; the row is written in the caller's transaction. The pure
+`auditRow(entry, client)` is the same row for code that already knows its office and actor; **every module's audit builder
+now delegates to it** (cases, tasks, sessions, documents, document versions/retry, folders, clients and contacts, courts,
+judges and prosecutors, offices, team, sign-in, password, signup, the permission guard), so redaction, the 512-character
+user-agent cap and the row shape live in one place; their call sites are unchanged (one transaction per change, as
+before). The worker's malware row keeps its literal shape (no user, no request). **Redaction:** values of `nationalId`
+and `taxId` are stored as `[encrypted]`, credentials (`password`, `passwordHash`, `currentPassword`, `newPassword`,
+`token`, `tokenHash`, `refreshToken`, `mfaSecret`) as `[redacted]`; values go through JSON (dates as ISO strings). The diff
+helper stays `common/audit/changes.ts` (only changed fields, decimals compared as numbers). **VIEW:** `GET /cases/:id` and
+`GET /documents/:id` write a `VIEW` row at most **once per user and entity every 10 minutes** (a lookup of the newest
+VIEW by the office/entity index); a document's text pages and downloads keep their own per-request rows (D-128). Two
+requests in the same instant may both write one (accepted). **Append-only + retention:** the app role keeps INSERT/SELECT
+only on `audit_logs` (D-079); the purge is `nlq_purge_audit_logs(office_id)`, a `SECURITY DEFINER` function owned by the
+migrator (`search_path` pinned) that deletes that office's rows older than `office_settings.audit_retention_days`, never
+fewer than 365 days (D-060), and is the only DELETE the app role can cause; `EXECUTE` is granted to `nexlegtiq_app`
+(migration and `db-roles.sql`). The worker runs it daily at 03:00 UTC for every office (active or not) from
+`AuditRetentionProcessor`, a job scheduler on the **`report` queue** — its single consumer for now; report jobs join that
+processor when they come (one processor per queue, D-085). **Tests:** a role with exactly the app's grants cannot UPDATE or
+DELETE audit rows but can run the purge; the purge keeps 365 or 730 days per office; three opens of a file within ten
+minutes write one VIEW with the request's user agent, request id and IP. **Not done here:** the audit viewer and export
+(their UI story, which must hide rows of files and documents the reader cannot see — D-096, D-126); client-user and
+platform-admin actors (the portal and admin realms do not exist yet: `AuditLog.platformAdminId` is there, `clientUserId`
+comes with the portal); audit rows for reads other than files and documents. Why: one place decides what an audit row
+contains and hides, and the log can age out without the app ever being able to rewrite it.
+Review additions (same PR): **the purge honours the longest retention ever set** — `office_settings.max_audit_retention_days`,
+kept by a trigger as the highest value the setting has had (never lowered, whatever the app writes), is what
+`nlq_purge_audit_logs` uses; lowering the setting (D-125 allows it) no longer deletes history already kept, as D-060's
+"upward only" intends. **The shared redaction covers credentials only**: encrypted identifiers stay redacted by the modules
+that own them (clients and contacts `[encrypted]`, parties), because the same key is plaintext elsewhere — an office's tax id
+is audited in full (D-125); keys that were not sent are dropped, not stored as null (null means "cleared" in a diff).
+**A failed VIEW write is logged and swallowed**, never turning a successful read into a 500. **The purge runs one office per
+statement**, so a first run over years of rows is never one huge DELETE. The function schema-qualifies its tables.
+`AuditService.log` is the entry point for new code; the existing modules keep their builders, which delegate to the shared
+`auditRow` (same row, same redaction) — their callers already pass the request facts explicitly.

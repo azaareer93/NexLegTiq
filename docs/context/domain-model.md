@@ -16,7 +16,7 @@
   lastLoginAt, emailVerifiedAt? (signup verification, D-083), uiLanguage, timezone, mfaSecret? (encrypted), mfaEnabled.
   `Role` = OFFICE_MANAGER, SENIOR_LAWYER, LAWYER, PARALEGAL, ADMIN (office admin/finance), TRAINEE, EXTERNAL_COLLABORATOR.
 - **PlatformAdmin** — separate table for the admin panel (not an office role); MFA required.
-- **OfficeInvitation** 🔒 — email, role (any except OFFICE_MANAGER; SENIOR_LAWYER allowed), tokenHash, status
+- **OfficeInvitation** 🔒 — email, role (any except OFFICE_MANAGER; SENIOR_LAWYER allowed), fullName? (D-134), tokenHash, status
   PENDING|ACCEPTED|EXPIRED|REVOKED, expiresAt (7d), invitedById, message.
 - **RefreshToken**, **PasswordResetToken** (hashed, 1h, usedAt), **EmailVerificationToken** 🔒 (hashed, 7d, usedAt; D-083),
   **LoginAttempt** (email, ip, success, at).

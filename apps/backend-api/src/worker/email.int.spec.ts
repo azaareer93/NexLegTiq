@@ -22,6 +22,7 @@ import {
   SEND_PASSWORD_RESET_JOB,
   SEND_VERIFICATION_EMAIL_JOB,
 } from '../modules/auth/account-mailer';
+import { InvitationLinks, SEND_INVITATION_JOB } from '../modules/auth/invitation-links';
 import { PasswordResetLinks } from '../modules/auth/password-reset-links';
 import { VerificationLinks } from '../modules/auth/verification-links';
 
@@ -52,7 +53,7 @@ async function receivedBy(to: string): Promise<MailpitMessage> {
 /** Like WorkerModule: the email processor with real Redis, PostgreSQL and SMTP (Mailpit). */
 @Module({
   imports: [CoreModule, DatabaseModule, QueueModule, MailModule],
-  providers: [EmailProcessor, VerificationLinks, PasswordResetLinks],
+  providers: [EmailProcessor, VerificationLinks, PasswordResetLinks, InvitationLinks],
 })
 class EmailTestModule {}
 
@@ -89,6 +90,7 @@ describe('email worker (Redis + PostgreSQL + Mailpit)', () => {
       const raw = app.get(PrismaService).unscoped();
       await raw.emailVerificationToken.deleteMany({ where: { officeId } });
       await raw.passwordResetToken.deleteMany({ where: { officeId } });
+      await raw.officeInvitation.deleteMany({ where: { officeId } });
       await raw.user.deleteMany({ where: { officeId } });
       await raw.office.delete({ where: { id: officeId } });
       await app.close();
@@ -186,6 +188,47 @@ describe('email worker (Redis + PostgreSQL + Mailpit)', () => {
       .passwordResetToken.findFirstOrThrow({ where: { userId: user.id, usedAt: null } });
     expect(stored.tokenHash).toBe(hashOpaqueToken(link?.[1] ?? ''));
     expect(Math.round((stored.expiresAt.getTime() - before) / 60_000)).toBe(60);
+  });
+
+  it('should issue an invitation link in the worker and email it in the office language with the note (D-134)', async () => {
+    const manager = await createUser('EN');
+    const to = `invitee-${randomUUID()}@example.test`;
+    // unscoped: test setup.
+    const invitation = await app
+      .get(PrismaService)
+      .unscoped()
+      .officeInvitation.create({
+        data: {
+          officeId,
+          email: to,
+          role: 'LAWYER',
+          tokenHash: `placeholder-${randomUUID()}`,
+          expiresAt: new Date(Date.now() + 7 * 86_400_000),
+          invitedById: manager.id,
+          message: 'مرحبًا بك في الفريق',
+        },
+      });
+    await inOffice(() =>
+      app
+        .get(QueueProducer)
+        .enqueue(QUEUE.EMAIL, SEND_INVITATION_JOB, { invitationId: invitation.id }),
+    );
+    await drainQueue(queue());
+
+    const mail = await receivedBy(to);
+    // The office's default language (Arabic) — the invitee has none yet.
+    expect(mail.HTML).toContain('dir="rtl"');
+    expect(mail.HTML).toContain('مرحبًا بك في الفريق');
+    const link = /https:\/\/app\.example\.test\/accept-invite\?token=([A-Za-z0-9_-]{43})/.exec(
+      mail.Text,
+    );
+    expect(link).not.toBeNull();
+    // unscoped: test assertion.
+    const stored = await app
+      .get(PrismaService)
+      .unscoped()
+      .officeInvitation.findUniqueOrThrow({ where: { id: invitation.id } });
+    expect(stored.tokenHash).toBe(hashOpaqueToken(link?.[1] ?? ''));
   });
 
   it('should send nothing for an already verified user', async () => {

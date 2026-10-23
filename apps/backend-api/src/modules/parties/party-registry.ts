@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { FileParty, NewPartyRequest, Party, PartyQuery } from '@nexlegtiq/shared-contracts';
 import { ClsService } from 'nestjs-cls';
 
+import { auditRow } from '../../common/audit/audit.service';
 import type { RequestContext } from '../../common/context/request-context';
 import { FieldCipher } from '../../common/crypto/field-cipher';
 import { uuidV7 } from '../../common/ids/uuid-v7';
@@ -9,7 +10,6 @@ import { PrismaService } from '../../database/prisma.service';
 import type { ScopedTransaction } from '../../database/unit-of-work';
 import { Prisma } from '../../generated/prisma/client';
 import type { ClientInfo } from '../auth/client-info';
-import { truncateUserAgent } from '../auth/client-info';
 
 const ENCRYPTED = {
   nationalId: 'parties.national_id',
@@ -163,18 +163,18 @@ export class PartyRegistry {
     oldValues: object | null,
     newValues: object | null,
   ) {
-    return {
-      officeId: this.officeId(),
-      userId: this.actorId(),
-      entityType,
-      entityId,
-      action,
-      ...(oldValues && { oldValues }),
-      ...(newValues && { newValues }),
-      ipAddress: client.ip,
-      userAgent: truncateUserAgent(client.userAgent),
-      requestId: client.requestId,
-    };
+    return auditRow(
+      {
+        officeId: this.officeId(),
+        userId: this.actorId(),
+        entityType,
+        entityId,
+        action,
+        oldValues,
+        newValues,
+      },
+      client,
+    );
   }
 
   actorId(): string {

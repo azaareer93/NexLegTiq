@@ -1,5 +1,7 @@
 import {
   AuthSessionSchema,
+  InvitationSchema,
+  InvitePreviewSchema,
   CaseListItemSchema,
   CaseSchema,
   ClientListItemSchema,
@@ -17,6 +19,10 @@ import {
   OfficeSubscriptionSchema,
 } from '@nexlegtiq/shared-contracts';
 import type {
+  AcceptInviteRequestSchema,
+  Invitation,
+  InvitePreview,
+  InviteUserRequest,
   ChangeRoleRequest,
   DeactivateUserRequest,
   OfficeProfile,
@@ -89,6 +95,15 @@ export function authApi(client: ApiClient) {
   return {
     register: (body: Input<typeof RegisterRequestSchema>) => startSession('auth/register', body),
     login: (body: Input<typeof LoginRequestSchema>) => startSession('auth/login', body),
+    /** Accepts a team invitation (D-134): creates the account and signs it in like login. */
+    acceptInvite: (body: Input<typeof AcceptInviteRequestSchema>) =>
+      startSession('auth/accept-invite', body),
+    /** What the invitation link offers (410 RES-004 when it is no longer valid). */
+    invitePreview: (token: string, signal?: AbortSignal): Promise<InvitePreview> =>
+      client.request(
+        { method: 'POST', path: 'auth/invites/preview', body: { token }, signal },
+        InvitePreviewSchema,
+      ),
     /**
      * Restores the session from the refresh cookie (app start, reload); shares the client's single flight. Rejects with
      * the server's code when there is no session (no `onAuthFailure`: the current page decides where to go).
@@ -155,6 +170,21 @@ export function usersApi(client: ApiClient) {
         { method: 'POST', path: `users/${encodeURIComponent(id)}/reactivate` },
         TeamMemberSchema,
       ),
+    /** Invitations (D-134): invite one person, list the pending ones, resend or revoke one. */
+    invite: (body: InviteUserRequest): Promise<Invitation> =>
+      client.request({ method: 'POST', path: 'users/invite', body }, InvitationSchema),
+    invitations: (signal?: AbortSignal): Promise<Invitation[]> =>
+      client.request(
+        { method: 'GET', path: 'users/invitations', signal },
+        InvitationSchema.array(),
+      ),
+    resendInvitation: (id: string): Promise<Invitation> =>
+      client.request(
+        { method: 'POST', path: `users/invitations/${encodeURIComponent(id)}/resend` },
+        InvitationSchema,
+      ),
+    revokeInvitation: (id: string): Promise<void> =>
+      client.request({ method: 'DELETE', path: `users/invitations/${encodeURIComponent(id)}` }),
   };
 }
 

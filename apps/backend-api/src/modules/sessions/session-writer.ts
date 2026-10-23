@@ -4,13 +4,13 @@ import { ClsService } from 'nestjs-cls';
 
 import { ReminderScheduler } from './reminder-scheduler';
 import { effectiveEnd, MAX_SESSION_MS } from './session-rules';
+import { auditRow } from '../../common/audit/audit.service';
 import type { RequestContext } from '../../common/context/request-context';
 import { BusinessRuleException, ValidationException } from '../../common/errors/app.exception';
 import { RealtimePublisher } from '../../common/realtime/realtime.publisher';
 import type { AfterCommit, ScopedTransaction } from '../../database/unit-of-work';
 import type { Prisma } from '../../generated/prisma/client';
 import type { ClientInfo } from '../auth/client-info';
-import { truncateUserAgent } from '../auth/client-info';
 import { assertCourtRefs } from '../courts/court-refs';
 import { CaseAccessService } from '../legal-files/case-access.service';
 
@@ -226,18 +226,18 @@ export class SessionWriter {
     newValues: object,
   ): Promise<void> {
     await tx.auditLog.create({
-      data: {
-        officeId: this.officeId(),
-        userId: this.actorId(),
-        entityType: 'Session',
-        entityId: session.id,
-        action: oldValues ? 'UPDATE' : 'CREATE',
-        ...(oldValues && { oldValues: JSON.parse(JSON.stringify(oldValues)) as object }),
-        newValues: JSON.parse(JSON.stringify({ fileId: session.fileId, ...newValues })) as object,
-        ipAddress: client.ip,
-        userAgent: truncateUserAgent(client.userAgent),
-        requestId: client.requestId,
-      },
+      data: auditRow(
+        {
+          officeId: this.officeId(),
+          userId: this.actorId(),
+          entityType: 'Session',
+          entityId: session.id,
+          action: oldValues ? 'UPDATE' : 'CREATE',
+          oldValues,
+          newValues: { fileId: session.fileId, ...newValues },
+        },
+        client,
+      ),
     });
   }
 

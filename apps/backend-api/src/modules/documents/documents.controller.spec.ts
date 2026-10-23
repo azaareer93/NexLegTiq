@@ -6,6 +6,7 @@ import type { DocumentRecordsService } from './document-records.service';
 import type { DocumentRetry } from './document-retry';
 import { DocumentsController } from './documents.controller';
 import type { DocumentsService } from './documents.service';
+import type { AuditService } from '../../common/audit/audit.service';
 import type { RequestContext } from '../../common/context/request-context';
 
 describe('DocumentsController', () => {
@@ -32,6 +33,7 @@ describe('DocumentsController', () => {
         records as unknown as DocumentRecordsService,
         retries as unknown as DocumentRetry,
         cls as unknown as ClsService<RequestContext>,
+        { view: jest.fn() } as unknown as AuditService,
       );
       await expect(controller.upload(req, 'key-12345')).resolves.toBe('uploaded');
       await expect(controller.addVersion('d1', req)).resolves.toBe('versioned');

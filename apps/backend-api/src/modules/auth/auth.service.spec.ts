@@ -6,6 +6,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import type { IssuedSession } from './auth.service';
 import type { ClientInfo } from './client-info';
+import type { InvitationAcceptService } from './invitation-accept.service';
 import { LoginAttemptRepository } from './login-attempt.repository';
 import type { PasswordHasher } from './password-hasher';
 import { REFRESH_COOKIE } from './refresh-token';
@@ -353,7 +354,13 @@ describe('AuthController', () => {
     };
 
   function controller(auth: Partial<AuthService>): AuthController {
-    return new AuthController(auth as AuthService, {} as SignupService, config, cls);
+    return new AuthController(
+      auth as AuthService,
+      {} as SignupService,
+      {} as InvitationAcceptService,
+      config,
+      cls,
+    );
   }
 
   it('should set the refresh cookie and return only the session body on login', async () => {
