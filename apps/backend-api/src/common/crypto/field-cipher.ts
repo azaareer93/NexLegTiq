@@ -1,6 +1,7 @@
-import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHmac, hkdfSync, randomBytes } from 'node:crypto';
 
 import { Injectable } from '@nestjs/common';
+import { toWesternDigits } from '@nexlegtiq/shared-utils';
 
 import { AppConfig } from '../../config/app-config';
 
@@ -18,9 +19,25 @@ const TAG_BYTES = 16;
 @Injectable()
 export class FieldCipher {
   readonly #key: Buffer;
+  /** A separate key for blind indexes, derived from the field key, so an index never reveals anything about ciphertexts. */
+  readonly #indexKey: Buffer;
 
   constructor(config: AppConfig) {
     this.#key = Buffer.from(config.encryptionKey, 'hex');
+    this.#indexKey = Buffer.from(hkdfSync('sha256', this.#key, '', 'nexlegtiq blind index v1', 32));
+  }
+
+  /**
+   * Blind index of an identifier (D-135): HMAC-SHA256 of the value with digits made Western and everything but letters and
+   * digits dropped, upper-cased — so `٤٠١ 234-567` and `401234567` match. `scope` (e.g. `national_id:<officeId>`) keeps
+   * indexes of different kinds and offices apart. Exact match only; null for an empty value.
+   */
+  blindIndex(value: string | null | undefined, scope: string): string | null {
+    const normalized = toWesternDigits(value ?? '')
+      .replace(/[^\p{L}\p{N}]/gu, '')
+      .toUpperCase();
+    if (!normalized) return null;
+    return createHmac('sha256', this.#indexKey).update(`${scope}:${normalized}`).digest('hex');
   }
 
   encrypt(plain: string, context: string): string {

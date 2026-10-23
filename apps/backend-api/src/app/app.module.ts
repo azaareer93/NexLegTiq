@@ -22,6 +22,7 @@ import { CourtsModule } from '../modules/courts/courts.module';
 import { DocumentsModule } from '../modules/documents/documents.module';
 import { LegalFilesModule } from '../modules/legal-files/legal-files.module';
 import { OfficesModule } from '../modules/offices/offices.module';
+import { PartiesModule } from '../modules/parties/parties.module';
 import { SessionsModule } from '../modules/sessions/sessions.module';
 import { SubscriptionGuard } from '../modules/subscriptions/subscription.guard';
 import { SubscriptionsModule } from '../modules/subscriptions/subscriptions.module';
@@ -51,6 +52,7 @@ import { UsersModule } from '../modules/users/users.module';
     SessionsModule,
     DocumentsModule,
     TasksModule,
+    PartiesModule,
     UsersModule,
     // Default 100 requests/min per IP (api-conventions.md); auth routes set stricter limits with @Throttle.
     // ponytail: counters live in process memory, fine for one API container (D-020); move to Redis storage when a

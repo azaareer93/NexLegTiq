@@ -55,5 +55,6 @@
   "RATE-001": "Too many requests. Wait a moment and try again.",
   "SYS-001": "Something went wrong on our side. Try again.",
   "SYS-002": "The service is temporarily unavailable. Try again shortly.",
-  "DB-001": "Something went wrong while saving. Try again."
+  "DB-001": "Something went wrong while saving. Try again.",
+  "BIZ-017": "This conflict of interest has already been resolved."
 }

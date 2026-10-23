@@ -28,10 +28,11 @@
 - **ContactPerson** 🔒 — clientId, fullName, position, email, phone, isPrimary.
 - **ClientUser** 🔒 (portal) — clientId, email, fullName, passwordHash?, isActive, lastLoginAt; **ClientInvitation** 🔒.
 - **Party** 🔒 — isIndividual, fullName / companyName, nationalId? (encrypted), taxId?, address, phone,
-  legalRepresentative, notes (encrypted). Reused across files for conflict checks.
+  legalRepresentative, notes (encrypted), nationalIdIndex/taxIdIndex (blind indexes, also on Client; D-135). Reused across
+  files for conflict checks.
 - **FileParty** 🔒 — fileId, partyId, `partyType: PLAINTIFF|DEFENDANT|APPELLANT|RESPONDENT|THIRD_PARTY|GUARANTOR|
   SIGNATORY|INTERESTED_PARTY|PROSECUTION`, roleLabel (free text e.g. "Landlord"), joinedAt.
-- **ConflictOfInterest** 🔒 — fileIdA, fileIdB, partyId, reason, detectedAt, resolved, resolutionNotes, resolvedById.
+- **ConflictOfInterest** 🔒 — fileIdA, fileIdB, partyId, reason (`ADVERSE_ON_OTHER_FILE|CLIENT_ON_OTHER_FILE`), detectedAt, resolved, resolutionNotes, resolvedById.
 
 ## Legal files (cases)
 - **LegalFile** 🔒 — fileNumber (`@@unique([officeId, fileNumber])`), title, description,

@@ -50,6 +50,7 @@ export class ClientsService {
           data: {
             nationalId: this.seal('nationalId', client.id, nationalId),
             taxId: this.seal('taxId', client.id, taxId),
+            ...this.indexes({ nationalId, taxId }),
           },
         });
       }
@@ -94,8 +95,12 @@ export class ClientsService {
           ...next,
           ...('nationalId' in next && {
             nationalId: this.seal('nationalId', id, input.nationalId),
+            nationalIdIndex: this.indexes({ nationalId: input.nationalId }).nationalIdIndex,
           }),
-          ...('taxId' in next && { taxId: this.seal('taxId', id, input.taxId) }),
+          ...('taxId' in next && {
+            taxId: this.seal('taxId', id, input.taxId),
+            taxIdIndex: this.indexes({ taxId: input.taxId }).taxIdIndex,
+          }),
         },
       });
       await tx.auditLog.create({
@@ -140,6 +145,15 @@ export class ClientsService {
       industry: row.industry,
       closedFiles: row.closedFiles,
       contacts: row.contacts.map(toContact),
+    };
+  }
+
+  /** Blind indexes of the ids, shared with parties so a party can be matched to a client (D-135). */
+  private indexes(ids: { nationalId?: string | null; taxId?: string | null }) {
+    const officeId = this.ctx.officeId();
+    return {
+      nationalIdIndex: this.cipher.blindIndex(ids.nationalId, `national_id:${officeId}`),
+      taxIdIndex: this.cipher.blindIndex(ids.taxId, `tax_id:${officeId}`),
     };
   }
 
