@@ -1900,3 +1900,41 @@ texts comes from `MAX_UPLOAD_BYTES`; Arabic writes كيلوبايت/ميغابا
 hook (`useCtrlAltShortcut`) that also ignores keys while focus is inside a dialog, so Ctrl+Alt+U and the hearing drawer's
 Ctrl+Alt+H never open over each other. Actions are not hidden while the subscription is read-only (as on the Hearings
 tab: the banner explains it and the API refuses with AUTH-104).
+
+**D-135 — Parties, identifier blind indexes and the conflict-of-interest check** · Accepted (MVP-62, 2026-10-23) · Amends D-056
+MVP-62 asks to search parties by national and tax id, which D-056 keeps encrypted and "never searched", and leaves open
+which roles are "adverse" and what the check compares a party with. → **Blind indexes (amends D-056):** `FieldCipher.blindIndex`
+= HMAC-SHA256 under a key derived from `ENCRYPTION_KEY` (HKDF, info `nexlegtiq blind index v1`), over the identifier with
+digits made Western and everything but letters and digits dropped, upper-cased, scoped `national_id:<officeId>` /
+`tax_id:<officeId>`. Stored in new columns `national_id_index` / `tax_id_index` on **parties and clients** (clients write
+them on create and update; same scope, so a party can be matched to a client), indexed per office. Exact match only;
+the identifiers themselves stay AES-GCM ciphertext. Rows saved before this migration get their index when the id is next
+written (no backfill: it needs the key). Party tax ids are now always encrypted, as clients' are (D-108); one stored in
+plain text before is read as is. **Registry:** `GET /parties?search=` (ANY of `view:all|assigned:cases`; 20, at most 50,
+by name): Arabic-normalised substring of the name (`nlq_normalize_ar`, trigram GIN expression index) or an exact national
+or tax id; rows carry name, type and contacts — no identifiers or notes (parties are office-wide, also those of
+confidential files). **File parties:** `GET /cases/:id/parties` (read access; identifiers and notes decrypted),
+`POST /cases/:id/parties` `{partyId | party, partyType, roleLabel?}` (exactly one of the two, `validation.partyChoice`;
+another office's or unknown party → 400 `validation.unknownParty`), `PATCH /cases/:id/parties/:filePartyId`
+`{partyType?, roleLabel?}`, `DELETE` (204; the party stays in the registry) — all with ANY of `edit:any|assigned:case`
+and write access to the file (D-096). The same party twice in the same role → 409 RES-002. Add writes a `PARTY_ADDED`
+timeline event (`{partyId, name, partyType}`) and audit rows (`Party` CREATE with ids and notes as `[encrypted]`,
+`FileParty` CREATE/UPDATE/DELETE). **Conflict check** (W9), run in the add's transaction and again when a party is
+retyped: **adverse roles** are the dispute sides — PLAINTIFF, DEFENDANT, APPELLANT, RESPONDENT, PROSECUTION (third parties,
+guarantors, signatories and interested parties are not). A conflict is recorded when the party (1) is on **another open
+file** (live, OPEN or SUSPENDED) **in an adverse role**, whatever its role here (`ADVERSE_ON_OTHER_FILE`), or (2) is
+adverse here and is **the client of another open file** — same national/tax id index, or the same Arabic-normalised name
+as the client's display, full or company name (`CLIENT_ON_OTHER_FILE`). A pair of files and party is recorded once,
+whichever came first, and a resolved conflict is never raised again. **Conflicts warn, never block:** the add answers 201
+with `{fileParty, conflicts[]}` (every open conflict of that party on that file); BIZ-009 is not used. `GET /conflicts`
+(`resolved`, `fileId`, paginated) lists conflicts with at least one file the reader can open; a file the reader cannot
+open (scope or confidentiality) is `null` — only that a conflict exists is shown, as for hearing conflicts (D-116).
+`PATCH /conflicts/:id/resolve {notes}` needs write access to either file; resolving twice → **422 BIZ-017** (new: "conflict
+already resolved"), so the first note stays; audited. Removing the last role of a party from a file deletes its open
+conflicts on that file (resolved ones stay as history). **Not done here:** the Parties tab, conflict modal and banner
+(their UI story), editing a party's own details (name, ids, notes) after creation, party attendance at sessions, and
+checking a new **client** against existing adverse parties (the client form would run the same rule). **Known limits:**
+name matching is exact after normalisation (no fuzzy similarity) and misses a client stored only with an id saved before
+this migration; rule (1) also flags a repeat opponent (the same company sued twice), which the lawyer resolves with a
+note. Why: the conflict check works on encrypted identifiers without decrypting a table, and never reveals a file the
+reader may not open.

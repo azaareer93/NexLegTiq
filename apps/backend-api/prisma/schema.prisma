@@ -651,6 +651,9 @@ model Client {
   nationalId      String?    @map("national_id")
   /// Ciphertext for an INDIVIDUAL client (D-056: tax ids of individuals; CHECK).
   taxId           String?    @map("tax_id")
+  /// Keyed HMAC of the normalised identifier: matches a party to a client without decrypting (D-135).
+  nationalIdIndex String?    @map("national_id_index")
+  taxIdIndex      String?    @map("tax_id_index")
   phone           String?
   email           String?    @db.Citext
   address         String?
@@ -669,6 +672,8 @@ model Client {
 
   @@unique([id, officeId])
   @@index([officeId, displayName])
+  @@index([officeId, nationalIdIndex])
+  @@index([officeId, taxIdIndex])
   // Trigram indexes for the `search` filter (ILIKE '%term%', D-059).
   @@index([displayName(ops: raw("gin_trgm_ops"))], type: Gin, map: "clients_display_name_trgm_idx")
   @@index([fullName(ops: raw("gin_trgm_ops"))], type: Gin, map: "clients_full_name_trgm_idx")
@@ -824,6 +829,9 @@ model Party {
   nationalId          String?  @map("national_id")
   /// Ciphertext when isIndividual (D-056: tax ids of individuals; CHECK).
   taxId               String?  @map("tax_id")
+  /// Keyed HMAC of the normalised identifier for exact-match lookups without decrypting (D-135).
+  nationalIdIndex     String?  @map("national_id_index")
+  taxIdIndex          String?  @map("tax_id_index")
   address             String?
   phone               String?
   email               String?  @db.Citext
@@ -841,6 +849,8 @@ model Party {
   @@unique([id, officeId])
   @@index([officeId, fullName])
   @@index([officeId, companyName])
+  @@index([officeId, nationalIdIndex])
+  @@index([officeId, taxIdIndex])
   @@map("parties")
 }
 
