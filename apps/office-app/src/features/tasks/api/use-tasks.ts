@@ -45,7 +45,12 @@ function useTaskWrite<A, R>(write: (args: A) => Promise<R>) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: write,
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: taskKeys.all }),
+    // Refetch once the last queued move is done, so an earlier one's answer never undoes a later one on screen.
+    onSettled: () => {
+      if (queryClient.isMutating({ mutationKey: MOVE_KEY }) <= 1) {
+        void queryClient.invalidateQueries({ queryKey: taskKeys.all });
+      }
+    },
   });
 }
 
@@ -65,6 +70,8 @@ export interface TaskMove {
   readonly reorder: boolean;
 }
 
+const MOVE_KEY = ['tasks', 'move'] as const;
+
 type Snapshot = [readonly unknown[], Page<Task> | undefined][];
 
 /** The board as the move leaves it: the task out of its column and into `to`, in `order`. */
@@ -78,7 +85,10 @@ function applyMove(queryClient: QueryClient, scope: TaskScope, move: TaskMove): 
   queryClient.setQueryData<Page<Task>>(taskKeys.column(scope, to), (page) => {
     if (!page) return page;
     const byId = new Map([...page.items, { ...task, status: to }].map((item) => [item.id, item]));
-    const items = order.flatMap((id) => byId.get(id) ?? []);
+    // Without saving positions the server keeps the task's own; show it there, not where it was dropped.
+    const items = move.reorder
+      ? order.flatMap((id) => byId.get(id) ?? [])
+      : [...byId.values()].sort((a, b) => a.sortOrder - b.sortOrder);
     return { ...page, items };
   });
 }
@@ -90,9 +100,18 @@ function applyMove(queryClient: QueryClient, scope: TaskScope, move: TaskMove): 
 export function useMoveTask(scope: TaskScope) {
   const queryClient = useQueryClient();
   return useMutation({
+    scope: { id: 'task-board' },
+    mutationKey: MOVE_KEY,
     mutationFn: async (move: TaskMove) => {
-      if (move.task.status !== move.to) await tasks.changeStatus(move.task.id, move.to);
-      if (move.reorder) await tasks.reorder(move.to, move.order);
+      // The API takes at most 100 ids; a fuller column keeps the server's positions.
+      const reorder = move.reorder && move.order.length <= COLUMN_LIMIT;
+      if (move.task.status === move.to) {
+        if (reorder) await tasks.reorder(move.to, move.order);
+        return;
+      }
+      await tasks.changeStatus(move.task.id, move.to);
+      // The status is saved: a refused order is not a failed move (the refetch shows the server's positions).
+      if (reorder) await tasks.reorder(move.to, move.order).catch(() => undefined);
     },
     onMutate: async (move): Promise<Snapshot> => {
       await queryClient.cancelQueries({ queryKey: taskKeys.board(scope) });

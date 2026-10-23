@@ -90,6 +90,12 @@ function TaskFields({
   const { t } = useTranslation();
   const message = (key: string) => t(key as never);
   const assignees = useAssignees(canAssign);
+  const task = useTaskDrawer((state) => state.task);
+  // A deactivated assignee is not in the directory (D-124): keep their name on the field.
+  const options = assignees.map((person) => ({ value: person.id, label: person.fullName }));
+  if (task && !options.some((option) => option.value === task.assignedTo.id)) {
+    options.unshift({ value: task.assignedTo.id, label: task.assignedTo.fullName });
+  }
   return (
     <>
       <Form.Item
@@ -113,7 +119,12 @@ function TaskFields({
       </Form.Item>
       <Flex gap={12} wrap>
         <Form.Item name="dueDate" label={t('tasks.drawer.dueDate')} style={{ flex: '1 1 160px' }}>
-          <DatePicker style={{ inlineSize: '100%' }} disabled={disabled} data-testid="task-due" />
+          <DatePicker
+            format="DD/MM/YYYY"
+            style={{ inlineSize: '100%' }}
+            disabled={disabled}
+            data-testid="task-due"
+          />
         </Form.Item>
         <Form.Item name="priority" label={t('tasks.drawer.priority')} style={{ flex: '1 1 160px' }}>
           <Select
@@ -128,7 +139,7 @@ function TaskFields({
           <Select
             showSearch={{ optionFilterProp: 'label' }}
             disabled={disabled}
-            options={assignees.map((person) => ({ value: person.id, label: person.fullName }))}
+            options={options}
             data-testid="task-assignee"
           />
         </Form.Item>
@@ -150,7 +161,7 @@ function TaskContext({
     <Flex vertical gap={4} style={{ marginBlockEnd: 16 }}>
       {task?.file ? (
         <Typography.Text>
-          {t('tasks.drawer.file')}:{' '}
+          {t('tasks.drawer.file')}{' '}
           <Link to={`/cases/${task.file.id}`} onClick={closeTaskDrawer}>
             <Ltr>{task.file.fileNumber}</Ltr> <Bdi>{task.file.title}</Bdi>
           </Link>
@@ -263,7 +274,7 @@ export function TaskDrawer(): React.JSX.Element {
       <TaskContext task={task} fileId={fileId} />
       {/* Keyed per task: a fresh form with its values (StrictMode-safe, D-121). */}
       <Form
-        key={task?.id ?? `new-${String(fileId)}`}
+        key={task ? `${task.id}-${task.updatedAt}` : `new-${String(fileId)}`}
         form={form}
         layout="vertical"
         noValidate

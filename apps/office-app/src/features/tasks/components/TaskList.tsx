@@ -8,10 +8,12 @@ import {
   Ltr,
   PriorityTag,
   useApiErrorHandler,
+  useCan,
 } from '@nexlegtiq/shared-ui';
 import { Button, DatePicker, Flex, Select, Switch, Table, Typography } from 'antd';
 import type { TableColumnsType } from 'antd';
 import dayjs from 'dayjs';
+import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 
@@ -40,7 +42,10 @@ function Filters({
   readonly byAssignee: boolean;
 }): React.JSX.Element {
   const { t } = useTranslation();
-  const people = useDirectory(byAssignee);
+  const canCreate = useCan('create:task');
+  const canAssign = useCan('assign:task');
+  const canList = canCreate || canAssign;
+  const people = useDirectory(byAssignee && canList);
   // Any change goes back to the first page.
   const set = (key: keyof TaskFilters, next: string | undefined) => {
     const { [key]: _old, page: _page, ...rest } = value;
@@ -68,7 +73,7 @@ function Filters({
         style={{ minInlineSize: 150 }}
         data-testid="task-filter-priority"
       />
-      {byAssignee ? (
+      {byAssignee && canList ? (
         <Select
           allowClear
           showSearch={{ optionFilterProp: 'label' }}
@@ -87,6 +92,7 @@ function Filters({
       <DatePicker
         placeholder={t('tasks.filters.dueBefore')}
         aria-label={t('tasks.filters.dueBefore')}
+        format="DD/MM/YYYY"
         value={value.dueBefore ? dayjs(value.dueBefore) : null}
         onChange={(date) => set('dueBefore', date ? date.format('YYYY-MM-DD') : undefined)}
         data-testid="task-filter-due"
@@ -159,6 +165,20 @@ function useColumns(onFile: boolean, readOnly: boolean): TableColumnsType<Task> 
   ];
 }
 
+/** A page emptied by a change (a task done or deleted elsewhere) goes back to the last page with rows (D-113). */
+function useLastPage(
+  data: { items: readonly Task[]; pagination: { total: number } } | undefined,
+  filters: TaskFilters,
+  onFilters: (next: TaskFilters) => void,
+): void {
+  const last = Math.max(1, Math.ceil((data?.pagination.total ?? 0) / LIST_PAGE_SIZE));
+  useEffect(() => {
+    if (data && data.items.length === 0 && Number(filters.page ?? 1) > last) {
+      onFilters({ ...filters, page: String(last) });
+    }
+  }, [data, filters, last, onFilters]);
+}
+
 /** The list view: filters, a paginated table, an empty state that tells "nothing yet" from "nothing matches". */
 export function TaskList({
   scope,
@@ -176,6 +196,7 @@ export function TaskList({
   const onFile = 'fileId' in scope;
   const list = useTaskList(scope, { ...filters, limit: String(LIST_PAGE_SIZE) });
   const filtered = Object.keys(filters).some((key) => key !== 'page');
+  useLastPage(list.data, filters, onFilters);
 
   const columns = useColumns(onFile, readOnly);
 

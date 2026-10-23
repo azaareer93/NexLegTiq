@@ -2022,3 +2022,15 @@ list (four columns do not fit); the choice of view lasts while the page is open.
 new task from My tasks (no file picker exists yet — a task added there is personal), bulk assign (API ready), task
 reminders (their story), filters in the URL. Why: work moves where people already look — the file and their own list —
 with a board that works without a mouse.
+Review additions (same PR): **positions are saved only on a file's board** — `sortOrder` is per office column (D-098), so
+reordering My tasks' mixed columns would overwrite colleagues' positions and fail on any task of an archived file;
+there a move only changes the column and the card shows at the server's position. A reorder is sent only for a column of
+at most 100 tasks (the API's id limit), and **a refused reorder after a saved status is not a failed move** (the card stays,
+the refetch shows the server's order). Moves are **one at a time** (a mutation scope) and the board refetches after the
+last one, so an earlier answer never undoes a later move on screen. **An outside collaborator** gets the handle and "Move
+to" only on tasks assigned to them (`complete:task` is OWN for that role, D-081). The assignee filter shows only to roles
+that can read the people directory (D-123); a deactivated assignee keeps their name in the drawer's picker; the drawer's
+form follows the task's last change (`updatedAt`); date pickers read dd/MM/yyyy (D-092); a list page emptied by a change
+goes back to the last page; Ctrl+Alt+T does nothing on an archived file's page; a drop the board ignores is announced as
+cancelled. **Not tested:** dragging itself in jsdom (no layout for `@dnd-kit`'s sensors) — the move logic (`planMove`) and
+the moves through "Move to" are; dragging itself waits for the Cypress journeys (E2E story).

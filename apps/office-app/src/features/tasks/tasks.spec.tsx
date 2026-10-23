@@ -100,7 +100,7 @@ interface Calls {
 }
 
 /** A tiny task store: lists filter by status; a status change moves the task unless `refuseMoves`. */
-function serve({ refuseMoves = false } = {}): Calls {
+function serve({ refuseMoves = false, refuseReorder = false } = {}): Calls {
   const calls: Calls = { lists: [], writes: [] };
   const store = [
     task(T1, 'TODO', { dueDate: '2020-01-01', priority: 'URGENT' }),
@@ -124,7 +124,7 @@ function serve({ refuseMoves = false } = {}): Calls {
     }),
     http.patch(api('tasks/reorder'), async ({ request }) => {
       await record('REORDER', request);
-      return new HttpResponse(null, { status: 204 });
+      return refuseReorder ? fail(422, 'BIZ-007') : new HttpResponse(null, { status: 204 });
     }),
     http.patch(api(`tasks/:id/status`), async ({ request, params }) => {
       const body = (await record('STATUS', request)) as { status: TaskStatus };
@@ -146,6 +146,17 @@ function serve({ refuseMoves = false } = {}): Calls {
 }
 
 const column = (status: TaskStatus) => screen.getByTestId(`task-column-${status}`);
+
+const openFileTab = async () => {
+  setViewport(1280);
+  renderApp(`/cases/${FILE_ID}?tab=tasks`);
+  await screen.findByTestId(`task-card-${T1}`, {}, { timeout: COLD });
+};
+
+const moveVia = async (id: string, to: TaskStatus) => {
+  fireEvent.click(screen.getByTestId(`task-menu-${id}`));
+  fireEvent.click(await screen.findByTestId(`task-move-${id}-${to}`));
+};
 
 const openMyTasks = async (locale: 'en' | 'ar' = 'en') => {
   setViewport(1280);
@@ -224,11 +235,11 @@ describe('tasks board and list (MVP-77)', () => {
   );
 
   it(
-    'should move a card to another column and save its status and the new order',
+    "should move a card on a file's board and save its status and the column's new order",
     async () => {
       asRole('LAWYER');
       const calls = serve();
-      await openMyTasks();
+      await openFileTab();
       fireEvent.click(screen.getByTestId(`task-menu-${T1}`));
       fireEvent.click(await screen.findByTestId(`task-move-${T1}-IN_PROGRESS`));
       await waitFor(() =>
@@ -287,6 +298,76 @@ describe('tasks board and list (MVP-77)', () => {
       renderApp('/tasks');
       expect(await screen.findByTestId('task-list', {}, { timeout: COLD })).toBeTruthy();
       expect(screen.queryByTestId('task-board')).toBeNull();
+    },
+    SLOW,
+  );
+});
+
+describe('task moves by role (D-098, D-138)', () => {
+  it(
+    'should only change the column on My tasks, never the office-wide positions',
+    async () => {
+      asRole('LAWYER');
+      const calls = serve();
+      await openMyTasks();
+      await moveVia(T1, 'IN_PROGRESS');
+      await waitFor(() => expect(calls.writes.map((write) => write.method)).toEqual(['STATUS']));
+    },
+    SLOW,
+  );
+
+  it(
+    'should keep a move whose status was saved when the new order is refused',
+    async () => {
+      asRole('LAWYER');
+      const calls = serve({ refuseReorder: true });
+      await openFileTab();
+      await moveVia(T1, 'IN_PROGRESS');
+      await waitFor(() =>
+        expect(calls.writes.map((write) => write.method)).toEqual(['STATUS', 'REORDER']),
+      );
+      await waitFor(() =>
+        expect(within(column('IN_PROGRESS')).queryByTestId(`task-card-${T1}`)).toBeTruthy(),
+      );
+      expect(screen.queryByText(/archived/i)).toBeNull();
+    },
+    SLOW,
+  );
+
+  it(
+    'should let a trainee move cards but not save positions or add tasks',
+    async () => {
+      asRole('TRAINEE');
+      const calls = serve();
+      await openFileTab();
+      expect(screen.queryByTestId('task-add')).toBeNull();
+      await moveVia(T2, 'BLOCKED');
+      await waitFor(() => expect(calls.writes.map((write) => write.method)).toEqual(['STATUS']));
+    },
+    SLOW,
+  );
+
+  it(
+    'should let an outside collaborator move only the tasks assigned to them',
+    async () => {
+      asRole('EXTERNAL_COLLABORATOR');
+      serve();
+      server.use(
+        http.get(api('tasks'), ({ request }) => {
+          const status = new URL(request.url).searchParams.get('status');
+          const items = [
+            task(T1, 'TODO'),
+            task(T2, 'TODO', {
+              assignedTo: { id: '01920000-0000-7000-8000-0000000000b9', fullName: 'Sami' },
+            }),
+          ];
+          return page(items.filter((item) => !status || item.status === status));
+        }),
+      );
+      await openFileTab();
+      expect(screen.getByTestId(`task-menu-${T1}`)).toBeTruthy();
+      expect(screen.queryByTestId(`task-menu-${T2}`)).toBeNull();
+      expect(screen.queryByTestId(`task-drag-${T2}`)).toBeNull();
     },
     SLOW,
   );

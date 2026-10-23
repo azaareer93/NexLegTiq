@@ -38,6 +38,9 @@ export interface BoardRights {
   readonly reorder: boolean;
   /** An archived file: nothing changes (D-052). */
   readonly readOnly: boolean;
+  /** Only tasks assigned to `me` can move (an outside collaborator, D-098). */
+  readonly onlyOwn: boolean;
+  readonly me: string;
 }
 
 function SortableCard({
@@ -113,7 +116,7 @@ function Column({
   return (
     <section
       ref={setNodeRef}
-      aria-label={t(`enums.taskStatus.${status}`)}
+      aria-labelledby={`task-column-title-${status}`}
       data-testid={`task-column-${status}`}
       style={{
         flex: '1 1 240px',
@@ -124,7 +127,11 @@ function Column({
       }}
     >
       <Flex justify="space-between" align="center" style={{ marginBlockEnd: 8 }}>
-        <Typography.Title level={2} style={{ fontSize: 14, margin: 0 }}>
+        <Typography.Title
+          level={2}
+          id={`task-column-title-${status}`}
+          style={{ fontSize: 14, margin: 0 }}
+        >
           {t(`enums.taskStatus.${status}`)}
         </Typography.Title>
         <Badge
@@ -160,7 +167,7 @@ function useBoardColumns(scope: TaskScope) {
 }
 
 /** Screen-reader messages for keyboard dragging, in the reader's language. */
-function useAnnouncements(columns: Columns): Announcements {
+function useAnnouncements(columns: Columns, reorder: boolean): Announcements {
   const { t } = useTranslation();
   const title = (id: string | number) =>
     isolate(TASK_STATUSES.flatMap((s) => columns[s]).find((task) => task.id === id)?.title ?? '');
@@ -174,8 +181,14 @@ function useAnnouncements(columns: Columns): Announcements {
     onDragStart: ({ active }) => t('tasks.dnd.picked', { title: title(active.id) }),
     onDragOver: ({ active, over }) =>
       over ? t('tasks.dnd.over', { title: title(active.id), place: place(over.id) }) : undefined,
-    onDragEnd: ({ active, over }) =>
-      over ? t('tasks.dnd.dropped', { title: title(active.id), place: place(over.id) }) : undefined,
+    onDragEnd: ({ active, over }) => {
+      const plan = over ? planMove(columns, String(active.id), String(over.id)) : null;
+      // A drop the board ignores (nothing changes, or an order the caller may not save) is a cancel.
+      if (!plan || (plan.task.status === plan.to && !reorder)) {
+        return t('tasks.dnd.cancelled', { title: title(active.id) });
+      }
+      return t('tasks.dnd.dropped', { title: title(active.id), place: place(over?.id) });
+    },
     onDragCancel: ({ active }) => t('tasks.dnd.cancelled', { title: title(active.id) }),
   };
 }
@@ -196,12 +209,13 @@ export function TaskBoard({
   const { notify, referenceOf } = useApiErrorHandler();
   const { queries, columns } = useBoardColumns(scope);
   const move = useMoveTask(scope);
-  const announcements = useAnnouncements(columns);
+  const announcements = useAnnouncements(columns, rights.reorder);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
-  const canMove = rights.move && !rights.readOnly;
+  const canMove = (task: Task) =>
+    rights.move && !rights.readOnly && (!rights.onlyOwn || task.assignedTo.id === rights.me);
 
   const send = (plan: ReturnType<typeof planMove>) => {
     // Without `create:task` a card only changes column; its place inside one is not saved (D-098).
@@ -246,9 +260,9 @@ export function TaskBoard({
                 key={task.id}
                 task={task}
                 showFile={!('fileId' in scope)}
-                disabled={!canMove}
+                disabled={!canMove(task)}
                 readOnly={rights.readOnly}
-                {...(canMove && { onMove: moveTo(task) })}
+                {...(canMove(task) && { onMove: moveTo(task) })}
               />
             ))}
           </Column>

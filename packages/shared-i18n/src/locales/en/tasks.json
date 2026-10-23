@@ -17,9 +17,9 @@
     "overdue": "Overdue",
     "due": "Due {{date}}",
     "personal": "Personal task",
-    "moveTo": "Move task {{title}}",
+    "moveTo": "Move task {{title}} to…",
     "moved": "Task moved",
-    "drag": "Drag task {{title}}"
+    "drag": "Drag handle of task {{title}}"
   },
   "list": {
     "title": "Task",
@@ -38,13 +38,13 @@
   },
   "drawer": {
     "new": "New task",
-    "edit": "Task",
+    "edit": "Task details",
     "title": "Title",
     "description": "Description",
     "dueDate": "Due date",
     "priority": "Priority",
     "assignee": "Assigned to",
-    "file": "Case",
+    "file": "Case:",
     "personal": "Personal task: only you and the person it is assigned to see it.",
     "createdBy": "Created by {{name}}",
     "create": "Create",
@@ -52,14 +52,14 @@
     "saved": "Task saved",
     "delete": "Delete task",
     "deleteTitle": "Delete this task?",
-    "deleteBody": "<title>{{title}}</title> will be deleted. This cannot be undone.",
+    "deleteBody": "The task <title>{{title}}</title> will be deleted. This cannot be undone.",
     "deleted": "Task deleted"
   },
   "dnd": {
     "instructions": "To move a task, press Space, use the arrow keys, then press Space again to drop it, or Escape to cancel.",
     "picked": "Picked up task {{title}}.",
-    "over": "Task {{title}} is over {{place}}.",
-    "dropped": "Task {{title}} dropped on {{place}}.",
+    "over": "Task {{title}} is over the {{place}} column.",
+    "dropped": "Task {{title}} dropped in the {{place}} column.",
     "cancelled": "Moving task {{title}} was cancelled."
   }
 }
