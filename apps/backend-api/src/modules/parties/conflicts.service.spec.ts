@@ -88,6 +88,26 @@ describe('ConflictsService (D-135)', () => {
     );
   });
 
+  it('should show a resolved conflict with its note only to readers of both files', async () => {
+    const { service, db, access } = setup({ visible: ['a', 'b'] });
+    const resolved = row({
+      resolved: true,
+      resolutionNotes: 'Consented',
+      resolvedAt: new Date('2026-10-24T10:00:00Z'),
+      party: { id: 'p1', fullName: 'Omar', companyName: null },
+    });
+    db.conflictOfInterest.findMany.mockResolvedValue([resolved]);
+    const page = await service.list({ page: 1, limit: 20 });
+    expect(access.assertFileAccess).not.toHaveBeenCalled();
+    expect(page.items[0]).toMatchObject({
+      party: { name: 'Omar' },
+      resolutionNotes: 'Consented',
+      resolvedAt: '2026-10-24T10:00:00.000Z',
+    });
+    expect(db.conflictOfInterest.findMany.mock.calls[0]?.[0].where).not.toHaveProperty('resolved');
+    expect(await service.openFor('a', 'p1')).toHaveLength(1);
+  });
+
   it('should pass on errors that are not access refusals', async () => {
     const { service, access } = setup();
     access.assertFileAccess.mockRejectedValueOnce(new Error('db down'));
