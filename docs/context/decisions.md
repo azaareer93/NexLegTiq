@@ -2047,3 +2047,28 @@ is audited in full (D-125); keys that were not sent are dropped, not stored as n
 statement**, so a first run over years of rows is never one huge DELETE. The function schema-qualifies its tables.
 `AuditService.log` is the entry point for new code; the existing modules keep their builders, which delegate to the shared
 `auditRow` (same row, same redaction) — their callers already pass the request facts explicitly.
+
+**D-137 — Parties tab, the conflict modal and the file-page banner** · Accepted (MVP-142, 2026-10-23)
+MVP-142 asks for the file's parties by role, search-and-reuse or create, a conflict modal with "proceed with note /
+cancel / reassign" and a file-page banner, on top of D-135's API. → `?tab=parties` (`apps/office-app/src/features/cases/
+parties`, `parties` namespace; shared API client `partiesApi`): parties grouped in `PARTY_TYPES` order (empty roles left
+out), each with name (`<Bdi>`), person/organisation, role description, phone and email (`<Ltr>`), and the identifiers and
+representative D-135 decrypts for readers of the file (isolated). **Add** (a modal): "existing party" searches the registry
+on the server as you type (debounced, `GET /parties`) or "new party" (person or organisation, the D-135 fields, identifiers
+and notes marked "stored encrypted"); role (default DEFENDANT) and an optional role description; empty inputs are left out
+of the request. **Edit** changes role and description only (party details stay as created, D-135); **remove** asks first
+(the party stays in the registry). **Conflicts:** when an add or a retype answers with `conflicts[]`, the modal lists each
+one ("X is on the other side of the dispute in <file>" / "X is the office's client in <file>"; the file number is a link,
+or "a file you cannot open" when D-135 hides it) with: **proceed with note** — one note, required, recorded on every listed
+conflict with `PATCH /conflicts/:id/resolve` one after the other; **cancel** — right after an add, takes the party off the
+file again (`DELETE`, which also withdraws its open conflicts, D-135); **close** — leaves them open. **Banner:** the file
+page reads the file's open conflicts (`GET /conflicts?fileId&resolved=false`, first 100) and, while there are any, shows a
+warning with the count (Arabic plural forms) and "review", which opens the same modal without "cancel". A failed load hides
+the banner. **Rights (UI only, the API re-checks):** add, edit, remove and "proceed" need write access to the file — the
+header's Edit right (`edit:any:case`, or `edit:assigned:case` when assigned; nothing on an archived file, D-052); others see
+the parties and the banner, read-only. **Deviation — "reassign":** reassigning the file needs the file lifecycle story's
+route, which does not exist yet (the header's Reassign is still "coming soon", D-118); until then the conflict stays open
+and the banner keeps warning. **Tests:** component tests with MSW (grouping, add existing with a conflict and its note, cancel
+removing the party, a new party's request, a trainee's read-only view, the banner in Arabic and its resolve, the
+non-editor's banner without "proceed"), axe on the tab in both languages, and the client's routes. Why: conflict warnings
+reach the lawyer on the file itself, and acting on them leaves a note the office can show later.
