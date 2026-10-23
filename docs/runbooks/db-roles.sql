@@ -61,11 +61,14 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO nexlegtiq_app;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO nexlegtiq_readonly;
 
 -- Audit log is append-only for the app (domain-model.md; also revoked by the init migration). Retention purge runs as
--- the migrator. Prisma's bookkeeping table belongs to the migrator only.
+-- the migrator, through nlq_purge_audit_logs (SECURITY DEFINER, D-136), the only DELETE the app can trigger. Prisma's bookkeeping table belongs to the migrator only.
 DO $$
 BEGIN
   IF to_regclass('public.audit_logs') IS NOT NULL THEN
     REVOKE UPDATE, DELETE, TRUNCATE ON public.audit_logs FROM nexlegtiq_app;
+  END IF;
+  IF to_regprocedure('public.nlq_purge_audit_logs(uuid)') IS NOT NULL THEN
+    GRANT EXECUTE ON FUNCTION public.nlq_purge_audit_logs(uuid) TO nexlegtiq_app;
   END IF;
   -- A file's timeline is append-only too (D-095); DELETE stays so a purged file takes its events with it.
   IF to_regclass('public.case_timeline_events') IS NOT NULL THEN

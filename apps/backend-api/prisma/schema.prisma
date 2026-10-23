@@ -385,6 +385,8 @@ model OfficeSettings {
   fileNumberFormat     String        @default("{YEAR}-{TYPE}-{SEQ:5}") @map("file_number_format")
   sessionIdleMinutes   Int           @default(30) @map("session_idle_minutes")
   auditRetentionDays   Int           @default(365) @map("audit_retention_days")
+  /// Highest retention ever set; kept by a trigger (never lowered) and used by the purge (D-136).
+  maxAuditRetentionDays Int @default(365) @map("max_audit_retention_days")
   createdAt            DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt            DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 

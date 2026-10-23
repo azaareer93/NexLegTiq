@@ -2,11 +2,11 @@ import { Injectable } from '@nestjs/common';
 import type { UserId } from '@nexlegtiq/shared-types';
 import { ClsService } from 'nestjs-cls';
 
+import { auditRow } from '../../common/audit/audit.service';
 import type { RequestContext } from '../../common/context/request-context';
 import { ResourceNotFoundException } from '../../common/errors/app.exception';
 import type { ScopedTransaction } from '../../database/unit-of-work';
 import type { ClientInfo } from '../auth/client-info';
-import { truncateUserAgent } from '../auth/client-info';
 
 /** Fields never written to the audit log in clear: the log records that they changed, not their value. */
 const SECRET_FIELDS = new Set(['nationalId', 'taxId']);
@@ -60,18 +60,18 @@ export class ClientContext {
   ) {
     const before = redact(oldValues);
     const after = redact(newValues);
-    return {
-      officeId: this.officeId(),
-      userId: this.actorId(),
-      entityType,
-      entityId,
-      action,
-      ...(before && { oldValues: JSON.parse(JSON.stringify(before)) as object }),
-      ...(after && { newValues: JSON.parse(JSON.stringify(after)) as object }),
-      ipAddress: caller.ip,
-      userAgent: truncateUserAgent(caller.userAgent),
-      requestId: caller.requestId,
-    };
+    return auditRow(
+      {
+        officeId: this.officeId(),
+        userId: this.actorId(),
+        entityType,
+        entityId,
+        action,
+        ...(before && { oldValues: JSON.parse(JSON.stringify(before)) as object }),
+        ...(after && { newValues: JSON.parse(JSON.stringify(after)) as object }),
+      },
+      caller,
+    );
   }
 }
 

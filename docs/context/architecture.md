@@ -69,7 +69,7 @@ timeline event → enqueue async work → audit log → invalidate cache → str
 | `reminder` | high | `send-session-reminder`, `send-task-reminder` (delayed jobs), `reconcile-reminders` (daily scheduler, D-117) | 3× exp |
 | `email` | low | `send-email` | 3× fixed 5s |
 | `notification` | high | `create-notification` (DB; WS push later), `fan-out` | 3× |
-| `report` | low | `invoice-pdf`, `office-export` | 2× |
+| `report` | low | `invoice-pdf`, `office-export`, `purge-audit-logs` (daily scheduler, D-136) | 2× |
 | `batch-ingest` | medium | Phase 2 (email/voice ingest) | – |
 Defaults: removeOnComplete 7d/1000, removeOnFail 30d. Priority = worker concurrency (high 10, medium 5, low 2); timeouts
 are enforced by `TenantProcessor`. Code: `src/common/queue/` (`QUEUE`, `QUEUE_POLICY`, `QueueProducer`, `TenantProcessor`),

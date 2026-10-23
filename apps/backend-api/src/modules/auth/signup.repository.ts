@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import type { RegisterRequest } from '@nexlegtiq/shared-contracts';
 
-import { truncateUserAgent } from './client-info';
 import type { ClientInfo } from './client-info';
 import { USER_FOR_SESSION } from './refresh-token.repository';
+import { auditRow } from '../../common/audit/audit.service';
 import { AppException } from '../../common/errors/app.exception';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
@@ -231,12 +231,11 @@ export class SignupRepository {
   }
 }
 
+/** The office, actor and request facts of a signup-time audit row (callers add entity and values). */
 function auditBase(officeId: string, userId: string, client: ClientInfo) {
-  return {
-    officeId,
-    userId,
-    ipAddress: client.ip,
-    userAgent: truncateUserAgent(client.userAgent),
-    requestId: client.requestId,
-  };
+  const { ipAddress, userAgent, requestId } = auditRow(
+    { officeId, userId, entityType: 'User', action: 'CREATE' },
+    client,
+  );
+  return { officeId, userId, ipAddress, userAgent, requestId };
 }

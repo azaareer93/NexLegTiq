@@ -4,6 +4,7 @@ import type { UserId } from '@nexlegtiq/shared-types';
 import { ClsService } from 'nestjs-cls';
 
 import { FolderTree, MAX_FOLDER_DEPTH, MAX_FOLDERS_PER_FILE } from './folder-tree';
+import { auditRow } from '../../common/audit/audit.service';
 import type { RequestContext } from '../../common/context/request-context';
 import {
   BusinessRuleException,
@@ -16,7 +17,6 @@ import { UnitOfWork } from '../../database/unit-of-work';
 import type { ScopedTransaction } from '../../database/unit-of-work';
 import type { Prisma } from '../../generated/prisma/client';
 import type { ClientInfo } from '../auth/client-info';
-import { truncateUserAgent } from '../auth/client-info';
 import { changedFields } from '../clients/client-context';
 import { CaseAccessService } from '../legal-files/case-access.service';
 
@@ -204,18 +204,18 @@ export class FoldersService {
     oldValues: Record<string, unknown> | null,
     newValues: Record<string, unknown> | null,
   ) {
-    return {
-      officeId: this.officeId(),
-      userId: this.actorId(),
-      entityType: 'DocumentFolder',
-      entityId,
-      action,
-      ...(oldValues && { oldValues: JSON.parse(JSON.stringify(oldValues)) as object }),
-      ...(newValues && { newValues: JSON.parse(JSON.stringify(newValues)) as object }),
-      ipAddress: caller.ip,
-      userAgent: truncateUserAgent(caller.userAgent),
-      requestId: caller.requestId,
-    };
+    return auditRow(
+      {
+        officeId: this.officeId(),
+        userId: this.actorId(),
+        entityType: 'DocumentFolder',
+        entityId,
+        action,
+        oldValues,
+        newValues,
+      },
+      caller,
+    );
   }
 
   // A missing caller or office is a programming error (guarded routes always set them): 500 SYS-001.

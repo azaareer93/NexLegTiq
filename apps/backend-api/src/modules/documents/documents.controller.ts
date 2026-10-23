@@ -41,6 +41,7 @@ import { ClsService } from 'nestjs-cls';
 import { DocumentRecordsService } from './document-records.service';
 import { DocumentRetry } from './document-retry';
 import { DocumentsService } from './documents.service';
+import { AuditService } from '../../common/audit/audit.service';
 import type { RequestContext } from '../../common/context/request-context';
 import { ResourceNotFoundException } from '../../common/errors/app.exception';
 import { ZodValidationPipe } from '../../common/http/zod-validation.pipe';
@@ -69,6 +70,7 @@ export class DocumentsController {
     private readonly records: DocumentRecordsService,
     private readonly retries: DocumentRetry,
     private readonly cls: ClsService<RequestContext>,
+    private readonly audit: AuditService,
   ) {}
 
   @Post()
@@ -113,8 +115,11 @@ export class DocumentsController {
   @RequireAnyPermission('view:all:cases', 'view:assigned:cases')
   @ApiOperation({ summary: 'A document (404 when the caller may not see it)' })
   @ApiZodResponse(HttpStatus.OK, DocumentSchema)
-  get(@Param('id', uuid) id: string): Promise<Document> {
-    return this.records.get(id);
+  async get(@Param('id', uuid) id: string): Promise<Document> {
+    const document = await this.records.get(id);
+    // Opening a document is audited, once per user and document every 10 minutes (D-136).
+    await this.audit.view('Document', id);
+    return document;
   }
 
   @Patch(':id')

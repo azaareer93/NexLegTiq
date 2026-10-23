@@ -13,6 +13,7 @@ import { ClsService } from 'nestjs-cls';
 
 import { assertAssignable, TaskAccessService } from './task-access.service';
 import { dateOnly, TasksRepository, toDbDate } from './tasks.repository';
+import { auditRow } from '../../common/audit/audit.service';
 import type { RequestContext } from '../../common/context/request-context';
 import {
   PermissionDeniedException,
@@ -27,7 +28,6 @@ import { UnitOfWork } from '../../database/unit-of-work';
 import type { AfterCommit, ScopedTransaction } from '../../database/unit-of-work';
 import type { Prisma } from '../../generated/prisma/client';
 import type { ClientInfo } from '../auth/client-info';
-import { truncateUserAgent } from '../auth/client-info';
 import { CaseAccessService } from '../legal-files/case-access.service';
 import { todayIn } from '../legal-files/cases.service';
 
@@ -297,18 +297,18 @@ export class TasksService {
     oldValues: object | null,
     newValues: object | null,
   ) {
-    return {
-      officeId: this.officeId(),
-      userId: this.access.actorId(),
-      entityType: 'Task',
-      entityId,
-      action,
-      ...(oldValues && { oldValues: JSON.parse(JSON.stringify(oldValues)) as object }),
-      ...(newValues && { newValues: JSON.parse(JSON.stringify(newValues)) as object }),
-      ipAddress: client.ip,
-      userAgent: truncateUserAgent(client.userAgent),
-      requestId: client.requestId,
-    };
+    return auditRow(
+      {
+        officeId: this.officeId(),
+        userId: this.access.actorId(),
+        entityType: 'Task',
+        entityId,
+        action,
+        oldValues,
+        newValues,
+      },
+      client,
+    );
   }
 
   private officeId(): string {

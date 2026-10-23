@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { EmailProcessor } from './email.processor';
+import { AuditRetentionProcessor } from '../common/audit/audit-retention.processor';
 import { CoreModule } from '../common/core/core.module';
 import { MailModule } from '../common/mail/mail.module';
 import { QueueModule } from '../common/queue/queue.module';
@@ -39,6 +40,7 @@ import { SubscriptionsModule } from '../modules/subscriptions/subscriptions.modu
   ],
   providers: [
     EmailProcessor,
+    AuditRetentionProcessor,
     VerificationLinks,
     PasswordResetLinks,
     InvitationLinks,

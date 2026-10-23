@@ -12,6 +12,7 @@ import {
   present,
   releaseParalegalFiles,
 } from './team.rules';
+import { auditRow } from '../../common/audit/audit.service';
 import type { RequestContext } from '../../common/context/request-context';
 import {
   ResourceConflictException,
@@ -22,7 +23,6 @@ import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { AfterCommit, ScopedTransaction } from '../../database/unit-of-work';
 import type { ClientInfo } from '../auth/client-info';
-import { truncateUserAgent } from '../auth/client-info';
 import { ReminderScheduler } from '../sessions/reminder-scheduler';
 import { EntitlementsService } from '../subscriptions/entitlements.service';
 
@@ -274,18 +274,18 @@ export class TeamService {
     oldValues: object,
     newValues: object,
   ) {
-    return {
-      officeId: this.officeId(),
-      userId: this.actorId(),
-      entityType,
-      entityId,
-      action: 'UPDATE' as const,
-      oldValues,
-      newValues,
-      ipAddress: client.ip,
-      userAgent: truncateUserAgent(client.userAgent),
-      requestId: client.requestId,
-    };
+    return auditRow(
+      {
+        officeId: this.officeId(),
+        userId: this.actorId(),
+        entityType,
+        entityId,
+        action: 'UPDATE',
+        oldValues,
+        newValues,
+      },
+      client,
+    );
   }
 
   private actorId(): string {

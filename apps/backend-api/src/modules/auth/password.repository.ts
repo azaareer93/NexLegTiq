@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 
-import { truncateUserAgent } from './client-info';
 import type { ClientInfo } from './client-info';
 import { RefreshTokenRepository } from './refresh-token.repository';
+import { auditRow } from '../../common/audit/audit.service';
 import { PrismaService } from '../../database/prisma.service';
 
 /**
@@ -107,15 +107,8 @@ function audit(
   newValues: Record<string, boolean>,
   client: ClientInfo,
 ) {
-  return {
-    officeId,
-    userId,
-    entityType: 'User',
-    entityId: userId,
-    action: 'UPDATE' as const,
-    newValues,
-    ipAddress: client.ip,
-    userAgent: truncateUserAgent(client.userAgent),
-    requestId: client.requestId,
-  };
+  return auditRow(
+    { officeId, userId, entityType: 'User', entityId: userId, action: 'UPDATE', newValues },
+    client,
+  );
 }
