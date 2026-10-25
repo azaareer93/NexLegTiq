@@ -79,5 +79,37 @@
     "moved": "نُقل المستند",
     "deleted": "حُذف المستند",
     "retried": "بدأت المعالجة من جديد"
+  },
+  "preview": {
+    "open": "فتح {{name}}",
+    "loading": "مستند",
+    "download": "تنزيل",
+    "tabs": {
+      "preview": "معاينة",
+      "text": "النص",
+      "versions": "الإصدارات"
+    },
+    "unsupported": "لا يمكن معاينة هذا النوع من الملفات",
+    "unsupportedHint": "اقرأ نصه في تبويب «النص»، أو نزّله.",
+    "failed": "تعذّر عرض هذا الملف. نزّله لفتحه.",
+    "pageOf": "الصفحة {{page}} من {{total}}",
+    "search": "البحث في هذه الصفحة",
+    "matches_zero": "لا نتائج في هذه الصفحة",
+    "matches_one": "نتيجة واحدة في هذه الصفحة",
+    "matches_two": "نتيجتان في هذه الصفحة",
+    "matches_few": "{{count}} نتائج في هذه الصفحة",
+    "matches_many": "{{count}} نتيجة في هذه الصفحة",
+    "matches_other": "{{count}} نتيجة في هذه الصفحة",
+    "textPending": "النص غير جاهز بعد، ويظهر بعد قراءة المستند.",
+    "textNone": "لم يُستخرج أي نص من هذا المستند.",
+    "newVersion": "رفع إصدار جديد",
+    "pickFile": "اختيار ملف",
+    "changeNote": "ما الذي تغيّر (اختياري)",
+    "uploadVersion": "رفع الإصدار",
+    "versionUploaded": "رُفع الإصدار الجديد، ويُفحص قبل أن يمكن فتحه.",
+    "downloadVersion": "تنزيل الإصدار {{number}}",
+    "olderUnavailable": "يمكن حاليًا تنزيل الإصدار الحالي فقط.",
+    "current": "الحالي",
+    "separator": " · "
   }
 }
