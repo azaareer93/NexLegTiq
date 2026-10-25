@@ -2226,3 +2226,60 @@ Measured in a Debian container with 2 CPUs: 10 pages in 6 s, mean confidence 92;
 owner's call, D-103), language detection
 (`Document.language`), Arabic handwriting, the Vision fallback (MVP-145's own ticket), reprocessing documents left
 PROCESSING by the old code (there is no production data yet).
+
+**D-141 — Backups: encrypted dumps, off-provider copies and an automated restore test; provider settings left to the owner** · Accepted (MVP-113, 2026-10-25)
+MVP-113 asks for PITR, snapshots, encrypted off-provider dumps, bucket versioning, a weekly restore test and a timed drill,
+but no database, bucket or second provider is chosen yet (D-103, D-021) and choosing them commits spend. → As for staging
+(D-103), the **repo side** ships now and is provider-agnostic; the provider settings are the owner's. **Tools:** one small image
+(`infra/backup/Dockerfile`: `postgres:17.6-bookworm` — the client matches the server's major — plus `age` and `rclone`,
+never pushed; `RCLONE_CONFIG=/dev/null`, remotes come from `RCLONE_CONFIG_<REMOTE>_*`) runs three bash scripts (`set -euo
+pipefail`): `backup.sh` — `pg_dump -Fc --no-owner --no-privileges` piped through `age` (encrypted to every key in
+`AGE_RECIPIENTS`) and streamed with `rclone rcat` to `weekly/nexlegtiq-<UTC stamp>.dump.age` in the backup bucket, also
+copied to `monthly/` in the first week of a month; nothing unencrypted touches a disk or the bucket; a failed dump deletes
+its partial object. `restore-check.sh` — the newest `weekly/` dump (refused when older than 8 days) is decrypted and restored
+into an empty scratch database, then `verify.sql` asserts: every migration finished, the four extensions present,
+`nlq_normalize_ar` works, no orphaned users, files or documents; it prints row counts and timings. `documents-copy.sh` —
+`rclone copy --checksum` of the documents bucket to `documents/` in the backup bucket: **copy, never sync**, so a deletion or an
+emptied bucket on the primary never propagates. **rclone** rather than the AWS CLI: two different providers in one command.
+**Keys:** two age recipients — an **offline** key the owner keeps out of CI (the disaster key) and a **CI** key whose secret
+(`BACKUP_AGE_IDENTITY`) only the restore test reads. **Workflow** `.github/workflows/backup.yml`: Sundays 02:00 UTC and on
+demand, **off until the repository variable `BACKUP_ENABLED=true`**, GitHub Environment `backup` (secrets `BACKUP_ENV` — one
+env file, as `STAGING_APP_ENV` in D-103 — `BACKUP_AGE_IDENTITY`, optional `SLACK_WEBHOOK_URL`); job 1 dumps and copies (the
+env file written with umask 077 and removed afterwards); job 2 restores into a `pgvector/pgvector:pg17` service container
+with the dev placeholder credentials (D-078, a throwaway database) and writes the report to the job summary — it receives
+only the bucket settings, never the production database URL; job 3 posts failures to Slack when configured (GitHub emails
+failed scheduled runs anyway). The dump runs as the **migrator** role (the read-only role cannot read token tables, D-079);
+dumps carry no owners or grants, so a restore re-applies `db-roles.sql`. **Retention** is the bucket's lifecycle (weekly/ 90
+days, monthly/ 365 days, documents noncurrent versions 90 days), not script deletes. **Honest RPO/RTO (amends
+ops-security.md's "else 24 h"):** until provider PITR is enabled a database loss can lose up to **7 days** (the weekly dump),
+and documents without bucket versioning up to 7 days; with PITR, ≤ 15 min. Restoring the data itself takes seconds at
+today's size; the 4 h RTO is spent provisioning and switching. **Runbooks:** `docs/runbooks/backups.md` (what exists, first
+setup, drills and their log), `restore-db.md`, `restore-documents.md`. **Drill:** `bash scripts/backup-drill.sh` runs the same
+scripts against the dev stack (RustFS bucket, throwaway key); first run 2026-10-25: 206 KB dump, restore 1 s, checks 0 s, and a
+wrong key is refused. **Owner's (posted on the ticket):** the backup provider and bucket, the two age keys, the GitHub
+Environment and `BACKUP_ENABLED`, PITR (≥ 7 days) and daily snapshots on the managed Postgres, versioning on the documents
+bucket, and the first production restore drill (logged in `backups.md`). Why: backups that are encrypted end to end, tested
+every week and restorable by a runbook, the day the providers exist — without committing money or a region on the owner's
+behalf.
+Review additions (same PR): **the repository is public, so its Actions logs are:** the scripts print object names, sizes,
+SHA-256 hashes and timings only — pg_dump/pg_restore/psql messages (which can quote table rows) and the row counts stay in
+the container (`BACKUP_VERBOSE=1` shows them on an operator's machine, never in CI). **The dump runs as a new
+`nexlegtiq_backup` role** (`db-roles.sql`: SELECT on every table and sequence, `default_transaction_read_only`, owns nothing;
+Phase 3 RLS will need BYPASSRLS), not the migrator, so a leaked backup secret cannot change the schema. **TLS is enforced**:
+`DATABASE_URL` must use `sslmode=verify-full|verify-ca` (with `sslrootcert=system`) and the bucket endpoint `https://`; only
+the dev drill sets `BACKUP_ALLOW_INSECURE=1`. **Integrity:** each dump's SHA-256 goes into the run summary (a record apart
+from the bucket) and `BACKUP_SHA256` makes a restore refuse any other file; only `nexlegtiq-<YYYYMMDDTHHMMSSZ>.dump.age`
+names count, and a dump dated in the future is refused (a planted file would otherwise always sort newest). **Restores:**
+`BACKUP_RESTORE_ROLE=nexlegtiq_migrator` (connected as the admin) makes the restored objects the migrator's, so `prisma
+migrate deploy` and the SECURITY DEFINER purge (D-136) keep working; `--no-comments`; the offline key is mounted as a file
+(`AGE_IDENTITY_FILE`), never passed on a command line; `BACKUP_NAME` picks a dump; the restored data needs the same
+`ENCRYPTION_KEY` (D-108, D-135). **Documents (amends the above):** a **sync**, not a copy — documents purged on purpose (D-128
+retention, erasure requests, the DPA) must also leave the backup — with `--backup-dir documents-deleted/<run>/` (kept 90 days
+by lifecycle, so a mistaken deletion or a ransomware overwrite on the primary is recoverable) and `--max-delete 500` (an
+emptied or wrong source bucket stops the run). **Bucket hardening (owner):** versioning and Object Lock where supported, a key
+without delete-version rights, provider-side encryption, a region fitting D-021 and the provider on the sub-processor list.
+**Workflow:** the restore job receives only `BACKUP_BUCKET_ENV` (bucket settings), every env value is masked, the `backup`
+environment is limited to `main`, the monthly copy happens only on scheduled runs, and the summary is written even when the
+restore fails. `verify.sql` now also checks the purge function (SECURITY DEFINER) and the `document_texts` search trigger.
+**Not done:** images pinned by digest (the repo pins tags, D-078), a pre-migration snapshot in the deploy script (a provider
+snapshot by hand until the release pipeline story).

@@ -66,5 +66,5 @@ that rule needs a database restore (backups runbook) instead.
 
 ## Not covered yet
 
-Sentry releases (monitoring story), production (release pipeline story), backups and restore tests (backups story),
+Sentry releases (monitoring story), production (release pipeline story; backups are in [backups.md](backups.md), D-141),
 provisioning as code (Terraform for VPS/DNS/bucket — waits for the provider choice, D-103).

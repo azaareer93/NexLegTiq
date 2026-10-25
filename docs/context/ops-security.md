@@ -41,13 +41,16 @@
   Staging is built (D-103): `apps/backend-api/Dockerfile`, `infra/staging/`, `.github/workflows/deploy-staging.yml`,
   runbook `docs/runbooks/deploy.md`.
 - SPAs → Cloudflare Pages (preview per PR). Env: `VITE_API_URL`, `VITE_WS_URL`, `VITE_SENTRY_DSN`, feature flags.
-- Migrations: expand/contract for zero downtime; backup before prod migrate; rollback = restore + previous image.
+- Migrations: expand/contract for zero downtime; backup before prod migrate (a provider snapshot, taken by hand until the release pipeline story automates it — D-141); rollback = restore + previous image.
 
 ## Backups & DR (right-sized)
-- Managed PG: daily snapshots (30d) + PITR (7d) → RPO ≤ 15 min target when PITR available (else 24h, documented).
+- Managed PG: daily snapshots (30d) + PITR (7d) → RPO ≤ 15 min target when PITR available (else up to 7 days, the weekly dump — D-141).
 - Weekly encrypted `pg_dump -Fc` to a second provider/bucket (90d), monthly (365d). Object storage versioning on.
 - Weekly automated restore test into a scratch DB (GitHub Action) with row-count verification.
 - RTO target 4h. Runbooks in `docs/runbooks/` (DB restore, bad deploy rollback, Redis loss, credential leak, provider outage).
+- Implementation (D-141): `infra/backup/` (pg_dump + age + rclone image), `.github/workflows/backup.yml` (weekly dump,
+  documents copy, restore test; off until `BACKUP_ENABLED`), runbooks `backups.md`, `restore-db.md`, `restore-documents.md`;
+  local drill `bash scripts/backup-drill.sh`. PITR, snapshots and bucket versioning are provider settings (owner).
 
 ## Monitoring & incidents
 Sentry (errors, releases, perf traces sampled), UptimeRobot (1 min) on `/health/ready` + SPAs, logs to a hosted log sink,
