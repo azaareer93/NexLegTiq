@@ -22,6 +22,7 @@ const SETTINGS_ROW = {
   taxRatePercent: new Prisma.Decimal(0),
   enableAi: true,
   enableOcr: true,
+  enableVisionOcr: false,
   fileNumberFormat: '{YEAR}-{TYPE}-{SEQ:5}',
   sessionIdleMinutes: 30,
   auditRetentionDays: 365,

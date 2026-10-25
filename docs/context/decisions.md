@@ -2283,3 +2283,30 @@ environment is limited to `main`, the monthly copy happens only on scheduled run
 restore fails. `verify.sql` now also checks the purge function (SECURITY DEFINER) and the `document_texts` search trigger.
 **Not done:** images pinned by digest (the repo pins tags, D-078), a pre-migration snapshot in the deploy script (a provider
 snapshot by hand until the release pipeline story).
+
+**D-142 — Google Vision fallback for hard-to-read scans: opt-in, page budget, EU endpoint, cost per document** · Accepted (owner chose the recommended options; MVP-145, 2026-10-25) · Amends D-122, D-139
+Vision receives unredacted document images (scans cannot be PII-redacted, D-057), so the owner chose (Jira comment on the
+ticket): **office opt-in + plan flag, a monthly page budget, the EU endpoint and the owner's GCP project.** → **When:** after
+Tesseract (D-139), a scan whose mean confidence is below `OCR_VISION_MIN_CONFIDENCE` (default 70), or where Tesseract read no
+word on a scan that has pages, is re-read by Google Cloud Vision `DOCUMENT_TEXT_DETECTION` — only when **all** of: Vision is
+configured (`GOOGLE_VISION_CREDENTIALS`), the plan's flag `googleVisionOcr` is on (D-122; still off by default on every plan),
+the office's new setting **`enableVisionOcr`** is on (`office_settings.enable_vision_ocr`, default false, shown in Settings →
+Practice defaults with what it means, audited like every setting, D-125), and the **page budget** has room for every page of
+the scan: new plan column **`ocrPagesMonthly`** (default 0 = no Vision; the admin panel sets it per plan; `EntitlementsService
+.visionPagesLeft()` = budget − pages Vision read this UTC month, counted from `document_texts` rows with engine
+`google-vision`). Vision's result then **replaces** Tesseract's (engine `google-vision`, confidence and per-page confidence
+from Vision's page confidences); a scan over the remaining budget keeps Tesseract's result. **How:** `extraction/vision.ts`
+calls `POST {GOOGLE_VISION_ENDPOINT}/v1/images:annotate` (default `https://eu-vision.googleapis.com`, `https` required in
+production) with the API key in the **`x-goog-api-key` header, never the URL** (as Gemini, D-130), one page per request, two at
+a time, language hints `ar` and `en`, 30 s per request inside the attempt's abort signal. PDFs are rasterized for it by the
+same sandboxed `pdftoppm` as Tesseract (D-139: minimal environment, crop box) at 200 dpi JPEG, 10 pages a batch; JPEG and PNG
+are sent as they are up to 7 MB (larger ones, and TIFF, keep Tesseract's result). **Credentials:** `GOOGLE_VISION_CREDENTIALS`
+is an API key restricted to the Vision API in the owner's GCP project (simpler than a service account for one API; rotate in
+the console), redacted in logs, refused in production when it is a documented placeholder. **Errors:** a `VisionError` carries
+only a code (`HTTP_<status>`, `VISION_<code>`, `NETWORK`, `EMPTY_RESPONSE`) — the provider's message (which can quote the
+request) is never logged or stored; it fails the attempt, the queue retries (D-084), and the last attempt marks the document
+FAILED with EXT-002 (retry endpoint, D-132). **Cost:** `GOOGLE_VISION_PRICE_PER_1000_PAGES` (default 1.5 USD) × pages, computed
+with decimal.js (D-017) and stored per version in the new column `document_texts.ocr_cost_usd` (`Decimal(10,6)`, CHECK ≥ 0),
+and logged with the document id and pages. **Owner, before switching it on:** create the GCP project and key (Vision API only),
+put Google on the DPA sub-processor list (D-021), set `ocrPagesMonthly` and the `googleVisionOcr` flag on the plans that include
+it. **Not done:** TIFF pages through Vision, showing the page budget in the subscription view, a per-office cost report.

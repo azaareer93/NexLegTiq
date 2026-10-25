@@ -10,6 +10,7 @@ import { DocumentRetry } from './document-retry';
 import { MIME } from './extraction/extract-text';
 import { buildDocx, buildPdf } from './extraction/fixtures.test-helper';
 import { ocr } from './extraction/ocr';
+import { VisionError, visionOcr } from './extraction/vision';
 import type { UploadIntake } from './upload/upload-intake';
 import type { RequestContext } from '../../common/context/request-context';
 import type { QueueProducer } from '../../common/queue/queue-producer';
@@ -21,12 +22,18 @@ import { parseEnv } from '../../config/env.schema';
 import type { PrismaService } from '../../database/prisma.service';
 import type { UnitOfWork } from '../../database/unit-of-work';
 import type { ClientInfo } from '../auth/client-info';
+import type { EntitlementsService } from '../subscriptions/entitlements.service';
 
 jest.mock('./extraction/ocr', () => ({
   ...jest.requireActual<object>('./extraction/ocr'),
   ocr: jest.fn(),
 }));
 const mockedOcr = jest.mocked(ocr);
+jest.mock('./extraction/vision', () => ({
+  ...jest.requireActual<object>('./extraction/vision'),
+  visionOcr: jest.fn(),
+}));
+const mockedVision = jest.mocked(visionOcr);
 
 const JOB = { documentId: '01920000-0000-7000-8000-0000000000d1', versionNumber: 2 };
 const WORDS = Array.from({ length: 600 }, (_, i) => `word${i}`).join(' ');
@@ -37,13 +44,45 @@ const VERSION = {
   document: { officeId: 'o1', fileId: 'f1', documentType: 'PLEADING', name: 'Lease.docx' },
 };
 
-function extractionSetup({
-  version = VERSION as unknown,
-  updated = 1,
-  autoSummary = 'false',
-  body = buildDocx([WORDS]),
-  enableOcr = true as boolean | null,
-} = {}) {
+interface Setup {
+  readonly version: unknown;
+  readonly updated: number;
+  readonly autoSummary: string;
+  readonly body: Buffer;
+  readonly enableOcr: boolean | null;
+  /** Google Vision (D-142): credentials configured, the plan flag, the office opt-in, the month's pages left. */
+  readonly vision: boolean;
+  readonly visionPlan: boolean;
+  readonly enableVisionOcr: boolean;
+  readonly pagesLeft: number;
+}
+const DEFAULTS: Setup = {
+  version: VERSION,
+  updated: 1,
+  autoSummary: 'false',
+  body: buildDocx([WORDS]),
+  enableOcr: true,
+  vision: false,
+  visionPlan: true,
+  enableVisionOcr: true,
+  pagesLeft: 100,
+};
+
+function extractionSetup(overrides: Partial<Setup> = {}) {
+  const {
+    version,
+    updated,
+    autoSummary,
+    body,
+    enableOcr,
+    vision,
+    visionPlan,
+    enableVisionOcr,
+    pagesLeft,
+  } = {
+    ...DEFAULTS,
+    ...overrides,
+  };
   const tx = {
     document: { updateMany: jest.fn().mockResolvedValue({ count: updated }) },
     documentText: { upsert: jest.fn() },
@@ -51,12 +90,16 @@ function extractionSetup({
   const db = {
     documentVersion: { findFirst: jest.fn().mockResolvedValue(version) },
     document: { updateMany: jest.fn().mockResolvedValue({ count: updated }) },
-    officeSettings: { findFirst: jest.fn().mockResolvedValue({ enableOcr }) },
+    officeSettings: { findFirst: jest.fn().mockResolvedValue({ enableOcr, enableVisionOcr }) },
   };
   const realtime = { toUser: jest.fn() };
   const queues = { enqueue: jest.fn() };
   const storage = { getStream: jest.fn().mockResolvedValue(Readable.from([body])) };
-  const logger = { setContext: jest.fn(), info: jest.fn() };
+  const logger = { setContext: jest.fn(), info: jest.fn(), warn: jest.fn() };
+  const entitlements = {
+    current: jest.fn().mockResolvedValue({ features: { googleVisionOcr: visionPlan } }),
+    visionPagesLeft: jest.fn().mockResolvedValue(pagesLeft),
+  };
   const service = new DocumentExtraction(
     { db } as unknown as PrismaService,
     {
@@ -66,10 +109,18 @@ function extractionSetup({
     storage as unknown as StorageService,
     realtime as unknown as RealtimePublisher,
     queues as unknown as QueueProducer,
-    new AppConfig(parseEnv(testEnv({ AI_AUTO_SUMMARY: autoSummary }))),
+    new AppConfig(
+      parseEnv(
+        testEnv({
+          AI_AUTO_SUMMARY: autoSummary,
+          ...(vision ? { GOOGLE_VISION_CREDENTIALS: 'vision-test-key' } : {}),
+        }),
+      ),
+    ),
     logger as unknown as PinoLogger,
+    entitlements as unknown as EntitlementsService,
   );
-  return { service, tx, db, realtime, queues, storage, logger };
+  return { service, tx, db, realtime, queues, storage, logger, entitlements };
 }
 
 const LIVE_PROCESSING = {
@@ -214,6 +265,79 @@ describe('DocumentExtraction', () => {
     expect([...gone.realtime.toUser.mock.calls, ...raced.realtime.toUser.mock.calls]).toHaveLength(
       0,
     );
+  });
+});
+
+describe('DocumentExtraction: Google Vision fallback (D-142)', () => {
+  const IMAGE = { ...VERSION, mimeType: 'image/png' };
+  const weak = { text: 'weak', pageCount: 2, confidence: 40, pageConfidences: [40, 40] };
+  const strong = {
+    text: 'محكمة',
+    pageCount: 2,
+    confidence: 95,
+    pageConfidences: [95, 95],
+    costUsd: '0.003000',
+  };
+  beforeEach(() => {
+    mockedOcr.mockReset().mockResolvedValue(weak);
+    mockedVision.mockReset().mockResolvedValue(strong);
+  });
+  const stored = (tx: ReturnType<typeof extractionSetup>['tx']) =>
+    (tx.documentText.upsert.mock.calls[0]?.[0] as { create: Record<string, unknown> }).create;
+
+  it('should re-read a weak scan with Vision when configured, on the plan, opted in and within budget', async () => {
+    const { service, tx } = extractionSetup({ version: IMAGE, vision: true });
+    await expect(service.run(JOB)).resolves.toBe('READY');
+    expect(mockedVision).toHaveBeenCalledWith(expect.any(Buffer), 'image/png', {
+      pages: 2,
+      signal: expect.any(AbortSignal),
+      config: expect.objectContaining({ endpoint: 'https://eu-vision.googleapis.com' }),
+    });
+    expect(stored(tx)).toMatchObject({
+      ocrEngine: 'google-vision',
+      ocrConfidence: 95,
+      ocrCostUsd: '0.003000',
+    });
+  });
+
+  it('should keep the Tesseract result when any condition is missing', async () => {
+    for (const overrides of [
+      { vision: false },
+      { vision: true, visionPlan: false },
+      { vision: true, enableVisionOcr: false },
+      { vision: true, pagesLeft: 1 },
+    ]) {
+      mockedVision.mockClear();
+      const { service, tx } = extractionSetup({ version: IMAGE, ...overrides });
+      await service.run(JOB);
+      expect(mockedVision).not.toHaveBeenCalled();
+      expect(stored(tx)).toMatchObject({ ocrEngine: 'tesseract', ocrCostUsd: null });
+    }
+  });
+
+  it('should leave a confident scan to Tesseract, and try Vision when Tesseract read nothing', async () => {
+    mockedOcr.mockResolvedValueOnce({ ...weak, confidence: 88 });
+    await extractionSetup({ version: IMAGE, vision: true }).service.run(JOB);
+    expect(mockedVision).not.toHaveBeenCalled();
+    mockedOcr.mockResolvedValueOnce({
+      text: '',
+      pageCount: 1,
+      confidence: null,
+      pageConfidences: [null],
+    });
+    await extractionSetup({ version: IMAGE, vision: true }).service.run(JOB);
+    expect(mockedVision).toHaveBeenCalledTimes(1);
+  });
+
+  it('should fail the attempt with the provider code only when Vision fails', async () => {
+    mockedVision.mockRejectedValueOnce(new VisionError('HTTP_503'));
+    const { service, tx, logger } = extractionSetup({ version: IMAGE, vision: true });
+    await expect(service.run(JOB)).rejects.toThrow('Google Vision failed: HTTP_503');
+    expect(logger.warn).toHaveBeenCalledWith(
+      { documentId: JOB.documentId, code: 'HTTP_503' },
+      'Google Vision failed',
+    );
+    expect(tx.documentText.upsert).not.toHaveBeenCalled();
   });
 });
 

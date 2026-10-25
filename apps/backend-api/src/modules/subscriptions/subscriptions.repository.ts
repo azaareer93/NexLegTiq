@@ -14,6 +14,7 @@ const ROW = {
       name: true,
       maxUsers: true,
       aiQuotaMonthly: true,
+      ocrPagesMonthly: true,
       storageQuotaMb: true,
       features: true,
     },
@@ -54,6 +55,15 @@ export class SubscriptionsRepository {
     return this.prisma.db.aiUsage.count({
       where: { cached: false, createdAt: { gte: monthStart } },
     });
+  }
+
+  /** Pages read by Google Vision since `monthStart` (D-142): every version it read counts its pages. */
+  async visionPagesSince(monthStart: Date): Promise<number> {
+    const { _sum } = await this.prisma.db.documentText.aggregate({
+      where: { ocrEngine: 'google-vision', extractedAt: { gte: monthStart } },
+      _sum: { pageCount: true },
+    });
+    return _sum.pageCount ?? 0;
   }
 
   pendingInvitations(now: Date): Promise<number> {

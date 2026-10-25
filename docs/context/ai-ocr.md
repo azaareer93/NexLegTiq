@@ -22,6 +22,8 @@ OCR (D-139, `extraction/ocr.ts`): scanned PDFs (rasterized by `pdftoppm` at 300 
 and JPEG/PNG/TIFF (header-checked: ≤ 50 MP a page) through the system Tesseract `ara+eng --psm 1` (orientation detected), per-page and mean word confidence
 (`DocumentText.pageConfidences`, `ocrConfidence`), engine `tesseract`; same READY path. Legacy .doc and offices with
 `enableOcr` off → READY without text (`ocrStatus` NOT_NEEDED). Tesseract ships in the `worker` image only.
+Google Vision fallback (D-142, `extraction/vision.ts`): weak Tesseract results re-read by Vision (EU endpoint) when the plan
+flag, the office opt-in `enableVisionOcr` and the monthly page budget `ocrPagesMonthly` allow; cost stored per version.
 
 ## AI module (MVP features)
 | Feature | Trigger | Output schema |

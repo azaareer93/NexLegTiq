@@ -6,6 +6,9 @@ import type { DocumentJob } from './document-jobs';
 import { autoSummaryWanted } from './extraction/auto-summary';
 import { extractable, extractText } from './extraction/extract-text';
 import { ocr, ocrable } from './extraction/ocr';
+import type { OcrResult } from './extraction/ocr';
+import { VisionError, visionOcr } from './extraction/vision';
+import type { VisionResult } from './extraction/vision';
 import { QueueProducer } from '../../common/queue/queue-producer';
 import { QUEUE } from '../../common/queue/queues';
 import { RealtimePublisher } from '../../common/realtime/realtime.publisher';
@@ -17,6 +20,7 @@ import { Prisma } from '../../generated/prisma/client';
 import type { DocumentType } from '../../generated/prisma/client';
 import { CREATE_NOTIFICATION_JOB } from '../notifications/notification-job';
 import type { NotificationJob } from '../notifications/notification-job';
+import { EntitlementsService } from '../subscriptions/entitlements.service';
 
 /** READY with text, NO_TEXT = READY without (legacy .doc, OCR off), SUPERSEDED = replaced or deleted meanwhile. */
 export type ExtractionOutcome = 'READY' | 'NO_TEXT' | 'SUPERSEDED';
@@ -36,6 +40,7 @@ interface VersionText {
   readonly ocrEngine: string;
   readonly ocrConfidence?: number | null;
   readonly pageConfidences?: (number | null)[];
+  readonly ocrCostUsd?: string;
 }
 
 /** Why processing failed: EXT-002 (could not finish — a retry may succeed) or VAL-005 (unreadable — it will not). */
@@ -77,6 +82,7 @@ export class DocumentExtraction {
     private readonly queues: QueueProducer,
     private readonly config: AppConfig,
     private readonly logger: PinoLogger,
+    private readonly entitlements: EntitlementsService,
   ) {
     this.logger.setContext(DocumentExtraction.name);
   }
@@ -150,6 +156,17 @@ export class DocumentExtraction {
       signal,
     });
     signal.throwIfAborted();
+    const vision = await this.visionFallback(job, content, mimeType, result, signal);
+    if (vision) {
+      return {
+        text: vision.text,
+        pageCount: vision.pageCount,
+        ocrEngine: 'google-vision',
+        ocrConfidence: vision.confidence,
+        pageConfidences: [...vision.pageConfidences],
+        ocrCostUsd: vision.costUsd,
+      };
+    }
     return {
       text: result.text,
       pageCount: result.pageCount,
@@ -157,6 +174,56 @@ export class DocumentExtraction {
       ocrConfidence: result.confidence,
       pageConfidences: [...result.pageConfidences],
     };
+  }
+
+  /**
+   * Google Vision re-reads a scan Tesseract read poorly (D-142): mean confidence under OCR_VISION_MIN_CONFIDENCE, or no
+   * word at all on a scan with pages — only with Vision configured, the plan flag `googleVisionOcr`, the office's opt-in
+   * (`enableVisionOcr`) and enough of the month's page budget (`ocrPagesMonthly`) left for every page. Its result then
+   * replaces Tesseract's. Provider errors are thrown by code only (VisionError: retried, then EXT-002).
+   */
+  private async visionFallback(
+    job: DocumentJob,
+    content: Buffer,
+    mimeType: string,
+    tesseract: OcrResult,
+    signal: AbortSignal,
+  ): Promise<VisionResult | null> {
+    const config = this.config.vision;
+    const weak =
+      tesseract.confidence === null
+        ? tesseract.pageCount > 0
+        : tesseract.confidence < (config?.minConfidence ?? 0);
+    if (!config || !weak || !(await this.visionAllowed(tesseract.pageCount))) return null;
+    try {
+      const vision = await visionOcr(content, mimeType, {
+        pages: tesseract.pageCount,
+        signal,
+        config,
+      });
+      if (vision) {
+        this.logger.info(
+          { documentId: job.documentId, pages: vision.pageCount, costUsd: vision.costUsd },
+          'Scan re-read by Google Vision',
+        );
+      }
+      return vision;
+    } catch (error) {
+      if (error instanceof VisionError) {
+        this.logger.warn({ documentId: job.documentId, code: error.code }, 'Google Vision failed');
+      }
+      throw error;
+    }
+  }
+
+  /** The plan flag, the office's opt-in and enough pages left this month for the whole scan. */
+  private async visionAllowed(pages: number): Promise<boolean> {
+    if (!(await this.entitlements.current()).features.googleVisionOcr) return false;
+    const settings = await this.prisma.db.officeSettings.findFirst({
+      select: { enableVisionOcr: true },
+    });
+    if (!settings?.enableVisionOcr) return false;
+    return (await this.entitlements.visionPagesLeft()) >= pages;
   }
 
   /** The office's switch (D-125); a missing settings row keeps the column default (on). */
@@ -198,6 +265,7 @@ export class DocumentExtraction {
         pageCount: text.pageCount,
         ocrEngine: text.ocrEngine,
         ocrConfidence: text.ocrConfidence ?? null,
+        ocrCostUsd: text.ocrCostUsd ?? null,
         pageConfidences: text.pageConfidences ?? Prisma.DbNull,
         extractedAt: new Date(),
       };

@@ -11,7 +11,7 @@
   `isActive`. Settings live in **OfficeSettings** 🔒 (typed columns, not key/value): courtReminderDays int[] (7,3,1),
   taskReminderDays, defaultBillingRate, defaultBillingMethod, taxRatePercent, enableAI, enableOCR,
   fileNumberFormat, sessionIdleMinutes, auditRetentionDays (≥365).
-- **Plan** (platform) / **Subscription** 🔒 — D-005.
+- **Plan** (platform; limits incl. `ocrPagesMonthly`, the Google Vision page budget, D-142) / **Subscription** 🔒 — D-005.
 - **User** 🔒 — fullName, email (citext, unique global D-032), passwordHash, `role: Role`, phone, avatarUrl, isActive,
   lastLoginAt, emailVerifiedAt? (signup verification, D-083), uiLanguage, timezone, mfaSecret? (encrypted), mfaEnabled.
   `Role` = OFFICE_MANAGER, SENIOR_LAWYER, LAWYER, PARALEGAL, ADMIN (office admin/finance), TRAINEE, EXTERNAL_COLLABORATOR.
@@ -81,7 +81,7 @@
 - **DocumentVersion** 🔒 — versionNumber, storageKey, originalFilename, mimeType, sizeBytes, checksum, createdById,
   changeNote; append-only, the first upload included (storage use = sum of version sizes, D-119).
 - **DocumentText** 🔒 — documentId, versionNumber, text, `searchVectorSimple tsvector`, `searchVectorEnglish tsvector`,
-  pageCount, ocrEngine (docx|xlsx|csv|pdf-text-layer|tesseract), ocrConfidence, `pageConfidences jsonb?` (OCR only:
+  pageCount, ocrEngine (docx|xlsx|csv|pdf-text-layer|tesseract|google-vision), ocrConfidence, `ocrCostUsd?` (Vision, D-142), `pageConfidences jsonb?` (OCR only:
   mean word confidence per page, D-139), extractedAt. (Replaces DocumentSearchIndex; keeps big text out of Document.)
 
 ## Tasks

@@ -16,6 +16,7 @@ const DEFAULTS = [
   'fileNumberFormat',
   'enableAi',
   'enableOcr',
+  'enableVisionOcr',
 ];
 const SECURITY = ['sessionIdleMinutes', 'auditRetentionDays'];
 const shape = UpdateOfficeSettingsSchema.shape;
@@ -103,6 +104,14 @@ export function DefaultsSection({ settings, onDirtyChange }: SectionProps): Reac
       </Form.Item>
       <Form.Item name="enableOcr" label={t('settings.defaults.enableOcr')} valuePropName="checked">
         <Switch data-testid="settings-enable-ocr" />
+      </Form.Item>
+      <Form.Item
+        name="enableVisionOcr"
+        label={t('settings.defaults.enableVisionOcr')}
+        extra={t('settings.defaults.enableVisionOcrHint')}
+        valuePropName="checked"
+      >
+        <Switch data-testid="settings-enable-vision-ocr" />
       </Form.Item>
     </SettingsSection>
   );

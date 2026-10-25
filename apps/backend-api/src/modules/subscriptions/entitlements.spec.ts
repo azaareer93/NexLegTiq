@@ -10,6 +10,7 @@ const plan = (features: unknown = {}): SubscriptionRow['plan'] => ({
   name: 'Free',
   maxUsers: 5,
   aiQuotaMonthly: 5,
+  ocrPagesMonthly: 0,
   storageQuotaMb: 2048,
   features,
 });
