@@ -1,0 +1,65 @@
+{
+  "page": {
+    "title": "My tasks"
+  },
+  "view": {
+    "label": "View",
+    "board": "Board",
+    "list": "List"
+  },
+  "add": "New task",
+  "empty": "No tasks yet",
+  "emptyHint": "Add the first task, or press Ctrl+Alt+T.",
+  "noMatch": "No tasks match these filters",
+  "clear": "Clear filters",
+  "card": {
+    "open": "Open task {{title}}",
+    "overdue": "Overdue",
+    "due": "Due {{date}}",
+    "personal": "Personal task",
+    "moveTo": "Move task {{title}} to…",
+    "moved": "Task moved",
+    "drag": "Drag handle of task {{title}}"
+  },
+  "list": {
+    "title": "Task",
+    "file": "Case",
+    "status": "Status",
+    "priority": "Priority",
+    "assignee": "Assigned to",
+    "due": "Due date"
+  },
+  "filters": {
+    "status": "Status",
+    "priority": "Priority",
+    "assignee": "Assigned to",
+    "dueBefore": "Due by",
+    "overdue": "Overdue only"
+  },
+  "drawer": {
+    "new": "New task",
+    "edit": "Task details",
+    "title": "Title",
+    "description": "Description",
+    "dueDate": "Due date",
+    "priority": "Priority",
+    "assignee": "Assigned to",
+    "file": "Case:",
+    "personal": "Personal task: only you and the person it is assigned to see it.",
+    "createdBy": "Created by {{name}}",
+    "create": "Create",
+    "created": "Task created",
+    "saved": "Task saved",
+    "delete": "Delete task",
+    "deleteTitle": "Delete this task?",
+    "deleteBody": "The task <title>{{title}}</title> will be deleted. This cannot be undone.",
+    "deleted": "Task deleted"
+  },
+  "dnd": {
+    "instructions": "To move a task, press Space, use the arrow keys, then press Space again to drop it, or Escape to cancel.",
+    "picked": "Picked up task {{title}}.",
+    "over": "Task {{title}} is over the {{place}} column.",
+    "dropped": "Task {{title}} dropped in the {{place}} column.",
+    "cancelled": "Moving task {{title}} was cancelled."
+  }
+}

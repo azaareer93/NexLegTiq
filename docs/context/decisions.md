@@ -2048,6 +2048,46 @@ statement**, so a first run over years of rows is never one huge DELETE. The fun
 `AuditService.log` is the entry point for new code; the existing modules keep their builders, which delegate to the shared
 `auditRow` (same row, same redaction) — their callers already pass the request facts explicitly.
 
+**D-138 — Tasks UI: the board, the list, the task drawer and quick add** · Accepted (MVP-77, 2026-10-24)
+MVP-77 asks for a Kanban with drag and drop, a filtered list, a task drawer and quick add on `/tasks` and the file's Tasks
+tab, on top of D-098's API. → `apps/office-app/src/features/tasks` (`tasks` namespace; shared API client `tasksApi`):
+one `TasksView` for both scopes — the file's tab (`fileId`) and **My tasks** (`/tasks`, `assignee=me`, which replaces the
+placeholder page). **Board** (`@dnd-kit/core` 6.3.1 + `sortable` 10.0.0, D-012, now root dependencies): four columns
+TODO / IN_PROGRESS / BLOCKED / DONE, each its own query of the first 100 tasks in Kanban order (more would need paging; a
+column of 100 open tasks is a sign to use the list). A card is dragged by its **handle** (the card itself holds a link and
+a menu — no nested controls), with the pointer or the keyboard (Space, arrows, Space; Escape cancels) and translated
+screen-reader announcements; every card also has **"Move to"** (a menu of the other columns) for keyboard, touch and
+screen-reader users. Dropping on a card puts the task before it (after it when moving down its own column), on a column
+at its end. **Moves are optimistic:** the board changes at once, then `PATCH /tasks/:id/status` (a column change,
+`complete:task`) and `PATCH /tasks/reorder` with the target column's new order (only with `create:task`, D-098 — without
+it a card only changes column and drags inside a column are ignored); any refusal (403 AUTH-100 for a task an outside
+collaborator may not move, BIZ-007…) restores the board as it was and shows the error. **List**: the same scope in a
+paginated table (20 a page) with filters status, priority, assignee (on a file; My tasks are the caller's), due by and
+"overdue only", an empty state that tells "no tasks" from "nothing matches". **Overdue** (open and due before today in the
+office's time zone, D-092) is an icon and the word, never colour alone. **Drawer** (one for the app, mounted by the shell):
+title, description, due date, priority and — with `assign:task` — the assignee (active colleagues whose role may work on
+tasks; the API checks they see the file); it shows the task's file as a link, or says a task without a file is
+**personal** (D-098: only its creator and assignee see it); edits send only changed fields (a cleared description or
+date is `null`); delete after a confirm. **Quick add:** "New task" on both views, the shell's **+ Task** (the placeholder is
+gone) and **Ctrl+Alt+T** (physical `KeyT`, D-123's rule) — on a file's page the new task belongs to that file, elsewhere it
+is personal. **Rights (UI only, the API re-checks):** create, edit and delete need `create:task`, moves `complete:task`;
+an archived file's tab shows its tasks read-only (no add, no moves, the drawer without save, D-052). **Phones** start on the
+list (four columns do not fit); the choice of view lasts while the page is open. **Not done here:** picking a file for a
+new task from My tasks (no file picker exists yet — a task added there is personal), bulk assign (API ready), task
+reminders (their story), filters in the URL. Why: work moves where people already look — the file and their own list —
+with a board that works without a mouse.
+Review additions (same PR): **positions are saved only on a file's board** — `sortOrder` is per office column (D-098), so
+reordering My tasks' mixed columns would overwrite colleagues' positions and fail on any task of an archived file;
+there a move only changes the column and the card shows at the server's position. A reorder is sent only for a column of
+at most 100 tasks (the API's id limit), and **a refused reorder after a saved status is not a failed move** (the card stays,
+the refetch shows the server's order). Moves are **one at a time** (a mutation scope) and the board refetches after the
+last one, so an earlier answer never undoes a later move on screen. **An outside collaborator** gets the handle and "Move
+to" only on tasks assigned to them (`complete:task` is OWN for that role, D-081). The assignee filter shows only to roles
+that can read the people directory (D-123); a deactivated assignee keeps their name in the drawer's picker; the drawer's
+form follows the task's last change (`updatedAt`); date pickers read dd/MM/yyyy (D-092); a list page emptied by a change
+goes back to the last page; Ctrl+Alt+T does nothing on an archived file's page; a drop the board ignores is announced as
+cancelled. **Not tested:** dragging itself in jsdom (no layout for `@dnd-kit`'s sensors) — the move logic (`planMove`) and
+the moves through "Move to" are; dragging itself waits for the Cypress journeys (E2E story).
 **D-137 — Parties tab, the conflict modal and the file-page banner** · Accepted (MVP-142, 2026-10-23)
 MVP-142 asks for the file's parties by role, search-and-reuse or create, a conflict modal with "proceed with note /
 cancel / reassign" and a file-page banner, on top of D-135's API. → `?tab=parties` (`apps/office-app/src/features/cases/

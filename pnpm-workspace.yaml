@@ -23,3 +23,5 @@ overrides:
   'source-map-js@<1.2.2': ^1.2.2 # GHSA-68fv-2mgg-jv7q
   # Express 5 (via @nestjs/platform-express) allows ^2.3.0; a minor release of the same API until Nest's express range moves.
   'body-parser@>=2.0.0 <2.4.0': ^2.4.0 # GHSA-27r3-jxmh-p828
+  # Exact-pinned (2.4.0) by @nestjs/platform-express; uploads use busboy (D-126), so a minor bump changes nothing we call.
+  'multer@>=2.0.0 <2.5.0': ^2.5.0 # GHSA-q7qp-rjg7-q26m
