@@ -8,7 +8,8 @@ import { DocumentExtraction } from './document-extraction';
 import type { DocumentRecordsService } from './document-records.service';
 import { DocumentRetry } from './document-retry';
 import { MIME } from './extraction/extract-text';
-import { buildDocx } from './extraction/fixtures.test-helper';
+import { buildDocx, buildPdf } from './extraction/fixtures.test-helper';
+import { ocr } from './extraction/ocr';
 import type { UploadIntake } from './upload/upload-intake';
 import type { RequestContext } from '../../common/context/request-context';
 import type { QueueProducer } from '../../common/queue/queue-producer';
@@ -20,6 +21,12 @@ import { parseEnv } from '../../config/env.schema';
 import type { PrismaService } from '../../database/prisma.service';
 import type { UnitOfWork } from '../../database/unit-of-work';
 import type { ClientInfo } from '../auth/client-info';
+
+jest.mock('./extraction/ocr', () => ({
+  ...jest.requireActual<object>('./extraction/ocr'),
+  ocr: jest.fn(),
+}));
+const mockedOcr = jest.mocked(ocr);
 
 const JOB = { documentId: '01920000-0000-7000-8000-0000000000d1', versionNumber: 2 };
 const WORDS = Array.from({ length: 600 }, (_, i) => `word${i}`).join(' ');
@@ -35,6 +42,7 @@ function extractionSetup({
   updated = 1,
   autoSummary = 'false',
   body = buildDocx([WORDS]),
+  enableOcr = true as boolean | null,
 } = {}) {
   const tx = {
     document: { updateMany: jest.fn().mockResolvedValue({ count: updated }) },
@@ -43,6 +51,7 @@ function extractionSetup({
   const db = {
     documentVersion: { findFirst: jest.fn().mockResolvedValue(version) },
     document: { updateMany: jest.fn().mockResolvedValue({ count: updated }) },
+    officeSettings: { findFirst: jest.fn().mockResolvedValue({ enableOcr }) },
   };
   const realtime = { toUser: jest.fn() };
   const queues = { enqueue: jest.fn() };
@@ -109,10 +118,63 @@ describe('DocumentExtraction', () => {
     expect(raced.realtime.toUser).not.toHaveBeenCalled();
   });
 
-  it('should leave images for OCR without downloading them, and scan-like PDFs after reading them', async () => {
+  it('should run images and scanned PDFs through OCR and keep the per-page confidence (D-139)', async () => {
+    mockedOcr.mockResolvedValue({
+      text: 'محكمة بداية رام الله',
+      pageCount: 2,
+      confidence: 88.5,
+      pageConfidences: [91, null],
+    });
     const image = extractionSetup({ version: { ...VERSION, mimeType: 'image/png' } });
-    await expect(image.service.run(JOB)).resolves.toBe('NEEDS_OCR');
-    expect(image.storage.getStream).not.toHaveBeenCalled();
+    await expect(image.service.run(JOB)).resolves.toBe('READY');
+    expect(mockedOcr).toHaveBeenLastCalledWith(expect.any(Buffer), 'image/png', {
+      maxPages: 50,
+      signal: expect.any(AbortSignal),
+    });
+    expect(image.tx.documentText.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          ocrEngine: 'tesseract',
+          pageCount: 2,
+          ocrConfidence: 88.5,
+          pageConfidences: [91, null],
+        }),
+      }),
+    );
+    const scan = extractionSetup({
+      version: { ...VERSION, mimeType: MIME.PDF },
+      body: buildPdf(['p. 1', 'p. 2', 'p. 3']),
+    });
+    await expect(scan.service.run(JOB)).resolves.toBe('READY');
+    expect(mockedOcr).toHaveBeenLastCalledWith(expect.any(Buffer), MIME.PDF, {
+      maxPages: 50,
+      pdfPageCount: 3,
+      signal: expect.any(AbortSignal),
+    });
+  });
+
+  it('should make a legacy .doc READY without text and without downloading it', async () => {
+    const doc = extractionSetup({ version: { ...VERSION, mimeType: 'application/msword' } });
+    await expect(doc.service.run(JOB)).resolves.toBe('NO_TEXT');
+    expect(doc.storage.getStream).not.toHaveBeenCalled();
+    expect(doc.tx.document.updateMany).toHaveBeenCalledWith({
+      where: LIVE_PROCESSING,
+      data: { status: 'READY', ocrStatus: 'NOT_NEEDED', processingErrorCode: null },
+    });
+    expect(doc.tx.documentText.upsert).not.toHaveBeenCalled();
+    expect(doc.realtime.toUser).toHaveBeenCalledTimes(1);
+  });
+
+  it('should skip OCR for an office that switched it off', async () => {
+    mockedOcr.mockClear();
+    const off = extractionSetup({
+      version: { ...VERSION, mimeType: 'image/jpeg' },
+      enableOcr: false,
+    });
+    await expect(off.service.run(JOB)).resolves.toBe('NO_TEXT');
+    expect(mockedOcr).not.toHaveBeenCalled();
+    expect(off.storage.getStream).not.toHaveBeenCalled();
+    expect(off.tx.documentText.upsert).not.toHaveBeenCalled();
   });
 
   it('should stop when the attempt was aborted', async () => {

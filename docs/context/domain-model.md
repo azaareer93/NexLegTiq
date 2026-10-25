@@ -75,12 +75,14 @@
   CONTRACT_DRAFT, FINAL_CONTRACT, WILL, NDA, COURT_ORDER, JUDGMENT, CLIENT_INSTRUCTION, INVOICE, LEGAL_NOTICE,
   DEMAND_LETTER, POWER_OF_ATTORNEY, CORRESPONDENCE, OTHER), mimeType, sizeBytes, checksumSha256, storageKey,
   currentVersion, `status: UPLOADED|SCANNING|PROCESSING|READY|FAILED|QUARANTINED`, `ocrStatus: NOT_NEEDED|PENDING|
-  DONE|FAILED`, language (AR|EN|MIXED), isConfidential, sharedWithClient, uploadedById | uploadedByClientUserId
+  DONE|FAILED` (NOT_NEEDED = READY without text: a legacy .doc, or OCR off for the office — D-139), language
+  (AR|EN|MIXED), isConfidential, sharedWithClient, uploadedById | uploadedByClientUserId
   (the latter with the Client Portal), deletedAt.
 - **DocumentVersion** 🔒 — versionNumber, storageKey, originalFilename, mimeType, sizeBytes, checksum, createdById,
   changeNote; append-only, the first upload included (storage use = sum of version sizes, D-119).
 - **DocumentText** 🔒 — documentId, versionNumber, text, `searchVectorSimple tsvector`, `searchVectorEnglish tsvector`,
-  pageCount, ocrEngine, ocrConfidence, extractedAt. (Replaces DocumentSearchIndex; keeps big text out of Document.)
+  pageCount, ocrEngine (docx|xlsx|csv|pdf-text-layer|tesseract), ocrConfidence, `pageConfidences jsonb?` (OCR only:
+  mean word confidence per page, D-139), extractedAt. (Replaces DocumentSearchIndex; keeps big text out of Document.)
 
 ## Tasks
 - **Task** 🔒 — fileId?, title, description, dueDate, `priority`, `status: TODO|IN_PROGRESS|BLOCKED|DONE`,

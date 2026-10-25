@@ -1,11 +1,12 @@
 # Deploy runbook — staging (D-020, D-103)
 
-Every green CI run on `develop` builds two images, pushes them to GHCR and rolls them out on the staging host:
+Every green CI run on `develop` builds three images, pushes them to GHCR and rolls them out on the staging host:
 
 ```
 ci.yml (lint · typecheck · test · build · secret scan)
   └─ deploy-staging.yml
-       images:  ghcr.io/<owner>/nexlegtiq/backend-api:<sha>          (API + worker, one image)
+       images:  ghcr.io/<owner>/nexlegtiq/backend-api:<sha>          (API)
+                ghcr.io/<owner>/nexlegtiq/backend-api-worker:<sha>   (worker: API image + Tesseract ara+eng, poppler; D-139)
                 ghcr.io/<owner>/nexlegtiq/backend-api-migrate:<sha>  (prisma migrate deploy + plan seed)
        deploy:  scp infra/staging/{compose.yml,Caddyfile,deploy.sh} → render app.env + migrate.env from secrets
                 → deploy.sh: pull → migrate (migrator role) → up --wait → /health/ready smoke test

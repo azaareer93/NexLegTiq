@@ -126,12 +126,14 @@ export class AppConfig {
   get ocr(): {
     readonly concurrency?: number;
     readonly timeoutMs?: number;
+    readonly maxPages: number;
     readonly autoSummary: boolean;
   } {
     const env = this.#env;
     return {
       ...(env.OCR_WORKER_CONCURRENCY ? { concurrency: env.OCR_WORKER_CONCURRENCY } : {}),
       ...(env.OCR_JOB_TIMEOUT_MS ? { timeoutMs: env.OCR_JOB_TIMEOUT_MS } : {}),
+      maxPages: env.OCR_MAX_PAGES,
       autoSummary: env.AI_AUTO_SUMMARY,
     };
   }

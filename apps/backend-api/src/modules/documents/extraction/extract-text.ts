@@ -12,7 +12,8 @@ export type Extraction =
       readonly pageCount: number | null;
       readonly engine: 'docx' | 'xlsx' | 'csv' | 'pdf-text-layer';
     }
-  | { readonly kind: 'NEEDS_OCR' };
+  /** `pageCount`: the pages of a PDF without a text layer (images: unknown until read). */
+  | { readonly kind: 'NEEDS_OCR'; readonly pageCount?: number };
 
 /** Average characters per page under which a PDF counts as scanned (ai-ocr.md). */
 export const MIN_PDF_CHARS_PER_PAGE = 50;
@@ -43,7 +44,7 @@ export class UnreadableDocumentError extends Error {
 /** PostgreSQL text cannot hold NUL characters (some PDFs and spreadsheets contain them). */
 const NUL = String.fromCharCode(0);
 
-const clip = (text: string): string =>
+export const clip = (text: string): string =>
   (text.length > MAX_TEXT_CHARS ? text.slice(0, MAX_TEXT_CHARS) : text).replaceAll(NUL, '');
 
 /** Collects lines until MAX_TEXT_CHARS: a huge sheet or PDF stops being read instead of being built whole. */
@@ -158,6 +159,7 @@ async function pdf(content: Buffer): Promise<Extraction> {
   } catch (error) {
     throw new UnreadableDocumentError('pdf', { cause: error });
   }
-  if (read === 0 || characters / read < MIN_PDF_CHARS_PER_PAGE) return { kind: 'NEEDS_OCR' };
+  if (read === 0 || characters / read < MIN_PDF_CHARS_PER_PAGE)
+    return { kind: 'NEEDS_OCR', pageCount };
   return { kind: 'TEXT', engine: 'pdf-text-layer', pageCount, text: budget.text('\n\f\n') };
 }

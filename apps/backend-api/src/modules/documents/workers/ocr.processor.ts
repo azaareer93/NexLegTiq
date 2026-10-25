@@ -23,8 +23,8 @@ import { UnreadableDocumentError } from '../extraction/extract-text';
  * The single consumer of the `ocr` queue (D-126, D-132):
  * - `scan-document`: the ClamAV scan of an uploaded version (`DocumentScan`); after the last failed attempt the
  *   document is FAILED;
- * - `process-document`: text extraction (`DocumentExtraction`); an unreadable file fails at once (no retry would help),
- *   other errors are retried; after the last failed attempt the document is FAILED with EXT-002.
+ * - `process-document`: text extraction and Tesseract OCR (`DocumentExtraction`, D-139); an unreadable file fails at once
+ *   (no retry would help), other errors are retried; after the last failed attempt the document is FAILED with EXT-002.
  * Concurrency and the attempt timeout come from `OCR_WORKER_CONCURRENCY` / `OCR_JOB_TIMEOUT_MS` when set.
  */
 @Injectable()

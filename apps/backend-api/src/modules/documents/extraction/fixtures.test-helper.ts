@@ -2,7 +2,10 @@ import { crc32 } from 'node:zlib';
 
 import ExcelJS from 'exceljs';
 
-/** Test-only fixtures built in code (no binary files in the repository). */
+/**
+ * Test-only fixtures built in code. The one exception: the scanned-page JPEGs in `fixtures/` (Arabic text cannot be
+ * rendered from code, D-139).
+ */
 
 /** A PDF with one Helvetica text line per page and a correct cross-reference table. */
 export function buildPdf(pages: readonly string[]): Buffer {
@@ -34,6 +37,53 @@ export function buildPdf(pages: readonly string[]): Buffer {
   pdf += offsets.map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`).join('');
   pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
   return Buffer.from(pdf, 'latin1');
+}
+
+/** A scanned PDF: `pages` pages that each show the same grayscale JPEG and hold no text layer. */
+export function buildImagePdf(jpeg: Buffer, width: number, height: number, pages: number): Buffer {
+  const header = Buffer.from('%PDF-1.4\n', 'latin1');
+  const parts: Buffer[] = [header];
+  const offsets: number[] = [];
+  let size = header.length;
+  const add = (...chunks: Buffer[]): number => {
+    offsets.push(size);
+    const id = offsets.length;
+    const head = Buffer.from(`${id} 0 obj\n`, 'latin1');
+    const tail = Buffer.from('\nendobj\n', 'latin1');
+    parts.push(head, ...chunks, tail);
+    size += head.length + chunks.reduce((total, chunk) => total + chunk.length, 0) + tail.length;
+    return id;
+  };
+  const text = (value: string) => Buffer.from(value, 'latin1');
+  add(text('<< /Type /Catalog /Pages 2 0 R >>'));
+  // Objects: 1 catalog, 2 page tree, 3 image, 4 content stream, then one per page.
+  const kids = Array.from({ length: pages }, (_, page) => 5 + page);
+  add(
+    text(`<< /Type /Pages /Kids [${kids.map((id) => `${id} 0 R`).join(' ')}] /Count ${pages} >>`),
+  );
+  add(
+    text(
+      `<< /Type /XObject /Subtype /Image /Width ${width} /Height ${height} /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`,
+    ),
+    jpeg,
+    text('\nendstream'),
+  );
+  // The image drawn over an A4-ish page (72 points per inch: about 150 dpi).
+  const draw = `q ${(width * 72) / 150} 0 0 ${(height * 72) / 150} 0 0 cm /Im1 Do Q`;
+  add(text(`<< /Length ${draw.length} >>\nstream\n${draw}\nendstream`));
+  for (let page = 0; page < pages; page += 1) {
+    add(
+      text(
+        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${(width * 72) / 150} ${(height * 72) / 150}] /Resources << /XObject << /Im1 3 0 R >> >> /Contents 4 0 R >>`,
+      ),
+    );
+  }
+  const xref = size;
+  let trailer = `xref\n0 ${offsets.length + 1}\n0000000000 65535 f \n`;
+  trailer += offsets.map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`).join('');
+  trailer += `trailer\n<< /Size ${offsets.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  parts.push(text(trailer));
+  return Buffer.concat(parts);
 }
 
 /** A minimal ZIP (stored, no compression) of the given entries. */
@@ -100,4 +150,47 @@ export async function buildXlsx(
     for (const row of rows) sheet.addRow([...row]);
   }
   return Buffer.from(await book.xlsx.writeBuffer());
+}
+
+/** A PNG signature and IHDR with the given size (enough for the header check). */
+export function pngHeader(width: number, height: number): Buffer {
+  const header = Buffer.alloc(33);
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(header);
+  header.writeUInt32BE(13, 8);
+  header.write('IHDR', 12, 'latin1');
+  header.writeUInt32BE(width, 16);
+  header.writeUInt32BE(height, 20);
+  return header;
+}
+
+/** SOI, an APP0 segment, then SOF0 with the given size. */
+export function jpegHeader(width: number, height: number): Buffer {
+  const app0 = Buffer.from([0xff, 0xe0, 0x00, 0x04, 0x00, 0x00]);
+  const sof = Buffer.from([0xff, 0xc0, 0x00, 0x0b, 0x08, 0, 0, 0, 0, 0x01, 0x01]);
+  sof.writeUInt16BE(height, 5);
+  sof.writeUInt16BE(width, 7);
+  return Buffer.concat([Buffer.from([0xff, 0xd8]), app0, sof]);
+}
+
+/** A little-endian TIFF of `pages` IFDs, each declaring the given size (SHORT width, LONG height). */
+export function tiffHeader(width: number, height: number, pages: number): Buffer {
+  const ifdSize = 2 + 2 * 12 + 4;
+  const buffer = Buffer.alloc(8 + pages * ifdSize);
+  buffer.write('II', 0, 'latin1');
+  buffer.writeUInt16LE(42, 2);
+  buffer.writeUInt32LE(8, 4);
+  for (let page = 0; page < pages; page += 1) {
+    const ifd = 8 + page * ifdSize;
+    buffer.writeUInt16LE(2, ifd);
+    buffer.writeUInt16LE(256, ifd + 2);
+    buffer.writeUInt16LE(3, ifd + 4);
+    buffer.writeUInt32LE(1, ifd + 6);
+    buffer.writeUInt16LE(width, ifd + 10);
+    buffer.writeUInt16LE(257, ifd + 14);
+    buffer.writeUInt16LE(4, ifd + 16);
+    buffer.writeUInt32LE(1, ifd + 18);
+    buffer.writeUInt32LE(height, ifd + 22);
+    buffer.writeUInt32LE(page + 1 < pages ? ifd + ifdSize : 0, ifd + 26);
+  }
+  return buffer;
 }
