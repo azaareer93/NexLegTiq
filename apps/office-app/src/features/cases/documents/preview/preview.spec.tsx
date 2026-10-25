@@ -1,6 +1,7 @@
 import type { Case, Document, DocumentVersion } from '@nexlegtiq/shared-contracts';
 import { permissionsFor } from '@nexlegtiq/shared-types';
 import type { Role } from '@nexlegtiq/shared-types';
+import { isolate } from '@nexlegtiq/shared-utils';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import axe from 'axe-core';
 import { HttpResponse } from 'msw';
@@ -8,7 +9,7 @@ import { HttpResponse } from 'msw';
 import { openDownload } from './open-download';
 import { openPdf } from './pdf-render';
 import { highlight } from './TextPane';
-import { previewKind } from './use-document-preview';
+import { openable, previewKeys, previewKind } from './use-document-preview';
 import {
   api,
   fail,
@@ -20,6 +21,7 @@ import {
   setViewport,
   signedIn,
 } from '../../../../test/render-app';
+import { documentKeys } from '../use-documents';
 
 vi.mock('./pdf-render', () => ({ openPdf: vi.fn() }));
 vi.mock('./open-download', () => ({ openDownload: vi.fn() }));
@@ -170,6 +172,18 @@ async function openDrawer(locale: 'en' | 'ar' = 'en'): Promise<HTMLElement> {
 const tab = async (drawer: HTMLElement, name: string) =>
   fireEvent.click(await within(drawer).findByRole('tab', { name }, { timeout: COLD }));
 
+// jsdom has no layout: give the preview frame the width a drawer has.
+const clientWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth');
+beforeAll(() => {
+  Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
+    configurable: true,
+    get: () => 720,
+  });
+});
+afterAll(() => {
+  if (clientWidth) Object.defineProperty(HTMLElement.prototype, 'clientWidth', clientWidth);
+});
+
 beforeEach(() => {
   vi.mocked(openPdf).mockReset();
   vi.mocked(openDownload).mockReset();
@@ -191,6 +205,22 @@ describe('document preview helpers', () => {
       { text: ' b', match: false },
     ]);
     expect(highlight('text', '  ')).toEqual([{ text: 'text', match: false }]);
+  });
+
+  it('should keep text pages and bytes out of the prefix the realtime bridge refreshes (each read is audited)', () => {
+    const refreshed = documentKeys.all[0];
+    expect(previewKeys.text(DOC_ID, 2, 1)[0]).not.toBe(refreshed);
+    expect(previewKeys.bytes(DOC_ID, 2)[0]).not.toBe(refreshed);
+    expect(previewKeys.versions(FILE_ID, DOC_ID)[0]).toBe(refreshed);
+  });
+
+  it('should open a document only once its scan was clean', () => {
+    expect(openable({ status: 'READY', processingErrorCode: null })).toBe(true);
+    expect(openable({ status: 'PROCESSING', processingErrorCode: null })).toBe(true);
+    expect(openable({ status: 'FAILED', processingErrorCode: 'EXT-002' })).toBe(true);
+    expect(openable({ status: 'FAILED', processingErrorCode: null })).toBe(false);
+    expect(openable({ status: 'SCANNING', processingErrorCode: null })).toBe(false);
+    expect(openable({ status: 'QUARANTINED', processingErrorCode: null })).toBe(false);
   });
 
   it('should preview PDFs, PNG and JPEG only', () => {
@@ -216,9 +246,7 @@ describe('document preview drawer (D-143)', () => {
       await within(drawer).findByTestId('document-preview-pdf', {}, { timeout: COLD });
       expect(calls.links).toBe(1);
       expect(vi.mocked(openPdf).mock.calls[0]?.[0].byteLength).toBe(4);
-      await waitFor(() =>
-        expect(renderPage).toHaveBeenCalledWith(1, expect.anything(), expect.any(Number)),
-      );
+      await waitFor(() => expect(renderPage).toHaveBeenCalledWith(1, expect.anything(), 720));
       fireEvent.click(within(drawer).getByTitle('Next Page'));
       await waitFor(() =>
         expect(renderPage).toHaveBeenCalledWith(2, expect.anything(), expect.any(Number)),
@@ -240,7 +268,7 @@ describe('document preview drawer (D-143)', () => {
         { timeout: COLD },
       );
       expect(image.getAttribute('src')).toBe('blob:preview-1');
-      expect(image.getAttribute('alt')).toBe('scan.png');
+      expect(image.getAttribute('alt')).toBe(isolate('scan.png'));
     },
     SLOW,
   );
@@ -258,7 +286,26 @@ describe('document preview drawer (D-143)', () => {
   );
 
   it(
-    "should show the API's reason when the document has not been scanned clean",
+    'should wait for a clean scan before asking for a link, then preview by itself',
+    async () => {
+      asRole('LAWYER');
+      const calls = serve({ document: doc({ status: 'SCANNING' }) });
+      vi.mocked(openPdf).mockResolvedValue({
+        pageCount: 1,
+        renderPage: vi.fn().mockResolvedValue(undefined),
+        destroy: vi.fn(),
+      });
+      const drawer = await openDrawer();
+      expect(
+        await within(drawer).findByText(/still being checked/, {}, { timeout: COLD }),
+      ).toBeTruthy();
+      expect(calls.links).toBe(0);
+    },
+    SLOW,
+  );
+
+  it(
+    "should show the API's reason when the link is refused",
     async () => {
       asRole('LAWYER');
       serve({ download: () => fail(422, 'BIZ-015') });
@@ -284,8 +331,8 @@ describe('document preview drawer (D-143)', () => {
       const drawer = await openDrawer('ar');
       await tab(drawer, 'النص');
       const text = await within(drawer).findByTestId('document-text', {}, { timeout: COLD });
-      expect(text.getAttribute('dir')).toBe('auto');
       expect(text.style.unicodeBidi).toBe('plaintext');
+      expect(text.style.textAlign).toBe('start');
       fireEvent.change(
         within(drawer)
           .getByTestId('document-text-search')

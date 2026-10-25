@@ -82,7 +82,7 @@
   },
   "preview": {
     "open": "فتح {{name}}",
-    "loading": "مستند",
+    "loading": "جارٍ التحميل",
     "download": "تنزيل",
     "tabs": {
       "preview": "معاينة",
@@ -106,10 +106,11 @@
     "pickFile": "اختيار ملف",
     "changeNote": "ما الذي تغيّر (اختياري)",
     "uploadVersion": "رفع الإصدار",
-    "versionUploaded": "رُفع الإصدار الجديد، ويُفحص قبل أن يمكن فتحه.",
+    "versionUploaded": "رُفع الإصدار الجديد، ويُفحص قبل إتاحة فتحه.",
     "downloadVersion": "تنزيل الإصدار {{number}}",
     "olderUnavailable": "يمكن حاليًا تنزيل الإصدار الحالي فقط.",
     "current": "الحالي",
-    "separator": " · "
+    "pages": "صفحات المستند",
+    "textPages": "صفحات النص"
   }
 }

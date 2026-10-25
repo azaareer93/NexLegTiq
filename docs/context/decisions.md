@@ -2311,3 +2311,17 @@ colleague's document (D-126). Shared API client: `documentsApi.get|versions|down
 D-133:** the "download/preview and version history" it deferred are done. **Not done:** downloading older versions (needs a
 per-version scan record, a backend story), search across pages of the text (global search), Arabic-normalised highlighting
 (hamza/alef variants are not folded when marking), thumbnails, previews in the list, the Cypress journey (E2E story).
+Review additions (same PR): **only the latest page draws** — a newer page or width cancels the running render and an
+older request stops after loading its page (paging fast once broke the whole preview: two renders on one canvas); the
+canvas is **capped at 16 MP** (pdf.js's own default — a hostile 1 × 14,400 pt page could otherwise take the tab down) and
+follows the pane's width through a `ResizeObserver` (the drawer animates open and can be resized). **Fewer audit rows:**
+text pages have their own query prefix like the bytes (`document-text`), fetched once per version — the realtime
+`document.processed` refresh and other documents' writes no longer re-read the open page (each read is a `VIEW` row,
+D-128); the drawer's text starts on page 1 for a new version. **Bytes wait for a clean scan:** a document that is not
+openable (anything but READY, PROCESSING, or FAILED after the scan) shows why (BIZ-015 / STO-004) without asking for a
+link, and its preview appears by itself once `document.processed` refreshes it. The download mutation keeps no link
+(`gcTime: 0`). Text paragraphs align to their own start (`unicode-bidi: plaintext` + `text-align: start`, no page-level
+`dir`); image `alt`, sizes and names are bidi-isolated; pagers are labelled `<nav>`s. **Worker CSP (deviation from the
+ticket's wording):** pdf.js's worker is served as one of the app's own assets, so the SPA needs `worker-src 'self'`, not
+`blob:` — narrower than the ticket asked; a CDN that serves assets from another origin must add that origin. The bucket may
+answer with `Access-Control-Allow-Credentials: true`; harmless, the fetch sends no credentials.

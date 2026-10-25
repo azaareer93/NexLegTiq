@@ -1,10 +1,10 @@
 import type { Document } from '@nexlegtiq/shared-contracts';
-import { isErrorCode } from '@nexlegtiq/shared-types';
-import { EmptyState, ErrorState, LoadingSkeleton } from '@nexlegtiq/shared-ui';
+import { EmptyState, LoadingSkeleton } from '@nexlegtiq/shared-ui';
 import { Flex, Input, Pagination, Typography } from 'antd';
 import { Fragment, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { QueryError } from './QueryError';
 import { useDocumentText } from './use-document-preview';
 
 export interface Segment {
@@ -26,32 +26,18 @@ export function highlight(text: string, query: string): Segment[] {
 
 /**
  * The Text tab (D-143): the current version's extracted text, 20,000 characters a page (D-128), with the page's matches
- * marked. Each paragraph takes its own direction from its first strong letter (`unicode-bidi: plaintext`), so Arabic
- * reads right to left and English left to right whatever the interface language.
+ * marked. Each paragraph takes its own direction from its first strong letter (`unicode-bidi: plaintext`) and aligns to
+ * its own start, so Arabic reads right to left and English left to right whatever the interface language. The drawer
+ * mounts it per version, so a new version starts again on page 1.
  */
-export function TextPane({
-  fileId,
-  document,
-}: {
-  readonly fileId: string;
-  readonly document: Document;
-}): React.JSX.Element {
+export function TextPane({ document }: { readonly document: Document }): React.JSX.Element {
   const { t } = useTranslation();
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState('');
-  const text = useDocumentText(fileId, document, page);
+  const text = useDocumentText(document, page);
   const segments = useMemo(() => highlight(text.data?.text ?? '', query), [text.data, query]);
   const matches = segments.filter((segment) => segment.match).length;
-  if (text.isError) {
-    const { code, requestId } = text.error as { code?: string; requestId?: string };
-    return (
-      <ErrorState
-        code={code && isErrorCode(code) ? code : undefined}
-        requestId={requestId}
-        onRetry={() => void text.refetch()}
-      />
-    );
-  }
+  if (text.isError) return <QueryError error={text.error} onRetry={() => void text.refetch()} />;
   if (!text.data) return <LoadingSkeleton rows={6} />;
   if (text.data.totalPages === 0) {
     return (
@@ -83,8 +69,12 @@ export function TextPane({
         ) : null}
       </Flex>
       <div
-        dir="auto"
-        style={{ whiteSpace: 'pre-wrap', unicodeBidi: 'plaintext', lineHeight: 1.9 }}
+        style={{
+          whiteSpace: 'pre-wrap',
+          unicodeBidi: 'plaintext',
+          textAlign: 'start',
+          lineHeight: 1.9,
+        }}
         data-testid="document-text"
       >
         {segments.map((segment, index) =>
@@ -96,14 +86,16 @@ export function TextPane({
         )}
       </div>
       {text.data.totalPages > 1 ? (
-        <Pagination
-          simple
-          current={page}
-          total={text.data.totalPages}
-          pageSize={1}
-          onChange={setPage}
-          data-testid="document-text-pages"
-        />
+        <nav aria-label={t('documents.preview.textPages')}>
+          <Pagination
+            simple
+            current={page}
+            total={text.data.totalPages}
+            pageSize={1}
+            onChange={setPage}
+            data-testid="document-text-pages"
+          />
+        </nav>
       ) : null}
     </Flex>
   );

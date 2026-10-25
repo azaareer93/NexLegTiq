@@ -1,12 +1,12 @@
 import { DownloadOutlined } from '@ant-design/icons';
-import { isErrorCode } from '@nexlegtiq/shared-types';
-import { ErrorState, LoadingSkeleton, StatusTag, useApiErrorHandler } from '@nexlegtiq/shared-ui';
+import { LoadingSkeleton, StatusTag, useApiErrorHandler } from '@nexlegtiq/shared-ui';
 import { Button, Drawer, Flex, Tabs } from 'antd';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { openDownload } from './open-download';
 import { PreviewPane } from './PreviewPane';
+import { QueryError } from './QueryError';
 import { TextPane } from './TextPane';
 import { useDocumentDetail, useDownloadDocument } from './use-document-preview';
 import { VersionsPane } from './VersionsPane';
@@ -38,14 +38,7 @@ export function DocumentPreviewDrawer({
   const document = detail.data;
   const body = () => {
     if (detail.isError) {
-      const { code, requestId } = detail.error as { code?: string; requestId?: string };
-      return (
-        <ErrorState
-          code={code && isErrorCode(code) ? code : undefined}
-          requestId={requestId}
-          onRetry={() => void detail.refetch()}
-        />
-      );
+      return <QueryError error={detail.error} onRetry={() => void detail.refetch()} />;
     }
     if (!document) return <LoadingSkeleton rows={6} />;
     return (
@@ -62,7 +55,7 @@ export function DocumentPreviewDrawer({
           {
             key: 'text',
             label: t('documents.preview.tabs.text'),
-            children: <TextPane fileId={fileId} document={document} />,
+            children: <TextPane key={document.currentVersion} document={document} />,
           },
           {
             key: 'versions',

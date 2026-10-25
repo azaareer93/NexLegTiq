@@ -74,7 +74,7 @@
   },
   "preview": {
     "open": "Open {{name}}",
-    "loading": "Document",
+    "loading": "Loading",
     "download": "Download",
     "tabs": {
       "preview": "Preview",
@@ -98,6 +98,7 @@
     "downloadVersion": "Download version {{number}}",
     "olderUnavailable": "Only the current version can be downloaded for now.",
     "current": "Current",
-    "separator": " · "
+    "pages": "Pages of the document",
+    "textPages": "Pages of the text"
   }
 }

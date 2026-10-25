@@ -1,13 +1,6 @@
 import { DownloadOutlined, UploadOutlined } from '@ant-design/icons';
 import type { Document, DocumentVersion } from '@nexlegtiq/shared-contracts';
-import { isErrorCode } from '@nexlegtiq/shared-types';
-import {
-  Bdi,
-  ErrorState,
-  LoadingSkeleton,
-  useApiErrorHandler,
-  useFormat,
-} from '@nexlegtiq/shared-ui';
+import { Bdi, LoadingSkeleton, useApiErrorHandler, useFormat } from '@nexlegtiq/shared-ui';
 import {
   App,
   Button,
@@ -25,6 +18,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { openDownload } from './open-download';
+import { QueryError } from './QueryError';
 import { useDocumentVersions, useDownloadDocument, useUploadVersion } from './use-document-preview';
 import { ACCEPT_ATTRIBUTE, MAX_UPLOAD_MB, uploadProblem } from '../document-upload';
 import { useSize } from '../DocumentsTable';
@@ -47,6 +41,7 @@ function NewVersion({
   const problem = file ? uploadProblem(file) : null;
   const submit = () => {
     if (!file || problem) return;
+    setProgress(0);
     upload.mutate(
       {
         input: { file, filename: file.name, ...(note.trim() ? { changeNote: note.trim() } : {}) },
@@ -156,14 +151,14 @@ function VersionItem({
         }
         description={
           <Flex vertical gap={2}>
-            <span>
+            <Flex gap={12} wrap>
               <bdi>{version.createdBy.fullName}</bdi>
-              {t('documents.preview.separator')}
               <Bdi>{format.dateTime(version.createdAt)}</Bdi>
-              {t('documents.preview.separator')}
-              {size(version.sizeBytes)}
-            </span>
-            {version.changeNote ? <bdi>{version.changeNote}</bdi> : null}
+              <Bdi>{size(version.sizeBytes)}</Bdi>
+            </Flex>
+            {version.changeNote ? (
+              <bdi style={{ display: 'block' }}>{version.changeNote}</bdi>
+            ) : null}
           </Flex>
         }
       />
@@ -183,14 +178,7 @@ export function VersionsPane({
 }): React.JSX.Element {
   const versions = useDocumentVersions(fileId, document.id);
   if (versions.isError) {
-    const { code, requestId } = versions.error as { code?: string; requestId?: string };
-    return (
-      <ErrorState
-        code={code && isErrorCode(code) ? code : undefined}
-        requestId={requestId}
-        onRetry={() => void versions.refetch()}
-      />
-    );
+    return <QueryError error={versions.error} onRetry={() => void versions.refetch()} />;
   }
   if (!versions.data) return <LoadingSkeleton rows={4} />;
   return (

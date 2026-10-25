@@ -10,19 +10,26 @@ import { documentKeys } from '../use-documents';
 const documents = documentsApi(apiClient);
 
 /**
- * One document's queries sit under its file's key, so every document write and the realtime `document.processed`
- * refresh (D-129) reach them. The bytes have their own prefix: refetching them asks for a new, audited link.
+ * The document and its versions sit under its file's key, so every document write and the realtime
+ * `document.processed` refresh (D-129) reach them. Text pages and bytes have their own prefixes: each read is an audit
+ * row (D-128), so they are fetched once per version and never refreshed by someone else's change.
  */
 export const previewKeys = {
   document: (fileId: string, id: string) => [...documentKeys.file(fileId), 'document', id] as const,
   versions: (fileId: string, id: string) =>
     [...previewKeys.document(fileId, id), 'versions'] as const,
-  text: (fileId: string, id: string, version: number, page: number) =>
-    [...previewKeys.document(fileId, id), 'text', version, page] as const,
+  text: (id: string, version: number, page: number) =>
+    ['document-text', id, version, page] as const,
   bytes: (id: string, version: number) => ['document-bytes', id, version] as const,
 };
 
 export type PreviewKind = 'pdf' | 'image';
+
+/** The API serves a document once its scan was clean (D-128, D-132): READY, PROCESSING, or FAILED after the scan. */
+export const openable = (document: Pick<Document, 'status' | 'processingErrorCode'>): boolean =>
+  document.status === 'READY' ||
+  document.status === 'PROCESSING' ||
+  (document.status === 'FAILED' && document.processingErrorCode !== null);
 
 /** What the drawer can draw itself: PDFs with pdf.js, PNG and JPEG as images (browsers cannot show TIFF). */
 export const previewKind = (mimeType: string): PreviewKind | null => {
@@ -68,11 +75,12 @@ export const useDocumentVersions = (fileId: string, id: string) =>
   });
 
 /** A page of the extracted text; every read is an audit row (D-128), so it is fetched only when the tab is shown. */
-export const useDocumentText = (fileId: string, document: Document, page: number) =>
+export const useDocumentText = (document: Document, page: number) =>
   useQuery({
-    queryKey: previewKeys.text(fileId, document.id, document.currentVersion, page),
+    queryKey: previewKeys.text(document.id, document.currentVersion, page),
     queryFn: ({ signal }) => documents.text(document.id, page, signal),
     retry: false,
+    staleTime: Infinity,
   });
 
 /** Bytes are kept only while shown (up to 50 MB each) and never retried on their own (each try is an audited link). */
@@ -90,6 +98,7 @@ export const useDocumentBytes = (document: Document, enabled: boolean) =>
 export const useDownloadDocument = () =>
   useMutation({
     mutationFn: async (id: string) => (await documents.downloadLink(id)).downloadUrl,
+    gcTime: 0, // the link is followed at once; nothing keeps it afterwards
   });
 
 export const useUploadVersion = (fileId: string, id: string) => {
