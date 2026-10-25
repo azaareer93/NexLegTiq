@@ -16,6 +16,7 @@ describe('extractText (D-132)', () => {
   it('should send a PDF with too little text per page to OCR (a scan)', async () => {
     await expect(extractText(buildPdf(['p. 1', 'p. 2']), MIME.PDF)).resolves.toEqual({
       kind: 'NEEDS_OCR',
+      pageCount: 2,
     });
   });
 

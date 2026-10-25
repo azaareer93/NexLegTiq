@@ -5,6 +5,7 @@ import { documentJobId } from './document-jobs';
 import type { DocumentJob } from './document-jobs';
 import { autoSummaryWanted } from './extraction/auto-summary';
 import { extractable, extractText } from './extraction/extract-text';
+import { ocr, ocrable } from './extraction/ocr';
 import { QueueProducer } from '../../common/queue/queue-producer';
 import { QUEUE } from '../../common/queue/queues';
 import { RealtimePublisher } from '../../common/realtime/realtime.publisher';
@@ -12,10 +13,30 @@ import { StorageService } from '../../common/storage/storage.service';
 import { AppConfig } from '../../config/app-config';
 import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
+import { Prisma } from '../../generated/prisma/client';
+import type { DocumentType } from '../../generated/prisma/client';
 import { CREATE_NOTIFICATION_JOB } from '../notifications/notification-job';
 import type { NotificationJob } from '../notifications/notification-job';
 
-export type ExtractionOutcome = 'READY' | 'NEEDS_OCR' | 'SUPERSEDED';
+/** READY with text, NO_TEXT = READY without (legacy .doc, OCR off), SUPERSEDED = replaced or deleted meanwhile. */
+export type ExtractionOutcome = 'READY' | 'NO_TEXT' | 'SUPERSEDED';
+
+interface ProcessedVersion {
+  readonly createdById: string;
+  readonly document: {
+    readonly officeId: string;
+    readonly fileId: string;
+    readonly documentType: DocumentType;
+  };
+}
+
+interface VersionText {
+  readonly text: string;
+  readonly pageCount: number | null;
+  readonly ocrEngine: string;
+  readonly ocrConfidence?: number | null;
+  readonly pageConfidences?: (number | null)[];
+}
 
 /** Why processing failed: EXT-002 (could not finish — a retry may succeed) or VAL-005 (unreadable — it will not). */
 export type ProcessingFailure = 'EXT-002' | 'VAL-005';
@@ -39,12 +60,12 @@ async function readAll(stream: NodeJS.ReadableStream, signal: AbortSignal): Prom
 }
 
 /**
- * Text extraction of a clean version (D-132), run by the `ocr` worker in the document's office after its scan:
- * DOCX, XLSX, CSV and PDFs with a text layer give a `DocumentText` row (search vectors by trigger, D-119) and the document
- * becomes READY (`ocrStatus` DONE); scans, images and legacy .doc wait for the OCR path (still PROCESSING, `ocrStatus`
- * PENDING) without being downloaded. The person who uploaded the version is told — `document.processed` (ids only) when
- * it is ready or failed, and an in-app notification when it failed. A version replaced or a document deleted meanwhile
- * changes nothing.
+ * Text of a clean version, run by the `ocr` worker in the document's office after its scan: DOCX, XLSX, CSV and PDFs with
+ * a text layer are read (D-132), scanned PDFs and images (JPEG, PNG, TIFF) go through Tesseract unless the office switched
+ * OCR off (D-139). Text gives a `DocumentText` row (search vectors by trigger, D-119) and READY with `ocrStatus` DONE; a
+ * legacy .doc, or OCR off, gives READY without text (`ocrStatus` NOT_NEEDED). The person who uploaded the version is told
+ * — `document.processed` (ids only) when it is ready or failed, and an in-app notification when it failed. A version
+ * replaced or a document deleted meanwhile changes nothing.
  */
 @Injectable()
 export class DocumentExtraction {
@@ -78,34 +99,78 @@ export class DocumentExtraction {
       },
     });
     if (!version) return 'SUPERSEDED';
-    if (!extractable(version.mimeType)) {
-      // The OCR path picks such documents up (PROCESSING, ocrStatus PENDING).
-      this.logger.info(
-        { documentId: job.documentId, mimeType: version.mimeType },
-        'Document needs OCR',
-      );
-      return 'NEEDS_OCR';
+    const { mimeType } = version;
+    if (!extractable(mimeType) && !ocrable(mimeType)) {
+      // Legacy .doc: no reader and no OCR — downloadable, not searchable (D-139).
+      return this.finish(job, version, null);
     }
     const content = await readAll(await this.storage.getStream(version.storageKey), signal);
     signal.throwIfAborted();
-    const extraction = await extractText(content, version.mimeType);
-    if (extraction.kind === 'NEEDS_OCR') {
-      this.logger.info({ documentId: job.documentId }, 'PDF without a text layer needs OCR');
-      return 'NEEDS_OCR';
-    }
+    const extraction = extractable(mimeType)
+      ? await extractText(content, mimeType)
+      : ({ kind: 'NEEDS_OCR' } as const);
     signal.throwIfAborted();
+    if (extraction.kind === 'TEXT') {
+      const { text, pageCount, engine } = extraction;
+      return this.finish(job, version, { text, pageCount, ocrEngine: engine });
+    }
+    if (!(await this.ocrEnabled())) {
+      this.logger.info({ documentId: job.documentId }, 'OCR is off for the office');
+      return this.finish(job, version, null);
+    }
+    const result = await ocr(content, mimeType, {
+      maxPages: this.config.ocr.maxPages,
+      ...(extraction.pageCount ? { pdfPageCount: extraction.pageCount } : {}),
+      signal,
+    });
+    signal.throwIfAborted();
+    return this.finish(job, version, {
+      text: result.text,
+      pageCount: result.pageCount,
+      ocrEngine: 'tesseract',
+      ocrConfidence: result.confidence,
+      pageConfidences: [...result.pageConfidences],
+    });
+  }
+
+  /** The office's switch (D-125); a missing settings row keeps the column default (on). */
+  private async ocrEnabled(): Promise<boolean> {
+    const settings = await this.prisma.db.officeSettings.findFirst({ select: { enableOcr: true } });
+    return settings?.enableOcr ?? true;
+  }
+
+  /**
+   * READY with the version's text (`ocrStatus` DONE), or without text (`ocrStatus` NOT_NEEDED: a legacy .doc, or OCR
+   * switched off by the office). Guarded on "still PROCESSING and still this version", so a replaced version or a second
+   * run changes nothing.
+   */
+  private async finish(
+    job: DocumentJob,
+    version: ProcessedVersion,
+    text: VersionText | null,
+  ): Promise<ExtractionOutcome> {
     const { document } = version;
     const ready = await this.uow.run(async (tx, afterCommit) => {
       const { count } = await tx.document.updateMany({
         where: processing(job),
-        data: { status: 'READY', ocrStatus: 'DONE', processingErrorCode: null },
+        data: {
+          status: 'READY',
+          ocrStatus: text ? 'DONE' : 'NOT_NEEDED',
+          processingErrorCode: null,
+        },
       });
       if (count === 0) return false;
+      afterCommit(
+        async () => this.told(version.createdById, job.documentId, document.fileId),
+        'realtime document.processed',
+      );
+      if (!text) return true;
       const data = {
-        text: extraction.text,
-        pageCount: extraction.pageCount,
-        ocrEngine: extraction.engine,
-        ocrConfidence: null,
+        text: text.text,
+        pageCount: text.pageCount,
+        ocrEngine: text.ocrEngine,
+        ocrConfidence: text.ocrConfidence ?? null,
+        pageConfidences: text.pageConfidences ?? Prisma.DbNull,
         extractedAt: new Date(),
       };
       await tx.documentText.upsert({
@@ -123,14 +188,11 @@ export class DocumentExtraction {
         },
         update: data,
       });
-      afterCommit(
-        async () => this.told(version.createdById, job.documentId, document.fileId),
-        'realtime document.processed',
-      );
       return true;
     });
     if (!ready) return 'SUPERSEDED';
-    if (autoSummaryWanted(this.config.ocr.autoSummary, document.documentType, extraction.text)) {
+    if (!text) return 'NO_TEXT';
+    if (autoSummaryWanted(this.config.ocr.autoSummary, document.documentType, text.text)) {
       // The document-summary story enqueues the summary here (ai-ocr.md OCR pipeline, step 6).
       this.logger.info({ documentId: job.documentId }, 'Auto-summary wanted');
     }

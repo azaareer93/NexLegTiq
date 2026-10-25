@@ -2,7 +2,10 @@ import { crc32 } from 'node:zlib';
 
 import ExcelJS from 'exceljs';
 
-/** Test-only fixtures built in code (no binary files in the repository). */
+/**
+ * Test-only fixtures built in code. The one exception: the scanned-page JPEGs in `fixtures/` (Arabic text cannot be
+ * rendered from code, D-139).
+ */
 
 /** A PDF with one Helvetica text line per page and a correct cross-reference table. */
 export function buildPdf(pages: readonly string[]): Buffer {
@@ -34,6 +37,53 @@ export function buildPdf(pages: readonly string[]): Buffer {
   pdf += offsets.map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`).join('');
   pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
   return Buffer.from(pdf, 'latin1');
+}
+
+/** A scanned PDF: `pages` pages that each show the same grayscale JPEG and hold no text layer. */
+export function buildImagePdf(jpeg: Buffer, width: number, height: number, pages: number): Buffer {
+  const header = Buffer.from('%PDF-1.4\n', 'latin1');
+  const parts: Buffer[] = [header];
+  const offsets: number[] = [];
+  let size = header.length;
+  const add = (...chunks: Buffer[]): number => {
+    offsets.push(size);
+    const id = offsets.length;
+    const head = Buffer.from(`${id} 0 obj\n`, 'latin1');
+    const tail = Buffer.from('\nendobj\n', 'latin1');
+    parts.push(head, ...chunks, tail);
+    size += head.length + chunks.reduce((total, chunk) => total + chunk.length, 0) + tail.length;
+    return id;
+  };
+  const text = (value: string) => Buffer.from(value, 'latin1');
+  add(text('<< /Type /Catalog /Pages 2 0 R >>'));
+  // Objects: 1 catalog, 2 page tree, 3 image, 4 content stream, then one per page.
+  const kids = Array.from({ length: pages }, (_, page) => 5 + page);
+  add(
+    text(`<< /Type /Pages /Kids [${kids.map((id) => `${id} 0 R`).join(' ')}] /Count ${pages} >>`),
+  );
+  add(
+    text(
+      `<< /Type /XObject /Subtype /Image /Width ${width} /Height ${height} /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`,
+    ),
+    jpeg,
+    text('\nendstream'),
+  );
+  // The image drawn over an A4-ish page (72 points per inch: about 150 dpi).
+  const draw = `q ${(width * 72) / 150} 0 0 ${(height * 72) / 150} 0 0 cm /Im1 Do Q`;
+  add(text(`<< /Length ${draw.length} >>\nstream\n${draw}\nendstream`));
+  for (let page = 0; page < pages; page += 1) {
+    add(
+      text(
+        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${(width * 72) / 150} ${(height * 72) / 150}] /Resources << /XObject << /Im1 3 0 R >> >> /Contents 4 0 R >>`,
+      ),
+    );
+  }
+  const xref = size;
+  let trailer = `xref\n0 ${offsets.length + 1}\n0000000000 65535 f \n`;
+  trailer += offsets.map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`).join('');
+  trailer += `trailer\n<< /Size ${offsets.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  parts.push(text(trailer));
+  return Buffer.concat(parts);
 }
 
 /** A minimal ZIP (stored, no compression) of the given entries. */

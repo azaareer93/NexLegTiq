@@ -1266,7 +1266,9 @@ model DocumentText {
   ocrEngine           String?                  @map("ocr_engine")
   /// 0–100.
   ocrConfidence       Decimal?                 @map("ocr_confidence") @db.Decimal(5, 2)
-  extractedAt         DateTime                 @default(now()) @map("extracted_at") @db.Timestamptz(3)
+  /// OCR only (D-139): mean word confidence (0–100) of each page in order, null for a page without words.
+  pageConfidences     Json?                    @map("page_confidences")
+  extractedAt        DateTime                 @default(now()) @map("extracted_at") @db.Timestamptz(3)
   createdAt           DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt           DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
 
