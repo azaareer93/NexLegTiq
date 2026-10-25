@@ -42,3 +42,8 @@ export async function lockFile(
   const { status: _status, deleted: _deleted, ...locked } = file;
   return locked;
 }
+
+/** Only the office manager and the file's responsible lawyer may expose a confidential file (D-096, D-140). */
+export function mayExpose(file: LockedFile, role: string | undefined, actorId: string): boolean {
+  return role === 'OFFICE_MANAGER' || file.responsibleLawyerId === actorId;
+}

@@ -49,10 +49,12 @@ function setup(overrides: Partial<Options> = {}) {
     ...overrides,
   };
   const tx = {
-    $queryRaw: jest
-      .fn()
-      .mockResolvedValueOnce(file ? [file] : [])
-      .mockResolvedValueOnce(user ? [user] : []),
+    // Answers by the table the query reads: the user row lock or the file row lock.
+    $queryRaw: jest.fn((sql: TemplateStringsArray) =>
+      Promise.resolve(
+        sql.join('').includes('FROM users') ? (user ? [user] : []) : file ? [file] : [],
+      ),
+    ),
     client: { count: jest.fn().mockResolvedValue(known) },
     fileClient: {
       count: jest.fn().mockResolvedValue(clients.length ? 1 : 0),
@@ -299,6 +301,46 @@ describe('FileTeamService roles and context (D-140)', () => {
     });
     delete noUserClients.context['userId'];
     await expect(noUserClients.clients.remove(FILE, 'c2', client)).rejects.toThrow('No user');
+  });
+});
+
+describe('review rules (D-140)', () => {
+  const confidential = { ...LOCKED, isConfidential: true };
+
+  it('should let only the office manager or the responsible lawyer name a new lawyer of a confidential file', async () => {
+    const senior = setup({ file: confidential, member: { role: 'MEMBER' }, role: 'SENIOR_LAWYER' });
+    await expect(
+      senior.team.changeRole(FILE, ME, 'RESPONSIBLE_LAWYER', client),
+    ).rejects.toMatchObject({ code: 'AUTH-100' });
+    const manager = setup({ file: confidential, member: { role: 'MEMBER' } });
+    await manager.team.changeRole(FILE, 'lawyer-2', 'RESPONSIBLE_LAWYER', client);
+    expect(manager.reminders.resetForFile).toHaveBeenCalled();
+  });
+
+  it('should let only the office manager or the responsible lawyer add a client to a confidential file', async () => {
+    await expect(
+      setup({ file: confidential, role: 'PARALEGAL' }).clients.add(
+        FILE,
+        { clientId: 'c2' },
+        client,
+      ),
+    ).rejects.toMatchObject({ code: 'AUTH-100' });
+  });
+
+  it('should demote an inactive member to MEMBER without an eligibility check', async () => {
+    const { team, tx } = setup({
+      member: { role: 'PARALEGAL' },
+      user: { role: 'PARALEGAL', isActive: false },
+    });
+    await team.changeRole(FILE, 'paralegal-1', 'MEMBER', client);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1); // the file lock only
+  });
+
+  it('should leave the file alone when a PARALEGAL row is not its responsible paralegal', async () => {
+    const { team, tx } = setup({ member: { role: 'PARALEGAL' } });
+    await team.remove(FILE, 'someone-else', client);
+    expect(tx.legalFile.update).not.toHaveBeenCalled();
+    expect(tx.fileTeamMember.deleteMany).toHaveBeenCalled();
   });
 });
 

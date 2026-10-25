@@ -2,12 +2,13 @@ import { Injectable } from '@nestjs/common';
 import type { AddFileClientRequest, FileClient } from '@nexlegtiq/shared-contracts';
 import { ClsService } from 'nestjs-cls';
 
-import { lockFile } from './file-lock';
+import { lockFile, mayExpose } from './file-lock';
 import { AuditService } from '../../common/audit/audit.service';
 import type { AuditClient } from '../../common/audit/audit.service';
 import type { RequestContext } from '../../common/context/request-context';
 import {
   BusinessRuleException,
+  PermissionDeniedException,
   ResourceConflictException,
   ResourceNotFoundException,
   ValidationException,
@@ -50,7 +51,12 @@ export class FileClientsService {
   ): Promise<FileClient[]> {
     await this.access.assertFileAccess(fileId, 'write');
     await this.uow.run(async (tx) => {
-      await lockFile(tx, this.officeId(), fileId);
+      const file = await lockFile(tx, this.officeId(), fileId);
+      // A client linked to a file will see it in the client portal (D-003): on a confidential file, only the people who
+      // set confidentiality decide (D-096, D-140).
+      if (file.isConfidential && !mayExpose(file, this.cls.get('role'), this.actorId())) {
+        throw new PermissionDeniedException();
+      }
       const known = await tx.client.count({
         where: { id: input.clientId, deletedAt: null, isActive: true },
       });

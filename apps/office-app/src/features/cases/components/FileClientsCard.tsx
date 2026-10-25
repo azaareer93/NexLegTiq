@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { ClientSelect } from '../../clients';
-import { useFileParticipants } from '../api/use-cases';
+import { useFileClientMutations } from '../api/use-cases';
 
 function AddClientModal({
   fileId,
@@ -20,7 +20,7 @@ function AddClientModal({
   const { message } = App.useApp();
   const errors = useApiErrorHandler();
   const [form] = Form.useForm<{ clientId: string; isPrimary: boolean }>();
-  const { addClient } = useFileParticipants(fileId);
+  const { addClient } = useFileClientMutations(fileId);
   const submit = async () => {
     const values = await form.validateFields();
     try {
@@ -72,7 +72,7 @@ export function ClientsCard({
   const errors = useApiErrorHandler();
   // The client picker searches `GET /clients` (D-121).
   const canPick = useCan('manage:clients');
-  const { makePrimary, removeClient } = useFileParticipants(file.id);
+  const { makePrimary, removeClient } = useFileClientMutations(file.id);
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<Case['clients'][number] | null>(null);
   const remove = async () => {

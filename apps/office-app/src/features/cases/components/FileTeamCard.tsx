@@ -7,7 +7,7 @@ import { App, Button, Card, Flex, Form, List, Modal, Select, Typography } from '
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { useDirectory, useFileParticipants } from '../api/use-cases';
+import { useDirectory, useFileTeamMutations } from '../api/use-cases';
 import type { FileActions } from '../file-page';
 
 const LAWYER_ROLES: readonly Role[] = ['OFFICE_MANAGER', 'SENIOR_LAWYER', 'LAWYER'];
@@ -19,6 +19,15 @@ function eligibleRoles(role: Role | undefined, reassign: boolean): FileTeamRole[
     ...(role === 'PARALEGAL' ? (['PARALEGAL'] as const) : []),
     ...(reassign && role && LAWYER_ROLES.includes(role) ? (['RESPONSIBLE_LAWYER'] as const) : []),
   ];
+}
+
+/** The people picker reads the directory (D-123), open to the roles whose forms pick people. */
+function useCanPickPeople(): boolean {
+  const canCreateCase = useCan('create:case');
+  const canCreateTask = useCan('create:task');
+  const canAssignTask = useCan('assign:task');
+  const canCreateSession = useCan('create:session');
+  return canCreateCase || canCreateTask || canAssignTask || canCreateSession;
 }
 
 function AddMemberModal({
@@ -35,7 +44,7 @@ function AddMemberModal({
   const errors = useApiErrorHandler();
   const [form] = Form.useForm<{ userId: string; role: FileTeamRole }>();
   const directory = useDirectory();
-  const { addMember } = useFileParticipants(file.id);
+  const { addMember } = useFileTeamMutations(file.id);
   const userId = Form.useWatch('userId', form);
   const onTeam = new Set(file.team.map((member) => member.id));
   const people = (directory.data ?? []).filter((person) => !onTeam.has(person.id));
@@ -113,15 +122,9 @@ export function TeamCard({
 }): React.JSX.Element {
   const { t } = useTranslation();
   const errors = useApiErrorHandler();
-  // The people picker reads the directory (D-123), open to the roles whose forms pick people.
-  const canPick = [
-    useCan('create:case'),
-    useCan('create:task'),
-    useCan('assign:task'),
-    useCan('create:session'),
-  ].some(Boolean);
+  const canPick = useCanPickPeople();
   const directory = useDirectory(actions.edit && canPick);
-  const { changeRole, removeMember } = useFileParticipants(file.id);
+  const { changeRole, removeMember } = useFileTeamMutations(file.id);
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<FileTeamMember | null>(null);
   const canAdd = actions.edit && canPick && (!file.isConfidential || actions.confidentiality);
@@ -145,6 +148,8 @@ export function TeamCard({
     return (
       <Select
         size="small"
+        // Room for the longest label ("المحامي المسؤول" / "Responsible lawyer").
+        style={{ minWidth: 160 }}
         value={member.role}
         aria-label={t('cases.file.people.roleOf', { name: isolate(member.fullName) })}
         options={[...new Set<FileTeamRole>([member.role, ...roles])].map((role) => ({

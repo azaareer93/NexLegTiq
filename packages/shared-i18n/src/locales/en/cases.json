@@ -125,14 +125,14 @@
       "removeClientTitle": "Remove this client from the case?",
       "removeClientBody": "{{name}} will no longer be a client of this case. They stay in your clients list.",
       "addMember": "Add team member",
-      "addMemberTitle": "Add a colleague to the case team",
-      "member": "Colleague",
+      "addMemberTitle": "Add a member to the case team",
+      "member": "Team member",
       "personOption": "{{name}} · {{role}}",
       "role": "Role on the case",
       "roleOf": "Role of {{name}} on the case",
       "reassignHint": "The current responsible lawyer stays on the team as a member.",
       "removeMember": "Remove {{name}} from the team",
-      "removeMemberTitle": "Remove this colleague from the team?",
+      "removeMemberTitle": "Remove this member from the team?",
       "removeMemberBody": "{{name}} will no longer be assigned to this case and may lose access to it."
     }
   },

@@ -3,8 +3,9 @@ import type { AddTeamMemberRequest, FileTeamMember } from '@nexlegtiq/shared-con
 import type { FileTeamRole } from '@nexlegtiq/shared-types';
 import { ClsService } from 'nestjs-cls';
 
-import { lockFile } from './file-lock';
+import { lockFile, mayExpose } from './file-lock';
 import type { LockedFile } from './file-lock';
+import { assertEligible } from './team-eligibility';
 import { AuditService } from '../../common/audit/audit.service';
 import type { AuditClient } from '../../common/audit/audit.service';
 import type { RequestContext } from '../../common/context/request-context';
@@ -13,7 +14,6 @@ import {
   PermissionDeniedException,
   ResourceConflictException,
   ResourceNotFoundException,
-  ValidationException,
 } from '../../common/errors/app.exception';
 import { RealtimePublisher } from '../../common/realtime/realtime.publisher';
 import { PrismaService } from '../../database/prisma.service';
@@ -22,17 +22,6 @@ import type { AfterCommit, ScopedTransaction } from '../../database/unit-of-work
 import { CaseAccessService } from '../legal-files/case-access.service';
 import { ReminderScheduler } from '../sessions/reminder-scheduler';
 
-/** Office roles that may hold each file role (D-096): a responsible lawyer is a lawyer, a paralegal a PARALEGAL. */
-const ELIGIBLE: Record<FileTeamRole, readonly string[] | null> = {
-  RESPONSIBLE_LAWYER: ['OFFICE_MANAGER', 'SENIOR_LAWYER', 'LAWYER'],
-  PARALEGAL: ['PARALEGAL'],
-  MEMBER: null,
-};
-const ROLE_MESSAGE: Record<FileTeamRole, string> = {
-  RESPONSIBLE_LAWYER: 'validation.responsibleLawyer',
-  PARALEGAL: 'validation.responsibleParalegal',
-  MEMBER: 'validation.teamMember',
-};
 const ROLE_ORDER: Record<FileTeamRole, number> = { RESPONSIBLE_LAWYER: 0, PARALEGAL: 1, MEMBER: 2 };
 
 interface Change {
@@ -75,10 +64,11 @@ export class FileTeamService {
     const role = input.role ?? 'MEMBER';
     await this.access.assertFileAccess(fileId, 'write');
     await this.uow.run(async (tx, afterCommit) => {
+      // User row first, then the file: the order D-124's team writes use, so the two never deadlock.
+      await assertEligible(tx, this.officeId(), input.userId, role);
       const file = await lockFile(tx, this.officeId(), fileId);
       // Adding someone to a confidential file exposes it: the same people who set confidentiality decide (D-096).
       if (file.isConfidential && !this.mayExpose(file)) throw new PermissionDeniedException();
-      await this.assertEligible(tx, input.userId, role);
       if (await tx.fileTeamMember.count({ where: { fileId, userId: input.userId } })) {
         throw new ResourceConflictException('RES-002');
       }
@@ -115,13 +105,15 @@ export class FileTeamService {
   ): Promise<FileTeamMember[]> {
     await this.access.assertFileAccess(fileId, 'write');
     await this.uow.run(async (tx, afterCommit) => {
+      // Becoming MEMBER needs no check (an inactive former paralegal can still be demoted); the user row is locked
+      // before the file, as in add.
+      if (role !== 'MEMBER') await assertEligible(tx, this.officeId(), userId, role);
       const file = await lockFile(tx, this.officeId(), fileId);
       const member = await this.member(tx, fileId, userId);
       if (member.role === role) return;
       if (member.role === 'RESPONSIBLE_LAWYER') throw this.needsLawyer();
-      await this.assertEligible(tx, userId, role);
       const change = { tx, afterCommit, fileId, file, client };
-      if (member.role === 'PARALEGAL') await this.clearParalegal(change);
+      if (member.role === 'PARALEGAL') await this.clearParalegal(change, userId);
       if (role !== 'MEMBER') await this.takeOver(change, userId, role);
       await tx.fileTeamMember.updateMany({ where: { fileId, userId }, data: { role } });
       await this.audit.log(
@@ -147,7 +139,7 @@ export class FileTeamService {
       const member = await this.member(tx, fileId, userId);
       if (member.role === 'RESPONSIBLE_LAWYER') throw this.needsLawyer();
       if (member.role === 'PARALEGAL') {
-        await this.clearParalegal({ tx, afterCommit, fileId, file, client });
+        await this.clearParalegal({ tx, afterCommit, fileId, file, client }, userId);
       }
       await tx.fileTeamMember.deleteMany({ where: { fileId, userId } });
       await this.event(tx, fileId, 'TEAM_MEMBER_REMOVED', { userId, role: member.role });
@@ -171,8 +163,12 @@ export class FileTeamService {
    */
   private async takeOver(change: Change, userId: string, role: 'RESPONSIBLE_LAWYER' | 'PARALEGAL') {
     const { tx, fileId, file, client } = change;
-    if (role === 'RESPONSIBLE_LAWYER' && !this.can('edit:any:case')) {
-      throw new PermissionDeniedException();
+    if (role === 'RESPONSIBLE_LAWYER') {
+      // Reassigning needs `edit:any:case` (D-118); on a confidential file the new lawyer could expose it, so only the
+      // office manager or its current responsible lawyer may name one (D-096).
+      if (!this.can('edit:any:case') || (file.isConfidential && !this.mayExpose(file))) {
+        throw new PermissionDeniedException();
+      }
     }
     await tx.fileTeamMember.updateMany({ where: { fileId, role }, data: { role: 'MEMBER' } });
     const column = role === 'RESPONSIBLE_LAWYER' ? 'responsibleLawyerId' : 'responsibleParalegalId';
@@ -212,8 +208,15 @@ export class FileTeamService {
     });
   }
 
-  /** The paralegal leaves the role (removed or given another): the file has no responsible paralegal any more. */
-  private async clearParalegal({ tx, fileId, file, client }: Change): Promise<void> {
+  /**
+   * The paralegal leaves the role (removed or given another): the file has no responsible paralegal any more. Nothing to
+   * do when the column already names nobody else (a PARALEGAL row left by older data).
+   */
+  private async clearParalegal(
+    { tx, fileId, file, client }: Change,
+    userId: string,
+  ): Promise<void> {
+    if (file.responsibleParalegalId !== userId) return;
     await tx.legalFile.update({ where: { id: fileId }, data: { responsibleParalegalId: null } });
     await this.audit.log(
       tx,
@@ -226,21 +229,6 @@ export class FileTeamService {
       },
       client,
     );
-  }
-
-  /**
-   * The user is an active colleague whose office role may hold `role`, share-locked until commit so a deactivation or
-   * role change (D-124) cannot slip in between. Unknown or another office's → 404 (D-019); otherwise 400 VAL-001.
-   */
-  private async assertEligible(tx: ScopedTransaction, userId: string, role: FileTeamRole) {
-    const [user] = await tx.$queryRaw<{ role: string; isActive: boolean }[]>`
-      SELECT role::text AS role, is_active AS "isActive" FROM users
-      WHERE id = ${userId}::uuid AND office_id = ${this.officeId()}::uuid FOR SHARE`;
-    if (!user) throw new ResourceNotFoundException();
-    const allowed = ELIGIBLE[role];
-    if (!user.isActive || (allowed && !allowed.includes(user.role))) {
-      throw new ValidationException([{ field: 'userId', message: ROLE_MESSAGE[role] }]);
-    }
   }
 
   private async member(tx: ScopedTransaction, fileId: string, userId: string) {
@@ -259,9 +247,8 @@ export class FileTeamService {
     );
   }
 
-  /** Only the office manager and the file's responsible lawyer may expose a confidential file (D-096). */
   private mayExpose(file: LockedFile): boolean {
-    return this.cls.get('role') === 'OFFICE_MANAGER' || file.responsibleLawyerId === this.actorId();
+    return mayExpose(file, this.cls.get('role'), this.actorId());
   }
 
   private can(permission: string): boolean {

@@ -31,7 +31,7 @@
     "empty": "لا توجد إشعارات بعد.",
     "hearingReminder": "جلسة قادمة في الملف {{fileNumber}}",
     "fileReassigned": "أُسند إليك الملف {{fileNumber}}",
-    "fileTeamAdded": "أُضفت إلى فريق الملف {{fileNumber}}",
+    "fileTeamAdded": "تمت إضافتك إلى فريق الملف ⁨{{fileNumber}}⁩",
     "documentQuarantined": "حُجب المستند ⁨{{name}}⁩ لاحتوائه على برمجية خبيثة",
     "documentFailed": "تعذّر استخراج نص المستند ⁨{{name}}⁩",
     "invitationAccepted": "قُبلت دعوتك من ⁨{{name}}⁩"

@@ -111,7 +111,7 @@ describe('file clients and team (D-140)', () => {
       renderApp(`/cases/${ID}`);
       fireEvent.click((await card('case-card-team')).getByTestId('add-member'));
       const dialog = within(await screen.findByRole('dialog'));
-      fireEvent.mouseDown(dialog.getByRole('combobox', { name: 'Colleague' }));
+      fireEvent.mouseDown(dialog.getByRole('combobox', { name: 'Team member' }));
       fireEvent.click(await screen.findByTitle(/Hadi Saleh.*Lawyer/));
       fireEvent.mouseDown(dialog.getByRole('combobox', { name: 'Role on the case' }));
       // A lawyer may become the responsible lawyer (the manager may reassign), not the paralegal.
@@ -188,6 +188,64 @@ describe('file clients and team (D-140)', () => {
       const dialog = within(await screen.findByRole('dialog'));
       fireEvent.click(dialog.getByRole('button', { name: 'Remove' }));
       expect(await screen.findByText('The last client of a case cannot be removed.')).toBeTruthy();
+    },
+    SLOW,
+  );
+
+  it(
+    'should add a client picked by search, as primary when asked',
+    async () => {
+      asRole('OFFICE_MANAGER', MANAGER_ID);
+      serveFile();
+      const third = '01920000-0000-7000-8000-0000000000c3';
+      let body: unknown;
+      server.use(
+        http.get(api('clients'), () =>
+          HttpResponse.json({
+            ...EMPTY_PAGE,
+            data: [
+              {
+                id: third,
+                clientType: 'INDIVIDUAL',
+                displayName: 'Maha Saeed',
+                fullName: 'Maha Saeed',
+                companyName: null,
+                phone: null,
+                email: null,
+                isActive: true,
+                primaryLawyer: null,
+                openFiles: 0,
+                createdAt: '2026-10-01T09:00:00.000Z',
+                updatedAt: '2026-10-01T09:00:00.000Z',
+              },
+            ],
+          }),
+        ),
+        http.post(api(`cases/${ID}/clients`), async ({ request }) => {
+          body = await request.json();
+          return ok([], 201);
+        }),
+      );
+      renderApp(`/cases/${ID}`);
+      fireEvent.click((await card('case-card-clients')).getByTestId('add-client'));
+      const dialog = within(await screen.findByRole('dialog'));
+      fireEvent.mouseDown(dialog.getByRole('combobox', { name: 'Search clients' }));
+      fireEvent.click(await screen.findByTitle('Maha Saeed'));
+      fireEvent.click(dialog.getByTestId('add-client-primary'));
+      fireEvent.click(screen.getByTestId('add-client-submit'));
+      await waitFor(() => expect(body).toEqual({ clientId: third, isPrimary: true }));
+    },
+    SLOW,
+  );
+
+  it(
+    'should offer no removal for the only client',
+    async () => {
+      asRole('OFFICE_MANAGER', MANAGER_ID);
+      serveFile({ ...FILE, clients: FILE.clients.filter((client) => client.isPrimary) });
+      renderApp(`/cases/${ID}`);
+      const clients = await card('case-card-clients');
+      expect(clients.queryByTestId(`remove-client-${PRIMARY_ID}`)).toBeNull();
     },
     SLOW,
   );

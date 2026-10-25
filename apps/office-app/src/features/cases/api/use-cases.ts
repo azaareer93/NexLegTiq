@@ -87,17 +87,21 @@ export function useCreateCase() {
   });
 }
 
-/**
- * Changes to a file's clients and team (D-140). Each one refetches the file — whose header, cards and counts show them —
- * and the lists (a new primary client or responsible lawyer shows there).
- */
-export function useFileParticipants(id: string) {
+/** After a change to a file's people: the file (its cards and counts) and the lists (primary client, lawyer) refetch. */
+function useRefreshFile(id: string) {
   const queryClient = useQueryClient();
-  const onSuccess = () =>
-    Promise.all([
-      queryClient.invalidateQueries({ queryKey: caseKeys.detail(id) }),
-      queryClient.invalidateQueries({ queryKey: caseKeys.lists() }),
-    ]);
+  return (extra: readonly (readonly unknown[])[] = []) =>
+    Promise.all(
+      [caseKeys.detail(id), caseKeys.lists(), ...extra].map((queryKey) =>
+        queryClient.invalidateQueries({ queryKey }),
+      ),
+    );
+}
+
+/** Adding, making primary and removing a file's clients (D-140). */
+export function useFileClientMutations(id: string) {
+  const refresh = useRefreshFile(id);
+  const onSuccess = () => refresh();
   return {
     addClient: useMutation({
       mutationFn: (body: AddFileClientRequest) => cases.addClient(id, body),
@@ -111,18 +115,30 @@ export function useFileParticipants(id: string) {
       mutationFn: (clientId: string) => cases.removeClient(id, clientId),
       onSuccess,
     }),
+  };
+}
+
+/**
+ * Adding, re-roling and removing a file's team members (D-140). A new responsible lawyer also changes the reminders of
+ * the file's hearings (D-117), so hearing queries refetch too.
+ */
+export function useFileTeamMutations(id: string) {
+  const refresh = useRefreshFile(id);
+  const after = (role?: FileTeamRole) =>
+    refresh(role === 'RESPONSIBLE_LAWYER' ? [['sessions']] : []);
+  return {
     addMember: useMutation({
       mutationFn: (body: AddTeamMemberRequest) => cases.addTeamMember(id, body),
-      onSuccess,
+      onSuccess: (_data, body) => after(body.role),
     }),
     changeRole: useMutation({
       mutationFn: ({ userId, role }: { userId: string; role: FileTeamRole }) =>
         cases.changeTeamRole(id, userId, role),
-      onSuccess,
+      onSuccess: (_data, { role }) => after(role),
     }),
     removeMember: useMutation({
       mutationFn: (userId: string) => cases.removeTeamMember(id, userId),
-      onSuccess,
+      onSuccess: () => after(),
     }),
   };
 }

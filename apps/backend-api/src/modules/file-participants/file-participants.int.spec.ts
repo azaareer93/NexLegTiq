@@ -363,4 +363,109 @@ describe('file clients and team (HTTP + PostgreSQL)', () => {
       expect((res.body as ErrorBody).error.code).toBe('BIZ-007');
     });
   });
+
+  describe('review additions', () => {
+    it('should send the new responsible lawyer the reminders of upcoming hearings', async () => {
+      const { officeId, manager } = await office();
+      const target = await file(manager);
+      const lawyer = await user(officeId, 'LAWYER');
+      const startsAt = new Date(Date.now() + 10 * 24 * 3600 * 1000).toISOString();
+      await http()
+        .post('/api/v1/sessions')
+        .set(as(manager))
+        .send({ fileId: target.id, startsAt, attendingLawyerId: manager.userId, reminderDays: [3] })
+        .expect(201);
+      const team = `/api/v1/cases/${target.id}/team`;
+      await http().post(team).set(as(manager)).send({ userId: lawyer.userId }).expect(201);
+      await http()
+        .patch(`${team}/${lawyer.userId}`)
+        .set(as(manager))
+        .send({ role: 'RESPONSIBLE_LAWYER' })
+        .expect(200);
+      const pending = await raw.sessionReminder.findMany({
+        where: { officeId, status: 'PENDING' },
+        select: { recipientId: true },
+      });
+      // The attending lawyer keeps theirs; the new responsible lawyer now gets one too.
+      expect(pending.map((row) => row.recipientId).sort()).toEqual(
+        [manager.userId, lawyer.userId].sort(),
+      );
+    });
+
+    it('should keep one responsible lawyer when two reassignments race', async () => {
+      const { officeId, manager } = await office();
+      const target = await file(manager);
+      const [first, second] = [await user(officeId, 'LAWYER'), await user(officeId, 'LAWYER')];
+      const team = `/api/v1/cases/${target.id}/team`;
+      for (const member of [first, second]) {
+        await http().post(team).set(as(manager)).send({ userId: member.userId }).expect(201);
+      }
+      const results = await Promise.all(
+        [first, second].map((member) =>
+          http()
+            .patch(`${team}/${member.userId}`)
+            .set(as(manager))
+            .send({ role: 'RESPONSIBLE_LAWYER' }),
+        ),
+      );
+      expect(results.map((res) => res.status)).toEqual([200, 200]);
+      const lawyers = await raw.fileTeamMember.findMany({
+        where: { fileId: target.id, role: 'RESPONSIBLE_LAWYER' },
+        select: { userId: true },
+      });
+      expect(lawyers).toHaveLength(1);
+      const { responsibleLawyerId } = await raw.legalFile.findUniqueOrThrow({
+        where: { id: target.id },
+        select: { responsibleLawyerId: true },
+      });
+      expect(lawyers[0]?.userId).toBe(responsibleLawyerId);
+    });
+
+    it('should not notify someone who adds themselves, nor make a paralegal responsible lawyer', async () => {
+      const { officeId, manager } = await office();
+      const lawyer = await user(officeId, 'LAWYER');
+      const target = await file(lawyer);
+      const team = `/api/v1/cases/${target.id}/team`;
+      await http().post(team).set(as(manager)).send({ userId: manager.userId }).expect(201);
+      await expect(raw.notification.count({ where: { userId: manager.userId } })).resolves.toBe(0);
+      const paralegal = await user(officeId, 'PARALEGAL');
+      await http()
+        .post(team)
+        .set(as(manager))
+        .send({ userId: paralegal.userId, role: 'PARALEGAL' })
+        .expect(201);
+      const res = await http()
+        .patch(`${team}/${paralegal.userId}`)
+        .set(as(manager))
+        .send({ role: 'RESPONSIBLE_LAWYER' })
+        .expect(400);
+      expect((res.body as ErrorBody).error.details?.[0]?.message).toBe(
+        'validation.responsibleLawyer',
+      );
+    });
+
+    it('should keep a confidential file from being exposed by its other members', async () => {
+      const { officeId, manager } = await office();
+      const lawyer = await user(officeId, 'LAWYER');
+      const target = await file(lawyer, { isConfidential: true });
+      const senior = await user(officeId, 'SENIOR_LAWYER');
+      const paralegal = await user(officeId, 'PARALEGAL');
+      const team = `/api/v1/cases/${target.id}/team`;
+      for (const member of [senior, paralegal]) {
+        await http().post(team).set(as(manager)).send({ userId: member.userId }).expect(201);
+      }
+      // A senior lawyer on the team may reassign files, but not take a confidential one over.
+      await http()
+        .patch(`${team}/${senior.userId}`)
+        .set(as(senior))
+        .send({ role: 'RESPONSIBLE_LAWYER' })
+        .expect(403);
+      const outsider = await client(officeId, 'Outsider');
+      await http()
+        .post(`/api/v1/cases/${target.id}/clients`)
+        .set(as(paralegal))
+        .send({ clientId: outsider.id })
+        .expect(403);
+    });
+  });
 });

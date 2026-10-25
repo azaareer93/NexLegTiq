@@ -41,7 +41,7 @@ function setup(
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     refreshToken: { updateMany: jest.fn() },
-    fileTeamMember: { deleteMany: jest.fn(), upsert: jest.fn() },
+    fileTeamMember: { deleteMany: jest.fn(), upsert: jest.fn(), updateMany: jest.fn() },
     caseTimelineEvent: { create: jest.fn() },
     auditLog: { create: jest.fn() },
     notification: { create: jest.fn() },

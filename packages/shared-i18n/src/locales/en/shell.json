@@ -31,7 +31,7 @@
     "empty": "No notifications yet.",
     "hearingReminder": "Upcoming hearing in file {{fileNumber}}",
     "fileReassigned": "File {{fileNumber}} is now assigned to you",
-    "fileTeamAdded": "You were added to the team of file {{fileNumber}}",
+    "fileTeamAdded": "You were added to the team of file ⁨{{fileNumber}}⁩",
     "documentQuarantined": "⁨{{name}}⁩ was blocked: it contains malware",
     "documentFailed": "The text of ⁨{{name}}⁩ could not be read",
     "invitationAccepted": "⁨{{name}}⁩ accepted your invitation"
