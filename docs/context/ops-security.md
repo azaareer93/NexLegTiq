@@ -48,6 +48,9 @@
 - Weekly encrypted `pg_dump -Fc` to a second provider/bucket (90d), monthly (365d). Object storage versioning on.
 - Weekly automated restore test into a scratch DB (GitHub Action) with row-count verification.
 - RTO target 4h. Runbooks in `docs/runbooks/` (DB restore, bad deploy rollback, Redis loss, credential leak, provider outage).
+- Implementation (D-141): `infra/backup/` (pg_dump + age + rclone image), `.github/workflows/backup.yml` (weekly dump,
+  documents copy, restore test; off until `BACKUP_ENABLED`), runbooks `backups.md`, `restore-db.md`, `restore-documents.md`;
+  local drill `bash scripts/backup-drill.sh`. PITR, snapshots and bucket versioning are provider settings (owner).
 
 ## Monitoring & incidents
 Sentry (errors, releases, perf traces sampled), UptimeRobot (1 min) on `/health/ready` + SPAs, logs to a hosted log sink,

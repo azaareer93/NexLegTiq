@@ -1,0 +1,99 @@
+# Weekly encrypted database backup, off-provider copy of the documents and an automated restore test (D-141,
+# ops-security.md#backups--dr-right-sized). Off until the repository variable BACKUP_ENABLED=true and the GitHub
+# Environment `backup` holds the secrets below (docs/runbooks/backups.md, "First setup"):
+#   BACKUP_ENV          env file (one VAR=value per line): DATABASE_URL (migrator role, TLS), AGE_RECIPIENTS,
+#                       BACKUP_BUCKET, DOCUMENTS_BUCKET, RCLONE_CONFIG_BACKUP_* and RCLONE_CONFIG_DOCUMENTS_* (S3 remotes)
+#   BACKUP_AGE_IDENTITY the age secret key of the CI recipient (restore test only)
+#   SLACK_WEBHOOK_URL   optional: where failures are reported (GitHub also emails failed scheduled runs)
+name: Backup
+
+on:
+  schedule:
+    - cron: '0 2 * * 0' # Sundays 02:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: Encrypted dump and document copy
+    if: ${{ vars.BACKUP_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    environment: backup
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the backup tools image
+        run: docker build --quiet --tag nexlegtiq-backup infra/backup
+      - name: Write the environment file
+        env:
+          BACKUP_ENV: ${{ secrets.BACKUP_ENV }}
+        run: |
+          umask 077
+          printf '%s\n' "$BACKUP_ENV" > "$RUNNER_TEMP/backup.env"
+      - name: Database dump (weekly; also monthly in the first week of the month)
+        run: |
+          monthly=$([ "$(date -u +%d)" -le 7 ] && echo 1 || echo 0)
+          docker run --rm --env-file "$RUNNER_TEMP/backup.env" -e BACKUP_MONTHLY="$monthly" \
+            nexlegtiq-backup /opt/backup/backup.sh
+      - name: Off-provider copy of the documents bucket
+        run: docker run --rm --env-file "$RUNNER_TEMP/backup.env" nexlegtiq-backup /opt/backup/documents-copy.sh
+      - name: Remove the environment file
+        if: always()
+        run: rm -f "$RUNNER_TEMP/backup.env"
+
+  restore-test:
+    name: Restore the newest dump and check it
+    needs: backup
+    runs-on: ubuntu-latest
+    environment: backup
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: nexlegtiq
+          POSTGRES_PASSWORD: nexlegtiq # the documented dev placeholder (D-078): a throwaway scratch database
+          POSTGRES_DB: scratch
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U nexlegtiq" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the backup tools image
+        run: docker build --quiet --tag nexlegtiq-backup infra/backup
+      - name: Restore and check
+        shell: bash # -eo pipefail: a failed restore must fail the step through the tee
+        env:
+          BACKUP_ENV: ${{ secrets.BACKUP_ENV }}
+          AGE_IDENTITY: ${{ secrets.BACKUP_AGE_IDENTITY }}
+        run: |
+          umask 077
+          # Only the bucket settings: the restore never needs the production database URL.
+          printf '%s\n' "$BACKUP_ENV" | grep -E '^(RCLONE_CONFIG_BACKUP_|BACKUP_BUCKET=)' > "$RUNNER_TEMP/restore.env"
+          docker run --rm --network host --env-file "$RUNNER_TEMP/restore.env" \
+            -e AGE_IDENTITY -e SCRATCH_DATABASE_URL=postgresql://nexlegtiq:nexlegtiq@127.0.0.1:5432/scratch \
+            nexlegtiq-backup /opt/backup/restore-check.sh | tee "$RUNNER_TEMP/report.txt"
+          rm -f "$RUNNER_TEMP/restore.env"
+          { echo '### Restore test'; echo '```'; cat "$RUNNER_TEMP/report.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+  report-failure:
+    name: Report a failed backup
+    needs: [backup, restore-test]
+    if: ${{ failure() && vars.BACKUP_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    environment: backup
+    steps:
+      - name: Post to Slack when a webhook is configured
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then echo 'No SLACK_WEBHOOK_URL: GitHub emails the failure.'; exit 0; fi
+          curl -fsS -X POST -H 'Content-Type: application/json' \
+            -d "{\"text\":\"NexLegTiq backup or restore test failed: $RUN_URL\"}" "$SLACK_WEBHOOK_URL"
