@@ -1,4 +1,7 @@
+import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 import { JwtService } from '@nestjs/jwt';
 import type { NestExpressApplication } from '@nestjs/platform-express';
@@ -12,7 +15,7 @@ import request from 'supertest';
 
 import { DocumentExtraction } from './document-extraction';
 import { DocumentScan } from './document-scan';
-import { buildDocx, buildPdf, buildXlsx } from './extraction/fixtures.test-helper';
+import { buildDocx, buildImagePdf, buildPdf, buildXlsx } from './extraction/fixtures.test-helper';
 import { ClamavScanner } from './upload/clamav-scanner';
 import { AppModule } from '../../app/app.module';
 import { configureApp } from '../../app/configure-app';
@@ -36,6 +39,16 @@ type Job = { documentId: string; versionNumber: number };
 
 const LINE =
   'The tenant shall pay the monthly rent of 1,250 ILS before the fifth day of each month.';
+/** Tesseract (with Arabic) and pdftoppm on this machine. */
+const OCR_TOOLS = ((): boolean => {
+  try {
+    const languages = execFileSync('tesseract', ['--list-langs'], { encoding: 'utf8' });
+    execFileSync('pdftoppm', ['-v'], { stdio: 'ignore' });
+    return /^ara$/m.test(languages) && /^eng$/m.test(languages);
+  } catch {
+    return false;
+  }
+})();
 const quiet = {
   setContext: () => undefined,
   warn: () => undefined,
@@ -213,11 +226,83 @@ describe('document text extraction (integration)', () => {
     },
   );
 
-  it('should leave a scan-like PDF waiting for OCR', async () => {
-    const job = await uploaded(buildPdf(['p. 1']), 'scan.pdf');
-    await expect(inOffice(() => extraction().run(job))).resolves.toBe('NEEDS_OCR');
-    const res = await document(job.documentId).expect(200);
-    expect(res.body.data).toMatchObject({ status: 'PROCESSING', ocrStatus: 'PENDING' });
+  describe('OCR (D-139)', () => {
+    const scan = readFileSync(join(__dirname, 'extraction/fixtures/scan-ar.jpg'));
+    const rotated = readFileSync(join(__dirname, 'extraction/fixtures/scan-ar-rotated.jpg'));
+    const scannedPdf = (pages: number) => buildImagePdf(scan, 1141, 536, pages);
+    // Skipped where Tesseract is not installed (a developer's machine); CI installs it and must run them.
+    const withTesseract = OCR_TOOLS ? it : it.skip;
+    const ocrRow = (documentId: string) =>
+      raw.documentText.findFirstOrThrow({
+        where: { documentId },
+        select: { ocrEngine: true, pageCount: true, ocrConfidence: true, pageConfidences: true },
+      });
+
+    it('should have Tesseract and pdftoppm wherever CI runs', () => {
+      if (process.env['CI']) expect(OCR_TOOLS).toBe(true);
+    });
+
+    withTesseract('should read an Arabic scanned PDF with per-page confidence', async () => {
+      const job = await uploaded(scannedPdf(2), 'scan.pdf');
+      await expect(inOffice(() => extraction().run(job))).resolves.toBe('READY');
+      const res = await document(job.documentId).expect(200);
+      expect(res.body.data).toMatchObject({ status: 'READY', ocrStatus: 'DONE' });
+      const text = await http()
+        .get(`/api/v1/documents/${job.documentId}/text`)
+        .set(bearerFor(jwt, manager))
+        .expect(200);
+      const body = (text.body as { data: { text: string } }).data.text;
+      expect(body).toContain('محكمة بداية رام الله');
+      expect(body).toContain('Lease Agreement');
+      const row = await ocrRow(job.documentId);
+      expect(row).toMatchObject({ ocrEngine: 'tesseract', pageCount: 2 });
+      expect(Number(row.ocrConfidence)).toBeGreaterThan(60);
+      expect(row.pageConfidences).toEqual([expect.any(Number), expect.any(Number)]);
+      const [indexed] = await raw.$queryRaw<{ found: boolean }[]>`
+        SELECT search_vector_simple @@ plainto_tsquery('simple', nlq_normalize_ar('محكمة')) AS found
+        FROM document_texts WHERE document_id = ${job.documentId}::uuid`;
+      expect(indexed).toEqual({ found: true });
+    });
+
+    withTesseract('should read a rotated image upright', async () => {
+      const job = await uploaded(rotated, 'rotated.jpg', 'EVIDENCE');
+      await expect(inOffice(() => extraction().run(job))).resolves.toBe('READY');
+      const text = await http()
+        .get(`/api/v1/documents/${job.documentId}/text`)
+        .set(bearerFor(jwt, manager))
+        .expect(200);
+      expect((text.body as { data: { text: string } }).data.text).toContain('عقد إيجار');
+      await expect(ocrRow(job.documentId)).resolves.toMatchObject({ pageCount: 1 });
+    });
+
+    withTesseract('should read a 10-page scan within the 30 s budget (ai-ocr.md)', async () => {
+      const job = await uploaded(scannedPdf(10), 'ten-pages.pdf');
+      const started = Date.now();
+      await expect(inOffice(() => extraction().run(job))).resolves.toBe('READY');
+      expect(Date.now() - started).toBeLessThan(30_000);
+      await expect(ocrRow(job.documentId)).resolves.toMatchObject({ pageCount: 10 });
+    });
+
+    it('should make a scan READY without text when the office switched OCR off', async () => {
+      await raw.officeSettings.update({
+        where: { officeId: manager.officeId },
+        data: { enableOcr: false },
+      });
+      try {
+        const job = await uploaded(scannedPdf(1), 'off.pdf');
+        await expect(inOffice(() => extraction().run(job))).resolves.toBe('NO_TEXT');
+        const res = await document(job.documentId).expect(200);
+        expect(res.body.data).toMatchObject({ status: 'READY', ocrStatus: 'NOT_NEEDED' });
+        await expect(
+          raw.documentText.count({ where: { documentId: job.documentId } }),
+        ).resolves.toBe(0);
+      } finally {
+        await raw.officeSettings.update({
+          where: { officeId: manager.officeId },
+          data: { enableOcr: true },
+        });
+      }
+    });
   });
 
   it('should mark a failed extraction FAILED with EXT-002 and run it again on retry, once', async () => {

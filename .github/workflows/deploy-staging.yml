@@ -40,7 +40,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Lowercase the image repository
         run: echo "IMAGE_REPO=${IMAGE_REPO,,}" >> "$GITHUB_ENV"
-      - name: backend-api (API and worker)
+      - name: backend-api (API)
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -51,6 +51,19 @@ jobs:
           labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
           cache-from: type=gha,scope=backend-api
           cache-to: type=gha,scope=backend-api,mode=max
+      - name: backend-api-worker (with Tesseract, D-139)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/backend-api/Dockerfile
+          target: worker
+          push: true
+          tags: ${{ env.IMAGE_REPO }}/backend-api-worker:${{ github.sha }}
+          labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          cache-from: |
+            type=gha,scope=backend-api-worker
+            type=gha,scope=backend-api
+          cache-to: type=gha,scope=backend-api-worker,mode=max
       - name: backend-api-migrate
         uses: docker/build-push-action@v6
         with:

@@ -1,8 +1,10 @@
 # syntax=docker/dockerfile:1.7
 # backend-api images, built from the repository root (D-103):
 #   docker build -f apps/backend-api/Dockerfile --target runtime -t nexlegtiq-backend-api .
+#   docker build -f apps/backend-api/Dockerfile --target worker -t nexlegtiq-backend-api-worker .
 #   docker build -f apps/backend-api/Dockerfile --target migrate -t nexlegtiq-migrate .
-# runtime: the HTTP API (default command) and the worker (`node --enable-source-maps worker.js`): one image, two commands.
+# runtime: the HTTP API (default command).
+# worker: the runtime plus Tesseract (ara+eng) and poppler for OCR (D-139), started with `node --enable-source-maps worker.js`.
 # migrate: one-off `prisma migrate deploy` + reference data (plans), run with the migrator role before each rollout.
 ARG NODE_IMAGE=node:22-bookworm-slim
 
@@ -28,6 +30,16 @@ COPY --from=build /repo/apps/backend-api/dist ./
 USER node
 EXPOSE 3000
 CMD ["node", "--enable-source-maps", "main.js"]
+
+# OCR tools only where jobs run, so the API image stays small (D-103). Debian's tesseract-ocr brings eng and osd (the
+# orientation model `--psm 1` uses); ara is added.
+FROM runtime AS worker
+USER root
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-ara poppler-utils \
+ && rm -rf /var/lib/apt/lists/*
+USER node
+CMD ["node", "--enable-source-maps", "worker.js"]
 
 # The runtime image plus the schema and migrations: `prisma` is a runtime dependency (its bin is needed here) and
 # seed.js is the plan seed bundled by webpack, so no dev dependencies ship to the host.

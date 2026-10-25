@@ -47,7 +47,7 @@ describe('queues (D-011, architecture.md)', () => {
   });
 
   it.each([
-    ['ocr', 3, { type: 'exponential', delay: 1000 }, 60_000, 2], // D-132: extraction parses large files in the worker
+    ['ocr', 3, { type: 'exponential', delay: 1000 }, 300_000, 2], // D-132 concurrency, D-139 OCR timeout
     ['ai', 2, { type: 'fixed', delay: 10_000 }, 120_000, 5],
     ['reminder', 3, { type: 'exponential', delay: 1000 }, 30_000, 10],
     ['email', 3, { type: 'fixed', delay: 5000 }, 30_000, 2],
