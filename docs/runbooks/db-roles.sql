@@ -5,6 +5,7 @@
 --   nexlegtiq_migrator  owns the schema; runs `prisma migrate deploy` (DATABASE_URL of the one-off migrate job)
 --   nexlegtiq_app       the API and worker (DATABASE_URL of the app); DML only, audit_logs is append-only
 --   nexlegtiq_readonly  support/analytics queries; SELECT only, never credentials or token hashes
+--   nexlegtiq_backup    the weekly encrypted dump (D-141); SELECT on everything, read-only sessions, owns nothing
 --
 -- Run it before the first `prisma migrate deploy` (roles, extensions, default privileges) and again after every deploy
 -- that adds tables holding credentials (re-applies the readonly column restrictions). The init migration itself revokes
@@ -117,3 +118,21 @@ BEGIN
   END LOOP;
 END
 $$;
+
+-- nexlegtiq_backup (D-141): the weekly encrypted dump. Reads every table and sequence (tokens included: a restore must be
+-- complete), writes nothing — every session is read-only — and owns nothing, so a leaked backup credential cannot change
+-- the schema or the data. Phase 3 RLS will need BYPASSRLS here, or pg_dump will see filtered tables.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'nexlegtiq_backup') THEN
+    CREATE ROLE nexlegtiq_backup LOGIN;
+  END IF;
+  EXECUTE format('GRANT CONNECT ON DATABASE %I TO nexlegtiq_backup', current_database());
+END
+$$;
+ALTER ROLE nexlegtiq_backup SET default_transaction_read_only = on;
+GRANT USAGE ON SCHEMA public TO nexlegtiq_backup;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO nexlegtiq_backup;
+GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO nexlegtiq_backup;
+ALTER DEFAULT PRIVILEGES FOR ROLE nexlegtiq_migrator IN SCHEMA public GRANT SELECT ON TABLES TO nexlegtiq_backup;
+ALTER DEFAULT PRIVILEGES FOR ROLE nexlegtiq_migrator IN SCHEMA public GRANT SELECT ON SEQUENCES TO nexlegtiq_backup;

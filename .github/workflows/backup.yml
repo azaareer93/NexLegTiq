@@ -1,10 +1,13 @@
 # Weekly encrypted database backup, off-provider copy of the documents and an automated restore test (D-141,
 # ops-security.md#backups--dr-right-sized). Off until the repository variable BACKUP_ENABLED=true and the GitHub
-# Environment `backup` holds the secrets below (docs/runbooks/backups.md, "First setup"):
-#   BACKUP_ENV          env file (one VAR=value per line): DATABASE_URL (migrator role, TLS), AGE_RECIPIENTS,
-#                       BACKUP_BUCKET, DOCUMENTS_BUCKET, RCLONE_CONFIG_BACKUP_* and RCLONE_CONFIG_DOCUMENTS_* (S3 remotes)
+# Environment `backup` (deployment branch: main) holds the secrets below (docs/runbooks/backups.md, "First setup"):
+#   BACKUP_ENV          env file (one VAR=value per line, no quotes, no comments): DATABASE_URL (nexlegtiq_backup role,
+#                       sslmode=verify-full&sslrootcert=system), AGE_RECIPIENTS, BACKUP_BUCKET, DOCUMENTS_BUCKET,
+#                       RCLONE_CONFIG_BACKUP_* and RCLONE_CONFIG_DOCUMENTS_* (S3 remotes, https endpoints)
+#   BACKUP_BUCKET_ENV   only BACKUP_BUCKET and the RCLONE_CONFIG_BACKUP_* lines: all the restore test receives
 #   BACKUP_AGE_IDENTITY the age secret key of the CI recipient (restore test only)
 #   SLACK_WEBHOOK_URL   optional: where failures are reported (GitHub also emails failed scheduled runs)
+# This repository is public, so its Actions logs are too: the scripts print names, hashes and timings only.
 name: Backup
 
 on:
@@ -35,12 +38,18 @@ jobs:
           BACKUP_ENV: ${{ secrets.BACKUP_ENV }}
         run: |
           umask 077
-          printf '%s\n' "$BACKUP_ENV" > "$RUNNER_TEMP/backup.env"
-      - name: Database dump (weekly; also monthly in the first week of the month)
+          printf '%s\n' "$BACKUP_ENV" | tr -d '\r' > "$RUNNER_TEMP/backup.env"
+          # Mask every value: a multi-line secret is not reliably masked line by line.
+          while IFS='=' read -r _ value; do
+            [ -n "$value" ] && echo "::add-mask::$value"
+          done < "$RUNNER_TEMP/backup.env"
+      - name: Database dump (weekly; also monthly in the first scheduled run of a month)
         run: |
-          monthly=$([ "$(date -u +%d)" -le 7 ] && echo 1 || echo 0)
+          monthly=0
+          if [ "${{ github.event_name }}" = schedule ] && [ "$(date -u +%d)" -le 7 ]; then monthly=1; fi
           docker run --rm --env-file "$RUNNER_TEMP/backup.env" -e BACKUP_MONTHLY="$monthly" \
-            nexlegtiq-backup /opt/backup/backup.sh
+            nexlegtiq-backup /opt/backup/backup.sh | tee -a "$GITHUB_STEP_SUMMARY"
+        shell: bash # -eo pipefail: a failed dump must fail the step through the tee
       - name: Off-provider copy of the documents bucket
         run: docker run --rm --env-file "$RUNNER_TEMP/backup.env" nexlegtiq-backup /opt/backup/documents-copy.sh
       - name: Remove the environment file
@@ -70,17 +79,20 @@ jobs:
       - name: Restore and check
         shell: bash # -eo pipefail: a failed restore must fail the step through the tee
         env:
-          BACKUP_ENV: ${{ secrets.BACKUP_ENV }}
+          BACKUP_BUCKET_ENV: ${{ secrets.BACKUP_BUCKET_ENV }}
           AGE_IDENTITY: ${{ secrets.BACKUP_AGE_IDENTITY }}
         run: |
           umask 077
-          # Only the bucket settings: the restore never needs the production database URL.
-          printf '%s\n' "$BACKUP_ENV" | grep -E '^(RCLONE_CONFIG_BACKUP_|BACKUP_BUCKET=)' > "$RUNNER_TEMP/restore.env"
-          docker run --rm --network host --env-file "$RUNNER_TEMP/restore.env" \
-            -e AGE_IDENTITY -e SCRATCH_DATABASE_URL=postgresql://nexlegtiq:nexlegtiq@127.0.0.1:5432/scratch \
-            nexlegtiq-backup /opt/backup/restore-check.sh | tee "$RUNNER_TEMP/report.txt"
-          rm -f "$RUNNER_TEMP/restore.env"
-          { echo '### Restore test'; echo '```'; cat "$RUNNER_TEMP/report.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' "$BACKUP_BUCKET_ENV" | tr -d '\r' > "$RUNNER_TEMP/restore.env"
+          trap 'rm -f "$RUNNER_TEMP/restore.env"' EXIT
+          docker run --rm --network host --env-file "$RUNNER_TEMP/restore.env" -e AGE_IDENTITY \
+            -e SCRATCH_DATABASE_URL=postgresql://nexlegtiq:nexlegtiq@127.0.0.1:5432/scratch \
+            nexlegtiq-backup /opt/backup/restore-check.sh 2>&1 | tee "$RUNNER_TEMP/report.txt"
+      - name: Report
+        if: always()
+        run: |
+          { echo '### Restore test'; echo '```'; cat "$RUNNER_TEMP/report.txt" 2>/dev/null || echo 'no report'; echo '```'; } \
+            >> "$GITHUB_STEP_SUMMARY"
 
   report-failure:
     name: Report a failed backup

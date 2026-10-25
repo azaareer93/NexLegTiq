@@ -30,9 +30,12 @@ identity=$(printf '%s\n' "$key" | grep '^AGE-SECRET-KEY-')
 recipient=$(printf '%s\n' "$key" | sed -n 's/^# public key: //p')
 
 run "$image" -c "rclone mkdir backup:$bucket"
-run -e DATABASE_URL="$dev_db/nexlegtiq" -e AGE_RECIPIENTS="$recipient" "$image" /opt/backup/backup.sh
+# The dev stack has no TLS: the drill lifts the production TLS checks.
+run -e DATABASE_URL="$dev_db/nexlegtiq" -e AGE_RECIPIENTS="$recipient" -e BACKUP_ALLOW_INSECURE=1 \
+  "$image" /opt/backup/backup.sh
 
 run "$image" -c "psql --no-psqlrc --quiet '$dev_db/postgres' \
   -c 'DROP DATABASE IF EXISTS $scratch' -c 'CREATE DATABASE $scratch'"
 trap 'run "$image" -c "psql --no-psqlrc --quiet \"$dev_db/postgres\" -c \"DROP DATABASE IF EXISTS $scratch\"" >/dev/null' EXIT
-run -e SCRATCH_DATABASE_URL="$dev_db/$scratch" -e AGE_IDENTITY="$identity" "$image" /opt/backup/restore-check.sh
+run -e SCRATCH_DATABASE_URL="$dev_db/$scratch" -e AGE_IDENTITY="$identity" -e BACKUP_VERBOSE=1 \
+  "$image" /opt/backup/restore-check.sh

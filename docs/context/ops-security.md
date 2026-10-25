@@ -41,10 +41,10 @@
   Staging is built (D-103): `apps/backend-api/Dockerfile`, `infra/staging/`, `.github/workflows/deploy-staging.yml`,
   runbook `docs/runbooks/deploy.md`.
 - SPAs → Cloudflare Pages (preview per PR). Env: `VITE_API_URL`, `VITE_WS_URL`, `VITE_SENTRY_DSN`, feature flags.
-- Migrations: expand/contract for zero downtime; backup before prod migrate; rollback = restore + previous image.
+- Migrations: expand/contract for zero downtime; backup before prod migrate (a provider snapshot, taken by hand until the release pipeline story automates it — D-141); rollback = restore + previous image.
 
 ## Backups & DR (right-sized)
-- Managed PG: daily snapshots (30d) + PITR (7d) → RPO ≤ 15 min target when PITR available (else 24h, documented).
+- Managed PG: daily snapshots (30d) + PITR (7d) → RPO ≤ 15 min target when PITR available (else up to 7 days, the weekly dump — D-141).
 - Weekly encrypted `pg_dump -Fc` to a second provider/bucket (90d), monthly (365d). Object storage versioning on.
 - Weekly automated restore test into a scratch DB (GitHub Action) with row-count verification.
 - RTO target 4h. Runbooks in `docs/runbooks/` (DB restore, bad deploy rollback, Redis loss, credential leak, provider outage).

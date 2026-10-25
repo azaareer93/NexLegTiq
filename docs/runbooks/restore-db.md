@@ -12,21 +12,30 @@ damaged database meanwhile. Note the time — it is the end of the incident wind
 Follow the provider's console to restore to a **new** instance at the chosen time. Then go to step 3.
 
 ## 2b. From the weekly encrypted dump
-1. Create an empty PostgreSQL 17 database with the extensions available (`vector`, `pg_trgm`, `unaccent`, `citext`;
-   managed providers: run `docs/runbooks/db-roles.sql` as the admin first).
-2. On a machine with Docker and this repository:
+1. Create an empty PostgreSQL 17 database and run `docs/runbooks/db-roles.sql` in it as the admin (roles and the
+   extensions `vector`, `pg_trgm`, `unaccent`, `citext`).
+2. Find the dump and its SHA-256 in the "Backup" run summary of that Sunday in GitHub Actions — a record kept apart from
+   the bucket, so a file planted there is refused.
+3. On a machine with Docker and this repository, with the **offline** age key in a file:
    ```bash
    docker build --tag nexlegtiq-backup infra/backup
-   # restore.env: the RCLONE_CONFIG_BACKUP_* lines and BACKUP_BUCKET from the BACKUP_ENV secret (docs/runbooks/backups.md)
+   # restore.env: the BACKUP_BUCKET and RCLONE_CONFIG_BACKUP_* lines (the BACKUP_BUCKET_ENV secret, docs/runbooks/backups.md)
    docker run --rm --env-file restore.env \
-     -e AGE_IDENTITY="$(cat offline-age-key.txt)" \
-     -e SCRATCH_DATABASE_URL='postgresql://…new database…?sslmode=require' \
+     -v "$PWD/offline-age-key.txt:/run/secrets/age:ro" -e AGE_IDENTITY_FILE=/run/secrets/age \
+     -e BACKUP_NAME=weekly/nexlegtiq-<stamp>.dump.age -e BACKUP_SHA256=<hash from the run summary> \
+     -e BACKUP_RESTORE_ROLE=nexlegtiq_migrator \
+     -e SCRATCH_DATABASE_URL='postgresql://<admin>:…@…/nexlegtiq?sslmode=verify-full&sslrootcert=system' \
      nexlegtiq-backup /opt/backup/restore-check.sh
    ```
-   It restores the newest dump of `weekly/` and runs the checks (`infra/backup/verify.sql`). To restore an older one, list
-   them with `rclone lsf backup:$BACKUP_BUCKET/weekly/` (or `monthly/`) in the same image and run, inside it:
-   `rclone cat backup:$BACKUP_BUCKET/weekly/<name> | age -d -i <key> | pg_restore --no-owner --no-privileges -d "$URL"`.
-3. Re-apply the roles and grants (`docs/runbooks/db-roles.sql`) — dumps carry no owners or privileges.
+   - Connect as the **admin** with `BACKUP_RESTORE_ROLE=nexlegtiq_migrator`: the restored tables and the SECURITY DEFINER
+     purge function then belong to the migrator, as `prisma migrate deploy` and D-136 require.
+   - Without `BACKUP_NAME` it takes the newest `weekly/` dump, refused when older than `BACKUP_MAX_AGE_DAYS` (default 8 —
+     raise it in a disaster). `monthly/…` names work too.
+   - `BACKUP_VERBOSE=1` prints pg_restore's own errors and the row counts: on your machine only, never in CI (public log).
+   - Shred the key file afterwards.
+4. Re-run `docs/runbooks/db-roles.sql`: dumps carry no grants, so the app, read-only and backup roles get theirs back.
+5. The app needs the **same `ENCRYPTION_KEY`** as before (D-108, D-135): encrypted national and tax ids, confidential notes
+   and the blind indexes are unreadable with another key.
 
 ## 3. Check and switch
 1. Run `prisma migrate status` with the migrator role against the restored database: every migration must be applied (if

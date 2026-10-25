@@ -2261,3 +2261,25 @@ Environment and `BACKUP_ENABLED`, PITR (≥ 7 days) and daily snapshots on the m
 bucket, and the first production restore drill (logged in `backups.md`). Why: backups that are encrypted end to end, tested
 every week and restorable by a runbook, the day the providers exist — without committing money or a region on the owner's
 behalf.
+Review additions (same PR): **the repository is public, so its Actions logs are:** the scripts print object names, sizes,
+SHA-256 hashes and timings only — pg_dump/pg_restore/psql messages (which can quote table rows) and the row counts stay in
+the container (`BACKUP_VERBOSE=1` shows them on an operator's machine, never in CI). **The dump runs as a new
+`nexlegtiq_backup` role** (`db-roles.sql`: SELECT on every table and sequence, `default_transaction_read_only`, owns nothing;
+Phase 3 RLS will need BYPASSRLS), not the migrator, so a leaked backup secret cannot change the schema. **TLS is enforced**:
+`DATABASE_URL` must use `sslmode=verify-full|verify-ca` (with `sslrootcert=system`) and the bucket endpoint `https://`; only
+the dev drill sets `BACKUP_ALLOW_INSECURE=1`. **Integrity:** each dump's SHA-256 goes into the run summary (a record apart
+from the bucket) and `BACKUP_SHA256` makes a restore refuse any other file; only `nexlegtiq-<YYYYMMDDTHHMMSSZ>.dump.age`
+names count, and a dump dated in the future is refused (a planted file would otherwise always sort newest). **Restores:**
+`BACKUP_RESTORE_ROLE=nexlegtiq_migrator` (connected as the admin) makes the restored objects the migrator's, so `prisma
+migrate deploy` and the SECURITY DEFINER purge (D-136) keep working; `--no-comments`; the offline key is mounted as a file
+(`AGE_IDENTITY_FILE`), never passed on a command line; `BACKUP_NAME` picks a dump; the restored data needs the same
+`ENCRYPTION_KEY` (D-108, D-135). **Documents (amends the above):** a **sync**, not a copy — documents purged on purpose (D-128
+retention, erasure requests, the DPA) must also leave the backup — with `--backup-dir documents-deleted/<run>/` (kept 90 days
+by lifecycle, so a mistaken deletion or a ransomware overwrite on the primary is recoverable) and `--max-delete 500` (an
+emptied or wrong source bucket stops the run). **Bucket hardening (owner):** versioning and Object Lock where supported, a key
+without delete-version rights, provider-side encryption, a region fitting D-021 and the provider on the sub-processor list.
+**Workflow:** the restore job receives only `BACKUP_BUCKET_ENV` (bucket settings), every env value is masked, the `backup`
+environment is limited to `main`, the monthly copy happens only on scheduled runs, and the summary is written even when the
+restore fails. `verify.sql` now also checks the purge function (SECURITY DEFINER) and the `document_texts` search trigger.
+**Not done:** images pinned by digest (the repo pins tags, D-078), a pre-migration snapshot in the deploy script (a provider
+snapshot by hand until the release pipeline story).

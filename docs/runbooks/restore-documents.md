@@ -5,8 +5,8 @@ Documents live in the documents bucket under `{officeId}/{fileId}/{documentId}/{
 
 1. **Versioning on the documents bucket** (where the provider supports it): restore the previous version of the deleted
    or overwritten objects from the provider's console or API. Nothing is lost.
-2. **The weekly off-provider copy** under `documents/` in the backup bucket (`rclone copy`, which never deletes): objects
-   up to the last Sunday run.
+2. **The weekly off-provider copy** under `documents/` in the backup bucket (`rclone sync`): objects as of the last Sunday
+   run; what a run removed or replaced is kept 90 days under `documents-deleted/<run>/`, with the same keys below it.
 
 ## Restore some objects (one office, one file, a deleted object)
 ```bash
