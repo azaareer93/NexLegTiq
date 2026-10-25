@@ -57,10 +57,10 @@ export class SubscriptionsRepository {
     });
   }
 
-  /** Pages read by Google Vision since `monthStart` (D-142): every version it read counts its pages. */
+  /** Pages sent to Google Vision since `monthStart` (D-142): every version with a Vision cost, whichever text was kept. */
   async visionPagesSince(monthStart: Date): Promise<number> {
     const { _sum } = await this.prisma.db.documentText.aggregate({
-      where: { ocrEngine: 'google-vision', extractedAt: { gte: monthStart } },
+      where: { ocrCostUsd: { not: null }, extractedAt: { gte: monthStart } },
       _sum: { pageCount: true },
     });
     return _sum.pageCount ?? 0;

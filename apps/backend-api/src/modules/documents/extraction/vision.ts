@@ -34,6 +34,12 @@ const DPI = '200';
 const MAX_SIDE = '4678';
 const PARALLEL_PAGES = 2;
 const PER_REQUEST_MS = 30_000;
+/** Vision's share of an attempt: the rest of the `ocr` queue's 300 s is Tesseract's (D-139). */
+const VISION_DEADLINE_MS = 90_000;
+
+/** Tesseract read it poorly: mean confidence under the threshold, or no word at all on a scan with pages. */
+export const weakRead = (result: OcrResult, minConfidence: number): boolean =>
+  result.confidence === null ? result.pageCount > 0 : result.confidence < minConfidence;
 
 /**
  * Google Cloud Vision DOCUMENT_TEXT_DETECTION of a scan or an image (D-142): one page per request, two at a time, Arabic
@@ -87,6 +93,27 @@ export async function visionOcr(
   }
 }
 
+/**
+ * `visionOcr` within VISION_DEADLINE_MS. A provider failure or the deadline comes back as its code, so the caller keeps
+ * Tesseract's result instead of failing the document (a retry would pay for the pages again); only the job's abort throws.
+ */
+export async function visionWithin(
+  content: Buffer,
+  mimeType: string,
+  options: { readonly pages: number; readonly signal: AbortSignal; readonly config: VisionConfig },
+): Promise<VisionResult | { readonly failed: string } | null> {
+  const { signal } = options;
+  try {
+    return await visionOcr(content, mimeType, {
+      ...options,
+      signal: AbortSignal.any([signal, AbortSignal.timeout(VISION_DEADLINE_MS)]),
+    });
+  } catch (error) {
+    if (signal.aborted) throw error;
+    return { failed: error instanceof VisionError ? error.code : 'DEADLINE' };
+  }
+}
+
 interface Page {
   readonly text: string;
   /** 0–100; null for a page without text. */
@@ -121,7 +148,10 @@ async function annotate(image: Buffer, config: VisionConfig, signal: AbortSignal
     if (signal.aborted) throw error;
     throw new VisionError('NETWORK');
   }
-  if (!response.ok) throw new VisionError(`HTTP_${response.status}`);
+  if (!response.ok) {
+    await response.body?.cancel(); // never read: the error body may quote the request
+    throw new VisionError(`HTTP_${response.status}`);
+  }
   return parse((await response.json().catch(() => ({}))) as AnnotateResponse);
 }
 

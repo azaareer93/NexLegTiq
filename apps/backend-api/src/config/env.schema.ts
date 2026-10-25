@@ -194,8 +194,11 @@ const PRODUCTION_RULES: readonly (readonly [keyof RawEnv, (env: RawEnv) => boole
   ],
   [
     'GOOGLE_VISION_ENDPOINT',
-    (env) => !env.GOOGLE_VISION_ENDPOINT.startsWith('https:'),
-    'must use https:// in production',
+    // The key and unredacted scans go there (D-142): only Google's own hosts.
+    (env) =>
+      !env.GOOGLE_VISION_ENDPOINT.startsWith('https:') ||
+      !new URL(env.GOOGLE_VISION_ENDPOINT).hostname.endsWith('.googleapis.com'),
+    'must be an https://*.googleapis.com endpoint in production',
   ],
   [
     'SMTP_REQUIRE_TLS',

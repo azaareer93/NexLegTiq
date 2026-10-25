@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 
 import { OCR_MIME } from './ocr';
-import { MAX_IMAGE_BYTES, VisionError, visionOcr } from './vision';
+import { MAX_IMAGE_BYTES, VisionError, visionOcr, visionWithin } from './vision';
 
 jest.mock('node:child_process', () => ({ execFile: jest.fn() }));
 const mockedExecFile = jest.mocked(execFile);
@@ -131,6 +131,23 @@ describe('visionOcr (D-142)', () => {
     fetchMock.mockRejectedValueOnce(new DOMException('aborted', 'AbortError'));
     await expect(
       visionOcr(Buffer.from('x'), OCR_MIME.PNG, { pages: 1, signal: controller.signal, config }),
+    ).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
+  it('should hand back a provider failure as its code, and still throw the job abort', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 503 }));
+    await expect(
+      visionWithin(Buffer.from('x'), OCR_MIME.PNG, { pages: 1, signal: signal(), config }),
+    ).resolves.toEqual({ failed: 'HTTP_503' });
+    fetchMock.mockResolvedValueOnce(answer('نص'));
+    await expect(
+      visionWithin(Buffer.from('x'), OCR_MIME.PNG, { pages: 1, signal: signal(), config }),
+    ).resolves.toMatchObject({ text: 'نص', costUsd: '0.001500' });
+    const controller = new AbortController();
+    controller.abort();
+    fetchMock.mockRejectedValueOnce(new DOMException('aborted', 'AbortError'));
+    await expect(
+      visionWithin(Buffer.from('x'), OCR_MIME.PNG, { pages: 1, signal: controller.signal, config }),
     ).rejects.toMatchObject({ name: 'AbortError' });
   });
 });

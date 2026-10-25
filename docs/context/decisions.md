@@ -2310,3 +2310,17 @@ with decimal.js (D-017) and stored per version in the new column `document_texts
 and logged with the document id and pages. **Owner, before switching it on:** create the GCP project and key (Vision API only),
 put Google on the DPA sub-processor list (D-021), set `ocrPagesMonthly` and the `googleVisionOcr` flag on the plans that include
 it. **Not done:** TIFF pages through Vision, showing the page budget in the subscription view, a per-office cost report.
+Review additions (same PR): **a Vision failure never fails the document** — a provider error, a network failure or Vision's
+own **90 s deadline** inside the attempt (the 300 s `ocr` timeout also holds Tesseract's run, D-139) keeps Tesseract's result
+(logged by code only); only the job's own abort propagates. So a Vision outage cannot fail every weak scan, and the queue
+never retries — and pays again for — a Vision read. **Vision's text is kept only when it reads better** (text, and a mean
+confidence above Tesseract's); otherwise Tesseract's text stays, but the cost is stored all the same (the pages were paid):
+**the budget counts every version with an `ocr_cost_usd`**, whichever text was kept (partial index `(office_id,
+extracted_at) WHERE ocr_cost_usd IS NOT NULL`). **Never sent to Vision:** documents marked confidential (a cheap, safe default
+— the owner can relax it), and scans of a read-only office (D-122). **Production endpoint** must be `https://*.googleapis.com`
+(the key and unredacted scans go there). A failed response body is cancelled unread. **Amends D-057/D-131:** PII redaction
+covers text sent to LLMs; Vision receives the scan image itself — the privacy policy and DPA must name Google Vision for
+offices that opt in (ops-security.md). **Known limits:** the page budget is checked, not reserved — parallel OCR jobs of one
+office (concurrency 2) can overshoot it by about one scan each (as the AI quota, D-130); pages read before Vision's deadline
+or a failure are paid but not counted; nothing ships `ocrPagesMonthly` or the `googleVisionOcr` flag on a plan, so Vision is
+off everywhere until the owner sets them.

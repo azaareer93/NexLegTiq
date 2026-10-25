@@ -7,8 +7,7 @@ import { autoSummaryWanted } from './extraction/auto-summary';
 import { extractable, extractText } from './extraction/extract-text';
 import { ocr, ocrable } from './extraction/ocr';
 import type { OcrResult } from './extraction/ocr';
-import { VisionError, visionOcr } from './extraction/vision';
-import type { VisionResult } from './extraction/vision';
+import { visionWithin, weakRead } from './extraction/vision';
 import { QueueProducer } from '../../common/queue/queue-producer';
 import { QUEUE } from '../../common/queue/queues';
 import { RealtimePublisher } from '../../common/realtime/realtime.publisher';
@@ -72,6 +71,14 @@ async function readAll(stream: NodeJS.ReadableStream, signal: AbortSignal): Prom
  * — `document.processed` (ids only) when it is ready or failed, and an in-app notification when it failed. A version
  * replaced or a document deleted meanwhile changes nothing.
  */
+const tesseractText = (result: OcrResult): VersionText => ({
+  text: result.text,
+  pageCount: result.pageCount,
+  ocrEngine: 'tesseract',
+  ocrConfidence: result.confidence,
+  pageConfidences: [...result.pageConfidences],
+});
+
 @Injectable()
 export class DocumentExtraction {
   constructor(
@@ -156,31 +163,15 @@ export class DocumentExtraction {
       signal,
     });
     signal.throwIfAborted();
-    const vision = await this.visionFallback(job, content, mimeType, result, signal);
-    if (vision) {
-      return {
-        text: vision.text,
-        pageCount: vision.pageCount,
-        ocrEngine: 'google-vision',
-        ocrConfidence: vision.confidence,
-        pageConfidences: [...vision.pageConfidences],
-        ocrCostUsd: vision.costUsd,
-      };
-    }
-    return {
-      text: result.text,
-      pageCount: result.pageCount,
-      ocrEngine: 'tesseract',
-      ocrConfidence: result.confidence,
-      pageConfidences: [...result.pageConfidences],
-    };
+    return (
+      (await this.visionFallback(job, content, mimeType, result, signal)) ?? tesseractText(result)
+    );
   }
 
   /**
    * Google Vision re-reads a scan Tesseract read poorly (D-142): mean confidence under OCR_VISION_MIN_CONFIDENCE, or no
-   * word at all on a scan with pages — only with Vision configured, the plan flag `googleVisionOcr`, the office's opt-in
-   * (`enableVisionOcr`) and enough of the month's page budget (`ocrPagesMonthly`) left for every page. Its result then
-   * replaces Tesseract's. Provider errors are thrown by code only (VisionError: retried, then EXT-002).
+   * word at all on a scan with pages — only when `visionAllowed`. Vision's text is kept when it reads better than
+   * Tesseract's; either way the pages were paid for, so the cost is stored (and counts against the page budget).
    */
   private async visionFallback(
     job: DocumentJob,
@@ -188,41 +179,52 @@ export class DocumentExtraction {
     mimeType: string,
     tesseract: OcrResult,
     signal: AbortSignal,
-  ): Promise<VisionResult | null> {
+  ): Promise<VersionText | null> {
     const config = this.config.vision;
-    const weak =
-      tesseract.confidence === null
-        ? tesseract.pageCount > 0
-        : tesseract.confidence < (config?.minConfidence ?? 0);
-    if (!config || !weak || !(await this.visionAllowed(tesseract.pageCount))) return null;
-    try {
-      const vision = await visionOcr(content, mimeType, {
-        pages: tesseract.pageCount,
-        signal,
-        config,
-      });
-      if (vision) {
-        this.logger.info(
-          { documentId: job.documentId, pages: vision.pageCount, costUsd: vision.costUsd },
-          'Scan re-read by Google Vision',
-        );
-      }
-      return vision;
-    } catch (error) {
-      if (error instanceof VisionError) {
-        this.logger.warn({ documentId: job.documentId, code: error.code }, 'Google Vision failed');
-      }
-      throw error;
+    if (!config || !weakRead(tesseract, config.minConfidence)) return null;
+    if (!(await this.visionAllowed(job, tesseract.pageCount))) return null;
+    const vision = await visionWithin(content, mimeType, {
+      pages: tesseract.pageCount,
+      signal,
+      config,
+    });
+    if (!vision) return null;
+    if ('failed' in vision) {
+      this.logger.warn(
+        { documentId: job.documentId, code: vision.failed },
+        'Google Vision failed; Tesseract result kept',
+      );
+      return null;
     }
+    this.logger.info(
+      { documentId: job.documentId, pages: vision.pageCount, costUsd: vision.costUsd },
+      'Scan re-read by Google Vision',
+    );
+    const better =
+      vision.text.length > 0 && (vision.confidence ?? 0) > (tesseract.confidence ?? -1);
+    if (!better) return { ...tesseractText(tesseract), ocrCostUsd: vision.costUsd };
+    return {
+      text: vision.text,
+      pageCount: vision.pageCount,
+      ocrEngine: 'google-vision',
+      ocrConfidence: vision.confidence,
+      pageConfidences: [...vision.pageConfidences],
+      ocrCostUsd: vision.costUsd,
+    };
   }
 
-  /** The plan flag, the office's opt-in and enough pages left this month for the whole scan. */
-  private async visionAllowed(pages: number): Promise<boolean> {
-    if (!(await this.entitlements.current()).features.googleVisionOcr) return false;
-    const settings = await this.prisma.db.officeSettings.findFirst({
-      select: { enableVisionOcr: true },
-    });
-    if (!settings?.enableVisionOcr) return false;
+  /** Plan flag (not read-only), office opt-in, a non-confidential document, pages left this month. */
+  private async visionAllowed(job: DocumentJob, pages: number): Promise<boolean> {
+    const entitlements = await this.entitlements.current();
+    if (entitlements.readOnly || !entitlements.features.googleVisionOcr) return false;
+    const [settings, document] = await Promise.all([
+      this.prisma.db.officeSettings.findFirst({ select: { enableVisionOcr: true } }),
+      this.prisma.db.document.findFirst({
+        where: { id: job.documentId },
+        select: { isConfidential: true },
+      }),
+    ]);
+    if (!settings?.enableVisionOcr || document?.isConfidential !== false) return false;
     return (await this.entitlements.visionPagesLeft()) >= pages;
   }
 

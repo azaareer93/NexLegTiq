@@ -71,7 +71,7 @@
     "enableAi": "AI features",
     "enableOcr": "Text recognition (OCR) for uploads",
     "enableVisionOcr": "Google Vision for hard-to-read scans",
-    "enableVisionOcrHint": "Scans that our own text recognition reads poorly are sent to Google Cloud Vision (EU). Only on plans that include it, within the monthly page allowance."
+    "enableVisionOcrHint": "Scans that our own text recognition reads poorly are sent to Google Cloud Vision (EU). Only on plans that include it, within the monthly page allowance. Confidential documents are never sent."
   },
   "security": {
     "title": "Security",

@@ -10,7 +10,7 @@ import { DocumentRetry } from './document-retry';
 import { MIME } from './extraction/extract-text';
 import { buildDocx, buildPdf } from './extraction/fixtures.test-helper';
 import { ocr } from './extraction/ocr';
-import { VisionError, visionOcr } from './extraction/vision';
+import { visionWithin } from './extraction/vision';
 import type { UploadIntake } from './upload/upload-intake';
 import type { RequestContext } from '../../common/context/request-context';
 import type { QueueProducer } from '../../common/queue/queue-producer';
@@ -31,9 +31,9 @@ jest.mock('./extraction/ocr', () => ({
 const mockedOcr = jest.mocked(ocr);
 jest.mock('./extraction/vision', () => ({
   ...jest.requireActual<object>('./extraction/vision'),
-  visionOcr: jest.fn(),
+  visionWithin: jest.fn(),
 }));
-const mockedVision = jest.mocked(visionOcr);
+const mockedVision = jest.mocked(visionWithin);
 
 const JOB = { documentId: '01920000-0000-7000-8000-0000000000d1', versionNumber: 2 };
 const WORDS = Array.from({ length: 600 }, (_, i) => `word${i}`).join(' ');
@@ -55,6 +55,8 @@ interface Setup {
   readonly visionPlan: boolean;
   readonly enableVisionOcr: boolean;
   readonly pagesLeft: number;
+  readonly readOnly: boolean;
+  readonly confidential: boolean;
 }
 const DEFAULTS: Setup = {
   version: VERSION,
@@ -66,6 +68,8 @@ const DEFAULTS: Setup = {
   visionPlan: true,
   enableVisionOcr: true,
   pagesLeft: 100,
+  readOnly: false,
+  confidential: false,
 };
 
 function extractionSetup(overrides: Partial<Setup> = {}) {
@@ -78,6 +82,8 @@ function extractionSetup(overrides: Partial<Setup> = {}) {
     vision,
     visionPlan,
     enableVisionOcr,
+    readOnly,
+    confidential,
     pagesLeft,
   } = {
     ...DEFAULTS,
@@ -89,7 +95,10 @@ function extractionSetup(overrides: Partial<Setup> = {}) {
   };
   const db = {
     documentVersion: { findFirst: jest.fn().mockResolvedValue(version) },
-    document: { updateMany: jest.fn().mockResolvedValue({ count: updated }) },
+    document: {
+      updateMany: jest.fn().mockResolvedValue({ count: updated }),
+      findFirst: jest.fn().mockResolvedValue({ isConfidential: confidential }),
+    },
     officeSettings: { findFirst: jest.fn().mockResolvedValue({ enableOcr, enableVisionOcr }) },
   };
   const realtime = { toUser: jest.fn() };
@@ -97,7 +106,7 @@ function extractionSetup(overrides: Partial<Setup> = {}) {
   const storage = { getStream: jest.fn().mockResolvedValue(Readable.from([body])) };
   const logger = { setContext: jest.fn(), info: jest.fn(), warn: jest.fn() };
   const entitlements = {
-    current: jest.fn().mockResolvedValue({ features: { googleVisionOcr: visionPlan } }),
+    current: jest.fn().mockResolvedValue({ readOnly, features: { googleVisionOcr: visionPlan } }),
     visionPagesLeft: jest.fn().mockResolvedValue(pagesLeft),
   };
   const service = new DocumentExtraction(
@@ -306,6 +315,8 @@ describe('DocumentExtraction: Google Vision fallback (D-142)', () => {
       { vision: true, visionPlan: false },
       { vision: true, enableVisionOcr: false },
       { vision: true, pagesLeft: 1 },
+      { vision: true, readOnly: true },
+      { vision: true, confidential: true },
     ]) {
       mockedVision.mockClear();
       const { service, tx } = extractionSetup({ version: IMAGE, ...overrides });
@@ -329,15 +340,41 @@ describe('DocumentExtraction: Google Vision fallback (D-142)', () => {
     expect(mockedVision).toHaveBeenCalledTimes(1);
   });
 
-  it('should fail the attempt with the provider code only when Vision fails', async () => {
-    mockedVision.mockRejectedValueOnce(new VisionError('HTTP_503'));
+  it('should keep the Tesseract text when Vision fails, logging the provider code only', async () => {
+    mockedVision.mockResolvedValueOnce({ failed: 'HTTP_503' });
     const { service, tx, logger } = extractionSetup({ version: IMAGE, vision: true });
-    await expect(service.run(JOB)).rejects.toThrow('Google Vision failed: HTTP_503');
+    await expect(service.run(JOB)).resolves.toBe('READY');
     expect(logger.warn).toHaveBeenCalledWith(
       { documentId: JOB.documentId, code: 'HTTP_503' },
-      'Google Vision failed',
+      'Google Vision failed; Tesseract result kept',
     );
-    expect(tx.documentText.upsert).not.toHaveBeenCalled();
+    expect(stored(tx)).toMatchObject({ text: 'weak', ocrEngine: 'tesseract', ocrCostUsd: null });
+  });
+
+  it('should keep the Tesseract text but record the cost when Vision reads no better', async () => {
+    for (const answer of [
+      { ...strong, confidence: 30 },
+      { ...strong, text: '', confidence: null },
+    ]) {
+      mockedVision.mockResolvedValueOnce(answer);
+      const { service, tx } = extractionSetup({ version: IMAGE, vision: true });
+      await service.run(JOB);
+      expect(stored(tx)).toMatchObject({
+        text: 'weak',
+        ocrEngine: 'tesseract',
+        ocrCostUsd: '0.003000',
+      });
+    }
+  });
+
+  it('should let the job abort through instead of keeping Tesseract', async () => {
+    const controller = new AbortController();
+    mockedVision.mockImplementationOnce(() => {
+      controller.abort();
+      return Promise.reject(new DOMException('aborted', 'AbortError'));
+    });
+    const { service } = extractionSetup({ version: IMAGE, vision: true });
+    await expect(service.run(JOB, controller.signal)).rejects.toMatchObject({ name: 'AbortError' });
   });
 });
 

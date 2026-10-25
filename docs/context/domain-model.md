@@ -9,7 +9,7 @@
 - **Office** — name, registrationNumber, taxId, phone, email, address, website, `jurisdiction: Jurisdiction`
   (default PALESTINE), `accountType: SOLO|FIRM|CORPORATE` (signup, D-083), `defaultLanguage: AR|EN|BILINGUAL`, `currency` (ISO), `timezone` (default Asia/Hebron),
   `isActive`. Settings live in **OfficeSettings** 🔒 (typed columns, not key/value): courtReminderDays int[] (7,3,1),
-  taskReminderDays, defaultBillingRate, defaultBillingMethod, taxRatePercent, enableAI, enableOCR,
+  taskReminderDays, defaultBillingRate, defaultBillingMethod, taxRatePercent, enableAI, enableOCR, enableVisionOcr (D-142),
   fileNumberFormat, sessionIdleMinutes, auditRetentionDays (≥365).
 - **Plan** (platform; limits incl. `ocrPagesMonthly`, the Google Vision page budget, D-142) / **Subscription** 🔒 — D-005.
 - **User** 🔒 — fullName, email (citext, unique global D-032), passwordHash, `role: Role`, phone, avatarUrl, isActive,

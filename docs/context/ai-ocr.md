@@ -9,7 +9,7 @@ Upload (`POST /documents`, streamed to object storage, ≤ 50 MB, allow-listed M
 1. DOCX/XLSX/CSV → text extraction (mammoth / sheetjs), `ocrStatus=NOT_NEEDED`.
 2. PDF with text layer (≥ 50 chars/page avg) → `pdfjs` text; else rasterize pages.
 3. Images/scans → **Tesseract (`ara+eng`)**, keep per-page confidence. If mean confidence < 70 or Arabic handwriting suspected and
-   office plan allows → **Google Cloud Vision** `DOCUMENT_TEXT_DETECTION` fallback. (Textract: Phase 2 for tables/forms.)
+   office plan allows and the office opted in (D-142) → **Google Cloud Vision** `DOCUMENT_TEXT_DETECTION` fallback. (Textract: Phase 2 for tables/forms.)
 4. Normalize Arabic (tashkeel/tatweel strip, alef/ya normalization) for the search vector only; store original text.
 5. Save `DocumentText` (+ tsvectors), `Document.status=READY`, timeline `DOCUMENT_UPLOADED`, WS `document.processed`.
 6. Auto-summary: if office `enableAI` and doc type ∈ {PLEADING, EVIDENCE, JUDGMENT, COURT_ORDER} and > 500 words and quota left →
