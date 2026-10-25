@@ -1,12 +1,15 @@
 import { ApiError, casesApi, courtsApi, usersApi } from '@nexlegtiq/shared-api-client';
 import type { CaseListParams } from '@nexlegtiq/shared-api-client';
 import type {
+  AddFileClientRequest,
+  AddTeamMemberRequest,
   Case,
   CreateCaseSchema,
   CreateCourtSchema,
   CreateJudgeSchema,
   UpdateCaseRequest,
 } from '@nexlegtiq/shared-contracts';
+import type { FileTeamRole } from '@nexlegtiq/shared-types';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { z } from 'zod';
 
@@ -82,6 +85,62 @@ export function useCreateCase() {
       void queryClient.invalidateQueries({ queryKey: caseKeys.lists() });
     },
   });
+}
+
+/** After a change to a file's people: the file (its cards and counts) and the lists (primary client, lawyer) refetch. */
+function useRefreshFile(id: string) {
+  const queryClient = useQueryClient();
+  return (extra: readonly (readonly unknown[])[] = []) =>
+    Promise.all(
+      [caseKeys.detail(id), caseKeys.lists(), ...extra].map((queryKey) =>
+        queryClient.invalidateQueries({ queryKey }),
+      ),
+    );
+}
+
+/** Adding, making primary and removing a file's clients (D-140). */
+export function useFileClientMutations(id: string) {
+  const refresh = useRefreshFile(id);
+  const onSuccess = () => refresh();
+  return {
+    addClient: useMutation({
+      mutationFn: (body: AddFileClientRequest) => cases.addClient(id, body),
+      onSuccess,
+    }),
+    makePrimary: useMutation({
+      mutationFn: (clientId: string) => cases.makePrimaryClient(id, clientId),
+      onSuccess,
+    }),
+    removeClient: useMutation({
+      mutationFn: (clientId: string) => cases.removeClient(id, clientId),
+      onSuccess,
+    }),
+  };
+}
+
+/**
+ * Adding, re-roling and removing a file's team members (D-140). A new responsible lawyer also changes the reminders of
+ * the file's hearings (D-117), so hearing queries refetch too.
+ */
+export function useFileTeamMutations(id: string) {
+  const refresh = useRefreshFile(id);
+  const after = (role?: FileTeamRole) =>
+    refresh(role === 'RESPONSIBLE_LAWYER' ? [['sessions']] : []);
+  return {
+    addMember: useMutation({
+      mutationFn: (body: AddTeamMemberRequest) => cases.addTeamMember(id, body),
+      onSuccess: (_data, body) => after(body.role),
+    }),
+    changeRole: useMutation({
+      mutationFn: ({ userId, role }: { userId: string; role: FileTeamRole }) =>
+        cases.changeTeamRole(id, userId, role),
+      onSuccess: (_data, { role }) => after(role),
+    }),
+    removeMember: useMutation({
+      mutationFn: (userId: string) => cases.removeTeamMember(id, userId),
+      onSuccess: () => after(),
+    }),
+  };
 }
 
 /** Active colleagues for the lawyer and paralegal pickers (D-123); changes rarely. */

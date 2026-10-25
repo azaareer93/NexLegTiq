@@ -29,7 +29,7 @@ AUTH-100 permission denied · 101 insufficient role · 102 plan feature not avai
 VAL-001 invalid input · 002 email · 003 phone · 004 date · 005 file type · 006 file too large · 007 required
 RES-001 not found (incl. cross-tenant) · 002 already exists · 003 conflict/version · 004 deleted
 BIZ-001 last office manager · 002 case already closed · 003 open tasks block close · 004 session conflict ·
-005 retainer insufficient · 006 invoice immutable · 007 file archived · 008 user limit reached · 009 party conflict of interest · 010 client has open files · 011 court or judge still referenced · 012 session not scheduled (cancelled or held) · 013 folder not empty · 014 system folder is fixed · 015 document not scanned clean yet (scanning or failed) · 016 document has not failed (nothing to retry)
+005 retainer insufficient · 006 invoice immutable · 007 file archived · 008 user limit reached · 009 party conflict of interest · 010 client has open files · 011 court or judge still referenced · 012 session not scheduled (cancelled or held) · 013 folder not empty · 014 system folder is fixed · 015 document not scanned clean yet (scanning or failed) · 016 document has not failed (nothing to retry) · 017 conflict already resolved · 018 last client of a file · 019 file needs a responsible lawyer (D-140)
 AI-001 provider unavailable · 002 rate limited · 003 input too large · 004 output invalid · 005 AI disabled for office
 STO-001 upload failed · 002 download failed · 003 delete failed · 004 malware detected
 EXT-001 email provider · 002 OCR provider
@@ -57,7 +57,7 @@ GET `offices/me/statistics` · POST `offices/me/export` (202)
 GET `clients/:id/invoices` · `clients/:id/notes` · portal access: POST `clients/:id/portal-invitations`, GET/DELETE `clients/:id/portal-users`
 **cases** (legal files): POST/GET `cases` (`?status, fileType, priority, scope=mine|all, search, clientId, sort`) · GET/PATCH/DELETE `cases/:id` ·
 POST `cases/:id/close` · POST `cases/:id/reopen` · POST `cases/:id/archive` · POST `cases/:id/reassign` ·
-`cases/:id/clients` · `cases/:id/team` · GET/POST `cases/:id/parties` (POST and PATCH return `{fileParty, conflicts[]}`), PATCH/DELETE `cases/:id/parties/:filePartyId` (D-135) · `cases/:id/witnesses` (+statements) ·
+GET/POST `cases/:id/clients`, PATCH (`{isPrimary: true}`)/DELETE `cases/:id/clients/:clientId` (last client → 422 BIZ-018) · GET/POST `cases/:id/team`, PATCH (`{role}`)/DELETE `cases/:id/team/:userId` (the responsible lawyer cannot leave → 422 BIZ-019; D-140) · GET/POST `cases/:id/parties` (POST and PATCH return `{fileParty, conflicts[]}`), PATCH/DELETE `cases/:id/parties/:filePartyId` (D-135) · `cases/:id/witnesses` (+statements) ·
 GET `cases/:id/timeline` · `cases/:id/notes` · GET `cases/:id/audit` · GET `conflicts?resolved&fileId` · PATCH `conflicts/:id/resolve` (`{notes}`; already resolved → 422 BIZ-017) ·
 GET `parties?search=` (reuse: Arabic-normalised name or exact national/tax id) · CRUD `task-templates`
 **courts**: GET `courts?jurisdiction&courtType&search` (global+office) · GET `courts/:id` · POST/PATCH/DELETE `courts` (office-owned; global → 403) · GET/POST `courts/:id/judges`, PATCH/DELETE `courts/:id/judges/:judgeId` · CRUD `prosecutors` (D-115)

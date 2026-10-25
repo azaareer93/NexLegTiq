@@ -25,6 +25,8 @@ setupTestServer();
 /** The first visit loads the page's chunk cold, which takes several seconds on a busy runner. */
 const COLD = 20_000;
 const SLOW = 60_000;
+// axe over the whole settings page takes most of a minute when the full suite runs in parallel (as case-page.spec).
+const AXE_SLOW = 180_000;
 
 const subscription = (extra: Partial<OfficeSubscription> = {}): OfficeSubscription => ({
   plan: { code: 'PS_FREE', name: 'Free' },
@@ -190,7 +192,7 @@ describe('Settings → Subscription (D-122)', () => {
       });
       expect(violations.map((violation) => violation.id)).toEqual([]);
     },
-    SLOW,
+    AXE_SLOW,
   );
 });
 

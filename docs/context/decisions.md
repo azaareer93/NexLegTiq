@@ -2120,6 +2120,62 @@ options add the party's phone or email (isolated) to tell apart people of the sa
 after a write (the other file's conflicts and the registry change too); server field errors on a new party's own fields
 are shown as a notification (the contract check in the browser catches them first).
 
+**D-140 — A file's clients and team: routes, single roles, reassignment and confidential files** · Accepted (MVP-61, 2026-10-25) · Amends D-095, D-117, D-118, D-124, D-137
+MVP-61 named the routes but left the PARALEGAL role, who may name a responsible lawyer, a confidential file's team, the
+error codes and the timeline open. → **Routes** (`src/modules/file-participants`, its own module because a new responsible
+lawyer resets hearing reminders and the sessions module already imports legal-files): `GET/POST /cases/:id/clients`,
+`PATCH /cases/:id/clients/:clientId` (`{isPrimary: true}` only), `DELETE /cases/:id/clients/:clientId`, `GET/POST
+/cases/:id/team`, `PATCH /cases/:id/team/:userId` (`{role}`), `DELETE /cases/:id/team/:userId`; reads ANY of
+`view:all|assigned:cases` and the file visible, changes ANY of `edit:any|assigned:case` and write access (D-096, 404
+otherwise, BIZ-007 when archived); writes answer with the new list (DELETE 204). Every change **locks the file row** (`FOR NO
+KEY UPDATE`) and re-checks it, as party and folder writes do. **Clients:** a live, active client of the office (else 400
+`validation.unknownClient`), already on the file → 409 RES-002; `isPrimary` demotes the previous primary; the **last client
+stays (422 BIZ-018, new)**; removing the primary promotes the oldest remaining client (audited as `promotedClientId`). **Team:**
+an active colleague — another office's or an unknown user → **404** (the ticket's test note), inactive or not eligible →
+400 VAL-001 on `userId` (`validation.teamMember|responsibleLawyer|responsibleParalegal`); the user row is share-locked like
+case creation's checks (D-124). Already on the team → 409 RES-002 (PATCH changes a role). **RESPONSIBLE_LAWYER and PARALEGAL
+are single roles** kept in sync with `legal_files.responsible_lawyer_id` / `responsible_paralegal_id`: giving either to
+someone moves the previous holder to MEMBER (they keep their access) and updates the column; a partial unique index now
+allows one PARALEGAL per file (amends D-095, which only had the responsible lawyer's). A PARALEGAL member leaving the role
+(removed or given another) clears `responsibleParalegalId`. **A new responsible lawyer is a reassignment:** it needs
+`edit:any:case` (the header's Reassign, D-118; 403 otherwise), must be an OM/SL/L, writes `FILE_REASSIGNED`
+(`{fromUserId, toUserId, reason: 'TEAM'}`), a `LegalFile` UPDATE audit row and the `file.reassigned` notification, and resets
+the reminders of the file's upcoming hearings (`ReminderScheduler.resetForFile`, now shared with the deactivation wizard of
+D-124 — what D-117 asked of the reassign story). **The responsible lawyer cannot leave** — removing them or giving them
+another role is **422 BIZ-019 (new)** until another is named. **Confidential files:** adding someone exposes the file, so on a
+confidential file only the office manager or its responsible lawyer may add people (403 AUTH-100), the rule D-096 applies to
+confidentiality itself; changing roles and removing stay with every editor. **Access** is derived on every request
+(D-081, D-051 "assigned" includes team members), so a member sees the file at once and loses it when removed — unless their
+role sees every file. **Notifications:** a colleague added as MEMBER or PARALEGAL gets `file.teamAdded`
+(`shell.notifications.fileTeamAdded`, link `/cases/:id`), pushed live after the commit (D-129); nobody is notified about
+themselves; removals are not notified. **Timeline:** new `TimelineEventType` values `CLIENT_ADDED`, `CLIENT_REMOVED`,
+`TEAM_MEMBER_ADDED`, `TEAM_MEMBER_REMOVED` (payload ids and role); every change has an audit row (`FileClient`,
+`FileTeamMember`, `LegalFile` for the columns). **Office app:** the Details tab's Clients and Team cards gain the controls,
+offered as the API allows (UI only): "Add client" (`ClientSelect`, D-121, so also `manage:clients`; optionally primary),
+"make primary" and remove after a confirm (not on the last client); "Add team member" (the people directory, D-123, so
+only roles that may read it) with the roles the picked colleague's office role may hold — RESPONSIBLE_LAWYER only with
+`edit:any:case`, with a hint that the current one stays as a member — an inline role select per member, and remove after a
+confirm; nothing on the responsible lawyer's row; no additions on a confidential file for anyone but the office manager or
+its responsible lawyer; nothing at all on an archived file. A refusal is shown as `errors.<CODE>`. **Not done here:** the
+`POST /cases/:id/reassign` route of the lifecycle story (it can reuse the same reassignment steps), removal notifications,
+moving a deactivated member off files (D-124 keeps them as history), the HTTP isolation matrix entries (its `list/item`
+shape does not fit routes nested under a file; `file-participants.int.spec.ts` checks another office's file and user → 404).
+Why: everyone working on a matter can be added to it, with the file's lawyer and paralegal always matching its team.
+Review additions (same PR): **lock order** — a team write locks the colleague's user row before the file row, the order
+D-124's role changes and deactivation use (user, then their files), so the two never deadlock; becoming MEMBER needs no
+check at all, so an inactive former paralegal can still be demoted. **Confidential files:** naming a new responsible lawyer
+of a confidential file (also oneself, as a senior lawyer on its team) and **linking a client** to it — a linked client will
+see the file in the client portal (D-003) — are for the office manager or its responsible lawyer only (403 AUTH-100).
+**Amends D-124:** a paralegal released from their files by a deactivation or role change also loses the PARALEGAL team role
+there (MEMBER), so the role always mirrors `responsibleParalegalId`; removing a PARALEGAL row the column does not name
+changes nothing on the file. `POST /cases/:id/team` defaults `role` to MEMBER; `PATCH …/clients/:clientId` on the primary
+changes nothing; removing a client or a member notifies nobody. **Amends D-118/D-137:** a file can now be reassigned from
+the Team card (the header's "Reassign" stays a placeholder until the lifecycle route). Audit rows of `FileClient` and
+`FileTeamMember` carry the **file id** as `entityId` (the rows themselves are identified by file + client/user), so the
+audit viewer's file filter (D-096) applies to them as written. Not recorded on the timeline: role changes between MEMBER
+and PARALEGAL (audited). A PARALEGAL member who may edit the file can take the paralegal role from another paralegal.
+Office app: one mutation hook per card; a new responsible lawyer also refetches hearing queries (their reminders changed);
+`ClientSelect` forwards the form item's `id` (its label now focuses the input).
 **D-139 — Tesseract OCR: tools, batching, confidence, the worker image and what gets no text** · Accepted (MVP-144, 2026-10-25) · Amends D-084, D-103, D-122, D-125, D-132, D-133
 MVP-144 left the OCR engine and how it runs, where per-page confidence lives, what "page-batched" means, the timeout and
 what happens to types OCR cannot read open. → **Engine:** the system **Tesseract 5** (`ara+eng`, `--psm 1` — page

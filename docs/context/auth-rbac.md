@@ -69,6 +69,9 @@ cases), TRAINEE (T), EXTERNAL_COLLABORATOR (X — assigned files only, minimal).
 Guards: `JwtAuthGuard` (global, `@Public()` opt-out) → `PermissionsGuard` (`@RequirePermissions` = ALL,
 `@RequireAnyPermission` = ANY) → service-level scope (`assigned` filter) → tenant extension. A file-level check
 helper `assertFileAccess(fileId, mode)` is the only way services load a file for mutation.
+File team and clients (D-140): adding or removing team members gives or takes "assigned" access at once; naming a new
+responsible lawyer needs `edit:any:case`; on a confidential file only the office manager or its responsible lawyer may add
+people, link clients or name a new responsible lawyer.
 
 ## Tenant isolation (D-018)
 1. `ClsModule` stores `{requestId, userId, officeId, role, permissions, realm}` per request/job.

@@ -21,6 +21,8 @@ export interface ClientSelectProps {
   readonly onChange?: (id: string | undefined, client?: PickedClient) => void;
   /** The picked client's name, when `value` comes from outside (an edited record). */
   readonly initialClient?: PickedClient;
+  /** Set by an AntD `Form.Item`, so its label names the input. */
+  readonly id?: string;
   readonly 'data-testid'?: string;
 }
 
@@ -32,6 +34,7 @@ export function ClientSelect({
   value,
   onChange,
   initialClient,
+  id,
   'data-testid': testId = 'client-select',
 }: ClientSelectProps): React.JSX.Element {
   const { t } = useTranslation();
@@ -67,6 +70,7 @@ export function ClientSelect({
   return (
     <>
       <Select<string>
+        id={id}
         value={value}
         allowClear
         open={open}

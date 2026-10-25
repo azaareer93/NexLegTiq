@@ -1,10 +1,13 @@
 import { LockOutlined } from '@ant-design/icons';
 import type { Case } from '@nexlegtiq/shared-contracts';
 import { Bdi, Ltr, useFormat, useLanguage } from '@nexlegtiq/shared-ui';
-import { Card, Col, Descriptions, Flex, List, Row, Statistic, Tag, Typography } from 'antd';
+import { Card, Col, Descriptions, Flex, Row, Statistic, Tag, Typography } from 'antd';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import type { FileActions } from '../file-page';
+import { ClientsCard } from './FileClientsCard';
+import { TeamCard } from './FileTeamCard';
 import { NextHearingCard } from '../sessions/NextHearingCard';
 
 /** A value, or "not set" for an empty one. */
@@ -58,30 +61,6 @@ function OverviewCard({ file }: { readonly file: Case }): React.JSX.Element {
           </Value>
         </Descriptions.Item>
       </Descriptions>
-    </Card>
-  );
-}
-
-function ClientsCard({ file }: { readonly file: Case }): React.JSX.Element {
-  const { t } = useTranslation();
-  return (
-    <Card title={t('cases.file.cards.clients')} data-testid="case-card-clients">
-      <List
-        size="small"
-        dataSource={file.clients}
-        locale={{ emptyText: t('cases.file.noClients') }}
-        renderItem={(client) => (
-          <List.Item>
-            <Flex gap={8} align="center" wrap>
-              <Bdi>{client.displayName}</Bdi>
-              <Typography.Text type="secondary">
-                {t(`enums.clientType.${client.clientType}`)}
-              </Typography.Text>
-              {client.isPrimary ? <Tag color="blue">{t('cases.file.primaryClient')}</Tag> : null}
-            </Flex>
-          </List.Item>
-        )}
-      />
     </Card>
   );
 }
@@ -143,29 +122,6 @@ function BillingCard({ file }: { readonly file: Case }): React.JSX.Element | nul
   );
 }
 
-function TeamCard({ file }: { readonly file: Case }): React.JSX.Element {
-  const { t } = useTranslation();
-  return (
-    <Card title={t('cases.file.cards.team')} data-testid="case-card-team">
-      <List
-        size="small"
-        dataSource={file.team}
-        locale={{ emptyText: t('cases.file.noTeam') }}
-        renderItem={(member) => (
-          <List.Item>
-            <Flex gap={8} align="center" wrap>
-              <Bdi>{member.fullName}</Bdi>
-              <Typography.Text type="secondary">
-                {t(`enums.fileTeamRole.${member.role}`)}
-              </Typography.Text>
-            </Flex>
-          </List.Item>
-        )}
-      />
-    </Card>
-  );
-}
-
 function CountsCard({ file }: { readonly file: Case }): React.JSX.Element {
   const { t } = useTranslation();
   const format = useFormat();
@@ -195,9 +151,12 @@ function CountsCard({ file }: { readonly file: Case }): React.JSX.Element {
 /** The Details tab (frontend.md#legal-file-page): the file's fields and cards, two columns on wide screens. */
 export function CaseDetailsTab({
   file,
+  actions,
   onOpenHearing,
 }: {
   readonly file: Case;
+  /** What the user may change (D-051, D-096, D-118); clients and team follow `edit`. */
+  readonly actions: Pick<FileActions, 'edit' | 'reassign' | 'confidentiality'>;
   /** Opens a hearing in the drawer (from the next-hearing card). */
   readonly onOpenHearing: (id: string) => void;
 }): React.JSX.Element {
@@ -214,8 +173,8 @@ export function CaseDetailsTab({
         <Flex vertical gap={16}>
           <NextHearingCard fileId={file.id} onOpen={onOpenHearing} />
           <CountsCard file={file} />
-          <ClientsCard file={file} />
-          <TeamCard file={file} />
+          <ClientsCard file={file} canEdit={actions.edit} />
+          <TeamCard file={file} actions={actions} />
         </Flex>
       </Col>
     </Row>

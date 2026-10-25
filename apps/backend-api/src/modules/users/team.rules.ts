@@ -23,7 +23,8 @@ export function assertRoleKeepsFiles(counts: { responsibleFiles: number }, role:
 
 /**
  * A responsible paralegal must be an active PARALEGAL (D-096): leaving that role or the office clears the column on their
- * open files; their team row stays, so a promoted paralegal keeps working on them. Returns how many files changed.
+ * open files, and their PARALEGAL team row there becomes MEMBER (the role mirrors the column, D-140) — they stay on the
+ * team, so a promoted paralegal keeps working on them. Returns how many files changed.
  */
 export async function releaseParalegalFiles(
   tx: ScopedTransaction,
@@ -32,6 +33,10 @@ export async function releaseParalegalFiles(
   const { count } = await tx.legalFile.updateMany({
     where: { responsibleParalegalId: userId, ...OPEN_FILE },
     data: { responsibleParalegalId: null },
+  });
+  await tx.fileTeamMember.updateMany({
+    where: { userId, role: 'PARALEGAL', file: OPEN_FILE },
+    data: { role: 'MEMBER' },
   });
   return count;
 }
