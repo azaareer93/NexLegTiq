@@ -9,8 +9,8 @@
  *
  * Direct storing is for when Claude Code is CLOSED: its claude-flow MCP server keeps its own in-memory copy of
  * .swarm/memory.db, and a second writer leaves that copy stale and blocks its writes (exit code 2 below).
- * Inside a session use --export (entries as ruflo-memory-export/v1 JSON, nothing stored) and let Claude store each
- * entry with the MCP tool `memory_store`. --changed-since keeps only entries whose text differs from <commit>; the
+ * Inside a session use --export (entries as ruflo-memory-export/v1 JSON, nothing stored) and let Claude load the file
+ * with one call of the MCP tool `memory_import` (merge). --changed-since keeps only entries whose text differs from <commit>; the
  * post-merge git hook records that commit in .git/nexlegtiq/ruflo-pending for /ticket (docs/tooling.md#7).
  *
  * Run from the repo root (Ruflo keeps its memory DB relative to the working directory).
@@ -175,7 +175,7 @@ if (!dryRun && !exportPath && rufloMcpRunning()) {
       "A Ruflo MCP server is running (usually Claude Code's claude-flow server), and it owns .swarm/memory.db.",
       'Either close Claude Code and re-run, or export the entries and store them from the session:',
       '  node scripts/ruflo-seed.mjs --export=<file.json> [--changed-since=<commit>] [files]',
-      'then ask Claude to store each entry with memory_store (/ticket step 0 does this).',
+      'then ask Claude to load the file with one memory_import call (/ticket step 0 does this).',
     ].join('\n'),
   );
   process.exit(2);
@@ -298,7 +298,7 @@ if (exportPath) {
   };
   writeFileSync(out, JSON.stringify(payload, null, 2));
   console.log(
-    `Exported ${exported.length} entries to ${out}. Store each with the MCP tool memory_store (tags nexlegtiq, seed).`,
+    `Exported ${exported.length} entries to ${out}. Load them with one MCP memory_import call (inputPath: that file, merge: true).`,
   );
   process.exit(0);
 }
