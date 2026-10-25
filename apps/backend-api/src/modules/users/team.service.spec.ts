@@ -65,7 +65,7 @@ function setup(
     get: (key: string) => ({ userId: ME, officeId: 'office-1' })[key],
   } as unknown as ClsService<RequestContext>;
   const entitlements = { assertUserSlot: jest.fn() };
-  const reminders = { reset: jest.fn() };
+  const reminders = { resetForFile: jest.fn() };
   const service = new TeamService(
     prisma,
     uow,
@@ -145,7 +145,7 @@ describe('TeamService (D-124)', () => {
       data: { responsibleLawyerId: ME },
     });
     expect(tx.notification.create).not.toHaveBeenCalled();
-    expect(reminders.reset).toHaveBeenCalledTimes(1);
+    expect(reminders.resetForFile).toHaveBeenCalledWith(tx, expect.any(Function), 'f1');
   });
 
   it('should reactivate only an inactive user, after the seat check', async () => {

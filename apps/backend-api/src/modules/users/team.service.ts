@@ -220,28 +220,8 @@ export class TeamService {
         },
       });
     }
-    await this.resetReminders(tx, afterCommit, file.id);
-  }
-
-  /** The new responsible lawyer is reminded of the file's upcoming hearings (D-117 asks the reassign story for this). */
-  private async resetReminders(
-    tx: ScopedTransaction,
-    afterCommit: AfterCommit,
-    fileId: string,
-  ): Promise<void> {
-    const sessions = await tx.session.findMany({
-      where: { fileId, isCancelled: false, outcome: null, startsAt: { gt: new Date() } },
-      select: {
-        id: true,
-        fileId: true,
-        startsAt: true,
-        attendingLawyerId: true,
-        reminderDays: true,
-      },
-    });
-    for (const session of sessions) {
-      await this.reminders.reset(tx, afterCommit, session, session.reminderDays, false);
-    }
+    // The new responsible lawyer is reminded of the file's upcoming hearings (D-117).
+    await this.reminders.resetForFile(tx, afterCommit, file.id);
   }
 
   private async get(userId: string): Promise<TeamMember> {

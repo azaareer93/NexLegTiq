@@ -56,5 +56,7 @@
   "SYS-001": "Something went wrong on our side. Try again.",
   "SYS-002": "The service is temporarily unavailable. Try again shortly.",
   "DB-001": "Something went wrong while saving. Try again.",
-  "BIZ-017": "This conflict of interest has already been resolved."
+  "BIZ-017": "This conflict of interest has already been resolved.",
+  "BIZ-018": "The last client of a case cannot be removed.",
+  "BIZ-019": "A case always has a responsible lawyer: assign another one before removing them or changing their role."
 }

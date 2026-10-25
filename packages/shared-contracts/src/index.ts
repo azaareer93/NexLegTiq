@@ -36,6 +36,12 @@ export {
   CaseSchema,
   CreateCaseSchema,
   UpdateCaseSchema,
+  AddFileClientSchema,
+  AddTeamMemberSchema,
+  FileClientSchema,
+  FileTeamMemberSchema,
+  UpdateFileClientSchema,
+  UpdateTeamMemberSchema,
 } from './case.contract.js';
 export type {
   Case,
@@ -44,6 +50,12 @@ export type {
   CaseSortField,
   CreateCaseRequest,
   UpdateCaseRequest,
+  AddFileClientRequest,
+  AddTeamMemberRequest,
+  FileClient,
+  FileTeamMember,
+  UpdateFileClientRequest,
+  UpdateTeamMemberRequest,
 } from './case.contract.js';
 export {
   BulkAssignResultSchema,

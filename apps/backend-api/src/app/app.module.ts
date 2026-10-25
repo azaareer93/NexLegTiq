@@ -20,6 +20,7 @@ import { JwtAuthGuard } from '../modules/auth/jwt-auth.guard';
 import { ClientsModule } from '../modules/clients/clients.module';
 import { CourtsModule } from '../modules/courts/courts.module';
 import { DocumentsModule } from '../modules/documents/documents.module';
+import { FileParticipantsModule } from '../modules/file-participants/file-participants.module';
 import { LegalFilesModule } from '../modules/legal-files/legal-files.module';
 import { OfficesModule } from '../modules/offices/offices.module';
 import { PartiesModule } from '../modules/parties/parties.module';
@@ -53,6 +54,7 @@ import { UsersModule } from '../modules/users/users.module';
     DocumentsModule,
     TasksModule,
     PartiesModule,
+    FileParticipantsModule,
     UsersModule,
     // Default 100 requests/min per IP (api-conventions.md); auth routes set stricter limits with @Throttle.
     // ponytail: counters live in process memory, fine for one API container (D-020); move to Redis storage when a

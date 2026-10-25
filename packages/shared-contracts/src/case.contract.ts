@@ -109,6 +109,19 @@ export const CaseQuerySchema = z.object({
 export type CaseQuery = z.infer<typeof CaseQuerySchema>;
 
 const PersonSchema = z.object({ id: z.uuid(), fullName: z.string() });
+
+/** A client of a file (`GET /cases/:id/clients`, D-140); exactly one is primary. */
+export const FileClientSchema = z.object({
+  id: z.uuid(),
+  displayName: z.string(),
+  clientType: z.enum(CLIENT_TYPES),
+  isPrimary: z.boolean(),
+});
+export type FileClient = z.infer<typeof FileClientSchema>;
+
+/** A member of a file's team (`GET /cases/:id/team`, D-140). */
+export const FileTeamMemberSchema = PersonSchema.extend({ role: z.enum(FILE_TEAM_ROLES) });
+export type FileTeamMember = z.infer<typeof FileTeamMemberSchema>;
 /** Calendar date `YYYY-MM-DD` (D-092: shown as written in every time zone). */
 const DateOnlySchema = z.iso.date();
 
@@ -151,16 +164,34 @@ export const CaseSchema = CaseListItemSchema.extend({
   fixedFee: z.string().nullable(),
   retainerBalance: z.string().nullable(),
   currency: z.string(),
-  clients: z.array(
-    z.object({
-      id: z.uuid(),
-      displayName: z.string(),
-      clientType: z.enum(CLIENT_TYPES),
-      isPrimary: z.boolean(),
-    }),
-  ),
-  team: z.array(PersonSchema.extend({ role: z.enum(FILE_TEAM_ROLES) })),
+  clients: z.array(FileClientSchema),
+  team: z.array(FileTeamMemberSchema),
   counts: z.object({ parties: z.number().int(), notes: z.number().int() }),
   createdAt: z.iso.datetime(),
 });
 export type Case = z.infer<typeof CaseSchema>;
+
+/** `POST /cases/:id/clients` (D-140): a live client of the office; `isPrimary` makes it the file's primary client. */
+export const AddFileClientSchema = z.object({
+  clientId: z.uuid(),
+  isPrimary: z.boolean().optional(),
+});
+export type AddFileClientRequest = z.infer<typeof AddFileClientSchema>;
+
+/** `PATCH /cases/:id/clients/:clientId`: only `true` — making another client primary demotes this one. */
+export const UpdateFileClientSchema = z.object({ isPrimary: z.literal(true) });
+export type UpdateFileClientRequest = z.infer<typeof UpdateFileClientSchema>;
+
+/**
+ * `POST /cases/:id/team` (D-140): an active colleague. RESPONSIBLE_LAWYER replaces the file's responsible lawyer (who
+ * stays as a MEMBER), PARALEGAL its responsible paralegal; MEMBER by default.
+ */
+export const AddTeamMemberSchema = z.object({
+  userId: z.uuid(),
+  role: z.enum(FILE_TEAM_ROLES).default('MEMBER'),
+});
+export type AddTeamMemberRequest = z.input<typeof AddTeamMemberSchema>;
+
+/** `PATCH /cases/:id/team/:userId`: a new role on the file (same rules as adding). */
+export const UpdateTeamMemberSchema = z.object({ role: z.enum(FILE_TEAM_ROLES) });
+export type UpdateTeamMemberRequest = z.infer<typeof UpdateTeamMemberSchema>;

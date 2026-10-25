@@ -171,6 +171,51 @@ describe('ReminderScheduler', () => {
     expect(days(moved.tx.sessionReminder.createManyAndReturn.mock.calls[0])).toHaveLength(6);
   });
 
+  it('should reset the reminders of every upcoming hearing of a file for its new lawyer (D-140)', async () => {
+    const { scheduler, tx, t, afterCommit } = setup();
+    const findMany = jest.fn().mockResolvedValue([{ ...session(), reminderDays: [3] }]);
+    Object.assign(tx, { session: { findMany } });
+    await scheduler.resetForFile(t, afterCommit, FILE);
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          fileId: FILE,
+          isCancelled: false,
+          outcome: null,
+        }) as object,
+      }),
+    );
+    // Same hearing time: the sent reminders are looked up so none is repeated.
+    expect(tx.sessionReminder.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { sessionId: SESSION, status: 'SENT' } }),
+    );
+    expect(tx.sessionReminder.createManyAndReturn).toHaveBeenCalledTimes(1);
+  });
+
+  it('should refuse to schedule without an office in the context', async () => {
+    const { tx, t, afterCommit } = setup();
+    const scheduler = new ReminderScheduler(
+      { db: tx } as unknown as PrismaService,
+      { enqueue: jest.fn() } as unknown as QueueProducer,
+      { setContext: jest.fn() } as unknown as PinoLogger,
+      { get: () => undefined } as unknown as ClsService<RequestContext>,
+    );
+    await expect(scheduler.schedule(t, afterCommit, session(), [3])).rejects.toThrow('No office');
+  });
+
+  it('should write and remove nothing when no reminder was pending and every one was already sent', async () => {
+    const { scheduler, tx, t, afterCommit, runAfterCommit, queues } = setup();
+    tx.sessionReminder.updateManyAndReturn.mockResolvedValueOnce([]);
+    tx.sessionReminder.findMany.mockResolvedValueOnce([
+      { recipientId: LAWYER, daysBefore: 3 },
+      { recipientId: RESPONSIBLE, daysBefore: 3 },
+    ]);
+    await scheduler.reset(t, afterCommit, session(), [3], false);
+    await runAfterCommit();
+    expect(tx.sessionReminder.createManyAndReturn).not.toHaveBeenCalled();
+    expect(queues.remove).not.toHaveBeenCalled();
+  });
+
   it('should keep enqueueing after one failure and report how many were handed over', async () => {
     const { scheduler, queues, logger } = setup();
     queues.enqueue.mockRejectedValueOnce(new Error('redis down'));

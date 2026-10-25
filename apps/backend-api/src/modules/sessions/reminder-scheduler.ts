@@ -106,6 +106,30 @@ export class ReminderScheduler {
   }
 
   /**
+   * For a new responsible lawyer (D-117, D-124, D-140): the reminders of the file's upcoming hearings are recomputed for
+   * the new recipients; hearing times are unchanged, so nobody gets a reminder already sent to them.
+   */
+  async resetForFile(
+    tx: ScopedTransaction,
+    afterCommit: AfterCommit,
+    fileId: string,
+  ): Promise<void> {
+    const sessions = await tx.session.findMany({
+      where: { fileId, isCancelled: false, outcome: null, startsAt: { gt: new Date() } },
+      select: {
+        id: true,
+        fileId: true,
+        startsAt: true,
+        attendingLawyerId: true,
+        reminderDays: true,
+      },
+    });
+    for (const session of sessions) {
+      await this.reset(tx, afterCommit, session, session.reminderDays, false);
+    }
+  }
+
+  /**
    * After a reschedule, a new attending lawyer or new offsets: the pending reminders are replaced. When the hearing kept
    * its time (`moved` false), reminders already sent count: nobody gets the same reminder twice.
    */
