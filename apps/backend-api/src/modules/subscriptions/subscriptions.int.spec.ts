@@ -238,7 +238,7 @@ describe('subscriptions and entitlements (HTTP + PostgreSQL)', () => {
       inOffice(manager, () => entitlements.assertStorageFor(quota + 1n)),
     ).rejects.toMatchObject({ code: 'AUTH-103' });
     // The free plan allows 5 AI requests a month: provider calls count, cache hits do not (D-130).
-    const usage = (cached: boolean) => ({
+    const usage = (cached: boolean, succeeded = true) => ({
       officeId: manager.officeId,
       userId: manager.userId,
       feature: 'quota-test',
@@ -249,9 +249,11 @@ describe('subscriptions and entitlements (HTTP + PostgreSQL)', () => {
       costUsd: '0',
       durationMs: 1,
       cached,
+      succeeded,
     });
+    // Cache hits and answers that failed validation (AI-004) are recorded but never counted (D-130, D-144).
     await raw.aiUsage.createMany({
-      data: [...Array.from({ length: 4 }, () => usage(false)), usage(true)],
+      data: [...Array.from({ length: 4 }, () => usage(false)), usage(true), usage(false, false)],
     });
     await inOffice(manager, () => entitlements.assertAiQuota());
     await raw.aiUsage.create({ data: usage(false) });
@@ -261,5 +263,48 @@ describe('subscriptions and entitlements (HTTP + PostgreSQL)', () => {
     await expect(
       inOffice(manager, () => entitlements.assertFeature('googleVisionOcr')),
     ).rejects.toMatchObject({ code: 'AUTH-102' });
+  });
+
+  it("should show the office's AI use against its plan to AI users only, office by office (D-144)", async () => {
+    const manager = await seedOffice(10);
+    const other = await seedOffice(10);
+    const collaborator = await seedUser(manager.officeId, 'EXTERNAL_COLLABORATOR');
+    const row = (officeId: string, extra: object = {}) => ({
+      officeId,
+      feature: 'usage-test',
+      provider: 'fake',
+      model: 'fake-1',
+      inputTokens: 1,
+      outputTokens: 1,
+      costUsd: '0',
+      durationMs: 1,
+      ...extra,
+    });
+    await raw.aiUsage.createMany({
+      data: [
+        row(manager.officeId),
+        row(manager.officeId),
+        row(manager.officeId, { cached: true }),
+        row(manager.officeId, { succeeded: false }),
+        row(other.officeId),
+      ],
+    });
+    const mine = await http().get('/api/v1/ai/usage').set(as(manager)).expect(200);
+    expect(mine.body.data).toEqual({
+      used: 2,
+      quota: FREE?.aiQuotaMonthly,
+      remaining: (FREE?.aiQuotaMonthly ?? 0) - 2,
+      resetsAt: expect.any(String),
+    });
+    // The month restarts at midnight in the office's time zone (Asia/Hebron by default): 22:00 or 21:00 UTC.
+    expect(mine.body.data.resetsAt).toMatch(/T2[12]:00:00.000Z$/);
+    const theirs = await http().get('/api/v1/ai/usage').set(as(other)).expect(200);
+    expect(theirs.body.data.used).toBe(1);
+    await http().get('/api/v1/ai/usage').set(as(collaborator)).expect(403);
+    const view = await http().get('/api/v1/offices/me/subscription').set(as(manager)).expect(200);
+    expect(view.body.data.usage).toMatchObject({
+      aiThisMonth: 2,
+      aiResetsAt: mine.body.data.resetsAt,
+    });
   });
 });

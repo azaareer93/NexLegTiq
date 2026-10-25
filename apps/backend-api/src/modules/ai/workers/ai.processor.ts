@@ -1,17 +1,21 @@
 import { OnWorkerEvent, Processor } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
+import type { OnApplicationBootstrap } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { UnrecoverableError } from 'bullmq';
 import type { Job } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 import { z } from 'zod';
 
 import { AppException } from '../../../common/errors/app.exception';
-import { QUEUE, workerOptions } from '../../../common/queue/queues';
+import { getQueue, QUEUE, workerOptions } from '../../../common/queue/queues';
 import { parseTenantJob } from '../../../common/queue/tenant-job';
 import type { TenantJobData } from '../../../common/queue/tenant-job';
 import { TenantProcessor } from '../../../common/queue/tenant-processor';
 import { TenantRunner } from '../../../common/tenancy/tenant-runner';
+import { AppConfig } from '../../../config/app-config';
 import { PrismaService } from '../../../database/prisma.service';
+import { AI_COST_ALERT_JOB, AI_COST_ALERT_SCHEDULE, AiCostAlert } from '../ai-cost-alert';
 import { AiJobRegistry } from '../ai-job-registry';
 import { AiJobs } from '../ai-jobs';
 import type { AiJobData } from '../ai-jobs';
@@ -40,7 +44,7 @@ export function errorCodeOf(error: unknown): string {
  */
 @Injectable()
 @Processor(QUEUE.AI, workerOptions(QUEUE.AI))
-export class AiProcessor extends TenantProcessor<AiJobData> {
+export class AiProcessor extends TenantProcessor<AiJobData> implements OnApplicationBootstrap {
   protected readonly schema = AiJobDataSchema;
 
   constructor(
@@ -49,8 +53,34 @@ export class AiProcessor extends TenantProcessor<AiJobData> {
     logger: PinoLogger,
     private readonly registry: AiJobRegistry,
     private readonly jobs: AiJobs,
+    private readonly costAlert: AiCostAlert,
+    private readonly config: AppConfig,
+    private readonly moduleRef: ModuleRef,
   ) {
     super(tenant, prisma, logger);
+  }
+
+  /** The daily platform cost check (D-144), scheduled only when an alert is configured; a Redis outage is logged. */
+  async onApplicationBootstrap(): Promise<void> {
+    const queue = getQueue(this.moduleRef, QUEUE.AI);
+    try {
+      if (this.config.aiCostAlert) {
+        await queue.upsertJobScheduler(AI_COST_ALERT_JOB, AI_COST_ALERT_SCHEDULE, {
+          name: AI_COST_ALERT_JOB,
+          data: {},
+        });
+      } else {
+        await queue.removeJobScheduler(AI_COST_ALERT_JOB);
+      }
+    } catch (error) {
+      this.logger.warn({ err: error }, 'AI cost alert not scheduled');
+    }
+  }
+
+  /** The cost check spans every office, so it runs before the tenant checks of `TenantProcessor.process`. */
+  override async process(job: Job<AiJobData & TenantJobData>): Promise<unknown> {
+    if (job.name === AI_COST_ALERT_JOB) return this.costAlert.run();
+    return super.process(job);
   }
 
   protected async handle(

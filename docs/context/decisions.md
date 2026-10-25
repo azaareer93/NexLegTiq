@@ -2283,3 +2283,25 @@ environment is limited to `main`, the monthly copy happens only on scheduled run
 restore fails. `verify.sql` now also checks the purge function (SECURITY DEFINER) and the `document_texts` search trigger.
 **Not done:** images pinned by digest (the repo pins tags, D-078), a pre-migration snapshot in the deploy script (a provider
 snapshot by hand until the release pipeline story).
+
+**D-144 — AI quota month, successful operations, the usage endpoint and the daily cost alert** · Accepted (MVP-85, 2026-10-26) · Amends D-130, D-122
+D-130 already records every AI answer (`AiUsage`, cost per call from `AI_MODEL_PRICES`, redaction counts, D-131) and checks
+the quota before a job is queued and before every provider call; MVP-85 asked for "successful" operations, the month in the
+**office's time zone**, `remaining=0` on refusal, a usage endpoint and the daily platform cost alert. → **What counts:**
+new column `AiUsage.succeeded` (default true; migration `ai_usage_succeeded`): the executor records every paid answer as
+before and marks whether it passed validation — an answer still invalid after its repair (AI-004) is recorded, priced and
+**not counted**; cache hits stay free (amends D-130's "one usage row of a provider answer"). **The month** is the office's
+calendar month in its time zone (`Office.timezone`, D-125; Asia/Hebron by default): `EntitlementsService.aiMonth()` finds
+its first instant with shared-utils' `wallClock`/`zonedDateTime` (DST-safe, D-127); 23:30 UTC on 30 November is already
+December in Hebron. **Refusal:** AUTH-103 carries one detail `{field: 'aiQuota', message: 'validation.aiQuotaReached', params:
+{remaining: '0', quota, resetsAt}}` (new AR/EN key), so the app can say when the count restarts. **`GET /ai/usage`**
+(`use:ai`: OM, SL, L, P, T) → `{used, quota, remaining, resetsAt}` (`quota`/`remaining` null for an unlimited plan) for the
+AI tab (its UI story shows it); `GET /offices/me/subscription`'s usage gains `aiResetsAt`, shown in Settings → Subscription
+("the AI count starts again on …"). **Cost alert:** `AI_COST_ALERT_THRESHOLD_USD` + `AI_COST_ALERT_EMAIL` (both or neither;
+off when unset — the ticket's "default 20" is not applied, an alert needs a recipient): the `ai` queue's consumer gets a
+platform job `ai-cost-alert`, scheduled daily at 06:00 UTC only when configured (removed otherwise), which sums the previous
+UTC day's cost of every office (`unscoped`, only the sum leaves the query) and, above the threshold, logs an error and emails
+the founder in plain English through the mail transport directly (it belongs to no office, so not through the tenant email
+queue; founder-facing, so not translated). **Sentry event: deviation** — no error tracker exists yet (monitoring story,
+waiting for the owner's vendor choice); the error log line is what it will pick up. **Not done:** a per-office cost report
+(admin panel), alerting more than once a day, reserving quota for concurrent jobs (D-130's known limit stands).

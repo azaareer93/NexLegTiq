@@ -49,11 +49,17 @@ export class SubscriptionsRepository {
     return this.prisma.db.user.count({ where: { isActive: true } });
   }
 
-  /** AI provider calls of the office this calendar month (UTC); cache hits are free (D-130). */
+  /** Successful AI operations of the office since `monthStart`; cache hits are free (D-130, D-144). */
   aiCallsSince(monthStart: Date): Promise<number> {
     return this.prisma.db.aiUsage.count({
-      where: { cached: false, createdAt: { gte: monthStart } },
+      where: { cached: false, succeeded: true, createdAt: { gte: monthStart } },
     });
+  }
+
+  /** The office's IANA time zone (D-125), which decides when its month starts. */
+  async officeTimeZone(): Promise<string> {
+    const office = await this.prisma.db.office.findFirst({ select: { timezone: true } });
+    return office?.timezone ?? 'Asia/Hebron';
   }
 
   pendingInvitations(now: Date): Promise<number> {

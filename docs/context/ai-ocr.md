@@ -47,8 +47,10 @@ Architecture (`modules/ai`):
 - Input handling: chunk long documents (map-reduce summarize) instead of blind truncation; cap input tokens per plan.
 - `PiiRedactor` (D-057): replaces names of the file's clients/parties/witnesses, emails, phones, national IDs, IBANs with
   stable placeholders (`[PARTY_1]`), mapping kept in memory for the job only.
-- `CostTracker`: AiUsage rows; daily platform alert if > `AI_COST_ALERT_THRESHOLD_USD` (default 20 for MVP); office quota
-  from plan (`aiQuotaMonthly`), returns `AUTH-103` when exceeded.
+- `CostTracker`: AiUsage rows (also failed and cached answers, with `succeeded`/`cached`); daily platform alert at 06:00
+  UTC when yesterday's cost > `AI_COST_ALERT_THRESHOLD_USD` (email to `AI_COST_ALERT_EMAIL`; off when unset, D-144); office
+  quota from plan (`aiQuotaMonthly`) = successful, non-cached operations in the office's calendar month (its time zone),
+  `AUTH-103` with `{remaining: 0, quota, resetsAt}` when used up; `GET /ai/usage` → `{used, quota, remaining, resetsAt}`.
 - Cache keys: `o:{officeId}:ai:summary:{documentId}:{versionNumber}:{lang}:{promptVersion}` (24h+; invalidated by new version).
 - Config (Zod env): `AI_PRIMARY_PROVIDER`, `AI_FALLBACK_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `GEMINI_API_KEY`, `GEMINI_MODEL`,
   `ANTHROPIC_API_KEY?`, `AI_MAX_OUTPUT_TOKENS=4096`, `AI_TEMPERATURE=0.2`, `AI_CACHE_TTL=86400`, `AI_COST_ALERT_THRESHOLD_USD`.

@@ -163,6 +163,8 @@ describe('AiExecutor (D-130)', () => {
     await expect(executor.execute(options())).rejects.toMatchObject({ code: 'AI-004' });
     expect(fake.requests[1]?.followUp).toMatch(/summary: too_small|parties: invalid_type/);
     expect(usage.record).toHaveBeenCalledTimes(1);
+    // Paid for, so recorded — but not counted against the office's quota (D-144).
+    expect(usage.record).toHaveBeenCalledWith(expect.objectContaining({ succeeded: false }));
     expect(cache.set).not.toHaveBeenCalled();
   });
 

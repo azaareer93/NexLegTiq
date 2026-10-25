@@ -1,3 +1,4 @@
+import type { ModuleRef } from '@nestjs/core';
 import { UnrecoverableError } from 'bullmq';
 import type { Job } from 'bullmq';
 import type { ClsService } from 'nestjs-cls';
@@ -5,6 +6,7 @@ import type { PinoLogger } from 'nestjs-pino';
 
 import { AiAccess } from './ai-access';
 import { AiCache } from './ai-cache';
+import type { AiCostAlert } from './ai-cost-alert';
 import { AiJobRegistry } from './ai-job-registry';
 import { AiJobs } from './ai-jobs';
 import type { AiProviders } from './ai-providers';
@@ -280,6 +282,9 @@ describe('AiProcessor', () => {
       log,
       registry,
       jobs as unknown as AiJobs,
+      {} as AiCostAlert,
+      {} as AppConfig,
+      {} as ModuleRef,
     );
     const handle = (name = 'run') =>
       (processor as unknown as { handle(job: Job, signal: AbortSignal): Promise<unknown> }).handle(
@@ -288,6 +293,38 @@ describe('AiProcessor', () => {
       );
     return { processor, jobs, handle, log, tenant };
   }
+
+  it('should run the platform cost check outside any office, and schedule it only when configured (D-144)', async () => {
+    const run = jest.fn().mockResolvedValue({ day: '2026-10-25', costUsd: '1.00', alerted: false });
+    const queue = { upsertJobScheduler: jest.fn(), removeJobScheduler: jest.fn() };
+    const moduleRef = { get: jest.fn(() => queue) };
+    const build = (aiCostAlert: object | null) =>
+      new AiProcessor(
+        { run: jest.fn() } as unknown as TenantRunner,
+        {} as PrismaService,
+        logger(),
+        new AiJobRegistry(),
+        {} as AiJobs,
+        { run } as unknown as AiCostAlert,
+        { aiCostAlert } as unknown as AppConfig,
+        moduleRef as unknown as ModuleRef,
+      );
+    const processor = build({ thresholdUsd: 20, email: 'founder@example.com' });
+    await expect(
+      processor.process({ name: 'ai-cost-alert', data: {} } as Job),
+    ).resolves.toMatchObject({
+      alerted: false,
+    });
+    expect(run).toHaveBeenCalledTimes(1);
+    await processor.onApplicationBootstrap();
+    expect(queue.upsertJobScheduler).toHaveBeenCalledWith(
+      'ai-cost-alert',
+      { pattern: '0 6 * * *', tz: 'UTC' },
+      { name: 'ai-cost-alert', data: {} },
+    );
+    await build(null).onApplicationBootstrap();
+    expect(queue.removeJobScheduler).toHaveBeenCalledWith('ai-cost-alert');
+  });
 
   it('should name the error code of a failure', () => {
     expect(errorCodeOf(new AppException('AI-003', 'x'))).toBe('AI-003');

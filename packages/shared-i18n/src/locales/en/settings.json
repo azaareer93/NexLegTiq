@@ -16,7 +16,8 @@
       "storage": "Storage",
       "ai": "AI requests this month",
       "of": "{{used}} of {{limit}}",
-      "unlimited": "{{used}} (unlimited)"
+      "unlimited": "{{used}} (unlimited)",
+      "aiResets": "The AI count starts again on {{date}}."
     },
     "units": {
       "mb": "{{value}} MB",
