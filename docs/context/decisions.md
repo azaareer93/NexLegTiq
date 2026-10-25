@@ -2120,7 +2120,7 @@ options add the party's phone or email (isolated) to tell apart people of the sa
 after a write (the other file's conflicts and the registry change too); server field errors on a new party's own fields
 are shown as a notification (the contract check in the browser catches them first).
 
-**D-139 — Tesseract OCR: tools, batching, confidence, the worker image and what gets no text** · Accepted (MVP-144, 2026-10-25) · Amends D-084, D-103, D-132
+**D-139 — Tesseract OCR: tools, batching, confidence, the worker image and what gets no text** · Accepted (MVP-144, 2026-10-25) · Amends D-084, D-103, D-122, D-125, D-132, D-133
 MVP-144 left the OCR engine and how it runs, where per-page confidence lives, what "page-batched" means, the timeout and
 what happens to types OCR cannot read open. → **Engine:** the system **Tesseract 5** (`ara+eng`, `--psm 1` — page
 segmentation with orientation detection, so a scan photographed sideways is read upright) and poppler's **`pdftoppm`**
@@ -2131,27 +2131,42 @@ job, so CPU use is bounded by the worker's concurrency (`ocr` queue 2 → at mos
 scanned PDFs (the text-layer check of D-132 finds under 50 characters a page; its page count is reused) and JPEG, PNG,
 TIFF (a multi-page TIFF is read in one run, pages split on Tesseract's form feeds). **Batching:** a PDF is rasterized
 **10 pages at a time** into a private temporary folder (`os.tmpdir()`, tmpfs in staging), each batch's images deleted
-before the next, the folder removed afterwards whatever happens; at most **`OCR_MAX_PAGES`** (default 100, 1–2000) pages
-are read, the rest of a longer scan is not indexed (`pageCount` = pages read). **Timeout (amends D-084):** the `ocr` queue's
-attempt timeout is now **300 s** (was 60 s; 100 pages at about 2 s a page); `OCR_JOB_TIMEOUT_MS` still overrides it. The
-attempt's abort signal is passed to `execFile`, so a timed-out attempt kills the running Tesseract or pdftoppm (D-084).
+before the next, the folder removed afterwards whatever happens; at most **`OCR_MAX_PAGES`** (default 50, 1–250) pages
+are read, the rest of a longer scan is not indexed (`pageCount` = pages read; the truncation is logged); a PDF with no pages
+is READY with empty text. **Timeout (amends D-084):** the `ocr` queue's attempt timeout is now **300 s** (was 60 s): about
+4 s a page when four Tesseracts share a 2-CPU worker, so the default cap fits; whoever raises `OCR_MAX_PAGES` raises
+`OCR_JOB_TIMEOUT_MS` with it. The attempt's abort signal is passed to `execFile`, so a timed-out attempt kills the running
+Tesseract or pdftoppm (D-084); a page that fails also stops its sibling (one abort controller per run).
+**Hostile files (the D-132 rule for parsers on a shared worker):** pdftoppm renders at most **7016 × 7016 px** a page (`-W/-H`
+crop — poppler draws only that area, so a page box of 99,999 pt renders in 1.4 s in 1 GB; scaling instead would enlarge
+every small page); an image's header is read first (PNG IHDR, JPEG SOF, every TIFF IFD) and a page over **50 MP**, a TIFF
+with more pages than `OCR_MAX_PAGES`, or a header that cannot be read is refused at once as **VAL-005**. The tools get only
+`PATH`, `OMP_THREAD_LIMIT` and `TESSDATA_PREFIX` in their environment, never the server's secrets (they parse untrusted
+bytes), and the staging `/tmp` tmpfs is capped at 512 MB.
 **Result:** the same path as D-132 — `DocumentText` (engine `tesseract`, `pageCount`, `ocrConfidence` = word-weighted mean
 of Tesseract's word confidences, 0–100, null when no word was read) and READY with `ocrStatus` DONE, `document.processed`
 to the uploader, the auto-summary hook. **Per-page confidence:** new nullable column `document_texts.page_confidences`
 (jsonb: one mean per page, null for a page without words; null for text-layer and Office extraction) — the Google Vision
-fallback (its own story) decides on the mean and can re-read only weak pages. **Failures:** a missing binary or a failed
-run is a plain error → retried by the queue → FAILED with **EXT-002** after the last attempt, retry via `POST
-documents/:id/ocr/retry` (D-132); no OCR failure is VAL-005 (a corrupt PDF is already caught by the text-layer read).
-**What gets no text (amends D-132):** a legacy **.doc** (no reader, nothing to OCR) and any document of an office with
-**`enableOcr` off** (D-125, now enforced) become **READY with `ocrStatus` NOT_NEEDED** and no `DocumentText` —
-downloadable, not searchable — instead of staying PROCESSING for good; switching OCR back on does not reprocess them.
-The plan flag `googleVisionOcr` (D-122) is for the Vision fallback only: Tesseract costs nothing per page. **Images
+fallback (its own story) decides on the mean and can re-read only weak pages. **Failures (as D-132):** input the tools
+report as undecodable (leptonica's `pixRead`/unknown format, poppler's syntax/xref errors) and the image limits above are
+**VAL-005** at once (no retry would help, and the retry endpoint refuses it); a missing binary or any other failed run is a
+plain error → retried by the queue → FAILED with **EXT-002** after the last attempt, retry via `POST
+documents/:id/ocr/retry`. **What gets no text (amends D-132, D-133):** a legacy **.doc** (no reader, nothing to OCR) and a
+scan or image of an office with **`enableOcr` off** (amends D-125: the switch is now enforced, read per job from the
+office's settings; a missing row counts as on, the column default) become **READY with `ocrStatus` NOT_NEEDED** and no
+`DocumentText` — downloadable, not searchable — instead of staying PROCESSING for good (D-133's "images and scans stay
+PROCESSING" no longer holds); an image is then not even downloaded, and switching OCR back on does not reprocess them. A
+PDF with a text layer, and Office files, are read whatever the switch says (no OCR is involved). The extraction's outcome
+is READY, NO_TEXT or SUPERSEDED. The plan flag `googleVisionOcr` (amends D-122: it gates only the Vision fallback) does not
+gate Tesseract, which costs nothing per page. **Images
 (amends D-103):** the first worker-only system dependency arrived, so the Dockerfile has a **`worker` target** (runtime +
 `tesseract-ocr tesseract-ocr-ara poppler-utils`; Debian's package brings `eng` and `osd`), pushed as
 `backend-api-worker:<sha>` and used by the staging worker; the API image stays without them. **CI** installs the same
 packages before the integration tests, which run the real tools on an Arabic scanned PDF (built in code around a committed
 JPEG — the one binary fixture exception: Arabic cannot be rendered from code), a rotated image and a 10-page scan within
 the 30 s budget (ai-ocr.md); a developer machine without Tesseract skips those three, CI fails if they cannot run.
-Measured in a Debian container with 2 CPUs: 10 pages in 6 s, mean confidence 92. **Not done:** language detection
+Measured in a Debian container with 2 CPUs: 10 pages in 6 s, mean confidence 92; a 2-page TIFF, truncated and junk JPEGs
+(VAL-005) and an abort were checked there too. **Not done:** a memory limit on the worker container (the VPS size is the
+owner's call, D-103), language detection
 (`Document.language`), Arabic handwriting, the Vision fallback (MVP-145's own ticket), reprocessing documents left
 PROCESSING by the old code (there is no production data yet).

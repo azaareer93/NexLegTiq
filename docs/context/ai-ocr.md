@@ -19,7 +19,7 @@ Budgets: < 30 s for ≤ 10 pages; timeouts → FAILED with retry button.
 Implementation (D-132): `DocumentExtraction` (DOCX/XLSX/CSV, PDF text layer → `DocumentText`, READY, `document.processed`), other
 inputs wait for OCR (PROCESSING, `ocrStatus` PENDING); failures FAILED with EXT-002, `POST documents/:id/ocr/retry`.
 OCR (D-139, `extraction/ocr.ts`): scanned PDFs (rasterized by `pdftoppm` at 300 dpi, 10 pages a batch, up to `OCR_MAX_PAGES`)
-and JPEG/PNG/TIFF through the system Tesseract `ara+eng --psm 1` (orientation detected), per-page and mean word confidence
+and JPEG/PNG/TIFF (header-checked: ≤ 50 MP a page) through the system Tesseract `ara+eng --psm 1` (orientation detected), per-page and mean word confidence
 (`DocumentText.pageConfidences`, `ocrConfidence`), engine `tesseract`; same READY path. Legacy .doc and offices with
 `enableOcr` off → READY without text (`ocrStatus` NOT_NEEDED). Tesseract ships in the `worker` image only.
 

@@ -4,9 +4,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { clip, MIME } from './extract-text';
+import { clip, MIME, UnreadableDocumentError } from './extract-text';
+import { assertImageWithinLimits } from './image-limits';
 
-const run = promisify(execFile);
+const execute = promisify(execFile);
 
 /** Types Tesseract reads (D-139): scanned PDFs after rasterizing, and images. */
 export const OCR_MIME = {
@@ -29,7 +30,7 @@ export interface OcrResult {
 }
 
 export interface OcrOptions {
-  /** Pages of a PDF to read (`OCR_MAX_PAGES`); the rest of a longer one is not indexed. */
+  /** Pages of a PDF to read (`OCR_MAX_PAGES`; the rest of a longer one is not indexed); a TIFF with more is refused. */
   readonly maxPages: number;
   /** Pages the PDF holds (read by the text-layer check before). */
   readonly pdfPageCount?: number;
@@ -41,6 +42,8 @@ export const PAGE_BATCH = 10;
 /** Pages recognised at once, each Tesseract on one thread: more threads per page barely help (measured, D-139). */
 const PARALLEL_PAGES = 2;
 const DPI = '300';
+/** Largest rendered area, in pixels a side: twice the long side of an A4 page at 300 dpi (49 MP in grayscale). */
+const MAX_SIDE = '7016';
 /** `--psm 1`: page segmentation with orientation detection, so rotated scans are read upright. */
 const TESSERACT_ARGS = ['-l', 'ara+eng', '--psm', '1', 'txt', 'tsv'];
 const EXTENSION: Record<string, string> = {
@@ -58,14 +61,19 @@ interface Page {
 
 /**
  * OCR of a scan or an image with the system's Tesseract (`ara+eng`) and, for PDFs, poppler's `pdftoppm` (D-139). Works in
- * a private temporary folder that is always removed; an abort (the attempt's timeout, D-084) kills the running process.
- * A missing binary or a failed run throws a plain error, so the queue retries and then marks the document EXT-002.
+ * a private temporary folder that is always removed; an abort (the attempt's timeout, D-084) kills the running processes,
+ * and so does the failure of a sibling page. Images over the size limits, and input the tools report as undecodable, throw
+ * `UnreadableDocumentError` (VAL-005, no retry); a missing binary or any other failure throws a plain error, so the queue
+ * retries and then marks the document EXT-002.
  */
 export async function ocr(
   content: Buffer,
   mimeType: string,
   options: OcrOptions,
 ): Promise<OcrResult> {
+  if (mimeType !== OCR_MIME.PDF) assertImageWithinLimits(content, mimeType, options.maxPages);
+  const run = new AbortController();
+  const signal = AbortSignal.any([options.signal, run.signal]);
   const folder = await mkdtemp(join(tmpdir(), 'nlq-ocr-'));
   try {
     const input = join(folder, `in.${EXTENSION[mimeType] ?? 'bin'}`);
@@ -75,13 +83,44 @@ export async function ocr(
         ? await pdfPages(
             input,
             folder,
-            Math.min(options.pdfPageCount ?? 1, options.maxPages),
-            options.signal,
+            Math.min(options.pdfPageCount ?? 0, options.maxPages),
+            signal,
           )
-        : await recognise(input, join(folder, 'image'), options.signal);
+        : await recognise(input, join(folder, 'image'), signal);
     return result(pages);
   } finally {
+    run.abort();
     await rm(folder, { recursive: true, force: true });
+  }
+}
+
+/** What the tools report for input they cannot decode (leptonica, poppler). */
+const UNDECODABLE =
+  /pixRead|Unknown format|Couldn't read|Syntax Error|May not be a PDF|Not a JPEG/i;
+
+/**
+ * Runs a tool with only what it needs in its environment — never the server's secrets (the parsers read untrusted
+ * uploads) — and one OpenMP thread: the worker's concurrency and PARALLEL_PAGES decide the CPU used.
+ */
+async function tool(command: string, args: string[], signal: AbortSignal): Promise<void> {
+  const { PATH, TESSDATA_PREFIX } = process.env;
+  try {
+    await execute(command, args, {
+      signal,
+      env: {
+        PATH: PATH ?? '',
+        OMP_THREAD_LIMIT: '1',
+        ...(TESSDATA_PREFIX ? { TESSDATA_PREFIX } : {}),
+      },
+      // Output goes to files; this only bounds the warnings a tool prints.
+      maxBuffer: 16 * 1024 * 1024,
+    });
+  } catch (error) {
+    const stderr = (error as { stderr?: unknown }).stderr;
+    if (!signal.aborted && typeof stderr === 'string' && UNDECODABLE.test(stderr)) {
+      throw new UnreadableDocumentError(command, { cause: error });
+    }
+    throw error;
   }
 }
 
@@ -96,12 +135,15 @@ async function pdfPages(
   for (let first = 1; first <= pages; first += PAGE_BATCH) {
     const last = Math.min(first + PAGE_BATCH - 1, pages);
     const prefix = join(folder, `b${first}`);
-    await run(
+    // -W/-H crop the render: poppler draws only that area, so a page box far beyond A4 (a pixel bomb) cannot allocate
+    // more than MAX_SIDE² pixels; an ordinary page is untouched (scaling instead would also enlarge every small page).
+    await tool(
       'pdftoppm',
-      ['-r', DPI, '-gray', '-png', '-f', `${first}`, '-l', `${last}`, input, prefix],
-      {
-        signal,
-      },
+      [
+        ...['-r', DPI, '-W', MAX_SIDE, '-H', MAX_SIDE, '-gray', '-png'],
+        ...['-f', `${first}`, '-l', `${last}`, input, prefix],
+      ],
+      signal,
     );
     // pdftoppm pads page numbers to the document's width (b1-01.png): sorting the names keeps page order.
     const images = (await readdir(folder))
@@ -121,11 +163,7 @@ async function pdfPages(
 
 /** One Tesseract run: the text (pages separated by form feeds, as for a multi-page TIFF) and its word confidences. */
 async function recognise(image: string, outBase: string, signal: AbortSignal): Promise<Page[]> {
-  await run('tesseract', [image, outBase, ...TESSERACT_ARGS], {
-    signal,
-    // One thread per process: the worker's concurrency and PARALLEL_PAGES decide the CPU used.
-    env: { ...process.env, OMP_THREAD_LIMIT: '1' },
-  });
+  await tool('tesseract', [image, outBase, ...TESSERACT_ARGS], signal);
   const [text, tsv] = await Promise.all([
     readFile(`${outBase}.txt`, 'utf8'),
     readFile(`${outBase}.tsv`, 'utf8'),

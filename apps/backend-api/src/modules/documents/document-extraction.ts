@@ -100,10 +100,7 @@ export class DocumentExtraction {
     });
     if (!version) return 'SUPERSEDED';
     const { mimeType } = version;
-    if (!extractable(mimeType) && !ocrable(mimeType)) {
-      // Legacy .doc: no reader and no OCR — downloadable, not searchable (D-139).
-      return this.finish(job, version, null);
-    }
+    if (!(await this.worthReading(job, mimeType))) return this.finish(job, version, null);
     const content = await readAll(await this.storage.getStream(version.storageKey), signal);
     signal.throwIfAborted();
     const extraction = extractable(mimeType)
@@ -111,32 +108,63 @@ export class DocumentExtraction {
       : ({ kind: 'NEEDS_OCR' } as const);
     signal.throwIfAborted();
     if (extraction.kind === 'TEXT') {
+      // A text layer is read whatever the office's OCR switch says: no OCR is involved.
       const { text, pageCount, engine } = extraction;
       return this.finish(job, version, { text, pageCount, ocrEngine: engine });
     }
-    if (!(await this.ocrEnabled())) {
-      this.logger.info({ documentId: job.documentId }, 'OCR is off for the office');
+    // An image's switch was read before downloading it; a scanned PDF's only now.
+    if (extractable(mimeType) && !(await this.ocrEnabled(job))) {
       return this.finish(job, version, null);
     }
+    return this.finish(
+      job,
+      version,
+      await this.recognise(job, content, mimeType, extraction.pageCount, signal),
+    );
+  }
+
+  /** A legacy .doc (no reader, nothing to OCR) is not; an image only when the office's OCR is on (D-139). */
+  private async worthReading(job: DocumentJob, mimeType: string): Promise<boolean> {
+    if (extractable(mimeType)) return true;
+    return ocrable(mimeType) && (await this.ocrEnabled(job));
+  }
+
+  /** Tesseract OCR of a scan or an image (D-139); a scan longer than OCR_MAX_PAGES is read up to the cap. */
+  private async recognise(
+    job: DocumentJob,
+    content: Buffer,
+    mimeType: string,
+    pdfPageCount: number | undefined,
+    signal: AbortSignal,
+  ): Promise<VersionText> {
+    const { maxPages } = this.config.ocr;
+    if (pdfPageCount !== undefined && pdfPageCount > maxPages) {
+      this.logger.info(
+        { documentId: job.documentId, pages: pdfPageCount, read: maxPages },
+        'Scan longer than OCR_MAX_PAGES: only its first pages are read',
+      );
+    }
     const result = await ocr(content, mimeType, {
-      maxPages: this.config.ocr.maxPages,
-      ...(extraction.pageCount ? { pdfPageCount: extraction.pageCount } : {}),
+      maxPages,
+      ...(pdfPageCount !== undefined ? { pdfPageCount } : {}),
       signal,
     });
     signal.throwIfAborted();
-    return this.finish(job, version, {
+    return {
       text: result.text,
       pageCount: result.pageCount,
       ocrEngine: 'tesseract',
       ocrConfidence: result.confidence,
       pageConfidences: [...result.pageConfidences],
-    });
+    };
   }
 
   /** The office's switch (D-125); a missing settings row keeps the column default (on). */
-  private async ocrEnabled(): Promise<boolean> {
+  private async ocrEnabled(job: DocumentJob): Promise<boolean> {
     const settings = await this.prisma.db.officeSettings.findFirst({ select: { enableOcr: true } });
-    return settings?.enableOcr ?? true;
+    const enabled = settings?.enableOcr ?? true;
+    if (!enabled) this.logger.info({ documentId: job.documentId }, 'OCR is off for the office');
+    return enabled;
   }
 
   /**

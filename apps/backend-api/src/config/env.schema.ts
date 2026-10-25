@@ -125,8 +125,9 @@ const EnvObject = z.object({
   // Text extraction worker (D-132): `ocr` queue concurrency and per-job timeout; unset = the queue policy (D-084).
   OCR_WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(20).optional(),
   OCR_JOB_TIMEOUT_MS: z.coerce.number().int().min(10_000).max(600_000).optional(),
-  // Pages of a scanned PDF run through Tesseract (D-139); the rest of a longer one is not indexed.
-  OCR_MAX_PAGES: z.coerce.number().int().min(1).max(2000).default(100),
+  // Pages of a scanned PDF (or TIFF) run through Tesseract (D-139). About 4 s a page on a busy 2-CPU worker: the default
+  // fits the 300 s attempt; raise OCR_JOB_TIMEOUT_MS with it.
+  OCR_MAX_PAGES: z.coerce.number().int().min(1).max(250).default(50),
   // Ask for a summary after extraction (ai-ocr.md OCR step 6); off until the document-summary story enqueues it.
   AI_AUTO_SUMMARY: z.stringbool().default(false),
 });

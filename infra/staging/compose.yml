@@ -10,7 +10,8 @@ x-backend: &backend
   env_file: app.env
   restart: unless-stopped
   read_only: true
-  tmpfs: [/tmp]
+  # Bounded: OCR writes page images here (10 at a time, D-139) and a tmpfs lives in RAM.
+  tmpfs: [/tmp:size=512m]
   cap_drop: [ALL]
   security_opt: ['no-new-privileges:true']
   depends_on:

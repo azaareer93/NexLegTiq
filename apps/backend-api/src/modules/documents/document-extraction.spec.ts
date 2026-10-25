@@ -128,7 +128,7 @@ describe('DocumentExtraction', () => {
     const image = extractionSetup({ version: { ...VERSION, mimeType: 'image/png' } });
     await expect(image.service.run(JOB)).resolves.toBe('READY');
     expect(mockedOcr).toHaveBeenLastCalledWith(expect.any(Buffer), 'image/png', {
-      maxPages: 100,
+      maxPages: 50,
       signal: expect.any(AbortSignal),
     });
     expect(image.tx.documentText.upsert).toHaveBeenCalledWith(
@@ -147,7 +147,7 @@ describe('DocumentExtraction', () => {
     });
     await expect(scan.service.run(JOB)).resolves.toBe('READY');
     expect(mockedOcr).toHaveBeenLastCalledWith(expect.any(Buffer), MIME.PDF, {
-      maxPages: 100,
+      maxPages: 50,
       pdfPageCount: 3,
       signal: expect.any(AbortSignal),
     });
@@ -173,6 +173,7 @@ describe('DocumentExtraction', () => {
     });
     await expect(off.service.run(JOB)).resolves.toBe('NO_TEXT');
     expect(mockedOcr).not.toHaveBeenCalled();
+    expect(off.storage.getStream).not.toHaveBeenCalled();
     expect(off.tx.documentText.upsert).not.toHaveBeenCalled();
   });
 

@@ -60,7 +60,9 @@ jobs:
           push: true
           tags: ${{ env.IMAGE_REPO }}/backend-api-worker:${{ github.sha }}
           labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-          cache-from: type=gha,scope=backend-api
+          cache-from: |
+            type=gha,scope=backend-api-worker
+            type=gha,scope=backend-api
           cache-to: type=gha,scope=backend-api-worker,mode=max
       - name: backend-api-migrate
         uses: docker/build-push-action@v6
