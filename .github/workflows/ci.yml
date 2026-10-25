@@ -99,6 +99,12 @@ jobs:
           docker run --rm --network host -e AWS_ACCESS_KEY_ID=nexlegtiq -e AWS_SECRET_ACCESS_KEY=nexlegtiq-dev-only \
             -e AWS_DEFAULT_REGION=us-east-1 amazon/aws-cli:2.37.5 \
             --endpoint-url http://127.0.0.1:9000 s3api create-bucket --bucket nexlegtiq-documents-local
+      # The OCR integration tests run the real Tesseract (ara+eng) and pdftoppm, as the worker image does (D-139).
+      - name: Install Tesseract and poppler for OCR tests
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends tesseract-ocr tesseract-ocr-ara tesseract-ocr-eng poppler-utils
+          tesseract --list-langs
       - run: pnpm nx run backend-api:prisma-deploy
         if: ${{ hashFiles('apps/backend-api/prisma/schema.prisma') != '' }}
       - run: pnpm nx run backend-api:integration

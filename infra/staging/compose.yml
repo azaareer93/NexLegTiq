@@ -47,6 +47,8 @@ services:
 
   worker:
     <<: *backend
+    # The runtime plus Tesseract and poppler (D-139); OCR writes page images under the tmpfs /tmp, 10 pages at a time.
+    image: ${IMAGE_REPO:?}/backend-api-worker:${IMAGE_TAG:?}
     command: ['node', '--enable-source-maps', 'worker.js']
 
   clamav:
