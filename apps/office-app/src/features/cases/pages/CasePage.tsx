@@ -195,7 +195,9 @@ function FileView({
     );
 
   const tabContent = (key: string) => {
-    if (key === 'details') return <CaseDetailsTab file={file} onOpenHearing={setHearing} />;
+    if (key === 'details') {
+      return <CaseDetailsTab file={file} actions={actions} onOpenHearing={setHearing} />;
+    }
     if (key === 'documents') {
       return <DocumentsTab fileId={file.id} archived={file.status === 'ARCHIVED'} />;
     }

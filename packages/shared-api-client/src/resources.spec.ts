@@ -2,15 +2,8 @@ import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 
 import { createApiClient } from './api-client.js';
-import {
-  authApi,
-  casesApi,
-  clientsApi,
-  courtsApi,
-  officesApi,
-  sessionsApi,
-  usersApi,
-} from './resources.js';
+import { casesApi } from './cases.js';
+import { authApi, clientsApi, courtsApi, officesApi, sessionsApi, usersApi } from './resources.js';
 
 const ORIGIN = 'http://api.test';
 const url = (path: string) => `${ORIGIN}/api/v1/${path}`;
@@ -318,6 +311,69 @@ describe('casesApi', () => {
     };
     await expect(setup('access-1').cases.create(create)).resolves.toEqual(detail);
     expect(body).toEqual(create);
+  });
+
+  it("should change a file's clients and team (D-140)", async () => {
+    const seen: string[] = [];
+    const record = async (request: Request) => {
+      const { pathname } = new URL(request.url);
+      const text = await request.text();
+      seen.push(`${request.method} ${pathname.replace('/api/v1/', '')} ${text}`.trim());
+    };
+    const fileClient = {
+      id: '01920000-0000-7000-8000-0000000000c2',
+      displayName: 'Nour Co.',
+      clientType: 'INDIVIDUAL',
+      isPrimary: true,
+    };
+    const member = { id: '01920000-0000-7000-8000-000000000002', fullName: 'Rana', role: 'MEMBER' };
+    const base = `cases/${row.id}`;
+    const noContent = () => new HttpResponse(null, { status: 204 });
+    server.use(
+      http.post(
+        url(`${base}/clients`),
+        async ({ request }) => (await record(request), ok([fileClient], 201)),
+      ),
+      http.patch(
+        url(`${base}/clients/${fileClient.id}`),
+        async ({ request }) => (await record(request), ok([fileClient])),
+      ),
+      http.delete(
+        url(`${base}/clients/${fileClient.id}`),
+        async ({ request }) => (await record(request), noContent()),
+      ),
+      http.post(
+        url(`${base}/team`),
+        async ({ request }) => (await record(request), ok([member], 201)),
+      ),
+      http.patch(
+        url(`${base}/team/${member.id}`),
+        async ({ request }) => (await record(request), ok([member])),
+      ),
+      http.delete(
+        url(`${base}/team/${member.id}`),
+        async ({ request }) => (await record(request), noContent()),
+      ),
+    );
+    const { cases } = setup('access-1');
+    await expect(
+      cases.addClient(row.id, { clientId: fileClient.id, isPrimary: true }),
+    ).resolves.toEqual([fileClient]);
+    await expect(cases.makePrimaryClient(row.id, fileClient.id)).resolves.toEqual([fileClient]);
+    await cases.removeClient(row.id, fileClient.id);
+    await expect(
+      cases.addTeamMember(row.id, { userId: member.id, role: 'MEMBER' }),
+    ).resolves.toEqual([member]);
+    await expect(cases.changeTeamRole(row.id, member.id, 'MEMBER')).resolves.toEqual([member]);
+    await cases.removeTeamMember(row.id, member.id);
+    expect(seen).toEqual([
+      `POST ${base}/clients {"clientId":"${fileClient.id}","isPrimary":true}`,
+      `PATCH ${base}/clients/${fileClient.id} {"isPrimary":true}`,
+      `DELETE ${base}/clients/${fileClient.id}`,
+      `POST ${base}/team {"userId":"${member.id}","role":"MEMBER"}`,
+      `PATCH ${base}/team/${member.id} {"role":"MEMBER"}`,
+      `DELETE ${base}/team/${member.id}`,
+    ]);
   });
 
   it('should refuse a detail that breaks the contract as SYS-001', async () => {

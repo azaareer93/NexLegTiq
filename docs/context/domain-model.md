@@ -43,7 +43,7 @@
   `billingMethod: HOURLY|FIXED_FEE|RETAINER|CONTINGENCY`, hourlyRate?, fixedFee?, retainerBalance Decimal,
   currency, isConfidential, embedding vector(1536)? (Phase 2). courtId/judgeId: D-115 (a visible court, a judge of it), embedding
   with the similar-cases story (D-095).
-- **FileClient** 🔒 (fileId, clientId, isPrimary) · **FileTeamMember** 🔒 (fileId, userId, role).
+- **FileClient** 🔒 (fileId, clientId, isPrimary; exactly one primary, at least one client) · **FileTeamMember** 🔒 (fileId, userId, role; one RESPONSIBLE_LAWYER and at most one PARALEGAL per file, mirrored by `responsibleLawyerId` / `responsibleParalegalId` — D-140).
 - **FileNumberSequence** 🔒 (officeId, year, typeCode, lastValue) — keyed by what the format shows (D-095).
 - **FileNote** 🔒 — fileId?, clientId?, authorId, body, isConfidential (encrypted when confidential), pinned.
 - **CaseTimelineEvent** 🔒 — fileId, `eventType` (FILE_OPENED, FILE_CLOSED, FILE_REOPENED, FILE_REASSIGNED,

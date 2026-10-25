@@ -111,6 +111,29 @@
     "delete": {
       "title": "Delete this case?",
       "body": "Case <number>{{number}}</number> will be removed from every list. Its number is never reused."
+    },
+    "people": {
+      "add": "Add",
+      "remove": "Remove",
+      "addClient": "Add client",
+      "addClientTitle": "Add a client to this case",
+      "client": "Client",
+      "makePrimaryOnAdd": "Make them the primary client",
+      "makePrimary": "Make primary",
+      "makePrimaryLabel": "Make {{name}} the primary client",
+      "removeClient": "Remove {{name}} from the case",
+      "removeClientTitle": "Remove this client from the case?",
+      "removeClientBody": "{{name}} will no longer be a client of this case. They stay in your clients list.",
+      "addMember": "Add team member",
+      "addMemberTitle": "Add a colleague to the case team",
+      "member": "Colleague",
+      "personOption": "{{name}} · {{role}}",
+      "role": "Role on the case",
+      "roleOf": "Role of {{name}} on the case",
+      "reassignHint": "The current responsible lawyer stays on the team as a member.",
+      "removeMember": "Remove {{name}} from the team",
+      "removeMemberTitle": "Remove this colleague from the team?",
+      "removeMemberBody": "{{name}} will no longer be assigned to this case and may lose access to it."
     }
   },
   "create": {

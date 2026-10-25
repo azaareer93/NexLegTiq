@@ -7,17 +7,8 @@ export {
 } from './api-client.js';
 export type { ApiClient, ApiClientConfig, ApiRequest, Page, Realm } from './api-client.js';
 export { API_BASE_PATH, buildApiUrl } from './api-url.js';
-export {
-  authApi,
-  casesApi,
-  clientsApi,
-  courtsApi,
-  officesApi,
-  sessionsApi,
-  usersApi,
-} from './resources.js';
+export { authApi, clientsApi, courtsApi, officesApi, sessionsApi, usersApi } from './resources.js';
 export type {
-  CaseListParams,
   ClientListParams,
   ClientSession,
   CourtListParams,
@@ -29,3 +20,5 @@ export { tasksApi } from './tasks.js';
 export type { TaskListParams } from './tasks.js';
 export { partiesApi } from './parties.js';
 export type { ConflictListParams } from './parties.js';
+export { casesApi } from './cases.js';
+export type { CaseListParams } from './cases.js';

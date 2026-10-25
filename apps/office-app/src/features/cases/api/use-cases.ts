@@ -1,12 +1,15 @@
 import { ApiError, casesApi, courtsApi, usersApi } from '@nexlegtiq/shared-api-client';
 import type { CaseListParams } from '@nexlegtiq/shared-api-client';
 import type {
+  AddFileClientRequest,
+  AddTeamMemberRequest,
   Case,
   CreateCaseSchema,
   CreateCourtSchema,
   CreateJudgeSchema,
   UpdateCaseRequest,
 } from '@nexlegtiq/shared-contracts';
+import type { FileTeamRole } from '@nexlegtiq/shared-types';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { z } from 'zod';
 
@@ -82,6 +85,46 @@ export function useCreateCase() {
       void queryClient.invalidateQueries({ queryKey: caseKeys.lists() });
     },
   });
+}
+
+/**
+ * Changes to a file's clients and team (D-140). Each one refetches the file — whose header, cards and counts show them —
+ * and the lists (a new primary client or responsible lawyer shows there).
+ */
+export function useFileParticipants(id: string) {
+  const queryClient = useQueryClient();
+  const onSuccess = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: caseKeys.detail(id) }),
+      queryClient.invalidateQueries({ queryKey: caseKeys.lists() }),
+    ]);
+  return {
+    addClient: useMutation({
+      mutationFn: (body: AddFileClientRequest) => cases.addClient(id, body),
+      onSuccess,
+    }),
+    makePrimary: useMutation({
+      mutationFn: (clientId: string) => cases.makePrimaryClient(id, clientId),
+      onSuccess,
+    }),
+    removeClient: useMutation({
+      mutationFn: (clientId: string) => cases.removeClient(id, clientId),
+      onSuccess,
+    }),
+    addMember: useMutation({
+      mutationFn: (body: AddTeamMemberRequest) => cases.addTeamMember(id, body),
+      onSuccess,
+    }),
+    changeRole: useMutation({
+      mutationFn: ({ userId, role }: { userId: string; role: FileTeamRole }) =>
+        cases.changeTeamRole(id, userId, role),
+      onSuccess,
+    }),
+    removeMember: useMutation({
+      mutationFn: (userId: string) => cases.removeTeamMember(id, userId),
+      onSuccess,
+    }),
+  };
 }
 
 /** Active colleagues for the lawyer and paralegal pickers (D-123); changes rarely. */

@@ -115,6 +115,29 @@
     "delete": {
       "title": "حذف هذا الملف؟",
       "body": "سيُزال الملف <number>{{number}}</number> من جميع القوائم، ولن يُعاد استخدام رقمه."
+    },
+    "people": {
+      "add": "إضافة",
+      "remove": "إزالة",
+      "addClient": "إضافة موكل",
+      "addClientTitle": "إضافة موكل إلى الملف",
+      "client": "الموكل",
+      "makePrimaryOnAdd": "اجعله الموكل الرئيسي",
+      "makePrimary": "اجعله رئيسيًا",
+      "makePrimaryLabel": "اجعل {{name}} الموكل الرئيسي",
+      "removeClient": "إزالة {{name}} من الملف",
+      "removeClientTitle": "إزالة هذا الموكل من الملف؟",
+      "removeClientBody": "لن يبقى {{name}} موكلًا في هذا الملف، ويظل في قائمة موكليك.",
+      "addMember": "إضافة عضو إلى الفريق",
+      "addMemberTitle": "إضافة زميل إلى فريق الملف",
+      "member": "الزميل",
+      "personOption": "{{name}} · {{role}}",
+      "role": "الدور في الملف",
+      "roleOf": "دور {{name}} في الملف",
+      "reassignHint": "يبقى المحامي المسؤول الحالي في الفريق بصفة عضو.",
+      "removeMember": "إزالة {{name}} من الفريق",
+      "removeMemberTitle": "إزالة هذا الزميل من الفريق؟",
+      "removeMemberBody": "لن يبقى {{name}} مكلفًا بهذا الملف، وقد يفقد الوصول إليه."
     }
   },
   "create": {
