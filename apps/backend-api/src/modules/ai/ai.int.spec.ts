@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { ModuleRef } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
@@ -10,6 +11,7 @@ import { PinoLogger } from 'nestjs-pino';
 import request from 'supertest';
 import { z } from 'zod';
 
+import { AiCostAlert } from './ai-cost-alert';
 import { AiExecutor } from './ai-executor';
 import { AiJobRegistry } from './ai-job-registry';
 import { AiJobs } from './ai-jobs';
@@ -20,6 +22,7 @@ import { configureApp } from '../../app/configure-app';
 import { AppException } from '../../common/errors/app.exception';
 import { getQueue, QUEUE } from '../../common/queue/queues';
 import { TenantRunner } from '../../common/tenancy/tenant-runner';
+import { AppConfig } from '../../config/app-config';
 import { integrationEnv } from '../../config/env.fixture';
 import { PrismaService } from '../../database/prisma.service';
 import type { PrismaClient } from '../../generated/prisma/client';
@@ -122,6 +125,9 @@ describe('AI foundation (integration)', () => {
       await app.resolve(PinoLogger),
       registry,
       jobs,
+      app.get(AiCostAlert, { strict: false }),
+      app.get(AppConfig),
+      app.get(ModuleRef),
     );
     [a1, a2] = await seedOffice('AI office A');
     [b1] = await seedOffice('AI office B');

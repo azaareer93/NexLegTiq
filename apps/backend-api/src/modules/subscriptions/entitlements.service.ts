@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import type { PlanFeature } from '@nexlegtiq/shared-contracts';
+import type { AiUsageSummary } from '@nexlegtiq/shared-contracts';
 import type { OfficeId } from '@nexlegtiq/shared-types';
+import { wallClock, zonedDateTime } from '@nexlegtiq/shared-utils';
 import { ClsService } from 'nestjs-cls';
 
 import { resolveEntitlements } from './entitlements';
@@ -23,6 +25,7 @@ export class EntitlementsService {
   // applies within 30 s. Move to Redis (`o:{officeId}:entitlements`, D-058) when the admin panel edits plans or a second
   // API instance runs.
   private readonly cache = new Map<string, { value: Entitlements; until: number }>();
+  private readonly zones = new Map<string, { value: string; until: number }>();
 
   constructor(
     private readonly subscriptions: SubscriptionsRepository,
@@ -75,12 +78,60 @@ export class EntitlementsService {
     }
   }
 
-  /** 403 AUTH-103 when the office has used its monthly AI requests (provider calls this UTC month, D-130). */
+  /**
+   * 403 AUTH-103 when the office has used its monthly AI operations (D-130, D-144); the detail says none remain and when
+   * the quota resets, so the app can tell the user.
+   */
   async assertAiQuota(): Promise<void> {
-    const { aiQuotaMonthly } = await this.current();
-    if (aiQuotaMonthly !== null && (await this.aiCallsThisMonth()) >= aiQuotaMonthly) {
-      throw new AppException('AUTH-103', 'Monthly AI quota of the plan reached');
+    if ((await this.current()).aiQuotaMonthly === null) return; // unlimited: nothing to count
+    const usage = await this.aiUsage();
+    if (usage.remaining === 0) {
+      throw new AppException('AUTH-103', 'Monthly AI quota of the plan reached', [
+        {
+          field: 'aiQuota',
+          message: 'validation.aiQuotaReached',
+          params: { remaining: '0', quota: String(usage.quota), resetsAt: usage.resetsAt },
+        },
+      ]);
     }
+  }
+
+  /** This month's AI use against the plan (D-144): `quota`/`remaining` null = unlimited. */
+  async aiUsage(now = new Date()): Promise<AiUsageSummary> {
+    const [{ aiQuotaMonthly: quota }, month] = await Promise.all([
+      this.current(),
+      this.aiMonth(now),
+    ]);
+    const used = await this.subscriptions.aiCallsSince(month.start);
+    return {
+      used,
+      quota,
+      remaining: quota === null ? null : Math.max(0, quota - used),
+      resetsAt: month.resetsAt.toISOString(),
+    };
+  }
+
+  /** The office's calendar month around `now`, in its own time zone (D-092, D-144). */
+  async aiMonth(now = new Date()): Promise<{ readonly start: Date; readonly resetsAt: Date }> {
+    const zone = await this.timeZone();
+    const [year, month] = wallClock(now, zone).date.split('-').map(Number) as [number, number];
+    const first = (y: number, m: number) =>
+      new Date(zonedDateTime(`${y}-${String(m).padStart(2, '0')}-01`, '00:00', zone));
+    return {
+      start: first(year, month),
+      resetsAt: month === 12 ? first(year + 1, 1) : first(year, month + 1),
+    };
+  }
+
+  /** The office's time zone, cached like the entitlements (a change applies within 30 s). */
+  private async timeZone(): Promise<string> {
+    const officeId = this.officeId();
+    const now = Date.now();
+    const hit = this.zones.get(officeId);
+    if (hit && hit.until > now) return hit.value;
+    const value = await this.subscriptions.officeTimeZone();
+    this.zones.set(officeId, { value, until: now + CACHE_MS });
+    return value;
   }
 
   /** Google Vision pages the office may still use this UTC month (D-142); 0 when the plan has none. */
@@ -98,11 +149,9 @@ export class EntitlementsService {
     return this.subscriptions.activeUsers();
   }
 
-  /** AI provider calls this UTC month, for the quota and the usage view. */
-  aiCallsThisMonth(now = new Date()): Promise<number> {
-    return this.subscriptions.aiCallsSince(
-      new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)),
-    );
+  /** Successful AI operations this month (office time zone), for the quota and the usage view. */
+  async aiCallsThisMonth(now = new Date()): Promise<number> {
+    return this.subscriptions.aiCallsSince((await this.aiMonth(now)).start);
   }
 
   /** Storage used in whole MiB, rounded up (a 1-byte file counts as 1 MB). */

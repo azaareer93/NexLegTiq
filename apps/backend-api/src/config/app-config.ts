@@ -195,6 +195,12 @@ export class AppConfig {
       prices: env.AI_MODEL_PRICES,
     };
   }
+
+  /** The daily platform AI cost alert (D-144); null when not configured. */
+  get aiCostAlert(): { readonly thresholdUsd: number; readonly email: string } | null {
+    const { AI_COST_ALERT_THRESHOLD_USD: thresholdUsd, AI_COST_ALERT_EMAIL: email } = this.#env;
+    return thresholdUsd !== undefined && email !== undefined ? { thresholdUsd, email } : null;
+  }
 }
 
 export type AiProviderName = Env['AI_PRIMARY_PROVIDER'];

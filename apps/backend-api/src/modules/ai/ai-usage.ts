@@ -14,6 +14,8 @@ export interface UsageEntry {
   readonly outputTokens: number;
   readonly durationMs: number;
   readonly cached: boolean;
+  /** The answer passed validation (D-144); a cache hit always did. Defaults to true. */
+  readonly succeeded?: boolean;
   readonly userId: string | null;
   /** USD, summed over the calls (`cost` per call). */
   readonly costUsd: string;

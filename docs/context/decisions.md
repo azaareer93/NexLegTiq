@@ -2284,6 +2284,38 @@ restore fails. `verify.sql` now also checks the purge function (SECURITY DEFINER
 **Not done:** images pinned by digest (the repo pins tags, D-078), a pre-migration snapshot in the deploy script (a provider
 snapshot by hand until the release pipeline story).
 
+**D-144 — AI quota month, successful operations, the usage endpoint and the daily cost alert** · Accepted (MVP-85, 2026-10-26) · Amends D-130, D-122, D-125
+D-130 already records every AI answer (`AiUsage`, cost per call from `AI_MODEL_PRICES`, redaction counts, D-131) and checks
+the quota before a job is queued and before every provider call; MVP-85 asked for "successful" operations, the month in the
+**office's time zone**, `remaining=0` on refusal, a usage endpoint and the daily platform cost alert. → **What counts:**
+new column `AiUsage.succeeded` (default true; migration `ai_usage_succeeded`): the executor records every paid answer as
+before and marks whether it passed validation — an answer still invalid after its repair (AI-004) is recorded, priced and
+**not counted**; cache hits stay free (amends D-130's "one usage row of a provider answer"). **The month** is the office's
+calendar month in its time zone (`Office.timezone`, D-125; Asia/Hebron by default): `EntitlementsService.aiMonth()` finds
+its first instant with shared-utils' `wallClock`/`zonedDateTime` (DST-safe, D-127); 23:30 UTC on 30 November is already
+December in Hebron. **Refusal:** AUTH-103 carries one detail `{field: 'aiQuota', message: 'validation.aiQuotaReached', params:
+{remaining: '0', quota, resetsAt}}` (new AR/EN key), so the app can say when the count restarts. **`GET /ai/usage`**
+(`use:ai`: OM, SL, L, P, T) → `{used, quota, remaining, resetsAt}` (`quota`/`remaining` null for an unlimited plan) for the
+AI tab (its UI story shows it); `GET /offices/me/subscription`'s usage gains `aiResetsAt`, shown in Settings → Subscription
+("the AI count starts again on …"). **Cost alert:** `AI_COST_ALERT_THRESHOLD_USD` + `AI_COST_ALERT_EMAIL` (both or neither;
+off when unset — the ticket's "default 20" is not applied, an alert needs a recipient): the `ai` queue's consumer gets a
+platform job `ai-cost-alert`, scheduled daily at 06:00 UTC only when configured (removed otherwise), which sums the previous
+UTC day's cost of every office (`unscoped`, only the sum leaves the query) and, above the threshold, logs an error and emails
+the founder in plain English through the mail transport directly (it belongs to no office, so not through the tenant email
+queue; founder-facing, so not translated). **Sentry event: deviation** — no error tracker exists yet (monitoring story,
+waiting for the owner's vendor choice); the error log line is what it will pick up. **Not done:** a per-office cost report
+(admin panel), alerting more than once a day, reserving quota for concurrent jobs (D-130's known limit stands).
+Review additions (same PR): **AI use is visible to AI users (amends D-122's visibility rule):** `GET /ai/usage` shows used,
+quota and remaining to every `use:ai` holder (OM, SL, L, P, T) — the AI tab tells its users what is left — while the
+subscription view keeps head count, storage and the other limits for `manage:subscription` holders; AI counts reveal
+nothing about the office's size. **The cost check cannot be impersonated:** its name is reserved in the job registry, and
+the processor runs it only for a job without an office in its data (what the scheduler queues), within 60 s; it is
+scheduled with **one attempt** (a send that failed after delivery never emails twice) by workers that have the setting, and
+never removed at boot (a worker without it would undo the others' schedule; a run without the setting does nothing — to stop
+it for good, remove the scheduler by hand). The office's time zone is **cached like the entitlements** (30 s), so a quota
+check costs no extra query; unlimited plans skip the count. The daily sum scans `ai_usages` by `created_at` without an index
+of its own — accepted at today's volume (one query a day). Integration test: rows at 21:59 and 22:01 UTC on 31 January fall in
+January and February of Hebron respectively, and the refusal carries `remaining: '0'`.
 **D-145 — Platform admin realm: TOTP sign-in, enrolment, sessions, IP allow-list and the platform audit log** · Accepted (MVP-101, 2026-10-26) · Amends D-079, D-080
 MVP-101 fixed the model (mandatory TOTP, separate secret and audience, 8 h / 30 min sessions, optional IP allow-list,
 audited admin actions) and left the flow, storage and first-admin path open; D-079 left platform-level audit "to the admin

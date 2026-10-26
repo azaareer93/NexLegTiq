@@ -143,6 +143,9 @@ const EnvObject = z.object({
     })
     .pipe(z.record(z.string(), z.object({ input: z.number().min(0), output: z.number().min(0) })))
     .default({}),
+  // Daily platform AI cost alert (D-144): yesterday's cost of every office above this many USD emails the address below.
+  AI_COST_ALERT_THRESHOLD_USD: z.coerce.number().positive().optional(),
+  AI_COST_ALERT_EMAIL: z.email().optional(),
   // Text extraction worker (D-132): `ocr` queue concurrency and per-job timeout; unset = the queue policy (D-084).
   OCR_WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(20).optional(),
   OCR_JOB_TIMEOUT_MS: z.coerce.number().int().min(10_000).max(600_000).optional(),
@@ -307,6 +310,14 @@ export const EnvSchema = EnvObject.refine(
       });
     }
   })
+  .refine(
+    (env) =>
+      (env.AI_COST_ALERT_THRESHOLD_USD === undefined) === (env.AI_COST_ALERT_EMAIL === undefined),
+    {
+      message: 'AI_COST_ALERT_THRESHOLD_USD and AI_COST_ALERT_EMAIL are set together',
+      path: ['AI_COST_ALERT_EMAIL'],
+    },
+  )
   .refine((env) => env.ADMIN_JWT_SECRET !== env.JWT_SECRET, {
     message: 'must differ from JWT_SECRET (an office token must never pass as an admin one)',
     path: ['ADMIN_JWT_SECRET'],

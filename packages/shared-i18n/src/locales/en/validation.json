@@ -1,4 +1,5 @@
 {
+  "aiQuotaReached": "The office has used this month's AI operations. They start again on {{resetsAt}}.",
   "amount": "Enter an amount with at most two decimals.",
   "assignee": "Choose an active colleague who can work on this case.",
   "attendingLawyer": "Choose an active lawyer who can see this case.",
