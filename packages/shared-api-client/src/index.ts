@@ -15,7 +15,7 @@ export type {
   FileSessionsParams,
 } from './resources.js';
 export { documentsApi, foldersApi } from './documents.js';
-export type { DocumentListParams, UploadInput } from './documents.js';
+export type { DocumentListParams, UploadInput, VersionInput } from './documents.js';
 export { tasksApi } from './tasks.js';
 export type { TaskListParams } from './tasks.js';
 export { partiesApi } from './parties.js';

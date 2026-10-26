@@ -1,9 +1,19 @@
-import { DocumentSchema, DocumentUploadSchema, FolderSchema } from '@nexlegtiq/shared-contracts';
+import {
+  DocumentSchema,
+  DocumentTextSchema,
+  DocumentUploadSchema,
+  DocumentVersionSchema,
+  DownloadLinkSchema,
+  FolderSchema,
+} from '@nexlegtiq/shared-contracts';
 import type {
   CreateFolderRequest,
   Document,
   DocumentQuerySchema,
+  DocumentText,
   DocumentUpload,
+  DocumentVersion,
+  DownloadLink,
   Folder,
   UpdateDocumentRequest,
   UpdateFolderRequest,
@@ -23,6 +33,12 @@ export interface UploadInput {
   readonly filename: string;
   readonly documentType?: DocumentType;
   readonly folderId?: string;
+}
+
+export interface VersionInput {
+  readonly file: Blob;
+  readonly filename: string;
+  readonly changeNote?: string;
 }
 
 /** Documents of a file (D-126, D-128, D-132). */
@@ -67,6 +83,46 @@ export function documentsApi(client: ApiClient) {
           signal,
           ...(onProgress && { onUploadProgress: onProgress }),
           ...(idempotencyKey && { headers: { 'Idempotency-Key': idempotencyKey } }),
+        },
+        DocumentUploadSchema,
+      );
+    },
+    get: (id: string, signal?: AbortSignal): Promise<Document> =>
+      client.request({ method: 'GET', path: path(id), signal }, DocumentSchema),
+    /** Every stored upload, newest first (D-126). */
+    versions: (id: string, signal?: AbortSignal): Promise<DocumentVersion[]> =>
+      client.request(
+        { method: 'GET', path: `${path(id)}/versions`, signal },
+        DocumentVersionSchema.array(),
+      ),
+    /** A 5-minute link to the current version (audited; 422 BIZ-015 / STO-004 until scanned clean, D-128). */
+    downloadLink: (id: string, signal?: AbortSignal): Promise<DownloadLink> =>
+      client.request({ method: 'GET', path: `${path(id)}/download`, signal }, DownloadLinkSchema),
+    /** The current version's extracted text, 20,000 characters a page (audited, D-128). */
+    text: (id: string, page: number, signal?: AbortSignal): Promise<DocumentText> =>
+      client.request(
+        { method: 'GET', path: `${path(id)}/text`, query: { page: String(page) }, signal },
+        DocumentTextSchema,
+      ),
+    /** A new version (202), scanned again before it can be opened; the note goes before the file (D-126). */
+    uploadVersion: (
+      id: string,
+      input: VersionInput,
+      {
+        onProgress,
+        signal,
+      }: { onProgress?: (fraction: number) => void; signal?: AbortSignal } = {},
+    ): Promise<DocumentUpload> => {
+      const form = new FormData();
+      if (input.changeNote) form.append('changeNote', input.changeNote);
+      form.append('file', input.file, input.filename);
+      return client.request(
+        {
+          method: 'POST',
+          path: `${path(id)}/versions`,
+          body: form,
+          signal,
+          ...(onProgress && { onUploadProgress: onProgress }),
         },
         DocumentUploadSchema,
       );

@@ -2284,6 +2284,47 @@ restore fails. `verify.sql` now also checks the purge function (SECURITY DEFINER
 **Not done:** images pinned by digest (the repo pins tags, D-078), a pre-migration snapshot in the deploy script (a provider
 snapshot by hand until the release pipeline story).
 
+**D-143 — Document preview drawer: bytes fetched by the app, pdf.js, the text tab and versions** · Accepted (owner chose option A for both questions; MVP-146, 2026-10-26) · Amends D-133
+D-085 serves every presigned link as an attachment, never inline, so the ticket's "inline via the presigned URL" could not
+work as written, and D-128 lets only the current version be downloaded. → **Bytes:** the drawer asks `GET
+/documents/:id/download` (the audited link, D-128) and **fetches the bytes itself** (`credentials: 'omit'`, no referrer) —
+the storage domain never renders anything, nothing on the server changed. This needs a **bucket CORS rule** (`GET`/`HEAD`
+from the office-app origins only): the dev stack's `s3-init` sets it on RustFS, the owner sets it on the production bucket
+(`docs/runbooks/deploy.md`), and the SPA's CSP, once defined, must allow `img-src blob:`, `worker-src 'self'` and the bucket
+in `connect-src`. **Drawer** (`features/cases/documents/preview`), opened from the document's name in the list (a button,
+`documents.preview.open`): title with the status, **Download** (a fresh link, followed as the attachment), and tabs mounted
+when first shown, so a preview, a text page or a link — each an audit row — is asked for only when looked at.
+**Preview:** PDFs through **pdf.js 6.3** (`pdfjs-dist`, pinned, a root dependency; loaded on first use in its own chunk,
+worker served from the app's assets, XFA off; pdf.js 6 has no `eval` font path, CVE-2024-4367), one page at a time on a
+canvas at the drawer's width with a pager; PNG and JPEG through an object URL (revoked when closed); TIFF, Word, Excel, CSV
+and legacy `.doc` get "cannot be previewed — read its text or download it" and no link is asked for. Bytes are kept only
+while shown (`gcTime: 0`, up to 50 MB) and never retried by themselves (each try is an audited link). A document not yet
+scanned clean shows the API's own reason (BIZ-015 / STO-004); a storage fetch that fails is **STO-002** ("the download
+failed") with a retry. **Text:** the current version's text, 20,000 characters a page (D-128), with a search that marks
+every case-insensitive match on the page and says how many (Arabic plural forms); the text block is `dir="auto"` with
+`unicode-bidi: plaintext`, so every paragraph takes its own direction (Arabic right to left, English left to right) in either
+interface language; "not ready yet" while OCR is PENDING, "no text" otherwise. **Versions:** every stored upload, newest
+first (version, uploaded name, author, date, size, note); **only the current version has a download** (D-128) — older ones
+show a disabled button explaining it; "upload a new version" (one file, the client checks of D-133, an optional note up to
+500 characters, progress) for those who may upload and not on an archived file — the API decides who may replace a
+colleague's document (D-126). Shared API client: `documentsApi.get|versions|downloadLink|text|uploadVersion`. **Amends
+D-133:** the "download/preview and version history" it deferred are done. **Not done:** downloading older versions (needs a
+per-version scan record, a backend story), search across pages of the text (global search), Arabic-normalised highlighting
+(hamza/alef variants are not folded when marking), thumbnails, previews in the list, the Cypress journey (E2E story).
+Review additions (same PR): **only the latest page draws** — a newer page or width cancels the running render and an
+older request stops after loading its page (paging fast once broke the whole preview: two renders on one canvas); the
+canvas is **capped at 16 MP** (pdf.js's own default — a hostile 1 × 14,400 pt page could otherwise take the tab down) and
+follows the pane's width through a `ResizeObserver` (the drawer animates open and can be resized). **Fewer audit rows:**
+text pages have their own query prefix like the bytes (`document-text`), fetched once per version — the realtime
+`document.processed` refresh and other documents' writes no longer re-read the open page (each read is a `VIEW` row,
+D-128); the drawer's text starts on page 1 for a new version. **Bytes wait for a clean scan:** a document that is not
+openable (anything but READY, PROCESSING, or FAILED after the scan) shows why (BIZ-015 / STO-004) without asking for a
+link, and its preview appears by itself once `document.processed` refreshes it. The download mutation keeps no link
+(`gcTime: 0`). Text paragraphs align to their own start (`unicode-bidi: plaintext` + `text-align: start`, no page-level
+`dir`); image `alt`, sizes and names are bidi-isolated; pagers are labelled `<nav>`s. **Worker CSP (deviation from the
+ticket's wording):** pdf.js's worker is served as one of the app's own assets, so the SPA needs `worker-src 'self'`, not
+`blob:` — narrower than the ticket asked; a CDN that serves assets from another origin must add that origin. The bucket may
+answer with `Access-Control-Allow-Credentials: true`; harmless, the fetch sends no credentials.
 **D-142 — Google Vision fallback for hard-to-read scans: opt-in, page budget, EU endpoint, cost per document** · Accepted (owner chose the recommended options; MVP-145, 2026-10-25) · Amends D-122, D-139
 Vision receives unredacted document images (scans cannot be PII-redacted, D-057), so the owner chose (Jira comment on the
 ticket): **office opt-in + plan flag, a monthly page budget, the EU endpoint and the owner's GCP project.** → **When:** after

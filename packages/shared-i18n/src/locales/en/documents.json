@@ -71,5 +71,34 @@
     "moved": "Document moved",
     "deleted": "Document deleted",
     "retried": "Processing started again"
+  },
+  "preview": {
+    "open": "Open {{name}}",
+    "loading": "Loading",
+    "download": "Download",
+    "tabs": {
+      "preview": "Preview",
+      "text": "Text",
+      "versions": "Versions"
+    },
+    "unsupported": "This type of file cannot be previewed",
+    "unsupportedHint": "Read its text in the Text tab, or download it.",
+    "failed": "This file could not be displayed. Download it to open it.",
+    "pageOf": "Page {{page}} of {{total}}",
+    "search": "Search this page",
+    "matches_one": "{{count}} match on this page",
+    "matches_other": "{{count}} matches on this page",
+    "textPending": "The text is not ready yet. It appears once the document has been read.",
+    "textNone": "No text was extracted from this document.",
+    "newVersion": "Upload a new version",
+    "pickFile": "Choose file",
+    "changeNote": "What changed (optional)",
+    "uploadVersion": "Upload version",
+    "versionUploaded": "New version uploaded. It is checked before it can be opened.",
+    "downloadVersion": "Download version {{number}}",
+    "olderUnavailable": "Only the current version can be downloaded for now.",
+    "current": "Current",
+    "pages": "Pages of the document",
+    "textPages": "Pages of the text"
   }
 }

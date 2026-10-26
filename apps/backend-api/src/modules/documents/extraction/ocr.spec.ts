@@ -233,7 +233,10 @@ describe('ocr (D-139)', () => {
       pdfPageCount: 2,
       signal: controller.signal,
     });
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    // Wait until both pages are being read (a fixed sleep was too short when the whole suite runs in parallel).
+    for (let tries = 0; tries < 200 && calls('tesseract').length < 2; tries += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
     expect(calls('tesseract')).toHaveLength(2);
     controller.abort();
     await expect(running).rejects.toThrow('aborted');
