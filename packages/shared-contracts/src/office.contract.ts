@@ -109,6 +109,8 @@ export const OfficeSettingsSchema = z.object({
   taxRatePercent: z.string(),
   enableAi: z.boolean(),
   enableOcr: z.boolean(),
+  /** Google Vision for hard-to-read scans (D-142): off by default, also needs the plan flag `googleVisionOcr`. */
+  enableVisionOcr: z.boolean(),
   fileNumberFormat: z.string(),
   sessionIdleMinutes: z.number().int(),
   auditRetentionDays: z.number().int(),
@@ -127,6 +129,7 @@ export const UpdateOfficeSettingsSchema = z
     taxRatePercent: PercentSchema,
     enableAi: z.boolean(),
     enableOcr: z.boolean(),
+    enableVisionOcr: z.boolean(),
     fileNumberFormat: FileNumberFormatSchema,
     /** D-053: 15–120 (CHECK on the column). */
     sessionIdleMinutes: z

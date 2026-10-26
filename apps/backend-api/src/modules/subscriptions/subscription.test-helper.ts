@@ -20,6 +20,7 @@ export function liveSubscription() {
             currency: 'USD',
             maxUsers: null,
             aiQuotaMonthly: null,
+            ocrPagesMonthly: 1000,
             storageQuotaMb: 512_000,
             features: { customPricing: true },
             sortOrder: 140,

@@ -69,7 +69,9 @@
     "fileNumberFormat": "Case number format",
     "fileNumberHelp": "{YEAR} = year, {TYPE} = case type code, {SEQ:5} = sequence with 5 digits. Applies to new cases.",
     "enableAi": "AI features",
-    "enableOcr": "Text recognition (OCR) for uploads"
+    "enableOcr": "Text recognition (OCR) for uploads",
+    "enableVisionOcr": "Google Vision for hard-to-read scans",
+    "enableVisionOcrHint": "Scans that our own text recognition reads poorly are sent to Google Cloud Vision (EU). Only on plans that include it, within the monthly page allowance. Confidential documents are never sent."
   },
   "security": {
     "title": "Security",
