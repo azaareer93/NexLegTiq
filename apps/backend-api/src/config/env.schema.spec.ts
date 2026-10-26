@@ -226,6 +226,14 @@ describe('parseEnv', () => {
       ),
     ).toThrow(/AI_FALLBACK_PROVIDER: must differ/);
     expect(() => parseEnv(testEnv({ AI_PRIMARY_PROVIDER: 'fake' }))).toThrow(/fake AI provider/);
+    // Google Vision gets the key and unredacted scans (D-142): only Google's hosts in production.
+    expect(() =>
+      parseEnv(testEnv({ GOOGLE_VISION_ENDPOINT: 'https://vision.example.com' })),
+    ).toThrow(/googleapis.com/);
+    expect(
+      parseEnv(testEnv({ GOOGLE_VISION_ENDPOINT: 'https://eu-vision.googleapis.com' }))
+        .GOOGLE_VISION_ENDPOINT,
+    ).toBe('https://eu-vision.googleapis.com');
     expect(
       parseEnv(testEnv({ NODE_ENV: 'test', AI_PRIMARY_PROVIDER: 'fake' })).AI_PRIMARY_PROVIDER,
     ).toBe('fake');

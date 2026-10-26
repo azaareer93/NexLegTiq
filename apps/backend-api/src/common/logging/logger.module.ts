@@ -37,6 +37,7 @@ export const SENSITIVE_KEYS = [
   'RESEND_API_KEY',
   'OPENAI_API_KEY',
   'GEMINI_API_KEY',
+  'GOOGLE_VISION_CREDENTIALS',
   'jwtSecret',
   'SMTP_PASSWORD',
   'apiKey',

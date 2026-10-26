@@ -386,6 +386,8 @@ model OfficeSettings {
   taxRatePercent        Decimal       @default(0) @map("tax_rate_percent") @db.Decimal(5, 2)
   enableAi              Boolean       @default(true) @map("enable_ai")
   enableOcr             Boolean       @default(true) @map("enable_ocr")
+  /// Google Vision for hard-to-read scans (D-142): the office's opt-in, also gated by the plan flag `googleVisionOcr`.
+  enableVisionOcr       Boolean       @default(false) @map("enable_vision_ocr")
   fileNumberFormat      String        @default("{YEAR}-{TYPE}-{SEQ:5}") @map("file_number_format")
   sessionIdleMinutes    Int           @default(30) @map("session_idle_minutes")
   auditRetentionDays    Int           @default(365) @map("audit_retention_days")
@@ -659,24 +661,26 @@ model LegalAcceptance {
 
 /// Platform-wide catalogue. Feature gating reads `features`, never plan codes or names.
 model Plan {
-  id             String     @id @default(uuid(7)) @db.Uuid
-  code           String     @unique
-  name           String
-  market         PlanMarket
-  priceMonthly   Decimal    @map("price_monthly") @db.Decimal(14, 2)
-  currency       String     @db.Char(3)
+  id              String     @id @default(uuid(7)) @db.Uuid
+  code            String     @unique
+  name            String
+  market          PlanMarket
+  priceMonthly    Decimal    @map("price_monthly") @db.Decimal(14, 2)
+  currency        String     @db.Char(3)
   /// null = unlimited.
-  maxUsers       Int?       @map("max_users")
+  maxUsers        Int?       @map("max_users")
   /// null = unlimited.
-  aiQuotaMonthly Int?       @map("ai_quota_monthly")
-  storageQuotaMb Int        @map("storage_quota_mb")
+  aiQuotaMonthly  Int?       @map("ai_quota_monthly")
+  /// Google Vision OCR pages per office and month (D-142); 0 = none.
+  ocrPagesMonthly Int        @default(0) @map("ocr_pages_monthly")
+  storageQuotaMb  Int        @map("storage_quota_mb")
   /// Free/trial length in days for plans that start in TRIALING (e.g. 180 for the Palestine freemium, 30 globally).
-  trialDays      Int?       @map("trial_days")
-  features       Json       @default("{}")
-  isActive       Boolean    @default(true) @map("is_active")
-  sortOrder      Int        @default(0) @map("sort_order")
-  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt      DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+  trialDays       Int?       @map("trial_days")
+  features        Json       @default("{}")
+  isActive        Boolean    @default(true) @map("is_active")
+  sortOrder       Int        @default(0) @map("sort_order")
+  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   subscriptions Subscription[]
 
@@ -1334,6 +1338,8 @@ model DocumentText {
   ocrEngine           String?                  @map("ocr_engine")
   /// 0–100.
   ocrConfidence       Decimal?                 @map("ocr_confidence") @db.Decimal(5, 2)
+  /// What the OCR provider charged for this version, in USD (Google Vision, D-142); null for Tesseract and text layers.
+  ocrCostUsd          Decimal?                 @map("ocr_cost_usd") @db.Decimal(10, 6)
   /// OCR only (D-139): mean word confidence (0–100) of each page in order, null for a page without words.
   pageConfidences     Json?                    @map("page_confidences")
   extractedAt         DateTime                 @default(now()) @map("extracted_at") @db.Timestamptz(3)

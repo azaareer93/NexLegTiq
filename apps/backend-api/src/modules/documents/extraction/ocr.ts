@@ -102,7 +102,7 @@ const UNDECODABLE =
  * Runs a tool with only what it needs in its environment — never the server's secrets (the parsers read untrusted
  * uploads) — and one OpenMP thread: the worker's concurrency and PARALLEL_PAGES decide the CPU used.
  */
-async function tool(command: string, args: string[], signal: AbortSignal): Promise<void> {
+export async function tool(command: string, args: string[], signal: AbortSignal): Promise<void> {
   const { PATH, TESSDATA_PREFIX } = process.env;
   try {
     await execute(command, args, {

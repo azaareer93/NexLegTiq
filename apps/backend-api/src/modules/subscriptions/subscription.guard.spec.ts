@@ -32,7 +32,14 @@ const OFFICE: AuthPrincipal = {
   role: 'OFFICE_MANAGER',
   realm: 'OFFICE',
 };
-const plan = { code: 'P', name: 'P', maxUsers: null, aiQuotaMonthly: null, storageQuotaMb: 1 };
+const plan = {
+  code: 'P',
+  name: 'P',
+  maxUsers: null,
+  aiQuotaMonthly: null,
+  ocrPagesMonthly: 0,
+  storageQuotaMb: 1,
+};
 const ACTIVE = resolveEntitlements(
   [
     {

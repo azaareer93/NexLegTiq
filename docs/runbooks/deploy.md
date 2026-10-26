@@ -19,7 +19,10 @@ Cloudflare Pages. Nothing in the repo names a VPS provider or region (D-021 is s
 
 1. **Managed services** — Postgres 17 with `vector`, `pg_trgm`, `unaccent`, `citext`; run `docs/runbooks/db-roles.sql` as
    the admin and set passwords for `nexlegtiq_migrator` and `nexlegtiq_app`. A Redis with TLS. A private bucket
-   (`nexlegtiq-documents-staging`) with an access key limited to it.
+   (`nexlegtiq-documents-staging`) with an access key limited to it, and a **CORS rule** letting the office app read
+   document previews (D-143): `GET`, `HEAD` from the office-app origin(s) only (the Pages domain and its custom domain),
+   headers `*`, max age 3600 — never `*` as an origin. Without it the preview drawer shows "download failed" while
+   downloads still work.
 2. **Host** — a VPS with ≥ 4 GB RAM (ClamAV alone needs ~1.5 GB), Docker Engine + compose plugin, ports 80/443 open,
    everything else closed. Create a `deploy` user in the `docker` group, allow only key login, and
    `sudo install -d -o deploy -m 700 /opt/nexlegtiq/staging`. Point `STAGING_API_DOMAIN` (DNS A/AAAA, **not** proxied
@@ -36,7 +39,10 @@ Cloudflare Pages. Nothing in the repo names a VPS provider or region (D-021 is s
 6. **SPAs** — Cloudflare Pages Git integration, one project per app (office-app first): build command
    `pnpm nx build office-app`, output `apps/office-app/dist`, production branch `develop`, env `VITE_API_URL=https://<STAGING_API_DOMAIN>`;
    Pages builds a preview per PR by itself. Put the Pages domains behind Cloudflare Access (email one-time PIN) so
-   staging is not public, and list them in `CORS_ORIGINS`.
+   staging is not public, and list them in `CORS_ORIGINS`. When the SPA's Content-Security-Policy is set (Pages
+   `_headers`), it must allow the document preview (D-143): `img-src 'self' blob:` (images are shown from object URLs),
+   `worker-src 'self'` (pdf.js's worker is one of the app's own assets) and the bucket's origin in `connect-src` (the app
+   fetches the bytes through the presigned link).
 7. **Platform admin** (D-145) — set `ADMIN_JWT_SECRET` (≥ 32 random characters, not `JWT_SECRET`) and, ideally,
    `ADMIN_IP_ALLOWLIST` in the app env; then, from your machine with the migrator's `DATABASE_URL`:
    `ADMIN_EMAIL=you@… ADMIN_NAME="…" pnpm nx run backend-api:create-admin` — it prints a first password once; sign in to

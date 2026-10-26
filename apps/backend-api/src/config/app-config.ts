@@ -154,6 +154,23 @@ export class AppConfig {
     };
   }
 
+  /** Google Vision fallback (D-142); null when no credentials are configured. */
+  get vision(): {
+    readonly apiKey: string;
+    readonly endpoint: string;
+    readonly minConfidence: number;
+    readonly pricePer1000: number;
+  } | null {
+    const env = this.#env;
+    if (!env.GOOGLE_VISION_CREDENTIALS) return null;
+    return {
+      apiKey: env.GOOGLE_VISION_CREDENTIALS,
+      endpoint: env.GOOGLE_VISION_ENDPOINT.replace(/\/+$/, ''),
+      minConfidence: env.OCR_VISION_MIN_CONFIDENCE,
+      pricePer1000: env.GOOGLE_VISION_PRICE_PER_1000_PAGES,
+    };
+  }
+
   get clamav(): { readonly host: string; readonly port: number } {
     return { host: this.#env.CLAMAV_HOST, port: this.#env.CLAMAV_PORT };
   }
