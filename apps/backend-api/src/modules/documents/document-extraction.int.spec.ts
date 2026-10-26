@@ -31,6 +31,7 @@ import { TENANT_MODELS } from '../../database/tenant-models';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { PrismaClient } from '../../generated/prisma/client';
 import { bearerFor } from '../auth/auth.test-helper';
+import { EntitlementsService } from '../subscriptions/entitlements.service';
 import { liveSubscription } from '../subscriptions/subscription.test-helper';
 
 type Delegate = { deleteMany(args: unknown): Promise<unknown> };
@@ -89,6 +90,7 @@ describe('document text extraction (integration)', () => {
       app.get(QueueProducer),
       app.get(AppConfig),
       quiet,
+      app.get(EntitlementsService),
     );
 
   async function seed(name: string): Promise<Person> {

@@ -5,6 +5,7 @@ import { FOLDER_SYSTEM_KEYS } from '@nexlegtiq/shared-types';
 import { LegalFilesTestDb } from '../legal-files/legal-files.test-helper';
 import type { TestOffice } from '../legal-files/legal-files.test-helper';
 import { StorageUsageService } from '../subscriptions/storage-usage.service';
+import { SubscriptionsRepository } from '../subscriptions/subscriptions.repository';
 
 /** Prisma's code and the error text that names the constraint (it sits in the message or the driver cause). */
 async function violation(write: Promise<unknown>): Promise<{ code: unknown; text: string }> {
@@ -184,6 +185,33 @@ describe('documents schema (real PostgreSQL)', () => {
     expect(await found('simple', 'استئناف')).toBe(0); // the bare word, not الاستئناف: simple has no stemming
     expect(await found('simple', 'الاستئناف')).toBe(1);
     expect(await found('simple', 'المحكمة')).toBe(0);
+  });
+
+  it('should count this month’s Vision pages of the current office only (D-142)', async () => {
+    const repository = new SubscriptionsRepository(db.prisma);
+    const monthStart = new Date(Date.UTC(2031, 0, 1));
+    const text = async (office: TestOffice, pageCount: number, extra: object) => {
+      const fileX = await file(office);
+      const doc = await document(office, fileX.id);
+      await version(office, doc.id, fileX.id, 1, 1n);
+      await db.raw.documentText.create({
+        data: {
+          officeId: office.officeId,
+          documentId: doc.id,
+          versionNumber: 1,
+          text: 'x',
+          pageCount,
+          extractedAt: new Date(Date.UTC(2031, 0, 15)),
+          ...extra,
+        },
+      });
+    };
+    await text(a, 3, { ocrEngine: 'google-vision', ocrCostUsd: '0.0045' });
+    await text(a, 4, { ocrEngine: 'tesseract', ocrCostUsd: '0.006' }); // paid, Tesseract's text kept
+    await text(a, 9, { ocrEngine: 'tesseract' }); // never sent to Vision
+    await text(a, 5, { ocrCostUsd: '0.0075', extractedAt: new Date(Date.UTC(2030, 11, 31)) });
+    await text(b, 7, { ocrEngine: 'google-vision', ocrCostUsd: '0.0105' });
+    expect(await db.asOffice(a, () => repository.visionPagesSince(monthStart))).toBe(7);
   });
 
   it('should sum the stored versions of the current office only', async () => {

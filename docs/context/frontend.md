@@ -43,7 +43,7 @@ Implementation, menu permissions and placeholder/403/404 pages: D-091 (`apps/off
 - **Legal file page** (heart): header (back, `number • title`, status/priority tags, responsible, ⋮ reassign/change status/archive/delete)
   + tabs **Details, Sessions, Documents, Parties, Timeline, Tasks, Billing, AI, Notes, Audit**, tab in URL.
   Details: fields + client/court/judge/billing cards, next-hearing card with reminders, key counts.
-  Documents: folder tree + list, upload dragger (multi), status/OCR chips, version history, share-with-client toggle, preview drawer (PDF/image).
+  Documents: folder tree + list, upload dragger (multi), status/OCR chips, version history, share-with-client toggle, preview drawer (PDF/image preview, extracted text with search, versions + new version, D-143).
   Parties: grouped by role, conflict warning banner. Timeline: grouped by month, icons per event type.
   Tasks: Kanban (TODO/IN_PROGRESS/BLOCKED/DONE, @dnd-kit) + list view. Billing: timer, time entries, invoices, retainer.
   AI: summaries per document/session with disclaimer, "generate", "create tasks from next steps".

@@ -15,6 +15,7 @@ const ROW = {
       name: true,
       maxUsers: true,
       aiQuotaMonthly: true,
+      ocrPagesMonthly: true,
       storageQuotaMb: true,
       features: true,
     },
@@ -61,6 +62,15 @@ export class SubscriptionsRepository {
   async officeTimeZone(): Promise<string> {
     const office = await this.prisma.db.office.findFirst({ select: { timezone: true } });
     return office?.timezone ?? DEFAULT_TIME_ZONE;
+  }
+
+  /** Pages sent to Google Vision since `monthStart` (D-142): every version with a Vision cost, whichever text was kept. */
+  async visionPagesSince(monthStart: Date): Promise<number> {
+    const { _sum } = await this.prisma.db.documentText.aggregate({
+      where: { ocrCostUsd: { not: null }, extractedAt: { gte: monthStart } },
+      _sum: { pageCount: true },
+    });
+    return _sum.pageCount ?? 0;
   }
 
   pendingInvitations(now: Date): Promise<number> {

@@ -57,7 +57,7 @@ services:
       timeout: 5s
       retries: 20
 
-  # One-shot: creates the documents bucket if missing, then exits. "Exited (0)" is its normal final state.
+  # One-shot: creates the documents bucket if missing and lets the office app read previews (CORS GET, D-143), then exits. "Exited (0)" is its normal final state.
   s3-init:
     image: amazon/aws-cli:2.37.5
     depends_on:
@@ -75,6 +75,9 @@ services:
         then echo 'bucket nexlegtiq-documents-local already exists';
         else aws --endpoint-url http://s3:9000 s3api create-bucket --bucket nexlegtiq-documents-local >/dev/null &&
         echo 'created bucket nexlegtiq-documents-local'; fi
+        && aws --endpoint-url http://s3:9000 s3api put-bucket-cors --bucket nexlegtiq-documents-local
+        --cors-configuration '{"CORSRules":[{"AllowedOrigins":["http://localhost:4200","http://127.0.0.1:4200"],"AllowedMethods":["GET","HEAD"],"AllowedHeaders":["*"],"MaxAgeSeconds":3600}]}'
+        && echo 'bucket CORS: the office app may read document previews (D-143)'
     restart: 'no'
 
   mailpit:

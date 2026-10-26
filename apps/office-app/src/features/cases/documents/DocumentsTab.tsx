@@ -10,6 +10,7 @@ import { DocumentsTable } from './DocumentsTable';
 import type { DocumentRights } from './DocumentsTable';
 import { FolderTree } from './FolderTree';
 import type { FolderSelection } from './FolderTree';
+import { DocumentPreviewDrawer } from './preview/DocumentPreviewDrawer';
 import { UploadPanel } from './UploadPanel';
 import { useDocuments, useFolders } from './use-documents';
 import { useCtrlAltShortcut } from '../quick-create';
@@ -25,8 +26,10 @@ function ListBody({
   rights,
   page,
   onPage,
+  onOpen,
 }: {
   readonly fileId: string;
+  readonly onOpen: (documentId: string) => void;
   readonly list: ReturnType<typeof useDocuments>;
   readonly filtered: boolean;
   readonly folders: readonly Folder[];
@@ -53,6 +56,7 @@ function ListBody({
       documents={list.data.items}
       folders={folders}
       rights={rights}
+      onOpen={(document) => onOpen(document.id)}
       loading={list.isFetching && list.isPlaceholderData}
       pagination={{
         current: page,
@@ -131,6 +135,7 @@ export function DocumentsTab({
   const [selection, setSelection] = useState<FolderSelection>('all');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [opened, setOpened] = useState<string | null>(null);
   const folders = useFolders(fileId).data ?? [];
   const list = useDocuments(fileId, listQuery(selection, search, page));
   // A page emptied by a delete (or a shorter list) goes back to the last page that has rows.
@@ -177,9 +182,18 @@ export function DocumentsTab({
             rights={{ edit: canUpload, delete: canDelete }}
             page={page}
             onPage={setPage}
+            onOpen={setOpened}
           />
         </Card>
       </Col>
+      {opened ? (
+        <DocumentPreviewDrawer
+          fileId={fileId}
+          documentId={opened}
+          canUpload={canUpload}
+          onClose={() => setOpened(null)}
+        />
+      ) : null}
     </Row>
   );
 }

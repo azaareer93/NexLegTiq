@@ -132,4 +132,61 @@ describe('documentsApi and foldersApi (D-119, D-126, D-128, D-132)', () => {
       `PATCH cases/${FILE}/folders/${FOLDER.id}`,
     ]);
   });
+
+  it('should read a document, its versions, a download link and its text, and upload a version', async () => {
+    const version = {
+      versionNumber: 2,
+      originalFilename: 'عقد-معدل.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 4,
+      checksumSha256: 'a'.repeat(64),
+      changeNote: 'توقيع',
+      createdBy: DOC.uploadedBy,
+      createdAt: '2026-10-06T09:00:00.000Z',
+    };
+    let textPage: string | null = null;
+    let versionFields: string[] = [];
+    server.use(
+      http.get(url(`documents/${DOC.id}`), () => ok(DOC)),
+      http.get(url(`documents/${DOC.id}/versions`), () => ok([version])),
+      http.get(url(`documents/${DOC.id}/download`), () =>
+        ok({ downloadUrl: 'https://storage.test/o/1', expiresIn: 300 }),
+      ),
+      http.get(url(`documents/${DOC.id}/text`), ({ request }) => {
+        textPage = new URL(request.url).searchParams.get('page');
+        return ok({ versionNumber: 2, ocrStatus: 'DONE', page: 2, totalPages: 3, text: 'نص' });
+      }),
+      http.post(url(`documents/${DOC.id}/versions`), async ({ request }) => {
+        versionFields = [...(await request.formData()).keys()];
+        return HttpResponse.json(
+          {
+            success: true,
+            data: { documentId: DOC.id, versionNumber: 2, status: 'SCANNING' },
+            meta,
+          },
+          { status: 202 },
+        );
+      }),
+    );
+    const api = documentsApi(client());
+    await expect(api.get(DOC.id)).resolves.toMatchObject({ id: DOC.id });
+    await expect(api.versions(DOC.id)).resolves.toEqual([version]);
+    await expect(api.downloadLink(DOC.id)).resolves.toEqual({
+      downloadUrl: 'https://storage.test/o/1',
+      expiresIn: 300,
+    });
+    await expect(api.text(DOC.id, 2)).resolves.toMatchObject({ text: 'نص', totalPages: 3 });
+    expect(textPage).toBe('2');
+    const file = new Blob(['%PDF'], { type: 'application/pdf' });
+    await expect(
+      api.uploadVersion(
+        DOC.id,
+        { file, filename: 'عقد-معدل.pdf', changeNote: 'توقيع' },
+        { onProgress: () => undefined },
+      ),
+    ).resolves.toEqual({ documentId: DOC.id, versionNumber: 2, status: 'SCANNING' });
+    expect(versionFields).toEqual(['changeNote', 'file']);
+    await api.uploadVersion(DOC.id, { file, filename: 'x.pdf' });
+    expect(versionFields).toEqual(['file']);
+  });
 });
