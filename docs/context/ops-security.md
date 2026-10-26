@@ -5,7 +5,8 @@
 
 ## Security controls (MVP)
 - Transport: TLS 1.2+ (Caddy auto-TLS), HSTS 1y, HTTPS redirect.
-- AuthN/Z: see `auth-rbac.md`. MFA for platform admins. Idle timeout 30 min default.
+- AuthN/Z: see `auth-rbac.md`. MFA (TOTP) for platform admins, admin realm only from `ADMIN_ORIGINS` and, before launch,
+  behind `ADMIN_IP_ALLOWLIST` (D-145). Idle timeout 30 min default.
 - Input: Zod at every boundary; Prisma parameterized only; uploads MIME-sniffed + ClamAV + size limit.
 - Output: React escaping, sanitize-html for rich text, CSP (helmet), download via short-lived presigned URLs (5 min) after
   access check + audit `DOWNLOAD`.

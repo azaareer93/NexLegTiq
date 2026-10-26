@@ -1,5 +1,3 @@
-import { randomBytes } from 'node:crypto';
-
 import { Inject, Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import type {
@@ -10,24 +8,26 @@ import type {
   AdminProfile,
   AdminSession,
 } from '@nexlegtiq/shared-contracts';
+import { PinoLogger } from 'nestjs-pino';
 
 import { PlatformAuditService } from './platform-audit.service';
 import {
   ADMIN_ACCESS_TTL_SECONDS,
+  ADMIN_ACCOUNT_MAX_FAILURES,
   ADMIN_AUDIENCE,
+  ADMIN_ENROLMENT_WINDOW_MS,
   ADMIN_JWT,
-  RECOVERY_CODE_COUNT,
 } from './platform-auth.constants';
 import type { AdminAccessClaims } from './platform-auth.constants';
 import { PlatformSessions } from './platform-sessions';
 import type { IssuedSession } from './platform-sessions';
-import { base32Encode, newTotpSecret, otpauthUri, verifyTotp } from './totp';
-import { hashOpaqueToken } from '../../common/auth/opaque-token';
+import { newRecoveryCode, RECOVERY_CODE_COUNT, recoveryCodeHash } from './recovery-codes';
+import { newTotpSecret, otpauthUri, verifyTotp } from './totp';
 import { FieldCipher } from '../../common/crypto/field-cipher';
 import { AppException, ResourceNotFoundException } from '../../common/errors/app.exception';
 import { AppConfig } from '../../config/app-config';
 import { PrismaService } from '../../database/prisma.service';
-import type { PlatformAdmin } from '../../generated/prisma/client';
+import type { PlatformAdmin, Prisma } from '../../generated/prisma/client';
 import { JWT_ISSUER } from '../auth/auth.constants';
 import type { ClientInfo } from '../auth/client-info';
 import { isLocked } from '../auth/lockout';
@@ -40,17 +40,11 @@ export interface AdminSignIn {
 }
 
 const secretContext = (adminId: string) => `platform_admins.mfa_secret:${adminId}`;
-/** Recovery codes are compared without case or dash. */
-const normaliseRecoveryCode = (code: string): string => code.replace('-', '').toUpperCase();
-const newRecoveryCode = (): string => {
-  const text = base32Encode(randomBytes(7)).slice(0, 10);
-  return `${text.slice(0, 5)}-${text.slice(5)}`;
-};
 
 /**
- * The platform admin realm (D-145): password + TOTP for every sign-in (recovery codes as the fallback), enrolment on first
- * sign-in, 8 h / 30 min sessions, the D-053 lockout and an audit row for each sign-in. No public signup: admins are made
- * with the `create-admin` command. Platform code reads admins through the raw client (D-080).
+ * The platform admin realm (D-145): password + TOTP for every sign-in (recovery codes as the fallback), enrolment within a
+ * day of `create-admin`, 8 h / 30 min sessions, the D-053 lockout per address plus an account-wide one, and an audit row
+ * for each sign-in. Platform code reads admins through the raw client (D-080).
  */
 @Injectable()
 export class PlatformAuthService {
@@ -63,7 +57,10 @@ export class PlatformAuthService {
     private readonly audit: PlatformAuditService,
     @Inject(ADMIN_JWT) private readonly jwt: JwtService,
     private readonly config: AppConfig,
-  ) {}
+    private readonly logger: PinoLogger,
+  ) {
+    this.logger.setContext(PlatformAuthService.name);
+  }
 
   async login(body: AdminLoginRequest, client: ClientInfo): Promise<AdminSignIn> {
     const admin = await this.checkPassword(body.email, body.password, client);
@@ -79,51 +76,61 @@ export class PlatformAuthService {
       await this.attempts.record(body.email, client.ip, false);
       throw new AppException('AUTH-009', 'Wrong verification code');
     }
-    return this.signIn(admin, client, now, body.code ? 'LOGIN' : 'LOGIN_RECOVERY_CODE');
+    // unscoped: platform admins belong to no office (D-079).
+    const issued = await this.prisma
+      .unscoped()
+      .$transaction((tx) =>
+        this.startSession(tx, admin, client, now, body.code ? 'LOGIN' : 'LOGIN_RECOVERY_CODE'),
+      );
+    return this.signedIn(admin, client, issued);
   }
 
   /** A not-yet-enrolled admin's secret to scan; asking again replaces the one not confirmed yet. */
   async enroll(body: AdminEnrollRequest, client: ClientInfo): Promise<AdminEnrollment> {
-    const admin = await this.checkPassword(body.email, body.password, client);
-    if (admin.mfaEnrolledAt) throw new AppException('RES-003', 'Authenticator already set up');
+    const admin = await this.enrollable(body.email, body.password, client);
     const secret = newTotpSecret();
-    // unscoped: platform admins belong to no office.
-    await this.prisma.unscoped().platformAdmin.updateMany({
+    // unscoped: see login().
+    const stored = await this.prisma.unscoped().platformAdmin.updateMany({
       where: { id: admin.id, mfaEnrolledAt: null },
       data: { mfaSecret: this.cipher.encrypt(secret, secretContext(admin.id)), mfaLastStep: null },
     });
+    // Confirmed meanwhile: this secret was never stored, so it must not be shown.
+    if (stored.count !== 1) throw new AppException('RES-003', 'Authenticator already set up');
     return { otpauthUri: otpauthUri(secret, admin.email), secret };
   }
 
-  /** The first code proves the app holds the secret: enrolment ends, recovery codes are made, the admin is signed in. */
+  /**
+   * The first code proves the app holds the secret. Enrolment, the recovery codes and the first session commit together,
+   * so the codes are never stored without being shown.
+   */
   async confirmEnrollment(
     body: AdminConfirmEnrollmentRequest,
     client: ClientInfo,
   ): Promise<AdminSignIn> {
-    const admin = await this.checkPassword(body.email, body.password, client);
-    if (admin.mfaEnrolledAt) throw new AppException('RES-003', 'Authenticator already set up');
+    const admin = await this.enrollable(body.email, body.password, client);
     if (!admin.mfaSecret) throw enrolmentNeeded();
     const now = new Date();
-    const secret = this.cipher.decrypt(admin.mfaSecret, secretContext(admin.id));
-    const step = verifyTotp(secret, body.code, now, null);
+    const step = verifyTotp(
+      this.cipher.decrypt(admin.mfaSecret, secretContext(admin.id)),
+      body.code,
+      now,
+      null,
+    );
     if (step === null) {
       await this.attempts.record(body.email, client.ip, false);
       throw new AppException('AUTH-009', 'Wrong verification code');
     }
     const codes = Array.from({ length: RECOVERY_CODE_COUNT }, newRecoveryCode);
-    // unscoped: see enroll().
-    const enrolled = await this.prisma.unscoped().$transaction(async (tx) => {
+    // unscoped: see login().
+    const issued = await this.prisma.unscoped().$transaction(async (tx) => {
       const done = await tx.platformAdmin.updateMany({
         where: { id: admin.id, mfaEnrolledAt: null, mfaSecret: admin.mfaSecret },
         data: { mfaEnrolledAt: now, mfaLastStep: step },
       });
-      if (done.count !== 1) return false;
+      if (done.count !== 1) return null; // a second confirmation, or a new secret asked for meanwhile
       await tx.platformRecoveryCode.deleteMany({ where: { adminId: admin.id } });
       await tx.platformRecoveryCode.createMany({
-        data: codes.map((code) => ({
-          adminId: admin.id,
-          codeHash: hashOpaqueToken(normaliseRecoveryCode(code)),
-        })),
+        data: codes.map((code) => ({ adminId: admin.id, codeHash: recoveryCodeHash(code) })),
       });
       await this.audit.log(
         {
@@ -135,18 +142,17 @@ export class PlatformAuthService {
         client,
         tx,
       );
-      return true;
+      return this.startSession(tx, admin, client, now, 'LOGIN');
     });
-    // A second confirmation racing this one, or a new secret asked for meanwhile.
-    if (!enrolled) throw new AppException('RES-003', 'Authenticator setup changed meanwhile');
-    const signedIn = await this.signIn(admin, client, now, 'LOGIN');
+    if (!issued) throw new AppException('RES-003', 'Authenticator setup changed meanwhile');
+    const signedIn = await this.signedIn(admin, client, issued);
     return { ...signedIn, session: { ...signedIn.session, recoveryCodes: codes } };
   }
 
-  async refresh(token: string | undefined): Promise<AdminSignIn> {
+  async refresh(token: string | undefined, client: ClientInfo): Promise<AdminSignIn> {
     if (!token) throw new AppException('AUTH-005', 'No admin session');
     const now = new Date();
-    const issued = await this.sessions.rotate(token, now);
+    const issued = await this.sessions.rotate(token, now, client);
     const admin = await this.findActive(issued.adminId);
     if (!admin) {
       await this.sessions.end(issued.refreshToken, now);
@@ -155,7 +161,7 @@ export class PlatformAuthService {
     return { issued, session: await this.sessionFor(admin, issued.familyId) };
   }
 
-  /** Idempotent: an unknown token ends nothing and writes nothing. */
+  /** Idempotent: an unknown or already ended token ends nothing and writes nothing. */
   async logout(token: string | undefined, client: ClientInfo): Promise<void> {
     if (!token) return;
     const adminId = await this.sessions.end(token, new Date());
@@ -173,26 +179,41 @@ export class PlatformAuthService {
     return { id: admin.id, fullName: admin.fullName, email: admin.email };
   }
 
-  /** D-053 lockout, then the password (unknown emails pay for a dummy hash, D-082); any refusal is recorded. */
+  /**
+   * D-053 lockout per address, plus the account-wide one (10 failures from any address in 15 min: a botnet cannot
+   * spread guesses of the password or of the 6-digit code), then the password (dummy hash for unknown emails, D-082).
+   */
   private async checkPassword(
     email: string,
     password: string,
     client: ClientInfo,
   ): Promise<PlatformAdmin> {
     const now = new Date();
-    if (isLocked(await this.attempts.recentFailures(email, client.ip, now), now)) {
+    const [failures, accountFailures] = await Promise.all([
+      this.attempts.recentFailures(email, client.ip, now),
+      this.attempts.accountFailures(email, now),
+    ]);
+    if (isLocked(failures, now) || accountFailures >= ADMIN_ACCOUNT_MAX_FAILURES) {
       throw new AppException('AUTH-007', 'Too many failed attempts');
     }
-    // unscoped: platform admins belong to no office (D-079).
+    // unscoped: see login().
     const admin = await this.prisma.unscoped().platformAdmin.findUnique({ where: { email } });
     const valid = await this.hasher.verify(admin?.passwordHash, password);
-    if (!admin || !valid) {
+    if (!admin || !valid || !admin.isActive) {
       await this.attempts.record(email, client.ip, false);
-      throw new AppException('AUTH-001', 'Invalid admin credentials');
+      throw admin && valid
+        ? new AppException('AUTH-006', 'Admin account not active')
+        : new AppException('AUTH-001', 'Invalid admin credentials');
     }
-    if (!admin.isActive) {
-      await this.attempts.record(email, client.ip, false);
-      throw new AppException('AUTH-006', 'Admin account not active');
+    return admin;
+  }
+
+  /** Enrolment needs the password, an admin not enrolled yet, and to happen within a day of `create-admin`. */
+  private async enrollable(email: string, password: string, client: ClientInfo) {
+    const admin = await this.checkPassword(email, password, client);
+    if (admin.mfaEnrolledAt) throw new AppException('RES-003', 'Authenticator already set up');
+    if (Date.now() - admin.createdAt.getTime() > ADMIN_ENROLMENT_WINDOW_MS) {
+      throw new AppException('RES-004', 'Enrolment window over: re-create the admin');
     }
     return admin;
   }
@@ -202,7 +223,7 @@ export class PlatformAuthService {
     const secret = this.cipher.decrypt(admin.mfaSecret ?? '', secretContext(admin.id));
     const step = verifyTotp(secret, code, now, admin.mfaLastStep);
     if (step === null) return false;
-    // unscoped: see checkPassword().
+    // unscoped: see login().
     const claimed = await this.prisma.unscoped().platformAdmin.updateMany({
       where: { id: admin.id, OR: [{ mfaLastStep: null }, { mfaLastStep: { lt: step } }] },
       data: { mfaLastStep: step },
@@ -211,32 +232,41 @@ export class PlatformAuthService {
   }
 
   private async acceptRecoveryCode(adminId: string, code: string, now: Date): Promise<boolean> {
-    // unscoped: see checkPassword().
+    // unscoped: see login().
     const used = await this.prisma.unscoped().platformRecoveryCode.updateMany({
-      where: { adminId, codeHash: hashOpaqueToken(normaliseRecoveryCode(code)), usedAt: null },
+      where: { adminId, codeHash: recoveryCodeHash(code), usedAt: null },
       data: { usedAt: now },
     });
     return used.count === 1;
   }
 
-  private async signIn(
+  /** The session, the last sign-in time and the audit row, in the caller's transaction. */
+  private async startSession(
+    tx: Prisma.TransactionClient,
     admin: PlatformAdmin,
     client: ClientInfo,
     now: Date,
     action: string,
+  ): Promise<IssuedSession> {
+    const session = await this.sessions.start(tx, admin.id, now);
+    await tx.platformAdmin.update({ where: { id: admin.id }, data: { lastLoginAt: now } });
+    await this.audit.log(
+      { adminId: admin.id, action, entityType: 'PlatformAdmin', entityId: admin.id },
+      client,
+      tx,
+    );
+    return session;
+  }
+
+  /** After the commit: the success resets the address lock (best effort — the session already exists) and the token. */
+  private async signedIn(
+    admin: PlatformAdmin,
+    client: ClientInfo,
+    issued: IssuedSession,
   ): Promise<AdminSignIn> {
-    // unscoped: see checkPassword().
-    const issued = await this.prisma.unscoped().$transaction(async (tx) => {
-      const session = await this.sessions.start(tx, admin.id, now);
-      await tx.platformAdmin.update({ where: { id: admin.id }, data: { lastLoginAt: now } });
-      await this.audit.log(
-        { adminId: admin.id, action, entityType: 'PlatformAdmin', entityId: admin.id },
-        client,
-        tx,
-      );
-      return session;
+    await this.attempts.record(admin.email, client.ip, true).catch((error: unknown) => {
+      this.logger.warn({ err: error }, 'Admin sign-in success not recorded');
     });
-    await this.attempts.record(admin.email, client.ip, true);
     return { issued, session: await this.sessionFor(admin, issued.familyId) };
   }
 
@@ -259,7 +289,7 @@ export class PlatformAuthService {
   }
 
   private findActive(adminId: string): Promise<PlatformAdmin | null> {
-    // unscoped: see checkPassword().
+    // unscoped: see login().
     return this.prisma
       .unscoped()
       .platformAdmin.findFirst({ where: { id: adminId, isActive: true } });

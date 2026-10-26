@@ -60,6 +60,6 @@ export const AdminSessionSchema = z.object({
   accessToken: z.string(),
   expiresIn: z.number().int().positive(),
   admin: AdminProfileSchema,
-  recoveryCodes: z.array(z.string()).optional(),
+  recoveryCodes: z.array(z.string().regex(/^[A-Z2-7]{5}-[A-Z2-7]{5}$/)).optional(),
 });
 export type AdminSession = z.infer<typeof AdminSessionSchema>;

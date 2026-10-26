@@ -30,7 +30,10 @@ function setup() {
   const cls = { isActive: () => true, getId: () => 'req-12345678' };
   const controller = new PlatformAuthController(
     auth as unknown as PlatformAuthService,
-    { corsOrigins: [ORIGIN] } as unknown as AppConfig,
+    {
+      corsOrigins: ['https://office.example.test', ORIGIN],
+      admin: { origins: [ORIGIN] },
+    } as unknown as AppConfig,
     cls as unknown as ClsService<RequestContext>,
   );
   const res = { cookie: jest.fn(), clearCookie: jest.fn() };
@@ -61,12 +64,19 @@ describe('PlatformAuthController (D-145)', () => {
     const { controller, auth, res, req } = setup();
     await expect(controller.refresh(req(), res)).rejects.toMatchObject({ code: 'AUTH-100' });
     await controller.refresh(req(csrf, { [ADMIN_REFRESH_COOKIE]: 'rt' }), res);
-    expect(auth.refresh).toHaveBeenCalledWith('rt');
+    expect(auth.refresh).toHaveBeenCalledWith('rt', expect.objectContaining({ ip: '203.0.113.7' }));
+    // The office app is an allowed CORS origin, but never for the admin cookie (D-145).
+    await expect(
+      controller.refresh(
+        req({ ...csrf, origin: 'https://office.example.test' }, { [ADMIN_REFRESH_COOKIE]: 'rt' }),
+        res,
+      ),
+    ).rejects.toMatchObject({ code: 'AUTH-100' });
     auth.refresh.mockRejectedValueOnce(new AppException('AUTH-004', 'ended'));
     await expect(
       controller.refresh(req(csrf, { [ADMIN_REFRESH_COOKIE]: 7 }), res),
     ).rejects.toMatchObject({ code: 'AUTH-004' });
-    expect(auth.refresh).toHaveBeenLastCalledWith(undefined);
+    expect(auth.refresh).toHaveBeenLastCalledWith(undefined, expect.anything());
     expect(res.clearCookie).toHaveBeenCalledTimes(1);
     auth.refresh.mockRejectedValueOnce(new Error('outage'));
     await expect(controller.refresh(req(csrf), res)).rejects.toThrow('outage');

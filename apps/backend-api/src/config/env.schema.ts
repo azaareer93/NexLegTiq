@@ -85,6 +85,9 @@ const EnvObject = z.object({
   JWT_SECRET: z.string().min(32),
   // Platform admin realm (D-145): its own signing secret; unset = the admin routes answer 404.
   ADMIN_JWT_SECRET: z.string().min(32).optional(),
+  // The admin panel's origin(s): the only ones its cookie routes (refresh, logout) accept — an XSS on the office app or
+  // the portal, also in CORS_ORIGINS, must not be able to refresh an admin session. List them in CORS_ORIGINS as well.
+  ADMIN_ORIGINS: csv.pipe(z.array(origin)).default(['http://localhost:4201']),
   // Optional allow-list of the admin routes: IPs or CIDRs separated by commas or spaces (IPv4 and IPv6).
   ADMIN_IP_ALLOWLIST: z
     .string()
@@ -200,6 +203,13 @@ const PRODUCTION_RULES: readonly (readonly [keyof RawEnv, (env: RawEnv) => boole
     'OFFICE_APP_URL',
     (env) => !env.OFFICE_APP_URL.startsWith('https:'),
     'must use https:// in production (links in emails)',
+  ],
+  [
+    'ADMIN_ORIGINS',
+    (env) =>
+      env.ADMIN_JWT_SECRET !== undefined &&
+      env.ADMIN_ORIGINS.some((value) => !value.startsWith('https:')),
+    'must be https:// origins of the admin panel in production',
   ],
   [
     'BULL_BOARD_ENABLED',

@@ -1,4 +1,5 @@
 import { JwtService } from '@nestjs/jwt';
+import type { PinoLogger } from 'nestjs-pino';
 
 import type { PlatformAuditService } from './platform-audit.service';
 import { PlatformAuthService } from './platform-auth.service';
@@ -13,7 +14,9 @@ import type { LoginAttemptRepository } from '../auth/login-attempt.repository';
 import type { PasswordHasher } from '../auth/password-hasher';
 
 const SECRET = 'unit-only-admin-secret-0123456789abcdefgh';
-const config = new AppConfig(parseEnv(testEnv({ ADMIN_JWT_SECRET: SECRET })));
+const config = new AppConfig(
+  parseEnv(testEnv({ ADMIN_JWT_SECRET: SECRET, ADMIN_ORIGINS: 'https://admin.example.test' })),
+);
 const cipher = new FieldCipher(config);
 const client = { ip: '203.0.113.7', userAgent: 'jest', requestId: 'req-12345678' };
 const ID = '01920000-0000-7000-8000-00000000ad01';
@@ -31,20 +34,28 @@ function admin(extra: Record<string, unknown> = {}) {
       mfaSecret: cipher.encrypt(secret, `platform_admins.mfa_secret:${ID}`),
       mfaEnrolledAt: new Date('2026-10-01T00:00:00Z'),
       mfaLastStep: null as number | null,
+      createdAt: new Date(),
       ...extra,
     },
   };
 }
 
-function setup({
-  row = admin().row as Record<string, unknown> | null,
-  valid = true,
-  failures = [] as Date[],
-  claimed = 1,
-  recovery = 1,
-  enrolled = 1,
-  active = true,
-} = {}) {
+const DEFAULTS = {
+  row: admin().row as Record<string, unknown> | null,
+  valid: true,
+  failures: [] as Date[],
+  accountFailures: 0,
+  claimed: 1,
+  recovery: 1,
+  enrolled: 1,
+  active: true,
+};
+
+function setup(overrides: Partial<typeof DEFAULTS> = {}) {
+  const { row, valid, failures, accountFailures, claimed, recovery, enrolled, active } = {
+    ...DEFAULTS,
+    ...overrides,
+  };
   const raw = {
     platformAdmin: {
       findUnique: jest.fn().mockResolvedValue(row),
@@ -64,7 +75,12 @@ function setup({
   };
   raw.$transaction.mockImplementation((work: (tx: unknown) => unknown) => work(raw));
   const prisma = { unscoped: () => raw } as unknown as PrismaService;
-  const attempts = { recentFailures: jest.fn().mockResolvedValue(failures), record: jest.fn() };
+  const attempts = {
+    recentFailures: jest.fn().mockResolvedValue(failures),
+    accountFailures: jest.fn().mockResolvedValue(accountFailures),
+    record: jest.fn().mockResolvedValue(undefined),
+  };
+  const logger = { setContext: jest.fn(), warn: jest.fn() };
   const hasher = { verify: jest.fn().mockResolvedValue(valid) };
   const sessions = {
     start: jest
@@ -88,8 +104,9 @@ function setup({
     audit as unknown as PlatformAuditService,
     new JwtService(),
     config,
+    logger as unknown as PinoLogger,
   );
-  return { service, raw, attempts, sessions, audit };
+  return { service, raw, attempts, sessions, audit, logger };
 }
 
 const login = <T extends object = object>(extra?: T) => ({
@@ -99,6 +116,40 @@ const login = <T extends object = object>(extra?: T) => ({
 });
 
 describe('PlatformAuthService (D-145)', () => {
+  it('should lock the account after ten failures from any address, and only enrol within a day', async () => {
+    await expect(
+      setup({ accountFailures: 10 }).service.login(login(), client),
+    ).rejects.toMatchObject({
+      code: 'AUTH-007',
+    });
+    await expect(
+      setup({ accountFailures: 9 }).service.login(login(), client),
+    ).rejects.toMatchObject({
+      code: 'AUTH-008',
+    });
+    const stale = admin({
+      mfaEnrolledAt: null,
+      createdAt: new Date(Date.now() - 25 * 3_600_000),
+    }).row;
+    await expect(setup({ row: stale }).service.enroll(login(), client)).rejects.toMatchObject({
+      code: 'RES-004',
+    });
+    // Confirmed between the password check and the update: the secret was never stored, so it is not shown.
+    const racing = setup({ row: admin({ mfaEnrolledAt: null }).row, claimed: 0 });
+    await expect(racing.service.enroll(login(), client)).rejects.toMatchObject({ code: 'RES-003' });
+  });
+
+  it('should still sign in when the success attempt cannot be recorded (logged)', async () => {
+    const { secret, row } = admin();
+    const ok = setup({ row });
+    ok.attempts.record.mockRejectedValueOnce(new Error('db blip'));
+    const code = totpCode(secret, totpStep(new Date()));
+    await expect(ok.service.login(login({ code }), client)).resolves.toMatchObject({
+      session: { admin: { id: ID } },
+    });
+    expect(ok.logger.warn).toHaveBeenCalled();
+  });
+
   it('should refuse a locked address, wrong credentials and an inactive admin', async () => {
     const now = Date.now();
     const locked = Array.from({ length: 5 }, (_, i) => new Date(now - i * 1000));
@@ -216,12 +267,14 @@ describe('PlatformAuthService (D-145)', () => {
   });
 
   it('should refresh an active admin, end the session of an inactive one, and sign out idempotently', async () => {
-    await expect(setup().service.refresh(undefined)).rejects.toMatchObject({ code: 'AUTH-005' });
-    await expect(setup().service.refresh('rt')).resolves.toMatchObject({
+    await expect(setup().service.refresh(undefined, client)).rejects.toMatchObject({
+      code: 'AUTH-005',
+    });
+    await expect(setup().service.refresh('rt', client)).resolves.toMatchObject({
       session: { admin: { id: ID } },
     });
     const gone = setup({ active: false });
-    await expect(gone.service.refresh('rt')).rejects.toMatchObject({ code: 'AUTH-006' });
+    await expect(gone.service.refresh('rt', client)).rejects.toMatchObject({ code: 'AUTH-006' });
     expect(gone.sessions.end).toHaveBeenCalledWith('rt2', expect.any(Date));
     const out = setup();
     await out.service.logout(undefined, client);

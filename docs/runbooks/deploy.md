@@ -40,7 +40,9 @@ Cloudflare Pages. Nothing in the repo names a VPS provider or region (D-021 is s
 7. **Platform admin** (D-145) — set `ADMIN_JWT_SECRET` (≥ 32 random characters, not `JWT_SECRET`) and, ideally,
    `ADMIN_IP_ALLOWLIST` in the app env; then, from your machine with the migrator's `DATABASE_URL`:
    `ADMIN_EMAIL=you@… ADMIN_NAME="…" pnpm nx run backend-api:create-admin` — it prints a first password once; sign in to
-   the admin panel and scan the authenticator QR code; keep the ten recovery codes offline.
+   the admin panel and scan the authenticator QR code **within a day** (later, re-create the admin); keep the ten recovery
+   codes offline. Run it in an interactive terminal on your machine (never in CI or on the host): the password is printed.
+   Set `ADMIN_ORIGINS` to the admin panel's https origin (and add it to `CORS_ORIGINS`).
 8. **Reference data** — the migrate job seeds the plans (create-only). Demo data is not seeded: `seed-demo` refuses
    `NODE_ENV=production` and its user has no usable password; sign up on staging instead.
 

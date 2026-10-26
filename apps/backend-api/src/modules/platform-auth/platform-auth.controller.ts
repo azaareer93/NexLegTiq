@@ -117,9 +117,9 @@ export class PlatformAuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<AdminSession> {
-    assertCookieRequestOrigin(req.headers, this.config.corsOrigins);
+    assertCookieRequestOrigin(req.headers, this.adminOrigins());
     try {
-      return this.respond(await this.auth.refresh(this.cookie(req)), res);
+      return this.respond(await this.auth.refresh(this.cookie(req), this.client(req)), res);
     } catch (error) {
       if (error instanceof AppException && DEAD_SESSION.has(error.code)) {
         res.clearCookie(ADMIN_REFRESH_COOKIE, adminCookieOptions());
@@ -136,7 +136,7 @@ export class PlatformAuthController {
     summary: 'End the admin session family and clear the cookie (needs Origin + X-Requested-With)',
   })
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<void> {
-    assertCookieRequestOrigin(req.headers, this.config.corsOrigins);
+    assertCookieRequestOrigin(req.headers, this.adminOrigins());
     await this.auth.logout(this.cookie(req), this.client(req));
     res.clearCookie(ADMIN_REFRESH_COOKIE, adminCookieOptions());
   }
@@ -147,7 +147,14 @@ export class PlatformAuthController {
   @ApiOperation({ summary: 'The signed-in platform admin' })
   @ApiZodResponse(200, AdminProfileSchema)
   me(@Req() req: Request & { platformAdminId?: string }): Promise<AdminProfile> {
-    return this.auth.profile(req.platformAdminId ?? '');
+    // AdminAuthGuard always sets it; its absence is a wiring error (500), never a lookup of an empty id.
+    if (!req.platformAdminId) throw new Error('AdminAuthGuard did not run');
+    return this.auth.profile(req.platformAdminId);
+  }
+
+  /** Only the admin panel may use the admin cookie — not the office app or the portal (D-145). */
+  private adminOrigins(): readonly string[] {
+    return this.config.admin?.origins ?? [];
   }
 
   private respond({ session, issued }: AdminSignIn, res: Response): AdminSession {

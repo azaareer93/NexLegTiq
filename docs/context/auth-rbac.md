@@ -10,7 +10,8 @@
 | Refresh (opaque random 32B, stored SHA-256 in `refresh_token`) | 7 days (30 with "remember me") | httpOnly Secure SameSite=Lax cookie `nlq_rt`, path `/api/v1/auth` | – |
 Rotation on every refresh; reuse of a revoked token ⇒ revoke the whole family (`sid`) + audit `SECURITY` event.
 Permissions are **not** in the JWT; resolved server-side from role (cached) so role changes apply within one request.
-Client portal uses a separate realm: audience `portal`, secret `JWT_PORTAL_SECRET`, cookie `nlq_prt`.
+Client portal uses a separate realm: audience `portal`, secret `JWT_PORTAL_SECRET`, cookie `nlq_prt`. Platform admins too
+(D-145): audience `admin`, secret `ADMIN_JWT_SECRET`, cookie `nlq_admin_rt`, accepted only from `ADMIN_ORIGINS`.
 
 ## Flows
 - **Signup** (W1 + onboarding): office + OFFICE_MANAGER user + Free/Trial subscription + default settings +
@@ -91,4 +92,6 @@ all resource endpoints with a second office's token.
 helmet (HSTS 1y, CSP, frame-ancestors none, nosniff, referrer strict-origin), CORS allow-list per app, throttler
 (Redis) with limits in `api-conventions.md`, request body limit 1 MB (uploads separate, 50 MB streamed),
 Pino redaction (`authorization`, `cookie`, `password`, `token`, `*.nationalId`), secrets validated at boot,
-audit on LOGIN/LOGOUT/PERMISSION_DENIED/EXPORT/DOWNLOAD/SHARE.
+audit on LOGIN/LOGOUT/PERMISSION_DENIED/EXPORT/DOWNLOAD/SHARE. Admin realm before launch (D-145): `ADMIN_JWT_SECRET`,
+`ADMIN_ORIGINS` (https) and `ADMIN_IP_ALLOWLIST` set; every admin enrolled within a day of `create-admin`; recovery codes
+kept offline.

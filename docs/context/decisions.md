@@ -2317,3 +2317,21 @@ backend-api:create-admin` (refuses an existing email, prints a random first pass
 **Split:** the admin panel's sign-in, QR enrolment and recovery-code screens are their own story (created, blocked by this
 one), since the backend realm alone is a full story. **Not done:** changing an admin's password or resetting their
 authenticator (admin-panel stories), notifying on new sign-ins, WebAuthn.
+Review additions (same PR): **only the admin panel may use the admin cookie** — refresh and logout accept the Origin
+check against a new **`ADMIN_ORIGINS`** list (default `http://localhost:4201`, https in production), not the shared
+`CORS_ORIGINS`: an XSS on the office app or the portal (allowed CORS origins on the same site, D-089) could otherwise refresh an
+admin's session and read the token. **Account-wide lock:** besides the per-address D-053 lock, **10 failures for one admin
+from any address within 15 minutes** (wrong passwords and wrong codes alike) lock the account (AUTH-007) — a botnet cannot
+spread guesses of the 6-digit code (`LoginAttemptRepository.accountFailures`). **Enrolment within a day:** `enroll` and
+`confirm` are refused with 410 RES-004 more than 24 h after `create-admin` — a leaked first password cannot be used to
+take the account later (re-create the admin instead); within the day, whoever confirms first owns it (the operator enrols
+right away). **Atomic enrolment:** confirming, the recovery codes, the audit row and the first session commit in one
+transaction (the codes are never stored without being shown); `enroll` refuses (409) when the authenticator was confirmed
+meanwhile instead of showing a secret that was never stored; recording a successful attempt after the commit is best
+effort (logged). **A reused or raced refresh token** also writes a `SECURITY` row (`REFRESH_TOKEN_REUSED`). The realm uses
+the office realm's `PasswordHasher` and `LoginAttemptRepository` (exported by `AuthModule`) and a `JwtService` of its own
+token (`ADMIN_JWT`), so the office realm's `JwtService` stays the only unnamed one. **Confirms D-089:** the admin refresh path
+`admin/auth/refresh` (cookie `nlq_admin_rt`, SameSite=Strict); the admin panel must serialise refreshes across tabs (a
+concurrent reuse ends the session, tested). The access token lives 15 min but stops at once when its session ends; 8 h is a
+hard cap whatever the refreshes. Integration tests: the office origin refused on refresh, two concurrent refreshes (at most
+one wins, the family ends, a SECURITY row), two parallel confirmations (201 + 409, one set of codes), the enrolment window.

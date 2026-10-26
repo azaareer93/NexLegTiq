@@ -20,10 +20,13 @@ describe('admin realm guard (D-145)', () => {
   });
 
   it('should let every address in without an allow-list, and only listed ones with one', () => {
-    expect(guard({ jwtSecret: 's', ipAllowlist: [] }).canActivate(from('198.51.100.9'))).toBe(true);
+    expect(
+      guard({ jwtSecret: 's', ipAllowlist: [], origins: [] }).canActivate(from('198.51.100.9')),
+    ).toBe(true);
     const listed = guard({
       jwtSecret: 's',
       ipAllowlist: ['203.0.113.7', '10.0.0.0/8', '2001:db8::/32'],
+      origins: [],
     });
     expect(listed.canActivate(from('203.0.113.7'))).toBe(true);
     expect(listed.canActivate(from('::ffff:10.20.30.40'))).toBe(true);

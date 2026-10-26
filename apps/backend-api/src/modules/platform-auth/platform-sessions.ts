@@ -2,11 +2,13 @@ import { randomUUID } from 'node:crypto';
 
 import { Injectable } from '@nestjs/common';
 
+import { PlatformAuditService } from './platform-audit.service';
 import { ADMIN_SESSION_IDLE_MS, ADMIN_SESSION_MAX_MS } from './platform-auth.constants';
 import { hashOpaqueToken, newOpaqueToken } from '../../common/auth/opaque-token';
 import { AppException } from '../../common/errors/app.exception';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
+import type { ClientInfo } from '../auth/client-info';
 
 export interface IssuedSession {
   readonly refreshToken: string;
@@ -22,7 +24,12 @@ export interface RotatedSession extends IssuedSession {
 type Tx = Prisma.TransactionClient;
 type Rotation =
   | { readonly session: RotatedSession }
-  | { readonly refused: 'AUTH-004' | 'AUTH-005'; readonly familyId: string | null };
+  | {
+      readonly refused: 'AUTH-004' | 'AUTH-005';
+      readonly familyId: string | null;
+      /** Set when a used token came back: a stolen copy, recorded as a SECURITY event. */
+      readonly reusedBy?: string;
+    };
 
 /**
  * Admin sessions (D-145): an opaque refresh token (SHA-256 at rest) per rotation, all of one sign-in sharing a family.
@@ -31,7 +38,10 @@ type Rotation =
  */
 @Injectable()
 export class PlatformSessions {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: PlatformAuditService,
+  ) {}
 
   /** A new session at sign-in. */
   async start(tx: Tx, adminId: string, now: Date): Promise<IssuedSession> {
@@ -44,7 +54,7 @@ export class PlatformSessions {
    * past its 8 h (AUTH-004) or idle for 30 min (AUTH-004). The old token is claimed conditionally, so two concurrent
    * refreshes cannot both rotate it.
    */
-  async rotate(token: string, now: Date): Promise<RotatedSession> {
+  async rotate(token: string, now: Date, client: ClientInfo): Promise<RotatedSession> {
     // unscoped: admin sessions belong to no office.
     const raw = this.prisma.unscoped();
     const outcome = await raw.$transaction(async (tx): Promise<Rotation> => {
@@ -52,7 +62,9 @@ export class PlatformSessions {
         where: { tokenHash: hashOpaqueToken(token) },
       });
       if (!session) return { refused: 'AUTH-005', familyId: null };
-      if (session.revokedAt) return { refused: 'AUTH-005', familyId: session.familyId };
+      if (session.revokedAt) {
+        return { refused: 'AUTH-005', familyId: session.familyId, reusedBy: session.adminId };
+      }
       if (session.expiresAt <= now || session.idleUntil <= now) {
         return { refused: 'AUTH-004', familyId: session.familyId };
       }
@@ -60,7 +72,9 @@ export class PlatformSessions {
         where: { id: session.id, revokedAt: null },
         data: { revokedAt: now },
       });
-      if (claimed.count !== 1) return { refused: 'AUTH-005', familyId: session.familyId };
+      if (claimed.count !== 1) {
+        return { refused: 'AUTH-005', familyId: session.familyId, reusedBy: session.adminId };
+      }
       const next = await this.issue(
         tx,
         session.adminId,
@@ -78,6 +92,18 @@ export class PlatformSessions {
     if ('session' in outcome) return outcome.session;
     // Ended outside the transaction: a refusal must not roll the family's end back.
     if (outcome.familyId) await this.endFamily(raw, outcome.familyId, now);
+    if (outcome.reusedBy) {
+      await this.audit.log(
+        {
+          adminId: outcome.reusedBy,
+          action: 'SECURITY',
+          entityType: 'PlatformSession',
+          entityId: outcome.familyId,
+          newValues: { event: 'REFRESH_TOKEN_REUSED' },
+        },
+        client,
+      );
+    }
     throw new AppException(
       outcome.refused,
       outcome.refused === 'AUTH-004'

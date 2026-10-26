@@ -3,12 +3,14 @@ import { JwtService } from '@nestjs/jwt';
 import type { ClsService } from 'nestjs-cls';
 
 import { AdminAuthGuard } from './admin-guards';
+import type { PlatformAuditService } from './platform-audit.service';
 import { PlatformSessions } from './platform-sessions';
 import type { RequestContext } from '../../common/context/request-context';
 import type { AppConfig } from '../../config/app-config';
 import type { PrismaService } from '../../database/prisma.service';
 
 const NOW = new Date('2026-10-26T10:00:00Z');
+const CLIENT = { ip: '203.0.113.7', userAgent: null, requestId: null };
 const later = (ms: number) => new Date(NOW.getTime() + ms);
 
 function sessionsWith(found: Record<string, unknown> | null, claimed = 1) {
@@ -21,9 +23,14 @@ function sessionsWith(found: Record<string, unknown> | null, claimed = 1) {
   };
   const raw = { platformSession: table, $transaction: jest.fn() };
   raw.$transaction.mockImplementation((work: (tx: unknown) => unknown) => work(raw));
+  const audit = { log: jest.fn() };
   return {
-    sessions: new PlatformSessions({ unscoped: () => raw } as unknown as PrismaService),
+    sessions: new PlatformSessions(
+      { unscoped: () => raw } as unknown as PrismaService,
+      audit as unknown as PlatformAuditService,
+    ),
     table,
+    audit,
   };
 }
 
@@ -48,28 +55,34 @@ describe('PlatformSessions (D-145)', () => {
   });
 
   it('should rotate a live token, and refuse unknown, reused, raced, idle and expired ones', async () => {
-    await expect(sessionsWith(live).sessions.rotate('t', NOW)).resolves.toMatchObject({
+    await expect(sessionsWith(live).sessions.rotate('t', NOW, CLIENT)).resolves.toMatchObject({
       adminId: 'a1',
       familyId: 'f1',
     });
-    await expect(sessionsWith(null).sessions.rotate('t', NOW)).rejects.toMatchObject({
+    await expect(sessionsWith(null).sessions.rotate('t', NOW, CLIENT)).rejects.toMatchObject({
       code: 'AUTH-005',
     });
     const reused = sessionsWith({ ...live, revokedAt: NOW });
-    await expect(reused.sessions.rotate('t', NOW)).rejects.toMatchObject({ code: 'AUTH-005' });
-    // The family's end is written outside the refused transaction, so it sticks.
+    await expect(reused.sessions.rotate('t', NOW, CLIENT)).rejects.toMatchObject({
+      code: 'AUTH-005',
+    });
+    // The family's end is written outside the refused transaction, so it sticks; the reuse is a SECURITY row.
+    expect(reused.audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({ adminId: 'a1', action: 'SECURITY', entityId: 'f1' }),
+      CLIENT,
+    );
     expect(reused.table.updateMany).toHaveBeenCalledWith({
       where: { familyId: 'f1', revokedAt: null },
       data: { revokedAt: NOW },
     });
-    await expect(sessionsWith(live, 0).sessions.rotate('t', NOW)).rejects.toMatchObject({
+    await expect(sessionsWith(live, 0).sessions.rotate('t', NOW, CLIENT)).rejects.toMatchObject({
       code: 'AUTH-005',
     });
     await expect(
-      sessionsWith({ ...live, idleUntil: NOW }).sessions.rotate('t', NOW),
+      sessionsWith({ ...live, idleUntil: NOW }).sessions.rotate('t', NOW, CLIENT),
     ).rejects.toMatchObject({ code: 'AUTH-004' });
     await expect(
-      sessionsWith({ ...live, expiresAt: NOW }).sessions.rotate('t', NOW),
+      sessionsWith({ ...live, expiresAt: NOW }).sessions.rotate('t', NOW, CLIENT),
     ).rejects.toMatchObject({ code: 'AUTH-004' });
   });
 
@@ -102,7 +115,9 @@ describe('AdminAuthGuard (D-145)', () => {
     };
     const g = new AdminAuthGuard(
       jwt,
-      { admin: secret ? { jwtSecret: secret, ipAllowlist: [] } : null } as unknown as AppConfig,
+      {
+        admin: secret ? { jwtSecret: secret, ipAllowlist: [], origins: [] } : null,
+      } as unknown as AppConfig,
       { live: jest.fn().mockResolvedValue(isLive) } as unknown as PlatformSessions,
       prisma as unknown as PrismaService,
       cls as unknown as ClsService<RequestContext>,

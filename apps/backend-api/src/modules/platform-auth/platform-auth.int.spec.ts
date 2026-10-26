@@ -15,7 +15,8 @@ import type { PrismaClient } from '../../generated/prisma/client';
 import { PasswordHasher } from '../auth/password-hasher';
 
 const PASSWORD = 'Admin-Correct-Horse-9';
-const ORIGIN = 'http://localhost:4200';
+const ORIGIN = 'http://localhost:4201';
+const OFFICE_ORIGIN = 'http://localhost:4200';
 const csrf = { Origin: ORIGIN, 'X-Requested-With': 'XMLHttpRequest' };
 
 const refreshCookie = (res: request.Response): string => {
@@ -36,7 +37,8 @@ describe('platform admin auth (HTTP + PostgreSQL)', () => {
       ADMIN_JWT_SECRET: 'integration-only-admin-secret-0123456789abcdef',
       // Supertest calls from the loopback: the allow-list is applied and lets them through (blocking: admin-guards.spec).
       ADMIN_IP_ALLOWLIST: '127.0.0.1, ::1',
-      CORS_ORIGINS: ORIGIN,
+      CORS_ORIGINS: `${ORIGIN},${OFFICE_ORIGIN}`,
+      ADMIN_ORIGINS: ORIGIN,
     });
     const module = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(ThrottlerGuard)
@@ -250,5 +252,58 @@ describe('platform admin auth (HTTP + PostgreSQL)', () => {
       .send({ email: admin.email, password: PASSWORD })
       .expect(423);
     expect(locked.body.error.code).toBe('AUTH-007');
+  });
+
+  it('should let only the admin panel use the cookie, and settle races: one refresh, one confirmation', async () => {
+    const admin = await enrolled();
+    const cookie = refreshCookie(admin.res);
+    // The office app may call the API (CORS) but never refresh an admin session (D-145).
+    await http()
+      .post('/api/v1/admin/auth/refresh')
+      .set({ ...csrf, Origin: OFFICE_ORIGIN })
+      .set('Cookie', cookie)
+      .expect(403);
+    // Two tabs refreshing the same token at once: at most one wins, and the family ends.
+    const [a, b] = await Promise.all([
+      http().post('/api/v1/admin/auth/refresh').set(csrf).set('Cookie', cookie),
+      http().post('/api/v1/admin/auth/refresh').set(csrf).set('Cookie', cookie),
+    ]);
+    expect([a.status, b.status].filter((status) => status === 200).length).toBeLessThanOrEqual(1);
+    expect(await raw.platformSession.count({ where: { adminId: admin.id, revokedAt: null } })).toBe(
+      0,
+    );
+    expect(
+      await raw.platformAuditLog.count({ where: { adminId: admin.id, action: 'SECURITY' } }),
+    ).toBeGreaterThanOrEqual(1);
+
+    // Two confirmations of one enrolment: one session and one set of codes.
+    const fresh = await newAdmin();
+    const { body } = await http()
+      .post('/api/v1/admin/auth/enroll')
+      .send({ email: fresh.email, password: PASSWORD })
+      .expect(200);
+    const code = totpCode(body.data.secret as string, totpStep(new Date()));
+    const confirms = await Promise.all(
+      [1, 2].map(() =>
+        http()
+          .post('/api/v1/admin/auth/enroll/confirm')
+          .send({ email: fresh.email, password: PASSWORD, code }),
+      ),
+    );
+    expect(confirms.map((r) => r.status).sort()).toEqual([201, 409]);
+    expect(await raw.platformRecoveryCode.count({ where: { adminId: fresh.id } })).toBe(10);
+  });
+
+  it('should refuse enrolment more than a day after the admin was created (410 RES-004)', async () => {
+    const stale = await newAdmin();
+    await raw.platformAdmin.update({
+      where: { id: stale.id },
+      data: { createdAt: new Date(Date.now() - 25 * 3_600_000) },
+    });
+    const late = await http()
+      .post('/api/v1/admin/auth/enroll')
+      .send({ email: stale.email, password: PASSWORD })
+      .expect(410);
+    expect(late.body.error.code).toBe('RES-004');
   });
 });
