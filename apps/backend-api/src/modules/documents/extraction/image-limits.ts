@@ -20,6 +20,8 @@ const JPEG_SOF = new Set([
 export function imageInfo(content: Buffer, mimeType: string): ImageInfo | null {
   try {
     if (mimeType === 'image/png') {
+      // The first chunk must be IHDR, which holds width and height.
+      if (content.toString('latin1', 12, 16) !== 'IHDR') return null;
       return { pixels: content.readUInt32BE(16) * content.readUInt32BE(20), pages: 1 };
     }
     if (mimeType === 'image/jpeg') return jpeg(content);

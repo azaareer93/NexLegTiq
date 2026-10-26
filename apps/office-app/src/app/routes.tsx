@@ -4,6 +4,7 @@ import type { RouteObject } from 'react-router';
 import { authRoutes, RequireAuth } from '../features/auth';
 import { casesRoutes } from '../features/cases';
 import { clientsRoutes } from '../features/clients';
+import { profileRoutes } from '../features/profile';
 import { settingsRoutes } from '../features/settings';
 import {
   AppShell,
@@ -17,7 +18,7 @@ import { tasksRoutes } from '../features/tasks';
 import { teamRoutes } from '../features/team';
 
 /** A lazy placeholder page, until its feature replaces it (its own chunk: the module is only imported here). */
-const placeholder = (navKey: NavKey | 'profile'): Pick<RouteObject, 'lazy'> => ({
+const placeholder = (navKey: NavKey): Pick<RouteObject, 'lazy'> => ({
   lazy: async () => {
     const { PlaceholderPage } = await import('../features/shell/components/placeholder-page');
     return { Component: () => <PlaceholderPage navKey={navKey} /> };
@@ -62,7 +63,7 @@ export const routes: RouteObject[] = [
                 errorElement: <RouteError />,
                 children: [
                   ...menuRoutes,
-                  { path: 'profile', ...placeholder('profile') },
+                  { path: 'profile', children: profileRoutes },
                   { path: '*', element: <NotFoundPage /> },
                 ],
               },

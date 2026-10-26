@@ -2,6 +2,7 @@ import { ApiError } from '@nexlegtiq/shared-api-client';
 import { permissionsFor, ROLES } from '@nexlegtiq/shared-types';
 import type { Role } from '@nexlegtiq/shared-types';
 import { LANGUAGE_STORAGE_KEY } from '@nexlegtiq/shared-ui';
+import { isolate } from '@nexlegtiq/shared-utils';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import axe from 'axe-core';
 import { createMemoryRouter, RouterProvider } from 'react-router';
@@ -91,19 +92,24 @@ describe('menu', () => {
     SLOW,
   );
 
-  it('should open the page of a menu item through its link, and mark it as current', async () => {
-    setViewport(1280);
-    asRole('OFFICE_MANAGER');
-    const { router } = renderApp('/');
-    await dashboard();
-    expect(within(screen.getByTestId('nav-team')).getByRole('link').getAttribute('href')).toBe(
-      '/team',
-    );
-    openNav('team');
-    expect(await screen.findByTestId('page-team')).toBeTruthy();
-    expect(router.state.location.pathname).toBe('/team');
-    expect(screen.getByTestId('nav-team').className).toContain('ant-menu-item-selected');
-  });
+  it(
+    'should open the page of a menu item through its link, and mark it as current',
+    async () => {
+      setViewport(1280);
+      asRole('OFFICE_MANAGER');
+      const { router } = renderApp('/');
+      await dashboard();
+      expect(within(screen.getByTestId('nav-team')).getByRole('link').getAttribute('href')).toBe(
+        '/team',
+      );
+      openNav('team');
+      // The team page's chunk loads cold here, which takes seconds when the whole suite runs in parallel.
+      expect(await screen.findByTestId('page-team', {}, { timeout: SLOW })).toBeTruthy();
+      expect(router.state.location.pathname).toBe('/team');
+      expect(screen.getByTestId('nav-team').className).toContain('ant-menu-item-selected');
+    },
+    SLOW,
+  );
 
   it.each([
     ['/team', 'OFFICE_MANAGER', 'team'],
@@ -577,7 +583,7 @@ describe('header', () => {
     renderApp('/');
     await dashboard();
     expect(screen.getByTestId('profile-menu').getAttribute('aria-label')).toBe(
-      'Account menu — Layla Haddad',
+      `Account menu — ${isolate('Layla Haddad')}`,
     );
   });
 

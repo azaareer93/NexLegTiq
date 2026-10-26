@@ -40,6 +40,7 @@ export const USER: AuthUser = {
   verifyBy: null,
   idleMinutes: 30,
   timeZone: 'Asia/Hebron',
+  digitStyle: 'WESTERN',
 };
 export const SESSION = { accessToken: 'access-1', expiresIn: 900, user: USER };
 

@@ -23,6 +23,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { AfterCommit, ScopedTransaction } from '../../database/unit-of-work';
 import type { ClientInfo } from '../auth/client-info';
+import { recipientsWanting } from '../notifications/notification-preferences';
 import { ReminderScheduler } from '../sessions/reminder-scheduler';
 import { EntitlementsService } from '../subscriptions/entitlements.service';
 
@@ -132,9 +133,22 @@ export class TeamService {
           data: { revokedAt: now },
         });
         const paralegalFilesCleared = await releaseParalegalFiles(tx, userId);
+        // One preference read for every new lawyer, not one per file (D-146).
+        const wanting = await recipientsWanting(
+          tx,
+          [...new Set(reassignments.map((row) => row.newResponsibleLawyerId))],
+          'file.reassigned',
+          'inApp',
+        );
         for (const file of files) {
           const to = reassignments.find((row) => row.fileId === file.id)?.newResponsibleLawyerId;
-          if (to) await this.reassign(tx, afterCommit, { ...file, from: userId, to }, client);
+          if (!to) continue;
+          await this.reassign(
+            tx,
+            afterCommit,
+            { ...file, from: userId, to, wants: wanting.has(to) },
+            client,
+          );
         }
         await tx.auditLog.create({
           data: this.audit(
@@ -173,7 +187,7 @@ export class TeamService {
   private async reassign(
     tx: ScopedTransaction,
     afterCommit: AfterCommit,
-    file: { id: string; fileNumber: string; from: string; to: string },
+    file: { id: string; fileNumber: string; from: string; to: string; wants: boolean },
     client: ClientInfo,
   ): Promise<void> {
     const officeId = this.officeId();
@@ -208,7 +222,8 @@ export class TeamService {
         { responsibleLawyerId: file.to },
       ),
     });
-    if (file.to !== this.actorId()) {
+    const notify = file.to !== this.actorId() && file.wants;
+    if (notify) {
       await tx.notification.create({
         data: {
           officeId,

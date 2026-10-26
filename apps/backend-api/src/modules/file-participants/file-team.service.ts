@@ -20,6 +20,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { AfterCommit, ScopedTransaction } from '../../database/unit-of-work';
 import { CaseAccessService } from '../legal-files/case-access.service';
+import { recipientsWanting } from '../notifications/notification-preferences';
 import { ReminderScheduler } from '../sessions/reminder-scheduler';
 
 const ROLE_ORDER: Record<FileTeamRole, number> = { RESPONSIBLE_LAWYER: 0, PARALEGAL: 1, MEMBER: 2 };
@@ -278,6 +279,7 @@ export class FileTeamService {
     note: { type: string; titleKey: string; fileId: string; fileNumber: string },
   ): Promise<void> {
     if (userId === this.actorId()) return;
+    if (!(await recipientsWanting(tx, [userId], note.type, 'inApp')).has(userId)) return; // D-146
     const notification = await tx.notification.create({
       data: {
         officeId: this.officeId(),

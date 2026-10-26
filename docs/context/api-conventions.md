@@ -48,7 +48,7 @@ uploads 20/min ·
 **auth**: POST `auth/register` (office signup, 201 + session like login) · POST `auth/login` · POST `auth/refresh` · POST `auth/logout` ·
 POST `auth/forgot-password` (always 200) · POST `auth/reset-password` (204; 410 RES-004 for an invalid/used/expired link, D-086) · POST `auth/verify-email` (204; 410 RES-004 for an invalid/used/expired link) · POST `auth/resend-verification` (always 202, D-085) · POST `auth/accept-invite` (201 + session like login; 410 RES-004 for an invalid/used/revoked/expired link, D-134) ·
 POST `auth/invites/preview` (`{token}` in the body, never in a URL; same 410)
-**users**: GET/PATCH `users/me` · GET `users/directory` (active colleagues' name and role for pickers; roles that create cases, tasks or sessions, D-123) · POST `users/me/password` (204; wrong current password → 400 VAL-001, D-086) · GET `users` (office team) · POST `users/invite` (one person; 409 RES-002 email taken or already invited, 422 BIZ-008 plan full, D-134) ·
+**users**: GET/PATCH `users/me` (own name, phone, language, time zone, digits; D-146) · POST/DELETE `users/me/avatar` (PNG/JPEG ≤ 2 MB, 10/min) · GET `users/directory` (active colleagues' name and role for pickers; roles that create cases, tasks or sessions, D-123) · POST `users/me/password` (204; wrong current password → 400 VAL-001, D-086) · GET `users` (office team) · POST `users/invite` (one person; 409 RES-002 email taken or already invited, 422 BIZ-008 plan full, D-134) ·
 GET `users/invitations` · POST `users/invitations/:id/resend` · DELETE `users/invitations/:id` (204) · PATCH `users/:id/role` · POST `users/:id/deactivate` (with reassignment) ·
 POST `users/:id/reactivate` (seat check, BIZ-008) · GET `users/:id/open-files` — D-124
 **offices**: GET/PATCH `offices/me` · GET/PATCH `offices/me/settings` (`manage:office`, D-125) · GET `offices/me/subscription` (every office user, D-122) ·
@@ -74,7 +74,7 @@ PATCH/DELETE `cases/:id/folders/:folderId` (system folders fixed → 422 BIZ-014
 GET `invoices` · GET/PATCH `invoices/:id` · POST `invoices/:id/send` · POST `invoices/:id/mark-paid` · POST `invoices/:id/void` · GET `invoices/:id/pdf`
 **search**: GET `search?q&type=all|cases|clients|documents|parties|tasks&limit` (grouped)
 **ai**: POST `ai/summaries` `{sourceType, sourceId, language}` → 202 · GET `ai/summaries?sourceType&sourceId` · GET `jobs/:id` · GET `ai/usage` `{used, quota, remaining, resetsAt}` (`use:ai`, D-144)
-**notifications**: GET `notifications` · POST `notifications/:id/read` · POST `notifications/read-all` · GET/PATCH `notifications/preferences`
+**notifications**: GET `notifications` · POST `notifications/:id/read` · POST `notifications/read-all` · GET/PATCH `notifications/preferences` (per category: `inApp`, `email` where one exists; D-146)
 **dashboard**: GET `dashboard` (role-aware KPIs + upcoming + activity)
 **audit**: GET `audit?entityType&entityId&userId&from&to` · GET `audit/export`
 **portal** (`/api/v1/portal`, portal realm): POST `auth/login|refresh|logout|accept-invite|forgot-password|reset-password` ·

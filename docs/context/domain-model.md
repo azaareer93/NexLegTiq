@@ -13,7 +13,7 @@
   fileNumberFormat, sessionIdleMinutes, auditRetentionDays (≥365).
 - **Plan** (platform; limits incl. `ocrPagesMonthly`, the Google Vision page budget, D-142) / **Subscription** 🔒 — D-005.
 - **User** 🔒 — fullName, email (citext, unique global D-032), passwordHash, `role: Role`, phone, avatarUrl, isActive,
-  lastLoginAt, emailVerifiedAt? (signup verification, D-083), uiLanguage, timezone, mfaSecret? (encrypted), mfaEnabled.
+  lastLoginAt, emailVerifiedAt? (signup verification, D-083), uiLanguage, timezone (own; reminder emails only, D-146), digitStyle, notificationPrefs (JSON per category, D-146), mfaSecret? (encrypted), mfaEnabled.
   `Role` = OFFICE_MANAGER, SENIOR_LAWYER, LAWYER, PARALEGAL, ADMIN (office admin/finance), TRAINEE, EXTERNAL_COLLABORATOR.
 - **PlatformAdmin** — separate table for the admin panel (not an office role); MFA required (TOTP secret encrypted,
   `mfaEnrolledAt`, `mfaLastStep`). With **PlatformSession**, **PlatformRecoveryCode** and **PlatformAuditLog** (append-only),

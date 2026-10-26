@@ -45,6 +45,10 @@
     "SUPREME": "Supreme",
     "ARBITRATION": "Arbitration"
   },
+  "digitStyle": {
+    "WESTERN": "Western (0123)",
+    "ARABIC_INDIC": "Arabic-Indic (٠١٢٣)"
+  },
   "documentLanguage": {
     "AR": "Arabic",
     "EN": "English",
@@ -124,6 +128,13 @@
     "USA": "United States",
     "UK": "United Kingdom",
     "OTHER": "Other"
+  },
+  "notificationCategory": {
+    "TASKS": "Tasks assigned to me",
+    "HEARINGS": "Hearing reminders",
+    "FILES": "Files given to me or I joined",
+    "TEAM": "Invitations to the team accepted",
+    "DOCUMENTS": "Problems with documents I uploaded"
   },
   "ocrStatus": {
     "NOT_NEEDED": "Not needed",

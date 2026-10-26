@@ -19,12 +19,13 @@ const FIELDS = {
   link: '/calendar?session=1',
 };
 
-function setup() {
+function setup(prefs: unknown = {}) {
   const create = jest.fn().mockResolvedValue({ id: 'n1' });
   const prisma = {
     db: {
       office: { findFirst: jest.fn().mockResolvedValue({ isActive: true }) },
       notification: { create },
+      user: { findUnique: jest.fn().mockResolvedValue({ notificationPrefs: prefs }) },
     },
   } as unknown as PrismaService;
   const logger = { warn: jest.fn(), error: jest.fn() } as unknown as PinoLogger;
@@ -55,6 +56,14 @@ describe('NotificationProcessor', () => {
       data: { officeId: OFFICE, ...FIELDS, channel: 'IN_APP' },
       select: { id: true },
     });
+  });
+
+  it('should write nothing when the recipient turned the category off in the app (D-146)', async () => {
+    const { processor, create, job } = setup({ HEARINGS: { inApp: false } });
+    await expect(processor.process(job('create-notification', FIELDS))).resolves.toEqual({
+      skipped: 'preferences',
+    });
+    expect(create).not.toHaveBeenCalled();
   });
 
   it.each([

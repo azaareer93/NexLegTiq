@@ -12,6 +12,7 @@ export * from './locale.contract.js';
 export * from './office.contract.js';
 export * from './party.contract.js';
 export * from './password.contract.js';
+export * from './profile.contract.js';
 export * from './realtime.contract.js';
 export * from './session.contract.js';
 export * from './subscription.contract.js';

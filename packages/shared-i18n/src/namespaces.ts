@@ -19,6 +19,7 @@ export const I18N_NAMESPACES = [
   'tasks',
   'parties',
   'team',
+  'profile',
 ] as const;
 
 export type I18nNamespace = (typeof I18N_NAMESPACES)[number];

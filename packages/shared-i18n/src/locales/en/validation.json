@@ -4,6 +4,7 @@
   "assignee": "Choose an active colleague who can work on this case.",
   "attendingLawyer": "Choose an active lawyer who can see this case.",
   "auditRetention": "Keep the audit log for at least 365 days and at most 3650.",
+  "avatarSize": "The picture is too large: at most 2048 × 2048 pixels.",
   "currency": "Choose a valid currency.",
   "dateRange": "Choose an end after the start, at most 92 days later.",
   "dateTime": "Enter a valid date and time.",

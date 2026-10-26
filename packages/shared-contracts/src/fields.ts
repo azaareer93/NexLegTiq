@@ -110,3 +110,10 @@ export const TimeZoneSchema = z
     ctx.addIssue({ code: 'custom', message: 'validation.timeZone' });
     return z.NEVER;
   });
+
+/** An optional profile field: `null` (or an empty string) clears it. */
+export const clearable = <T extends z.ZodType<string | null>>(schema: T) =>
+  z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? null : value),
+    schema.nullable(),
+  );

@@ -240,6 +240,7 @@ export class AuthService {
           verifyBy: verifyBy(user)?.toISOString() ?? null,
           idleMinutes: user.office.settings?.sessionIdleMinutes ?? DEFAULT_IDLE_MINUTES,
           timeZone: user.office.timezone,
+          digitStyle: user.digitStyle,
         },
       },
     };

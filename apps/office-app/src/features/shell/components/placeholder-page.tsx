@@ -7,13 +7,9 @@ import type { NavKey } from '../nav';
  * The page of a menu item whose feature is not built yet. Loaded only through the routes' `lazy` (never re-exported), so it
  * really is its own chunk.
  */
-export function PlaceholderPage({
-  navKey,
-}: {
-  readonly navKey: NavKey | 'profile';
-}): React.JSX.Element {
+export function PlaceholderPage({ navKey }: { readonly navKey: NavKey }): React.JSX.Element {
   const { t } = useTranslation();
-  const title = navKey === 'profile' ? t('shell.profile.profile') : t(`shell.nav.${navKey}`);
+  const title = t(`shell.nav.${navKey}`);
   return (
     <section data-testid={`page-${navKey}`}>
       <PageHeader title={title} />

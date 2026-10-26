@@ -1,4 +1,5 @@
 import {
+  DIGIT_STYLES,
   ACCOUNT_TYPES,
   JURISDICTIONS,
   OFFICE_LANGUAGES,
@@ -105,6 +106,8 @@ export const AuthUserSchema = z.object({
   idleMinutes: z.number().int().min(15).max(120),
   /** The office's IANA time zone (D-125): hearing and deadline times are shown and entered in it (D-127). */
   timeZone: z.string().min(1),
+  /** The user's digits on screen (D-092, D-146). */
+  digitStyle: z.enum(DIGIT_STYLES),
 });
 export type AuthUser = z.infer<typeof AuthUserSchema>;
 

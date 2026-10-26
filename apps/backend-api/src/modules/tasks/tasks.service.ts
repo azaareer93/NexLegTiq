@@ -12,6 +12,7 @@ import type {
 import { ClsService } from 'nestjs-cls';
 
 import { assertAssignable, TaskAccessService } from './task-access.service';
+import { assignedNotification } from './task-notifications';
 import { dateOnly, TasksRepository, toDbDate } from './tasks.repository';
 import { auditRow } from '../../common/audit/audit.service';
 import type { RequestContext } from '../../common/context/request-context';
@@ -263,19 +264,11 @@ export class TasksService {
     task: TaskRef & { readonly title: string },
   ): Promise<void> {
     if (userId === this.access.actorId()) return;
-    const notification = await tx.notification.create({
-      data: {
-        officeId: this.officeId(),
-        userId,
-        type: 'task.assigned',
-        titleKey: 'common.notifications.taskAssigned',
-        params: { taskId: task.id, title: task.title },
-      },
-      select: { id: true },
-    });
+    // The board still refreshes; only the notification follows the assignee's preferences (D-146).
+    const notificationId = await assignedNotification(tx, this.officeId(), userId, task);
     afterCommit(async () => {
       this.realtime.toUser(userId, 'task.assigned', { taskId: task.id, fileId: task.fileId });
-      this.realtime.toUser(userId, 'notification', { notificationId: notification.id });
+      if (notificationId) this.realtime.toUser(userId, 'notification', { notificationId });
     }, 'realtime task.assigned');
   }
 

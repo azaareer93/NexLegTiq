@@ -74,6 +74,8 @@ function setup(overrides: Partial<Options> = {}) {
     },
     legalFile: { update: jest.fn() },
     caseTimelineEvent: { create: jest.fn() },
+    // No preferences stored: every channel on (D-146).
+    user: { findMany: jest.fn().mockResolvedValue([]) },
     notification: { create: jest.fn().mockResolvedValue({ id: 'n1' }) },
   };
   const context: Record<string, unknown> = { userId: ME, officeId: 'office-1', role, permissions };

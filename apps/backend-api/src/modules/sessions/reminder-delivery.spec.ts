@@ -185,6 +185,25 @@ describe('ReminderDelivery', () => {
     });
   });
 
+  it('should cancel, not mark SENT, when the recipient muted hearing reminders on both channels', async () => {
+    const reminder = row();
+    const muted = {
+      ...reminder,
+      recipient: {
+        ...reminder.recipient,
+        notificationPrefs: { HEARINGS: { email: false, inApp: false } },
+      },
+    };
+    const { delivery, mail, queues, db } = setup(muted);
+    await expect(delivery.deliver('rem1', NOW)).resolves.toEqual({ cancelled: 'RECIPIENT_MUTED' });
+    expect(mail.send).not.toHaveBeenCalled();
+    expect(queues.enqueue).not.toHaveBeenCalled();
+    expect(db.sessionReminder.updateMany).toHaveBeenCalledWith({
+      where: { id: 'rem1', status: 'PENDING' },
+      data: { status: 'CANCELLED' },
+    });
+  });
+
   it('should leave the row PENDING when a hand-off fails, so the retry sends it', async () => {
     const { delivery, queues, db } = setup();
     queues.enqueue.mockRejectedValue(new Error('redis down'));
