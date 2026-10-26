@@ -2416,3 +2416,23 @@ offices that opt in (ops-security.md). **Known limits:** the page budget is chec
 office (concurrency 2) can overshoot it by about one scan each (as the AI quota, D-130); pages read before Vision's deadline
 or a failure are paid but not counted; nothing ships `ocrPagesMonthly` or the `googleVisionOcr` flag on a plan, so Vision is
 off everywhere until the owner sets them.
+
+**D-147 — The autopilot merges green PRs that need no human review; fewer merge conflicts** · Accepted (owner asked for both; MVP-163, 2026-10-26) · Amends D-097, D-114
+Open PRs kept conflicting with each other (#70 and #72 twice in a day), and every conflict was two tickets appending to
+the end of the same list: `validation.json`, the contracts' `index.ts`, `env.schema.ts`. → **Merging:** `/autopilot`
+squash-merges its own PR (D-070) when **all** hold — base `develop`, not a draft, no `needs-human-review` or
+`do-not-merge` label, a diff that touches none of `/ship`'s review paths (**re-checked at merge time**: merging `develop`
+can grow a diff after the label was decided), every check `SUCCESS`/`SKIPPED`/`NEUTRAL` with none pending, `MERGEABLE`, no
+requested changes and no unanswered owner comment. Anything with `needs-human-review` (auth, tenancy, migrations, billing,
+AI PII, RBAC, CI, hooks, commands, scripts — D-072) stays the owner's to merge. A new outcome `MERGED: #<n>` joins the loop's
+log and `scripts/autopilot.sh`. **Amends D-097/D-114:** "never merges" and "the owner merges with GitHub's button" now hold
+only for PRs that need a human review. **Fewer conflicts:** (1) merged PRs leave the queue within one iteration, so fewer
+branches are open at once; (2) after **any** merge into `develop` — the autopilot's or the owner's — `develop` is merged into
+**every** other open PR right away, one at a time, while each conflict is still one hunk; (3) the hotspot lists are
+**sorted**, so a new entry lands next to its neighbours instead of at the end: the contracts' `index.ts` is one `export *
+from` line per contract file in alphabetical order (a ticket adds one line, or none), and `validation.json` and `errors.json`
+(every level) and `enums.json` (enum names; each enum keeps its value order) are sorted by key — the pre-commit hook sorts
+them (`scripts/sort-locales.mjs` via lint-staged) and the shared-i18n test fails on a file out of order. `decisions.md` stays
+`merge=union` (D-114). **Not done:** `env.schema.ts` refinements still meet at the end of the chain (rare; a later
+change can split them per area). Why: the owner reviews only what needs a human, and parallel tickets stop colliding on
+lines nobody chose.

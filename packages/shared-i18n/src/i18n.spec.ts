@@ -123,6 +123,31 @@ describe('translation resources', () => {
     expect(Object.keys(RESOURCES.en.common).filter((key) => namespaces.includes(key))).toEqual([]);
   });
 
+  it('should keep the shared namespaces sorted, so tickets adding keys at once rarely conflict (D-147)', () => {
+    const sorted = (keys: string[]) => [...keys].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    const unsorted = (value: unknown, deep: boolean, path: string): string[] => {
+      if (typeof value !== 'object' || value === null) return [];
+      const keys = Object.keys(value);
+      const here = keys.join() === sorted(keys).join() ? [] : [path];
+      if (!deep) return here;
+      return [
+        ...here,
+        ...keys.flatMap((key) =>
+          unsorted((value as Record<string, unknown>)[key], deep, `${path}.${key}`),
+        ),
+      ];
+    };
+    for (const locale of SUPPORTED_LOCALES) {
+      const resources = RESOURCES[locale];
+      expect([
+        ...unsorted(resources.validation, true, `${locale}.validation`),
+        ...unsorted(resources.errors, true, `${locale}.errors`),
+        // Enum names sorted; each enum's values keep their own (meaningful) order.
+        ...unsorted(resources.enums, false, `${locale}.enums`),
+      ]).toEqual([]);
+    }
+  });
+
   it('should have a key for every validation message the contracts and the API send', () => {
     const sources = ['packages/shared-contracts/src/', 'apps/backend-api/src/modules/'].flatMap(
       (dir) =>
