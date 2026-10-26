@@ -1,3 +1,5 @@
+import { isIP } from 'node:net';
+
 import { z } from 'zod';
 
 const port = z.coerce.number().int().min(1).max(65_535);
@@ -81,6 +83,25 @@ const EnvObject = z.object({
 
   // HS256 key of the office access JWT (auth-rbac.md, Tokens); at least 32 characters of randomness.
   JWT_SECRET: z.string().min(32),
+  // Platform admin realm (D-145): its own signing secret; unset = the admin routes answer 404.
+  ADMIN_JWT_SECRET: z.string().min(32).optional(),
+  // The admin panel's origin(s): the only ones its cookie routes (refresh, logout) accept — an XSS on the office app or
+  // the portal, also in CORS_ORIGINS, must not be able to refresh an admin session. List them in CORS_ORIGINS as well.
+  ADMIN_ORIGINS: csv.pipe(z.array(origin)).default(['http://localhost:4201']),
+  // Optional allow-list of the admin routes: IPs or CIDRs separated by commas or spaces (IPv4 and IPv6).
+  ADMIN_IP_ALLOWLIST: z
+    .string()
+    .optional()
+    .transform((value, ctx) => {
+      const entries = (value ?? '').split(/[\s,]+/).filter(Boolean);
+      for (const entry of entries) {
+        if (!parseIpEntry(entry)) {
+          ctx.addIssue({ code: 'custom', message: `not an IP address or CIDR: ${entry}` });
+          return z.NEVER;
+        }
+      }
+      return entries;
+    }),
   // AES-256-GCM key of the field cipher (D-056, ops-security.md): 32 random bytes as 64 hex characters.
   ENCRYPTION_KEY: z
     .string()
@@ -145,6 +166,20 @@ const EnvObject = z.object({
 type RawEnv = z.output<typeof EnvObject>;
 
 /** Production-only checks: [variable, is it broken?, message]. In transit TLS 1.2+ everywhere (ops-security.md, D-078). */
+/** An allow-list entry: an IP address, or a CIDR whose prefix fits its family. */
+export function parseIpEntry(
+  entry: string,
+): { address: string; prefix?: number; family: 'ipv4' | 'ipv6' } | null {
+  const [address = '', prefixText, extra] = entry.split('/');
+  const version = isIP(address);
+  if (version === 0 || extra !== undefined) return null;
+  const family = version === 4 ? 'ipv4' : 'ipv6';
+  if (prefixText === undefined) return { address, family };
+  const prefix = Number(prefixText);
+  const max = version === 4 ? 32 : 128;
+  return /^\d{1,3}$/.test(prefixText) && prefix <= max ? { address, prefix, family } : null;
+}
+
 const PRODUCTION_RULES: readonly (readonly [keyof RawEnv, (env: RawEnv) => boolean, string])[] = [
   [
     'DATABASE_URL',
@@ -178,6 +213,13 @@ const PRODUCTION_RULES: readonly (readonly [keyof RawEnv, (env: RawEnv) => boole
     'OFFICE_APP_URL',
     (env) => !env.OFFICE_APP_URL.startsWith('https:'),
     'must use https:// in production (links in emails)',
+  ],
+  [
+    'ADMIN_ORIGINS',
+    (env) =>
+      env.ADMIN_JWT_SECRET !== undefined &&
+      env.ADMIN_ORIGINS.some((value) => !value.startsWith('https:')),
+    'must be https:// origins of the admin panel in production',
   ],
   [
     'BULL_BOARD_ENABLED',
@@ -221,6 +263,7 @@ const secretsOf = (env: RawEnv): Record<string, string> => ({
   S3_ACCESS_KEY_ID: env.S3_ACCESS_KEY_ID,
   S3_SECRET_ACCESS_KEY: env.S3_SECRET_ACCESS_KEY,
   JWT_SECRET: env.JWT_SECRET,
+  ADMIN_JWT_SECRET: env.ADMIN_JWT_SECRET ?? '',
   SMTP_PASSWORD: env.SMTP_PASSWORD ?? '',
   RESEND_API_KEY: env.RESEND_API_KEY ?? '',
   OPENAI_API_KEY: env.OPENAI_API_KEY ?? '',
@@ -275,6 +318,10 @@ export const EnvSchema = EnvObject.refine(
       path: ['AI_COST_ALERT_EMAIL'],
     },
   )
+  .refine((env) => env.ADMIN_JWT_SECRET !== env.JWT_SECRET, {
+    message: 'must differ from JWT_SECRET (an office token must never pass as an admin one)',
+    path: ['ADMIN_JWT_SECRET'],
+  })
   .refine((env) => (env.SMTP_USER === undefined) === (env.SMTP_PASSWORD === undefined), {
     message: 'SMTP_USER and SMTP_PASSWORD must be set together',
     path: ['SMTP_PASSWORD'],

@@ -60,5 +60,9 @@
   "partyChoice": "Choose an existing party or enter a new one, not both.",
   "unknownParty": "This party does not exist in your office.",
   "inviteRole": "Choose a role other than office manager.",
-  "aiQuotaReached": "The office has used this month's AI operations. They start again on {{resetsAt}}."
+  "aiQuotaReached": "The office has used this month's AI operations. They start again on {{resetsAt}}.",
+  "totpCode": "Enter the 6-digit code from your authenticator app.",
+  "recoveryCode": "Enter a recovery code like ABCDE-FGHIJ.",
+  "oneCode": "Enter either the app code or a recovery code, not both.",
+  "mfaEnrollment": "Set up your authenticator app first."
 }

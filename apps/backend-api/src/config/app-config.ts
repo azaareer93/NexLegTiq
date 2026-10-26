@@ -118,6 +118,22 @@ export class AppConfig {
     };
   }
 
+  /** The platform admin realm (D-145); null when `ADMIN_JWT_SECRET` is unset (its routes answer 404). */
+  get admin(): {
+    readonly jwtSecret: string;
+    readonly ipAllowlist: readonly string[];
+    readonly origins: readonly string[];
+  } | null {
+    const env = this.#env;
+    return env.ADMIN_JWT_SECRET
+      ? {
+          jwtSecret: env.ADMIN_JWT_SECRET,
+          ipAllowlist: env.ADMIN_IP_ALLOWLIST,
+          origins: env.ADMIN_ORIGINS,
+        }
+      : null;
+  }
+
   /** Key of the field cipher (D-056), 32 bytes as hex. */
   get encryptionKey(): string {
     return this.#env.ENCRYPTION_KEY;

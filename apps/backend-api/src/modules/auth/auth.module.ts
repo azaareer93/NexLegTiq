@@ -40,6 +40,7 @@ import { AppConfig } from '../../config/app-config';
     RefreshTokenRepository,
     LoginAttemptRepository,
   ],
-  exports: [JwtAuthGuard, AccessTokenVerifier],
+  // PasswordHasher and LoginAttemptRepository: shared with the platform admin realm (D-145), one instance each.
+  exports: [JwtAuthGuard, AccessTokenVerifier, PasswordHasher, LoginAttemptRepository],
 })
 export class AuthModule {}

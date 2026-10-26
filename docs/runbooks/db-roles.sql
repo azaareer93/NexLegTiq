@@ -68,6 +68,10 @@ BEGIN
   IF to_regclass('public.audit_logs') IS NOT NULL THEN
     REVOKE UPDATE, DELETE, TRUNCATE ON public.audit_logs FROM nexlegtiq_app;
   END IF;
+  -- What platform admins did is append-only too (D-145).
+  IF to_regclass('public.platform_audit_logs') IS NOT NULL THEN
+    REVOKE UPDATE, DELETE, TRUNCATE ON public.platform_audit_logs FROM nexlegtiq_app;
+  END IF;
   IF to_regprocedure('public.nlq_purge_audit_logs(uuid)') IS NOT NULL THEN
     GRANT EXECUTE ON FUNCTION public.nlq_purge_audit_logs(uuid) TO nexlegtiq_app;
   END IF;
@@ -101,7 +105,8 @@ DECLARE
   people_table text;
   readable text;
 BEGIN
-  FOREACH secret_table IN ARRAY ARRAY['refresh_tokens', 'password_reset_tokens', 'email_verification_tokens', 'office_invitations'] LOOP
+  FOREACH secret_table IN ARRAY ARRAY['refresh_tokens', 'password_reset_tokens', 'email_verification_tokens', 'office_invitations',
+    'platform_sessions', 'platform_recovery_codes'] LOOP
     IF to_regclass('public.' || secret_table) IS NOT NULL THEN
       EXECUTE format('REVOKE ALL ON public.%I FROM nexlegtiq_readonly', secret_table);
     END IF;

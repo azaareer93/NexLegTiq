@@ -2316,6 +2316,57 @@ it for good, remove the scheduler by hand). The office's time zone is **cached l
 check costs no extra query; unlimited plans skip the count. The daily sum scans `ai_usages` by `created_at` without an index
 of its own — accepted at today's volume (one query a day). Integration test: rows at 21:59 and 22:01 UTC on 31 January fall in
 January and February of Hebron respectively, and the refusal carries `remaining: '0'`.
+**D-145 — Platform admin realm: TOTP sign-in, enrolment, sessions, IP allow-list and the platform audit log** · Accepted (MVP-101, 2026-10-26) · Amends D-079, D-080
+MVP-101 fixed the model (mandatory TOTP, separate secret and audience, 8 h / 30 min sessions, optional IP allow-list,
+audited admin actions) and left the flow, storage and first-admin path open; D-079 left platform-level audit "to the admin
+panel". → **Module** `src/modules/platform-auth` (platform code: every query on the raw client with a reason, D-080).
+**Sign-in** is one request: `POST /admin/auth/login {email, password, code? | recoveryCode?}` — D-053 lockout per email + IP
+(the global `LoginAttempt` table, shared with office sign-in), Argon2id with the dummy-hash rule (D-082) → 401 AUTH-001;
+inactive → 403 AUTH-006; no code → **401 AUTH-008** (with the detail `validation.mfaEnrollment` when the authenticator is not
+set up yet, so the app goes to enrolment); wrong code → **401 AUTH-009** (counted as a failure). **TOTP** is RFC 6238
+(HMAC-SHA1, 6 digits, 30 s, ±1 step) on Node's crypto — no library (`totp.ts`, tested on the RFC vectors); the last accepted
+step is stored (`mfaLastStep`, claimed conditionally) so **a code is never accepted twice**. **Enrolment** proves the
+password each time (no extra token): `POST /admin/auth/enroll` → `{otpauthUri, secret}` (a new secret, **encrypted at rest**
+with the field cipher, D-056; asking again replaces an unconfirmed one) and `POST /admin/auth/enroll/confirm {…, code}` → 201
+session plus **ten recovery codes** shown once (`XXXXX-XXXXX`, base32, SHA-256 at rest — high-entropy, so no slow hash;
+case and dash ignored; each works once); re-enrolling an enrolled admin is 409 RES-003 (resetting an authenticator is a later
+admin-panel action). **Tokens:** access JWT HS256, `aud=admin`, `iss=nexlegtiq`, 15 min, claims `{sub, sid}`, signed with the
+new **`ADMIN_JWT_SECRET`** (≥ 32, must differ from `JWT_SECRET`, placeholder refused in production) — the office guard
+(`aud=office`, other secret) never accepts it, nor the admin guard an office token. Without `ADMIN_JWT_SECRET` the realm is
+off: its routes answer **404**. **Sessions** (`platform_sessions`): opaque refresh token (SHA-256), cookie **`nlq_admin_rt`**
+(httpOnly, Secure, **SameSite=Strict**, path `/api/v1/admin/auth`, the D-089 realm path), **8 h from sign-in at most and 30 min
+after the last refresh**; rotation claims the old token conditionally; a reused or raced token ends its whole family (written
+outside the refused transaction, so it sticks); refresh and logout need the D-055 Origin + X-Requested-With check; logout is
+idempotent. `AdminAuthGuard` also checks that the token's session is still live, so **signing out stops the access token at
+once** (unlike the office realm's 15 min). **IP allow-list:** optional `ADMIN_IP_ALLOWLIST` (IPs and CIDRs, IPv4/IPv6, checked
+at boot) on **every** admin route, sign-in included, via Node's `BlockList` on the client address after `TRUST_PROXY_HOPS`
+→ 403 AUTH-100 otherwise. **Platform audit log (amends D-079):** a table of its own, `platform_audit_logs` (admin, action,
+target office, entity, old/new values, IP, user agent, request id), **append-only** (UPDATE/DELETE revoked from the app role
+in the migration and `db-roles.sql`) — the office `audit_logs` keeps its required `officeId`. Today it records `LOGIN`,
+`LOGIN_RECOVERY_CODE`, `MFA_ENROLLED` and `LOGOUT`; admin features write their actions through `PlatformAuditService`. The
+read-only role never reads sessions or recovery codes. **First admin:** no signup — `ADMIN_EMAIL=… ADMIN_NAME=… pnpm nx run
+backend-api:create-admin` (refuses an existing email, prints a random first password once; deploy runbook step 7).
+**Split:** the admin panel's sign-in, QR enrolment and recovery-code screens are their own story (created, blocked by this
+one), since the backend realm alone is a full story. **Not done:** changing an admin's password or resetting their
+authenticator (admin-panel stories), notifying on new sign-ins, WebAuthn.
+Review additions (same PR): **only the admin panel may use the admin cookie** — refresh and logout accept the Origin
+check against a new **`ADMIN_ORIGINS`** list (default `http://localhost:4201`, https in production), not the shared
+`CORS_ORIGINS`: an XSS on the office app or the portal (allowed CORS origins on the same site, D-089) could otherwise refresh an
+admin's session and read the token. **Account-wide lock:** besides the per-address D-053 lock, **10 failures for one admin
+from any address within 15 minutes** (wrong passwords and wrong codes alike) lock the account (AUTH-007) — a botnet cannot
+spread guesses of the 6-digit code (`LoginAttemptRepository.accountFailures`). **Enrolment within a day:** `enroll` and
+`confirm` are refused with 410 RES-004 more than 24 h after `create-admin` — a leaked first password cannot be used to
+take the account later (re-create the admin instead); within the day, whoever confirms first owns it (the operator enrols
+right away). **Atomic enrolment:** confirming, the recovery codes, the audit row and the first session commit in one
+transaction (the codes are never stored without being shown); `enroll` refuses (409) when the authenticator was confirmed
+meanwhile instead of showing a secret that was never stored; recording a successful attempt after the commit is best
+effort (logged). **A reused or raced refresh token** also writes a `SECURITY` row (`REFRESH_TOKEN_REUSED`). The realm uses
+the office realm's `PasswordHasher` and `LoginAttemptRepository` (exported by `AuthModule`) and a `JwtService` of its own
+token (`ADMIN_JWT`), so the office realm's `JwtService` stays the only unnamed one. **Confirms D-089:** the admin refresh path
+`admin/auth/refresh` (cookie `nlq_admin_rt`, SameSite=Strict); the admin panel must serialise refreshes across tabs (a
+concurrent reuse ends the session, tested). The access token lives 15 min but stops at once when its session ends; 8 h is a
+hard cap whatever the refreshes. Integration tests: the office origin refused on refresh, two concurrent refreshes (at most
+one wins, the family ends, a SECURITY row), two parallel confirmations (201 + 409, one set of codes), the enrolment window.
 **D-143 — Document preview drawer: bytes fetched by the app, pdf.js, the text tab and versions** · Accepted (owner chose option A for both questions; MVP-146, 2026-10-26) · Amends D-133
 D-085 serves every presigned link as an attachment, never inline, so the ticket's "inline via the presigned URL" could not
 work as written, and D-128 lets only the current version be downloaded. → **Bytes:** the drawer asks `GET
