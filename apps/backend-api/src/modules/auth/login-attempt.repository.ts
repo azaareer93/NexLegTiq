@@ -40,4 +40,22 @@ export class LoginAttemptRepository {
     });
     return failures.map((failure) => failure.attemptedAt);
   }
+
+  /**
+   * Failures for one email from any address within the last 15 minutes, since its last success anywhere — the
+   * account-wide lock of the platform admin realm (D-145), which the per-address lock alone cannot give.
+   */
+  async accountFailures(email: string, now: Date): Promise<number> {
+    const since = new Date(now.getTime() - LOCKOUT_DURATION_MS);
+    // unscoped: see record().
+    const attempts = this.prisma.unscoped().loginAttempt;
+    const lastSuccess = await attempts.findFirst({
+      where: { email, success: true, attemptedAt: { gte: since } },
+      orderBy: { attemptedAt: 'desc' },
+      select: { attemptedAt: true },
+    });
+    return attempts.count({
+      where: { email, success: false, attemptedAt: { gt: lastSuccess?.attemptedAt ?? since } },
+    });
+  }
 }
