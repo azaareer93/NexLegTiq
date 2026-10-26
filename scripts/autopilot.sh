@@ -21,7 +21,7 @@ while [ ! -e "$stop" ]; do
   out=$(claude -p "/autopilot --once" "$@" 2>&1)
   status=$?
   printf '%s\n' "$out" >>"$state/autopilot-runs.log"
-  last=$(printf '%s\n' "$out" | grep -E '^(DONE|SKIPPED|FIXED|IDLE)' | tail -n 1)
+  last=$(printf '%s\n' "$out" | grep -E '^(DONE|SKIPPED|FIXED|MERGED|IDLE)' | tail -n 1)
   if [ $status -ne 0 ] || [ -z "$last" ]; then
     echo "$(date -Iseconds) RETRY exit=$status (usage limit or error); next try in ${retry}s" >>"$log"
     sleep "$retry"

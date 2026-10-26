@@ -7,7 +7,7 @@ from plan to open PR. Follow the `jira-workflow` skill. `--auto` = run unattende
 follow the **Skip rule** instead. `--no-ship` = stop after step 9 (review fixes committed, nothing pushed). `--decisions-from D-###` = number new
 decisions from there (set by `/autopilot` when two tickets run in parallel), else the next free number.
 
-**Never:** merge a PR, force-push, rewrite pushed history, run `prisma migrate reset`, read `.env`, change permissions or
+**Never:** merge a PR (only `/autopilot` merges, under its rule, D-147), force-push, rewrite pushed history, run `prisma migrate reset`, read `.env`, change permissions or
 settings, or name another `MVP-<n>` key in a commit, PR title or PR body (merging auto-closes every key mentioned).
 
 0. **Sync local knowledge** (docs/tooling.md#7). Skip any part whose tool is unavailable and say so in one line.

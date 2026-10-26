@@ -3,17 +3,26 @@ description: Unattended delivery loop — fix own PRs, pick the most-blocking hi
 argument-hint: "[--once] [--max-open-prs N] [--parallel 1|2] (default 1)"
 ---
 Run the delivery loop for project MVP (cloudId `9cb815a7-782c-46e9-a4ca-74b3977b88f4`). Args: $ARGUMENTS
-`--once` = one iteration, then print exactly one of `DONE: …`, `SKIPPED: …`, `FIXED: …` or `IDLE` as the last line
+`--once` = one iteration, then print exactly one of `DONE: …`, `SKIPPED: …`, `FIXED: …`, `MERGED: …` or `IDLE` as the last line
 (used by `scripts/autopilot.sh`, which relaunches a fresh session per iteration). Without it, keep iterating in this session.
 
-**Guardrails (all of /ticket's "Never" list, plus):** I merge — you never do (`gh pr merge` is off limits here). Never close,
+**Guardrails (all of /ticket's "Never" list, plus):** you merge **only** under the merge rule of step 1 (D-147) — a PR with
+`needs-human-review`, or one touching a review path, is mine to merge, always. Never close,
 delete or re-prioritise Jira issues, never edit another person's comments, never touch a branch that has no `MVP-<n>` prefix.
 Stop at once when `.git/nexlegtiq/autopilot-stop` exists. Each iteration appends one line to `.git/nexlegtiq/autopilot.log`:
 `<ISO time> <outcome> <key> <PR URL or reason>`.
 
 ## One iteration
 1. **Own PRs first** (`gh pr list --author @me --state open --json number,title,headRefName,baseRefName,mergeable,reviewDecision,statusCheckRollup`).
-   Handle the first that needs it, then end the iteration with `FIXED: #<n> <what>`:
+   Handle the first that needs it, then end the iteration with `FIXED: #<n> <what>` (or `MERGED: #<n>`):
+   - **Ready to merge** (D-147) — merge it with `gh pr merge <n> --squash` when **all** hold: base is `develop`; not a
+     draft; no `needs-human-review` or `do-not-merge` label; `gh pr diff <n> --name-only` touches none of /ship's review
+     paths (re-checked now: the diff may have grown since the PR was opened); every check in `statusCheckRollup` is
+     `SUCCESS`, `SKIPPED` or `NEUTRAL` and none is pending; `mergeable` is `MERGEABLE`; `reviewDecision` is not
+     `CHANGES_REQUESTED` and no owner comment is unanswered. Delete the branch (`--delete-branch`) only when no open PR
+     targets it. Then `git switch develop && git pull --ff-only`, log `MERGED` and go straight to the next bullet.
+   - **After any merge into `develop`** (yours or mine): merge `develop` into **every** other open PR right away, one at a
+     time — a conflict found now is one small hunk; found after the next merge it is two.
    - **Parent merged** (base is not `develop` and the base branch's PR is merged): `gh pr edit <n> --base develop`,
      `git switch <branch> && git merge --no-edit origin/develop` (squash merges leave the parent's original commits on the
      branch — merging develop resolves them; never rebase or force-push), re-verify, push, `git config --unset branch.<branch>.nlqParent`.
@@ -53,7 +62,7 @@ Stop at once when `.git/nexlegtiq/autopilot-stop` exists. Each iteration appends
 
 ## Looping
 - With `--once`: end after one iteration.
-- Inside `/loop` (dynamic): end the iteration and schedule the next with `ScheduleWakeup` — 60 s after `DONE`/`SKIPPED`/`FIXED`,
+- Inside `/loop` (dynamic): end the iteration and schedule the next with `ScheduleWakeup` — 60 s after `DONE`/`SKIPPED`/`FIXED`/`MERGED`,
   1800 s after `IDLE`.
 - Otherwise: run the next iteration right away; after two `IDLE`s in a row, stop and report.
 - After each `DONE`, if `decisions.md` changed since `.git/nexlegtiq/notion-decisions`, `/sync-notion decisions` (already
