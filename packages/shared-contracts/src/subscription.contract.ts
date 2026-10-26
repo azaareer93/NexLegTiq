@@ -24,6 +24,9 @@ export const OfficeSubscriptionSchema = z.object({
     .object({ users: count.nullable(), storageMb: count, aiMonthly: count.nullable() })
     .nullable(),
   features: z.object({ ai: z.boolean(), clientPortal: z.boolean(), googleVisionOcr: z.boolean() }),
-  usage: z.object({ users: count, storageMb: count, aiThisMonth: count }).nullable(),
+  /** `aiResetsAt`: when the AI count starts again — the office's next month, in its time zone (D-144). */
+  usage: z
+    .object({ users: count, storageMb: count, aiThisMonth: count, aiResetsAt: z.iso.datetime() })
+    .nullable(),
 });
 export type OfficeSubscription = z.infer<typeof OfficeSubscriptionSchema>;

@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
+import { AI_COST_ALERT_JOB } from './ai-cost-alert';
+
 export interface AiJobContext {
   readonly aiJobId: string;
   /** Who asked (the job's creator), for usage records. */
@@ -22,6 +24,8 @@ export class AiJobRegistry {
   private readonly handlers = new Map<string, AiJobHandler>();
 
   register(type: string, handler: AiJobHandler): void {
+    // The platform cost check runs under this name outside any office (D-144): no feature may use it.
+    if (type === AI_COST_ALERT_JOB) throw new Error(`AI job type reserved: ${type}`);
     if (this.handlers.has(type)) throw new Error(`AI job handler already registered: ${type}`);
     this.handlers.set(type, handler);
   }

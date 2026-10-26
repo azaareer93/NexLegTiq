@@ -1507,6 +1507,8 @@ model AiUsage {
   durationMs     Int      @map("duration_ms")
   /// Served from the cache: no provider call, not counted against the quota.
   cached         Boolean  @default(false)
+  /// The answer passed validation (D-144): only successful, non-cached operations count against the monthly quota.
+  succeeded      Boolean  @default(true)
   /// How many values of each kind the PII redactor replaced, e.g. {"PARTY":3,"PHONE":1} (D-131) — counts, never values.
   redactionStats Json     @default("{}") @map("redaction_stats")
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -1514,7 +1516,7 @@ model AiUsage {
   office Office @relation(fields: [officeId], references: [id])
   user   User?  @relation(fields: [userId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
 
-  // Monthly quota: provider calls of the office since the start of the month.
+  // Monthly quota: successful provider calls of the office since the start of its month (office time zone, D-144).
   @@index([officeId, createdAt])
   @@map("ai_usages")
 }

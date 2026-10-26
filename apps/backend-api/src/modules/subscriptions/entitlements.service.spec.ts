@@ -26,6 +26,8 @@ function setup({
   invitations = 0,
   usedBytes = 0n,
   aiCalls = 0,
+  timeZone = 'Asia/Hebron',
+  aiQuotaMonthly = 5 as number | null,
   maxUsers = 3 as number | null,
   permissions = permissionsFor('OFFICE_MANAGER') as readonly Permission[] | undefined,
 } = {}) {
@@ -34,7 +36,7 @@ function setup({
       status: 'TRIALING',
       currentPeriodEnd: new Date(Date.now() + 86_400_000),
       trialEndsAt: null,
-      plan: { ...plan, maxUsers },
+      plan: { ...plan, maxUsers, aiQuotaMonthly },
     },
   ]);
   const repository = {
@@ -42,6 +44,7 @@ function setup({
     activeUsers: jest.fn().mockResolvedValue(users),
     pendingInvitations: jest.fn().mockResolvedValue(invitations),
     aiCallsSince: jest.fn().mockResolvedValue(aiCalls),
+    officeTimeZone: jest.fn().mockResolvedValue(timeZone),
   } as unknown as SubscriptionsRepository;
   const context: Record<string, unknown> = { officeId: OFFICE, permissions };
   const cls = {
@@ -54,6 +57,7 @@ function setup({
   return {
     service,
     subscriptionOf,
+    repository,
     context,
     controller: new SubscriptionsController(service, cls),
   };
@@ -125,7 +129,7 @@ describe('EntitlementsService (D-122)', () => {
       readOnly: false,
       trialEndsAt: null,
       limits: { users: 3, storageMb: 1, aiMonthly: 5 },
-      usage: { users: 2, storageMb: 2, aiThisMonth: 0 },
+      usage: { users: 2, storageMb: 2, aiThisMonth: 0, aiResetsAt: expect.any(String) },
     });
     expect(view.periodEnd).toMatch(/Z$/);
   });
@@ -140,5 +144,60 @@ describe('EntitlementsService (D-122)', () => {
       usage: null,
     });
     expect(activeUsers).not.toHaveBeenCalled();
+  });
+
+  describe('AI quota month (D-144)', () => {
+    it("should start and reset the month at midnight in the office's time zone", async () => {
+      // 30 Nov 23:30 UTC is already 1 Dec 01:30 in Hebron (UTC+2): December's count.
+      const { service, repository } = setup({ aiCalls: 2 });
+      const month = await service.aiMonth(new Date('2026-11-30T23:30:00Z'));
+      expect(month.start.toISOString()).toBe('2026-11-30T22:00:00.000Z');
+      expect(month.resetsAt.toISOString()).toBe('2026-12-31T22:00:00.000Z');
+      await service.aiCallsThisMonth(new Date('2026-11-30T23:30:00Z'));
+      expect(jest.mocked(repository.aiCallsSince)).toHaveBeenCalledWith(month.start);
+      const utc = await setup({ timeZone: 'UTC' }).service.aiMonth(
+        new Date('2026-11-30T23:30:00Z'),
+      );
+      expect(utc.start.toISOString()).toBe('2026-11-01T00:00:00.000Z');
+      expect(utc.resetsAt.toISOString()).toBe('2026-12-01T00:00:00.000Z');
+    });
+
+    it('should roll December over into January of the next year', async () => {
+      const month = await setup({ timeZone: 'UTC' }).service.aiMonth(
+        new Date('2026-12-15T10:00:00Z'),
+      );
+      expect(month.resetsAt.toISOString()).toBe('2027-01-01T00:00:00.000Z');
+    });
+
+    it('should report used, remaining and the reset, and say none remain when refusing', async () => {
+      await expect(
+        setup({ aiCalls: 3 }).service.aiUsage(new Date('2026-10-20T10:00:00Z')),
+      ).resolves.toEqual({
+        used: 3,
+        quota: 5,
+        remaining: 2,
+        resetsAt: '2026-10-31T22:00:00.000Z',
+      });
+      await expect(
+        setup({ aiCalls: 9, aiQuotaMonthly: null }).service.aiUsage(),
+      ).resolves.toMatchObject({
+        used: 9,
+        quota: null,
+        remaining: null,
+      });
+      await expect(
+        setup({ aiCalls: 9, aiQuotaMonthly: null }).service.assertAiQuota(),
+      ).resolves.toBeUndefined();
+      await expect(setup({ aiCalls: 7 }).service.assertAiQuota()).rejects.toMatchObject({
+        code: 'AUTH-103',
+        details: [
+          {
+            field: 'aiQuota',
+            message: 'validation.aiQuotaReached',
+            params: { remaining: '0', quota: '5', resetsAt: expect.any(String) },
+          },
+        ],
+      });
+    });
   });
 });

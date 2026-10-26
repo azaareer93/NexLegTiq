@@ -139,15 +139,16 @@ export class AiExecutor {
     const stats = redacted.stats;
     const answers: ProviderAnswer[] = [];
     const started = Date.now();
-    let value: unknown;
+    let restored: ReturnType<typeof options.schema.safeParse> | null = null;
     try {
-      value = await this.ask(options, system, user, answers);
+      const value = await this.ask(options, system, user, answers);
+      restored = options.schema.safeParse(restoreDeep(value, redacted.restore));
     } finally {
-      await this.record(options, answers, Date.now() - started, stats);
+      // Paid answers are always recorded; only a valid one uses the office's quota (D-144).
+      await this.record(options, answers, Date.now() - started, stats, restored?.success === true);
     }
-    const restored = options.schema.safeParse(restoreDeep(value, redacted.restore));
     const last = answers[answers.length - 1];
-    if (!restored.success || !last) {
+    if (!restored?.success || !last) {
       throw new AiFinalException('AI-004', 'AI output did not match the schema');
     }
     return {
@@ -201,10 +202,12 @@ export class AiExecutor {
     answers: readonly ProviderAnswer[],
     durationMs: number,
     redactionStats: Readonly<Record<string, number>>,
+    succeeded: boolean,
   ): Promise<void> {
     const last = answers[answers.length - 1];
     if (!last) return;
     await this.usage.record({
+      succeeded,
       feature: options.feature,
       provider: last.provider,
       model: last.model,

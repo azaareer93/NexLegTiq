@@ -36,7 +36,7 @@ const subscription = (extra: Partial<OfficeSubscription> = {}): OfficeSubscripti
   trialEndsAt: '2027-04-17T00:00:00.000Z',
   limits: { users: 5, storageMb: 2048, aiMonthly: null },
   features: { ai: true, clientPortal: true, googleVisionOcr: false },
-  usage: { users: 2, storageMb: 12, aiThisMonth: 3 },
+  usage: { users: 2, storageMb: 12, aiThisMonth: 3, aiResetsAt: '2026-10-31T22:00:00.000Z' },
   ...extra,
 });
 
@@ -100,6 +100,8 @@ describe('Settings → Subscription (D-122)', () => {
       expect(plain(screen.getByTestId('usage-ai'))).toContain('3 (unlimited)');
       expect(screen.getByTestId('usage-users').querySelector('[aria-label]')).toBeTruthy();
       expect(screen.getByTestId('usage-ai').querySelector('.ant-progress')).toBeNull();
+      // The AI count restarts at the office's next month (D-144): 31 Oct 22:00 UTC is 1 Nov in Hebron.
+      expect(screen.getByTestId('usage-ai-resets').textContent).toContain('01/11/2026');
       expect(screen.getByTestId('feature-googleVisionOcr').textContent).toBe(
         'Enhanced OCR for difficult scans: Not included',
       );
