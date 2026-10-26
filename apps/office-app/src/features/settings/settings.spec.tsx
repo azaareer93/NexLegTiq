@@ -66,6 +66,7 @@ const SETTINGS: OfficeSettings = {
   taxRatePercent: '0.00',
   enableAi: true,
   enableOcr: true,
+  enableVisionOcr: false,
   fileNumberFormat: '{YEAR}-{TYPE}-{SEQ:5}',
   sessionIdleMinutes: 30,
   auditRetentionDays: 365,

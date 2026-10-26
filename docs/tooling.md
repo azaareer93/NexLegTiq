@@ -98,7 +98,7 @@ Four things hold knowledge outside git and drift after a merge. Two are automati
 | What | Refreshed by | When |
 |---|---|---|
 | Graphify graph (`graphify-out/`) | graphify's post-commit/post-checkout hooks + our **post-merge** hook (`graphify update .`) | every commit, checkout, pull/merge |
-| Ruflo `decisions` / `nexlegtiq-spec` | post-merge hook records the base commit in `.git/nexlegtiq/ruflo-pending`; `/ticket` step 0 exports the changed entries (`ruflo-seed.mjs --export --changed-since`) and stores them via the MCP `memory_store` | next `/ticket` |
+| Ruflo `decisions` / `nexlegtiq-spec` | post-merge hook records the base commit in `.git/nexlegtiq/ruflo-pending`; `/ticket` step 0 exports the changed entries (`ruflo-seed.mjs --export --changed-since`) and loads the file with one MCP `memory_import` call (merge) | next `/ticket` |
 | Notion "Engineering Decision Log" | `/ticket` step 0 runs `/sync-notion decisions` when `decisions.md` differs from `.git/nexlegtiq/notion-decisions` | next `/ticket` |
 | Ruflo `lessons` / `patterns` | `/ship` (and `/remember`) | each ship |
 

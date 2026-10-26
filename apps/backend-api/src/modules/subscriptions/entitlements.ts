@@ -12,6 +12,7 @@ export interface SubscriptionRow {
     readonly name: string;
     readonly maxUsers: number | null;
     readonly aiQuotaMonthly: number | null;
+    readonly ocrPagesMonthly: number;
     readonly storageQuotaMb: number;
     readonly features: unknown;
   };
@@ -29,6 +30,8 @@ export interface Entitlements {
   readonly maxUsers: number | null;
   readonly storageQuotaMb: number;
   readonly aiQuotaMonthly: number | null;
+  /** Google Vision OCR pages a month (D-142); 0 = none. */
+  readonly ocrPagesMonthly: number;
   readonly features: Readonly<Record<PlanFeature, boolean>>;
 }
 
@@ -55,6 +58,7 @@ const NO_SUBSCRIPTION: Entitlements = {
   maxUsers: 0,
   storageQuotaMb: 0,
   aiQuotaMonthly: 0,
+  ocrPagesMonthly: 0,
   features: { ai: false, clientPortal: false, googleVisionOcr: false },
 };
 
@@ -79,6 +83,7 @@ export function resolveEntitlements(rows: readonly SubscriptionRow[], now: Date)
     maxUsers: row.plan.maxUsers,
     storageQuotaMb: row.plan.storageQuotaMb,
     aiQuotaMonthly: row.plan.aiQuotaMonthly,
+    ocrPagesMonthly: row.plan.ocrPagesMonthly,
     features: featuresOf(row.plan.features),
   };
 }

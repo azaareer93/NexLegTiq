@@ -28,7 +28,8 @@
 - Retention defaults: audit 365d (configurable up), time entries 3y, invoices 6y, closed cases 5y then flag for review
   (never auto-delete legal records without office confirmation), ingested email 90d (Phase 2).
 - Sub-processors (update DPA/FAQ to match actual): hosting VPS provider, managed Postgres, managed Redis, object storage,
-  OpenAI, Google Cloud (Vision, Gemini), Resend, Sentry. Data region per D-021.
+  OpenAI, Google Cloud (Vision, Gemini), Resend, Sentry. Data region per D-021. Google Vision receives **unredacted
+  scan images** (D-142: never confidential documents, only offices that opt in) — the privacy policy and DPA must say so.
 - Breach: notify affected offices & regulators ≤ 72h; incident log.
 
 ## Environments & deploy (D-020)

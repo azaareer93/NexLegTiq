@@ -128,6 +128,13 @@ const EnvObject = z.object({
   // Pages of a scanned PDF (or TIFF) run through Tesseract (D-139). About 4 s a page on a busy 2-CPU worker: the default
   // fits the 300 s attempt; raise OCR_JOB_TIMEOUT_MS with it.
   OCR_MAX_PAGES: z.coerce.number().int().min(1).max(250).default(50),
+  // Google Vision fallback for hard-to-read scans (D-142): an API key restricted to the Vision API; unset = no Vision.
+  GOOGLE_VISION_CREDENTIALS: required.optional(),
+  GOOGLE_VISION_ENDPOINT: z.url().default('https://eu-vision.googleapis.com'),
+  // Vision re-reads a scan whose Tesseract mean confidence is below this (0–100).
+  OCR_VISION_MIN_CONFIDENCE: z.coerce.number().min(0).max(100).default(70),
+  // USD per 1,000 pages, for the cost logged per document.
+  GOOGLE_VISION_PRICE_PER_1000_PAGES: z.coerce.number().min(0).default(1.5),
   // Ask for a summary after extraction (ai-ocr.md OCR step 6); off until the document-summary story enqueues it.
   AI_AUTO_SUMMARY: z.stringbool().default(false),
 });
@@ -186,6 +193,14 @@ const PRODUCTION_RULES: readonly (readonly [keyof RawEnv, (env: RawEnv) => boole
     'must not use the fake AI provider in production',
   ],
   [
+    'GOOGLE_VISION_ENDPOINT',
+    // The key and unredacted scans go there (D-142): only Google's own hosts.
+    (env) =>
+      !env.GOOGLE_VISION_ENDPOINT.startsWith('https:') ||
+      !new URL(env.GOOGLE_VISION_ENDPOINT).hostname.endsWith('.googleapis.com'),
+    'must be an https://*.googleapis.com endpoint in production',
+  ],
+  [
     'SMTP_REQUIRE_TLS',
     (env) => env.SMTP_REQUIRE_TLS === false && !env.SMTP_SECURE,
     'must not be false in production unless SMTP_SECURE is true',
@@ -207,6 +222,7 @@ const secretsOf = (env: RawEnv): Record<string, string> => ({
   RESEND_API_KEY: env.RESEND_API_KEY ?? '',
   OPENAI_API_KEY: env.OPENAI_API_KEY ?? '',
   GEMINI_API_KEY: env.GEMINI_API_KEY ?? '',
+  GOOGLE_VISION_CREDENTIALS: env.GOOGLE_VISION_CREDENTIALS ?? '',
 });
 
 /** Every variable the backend reads; `.env.example` must document each of them (asserted in env.schema.spec.ts). */
