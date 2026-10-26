@@ -27,6 +27,7 @@ const session = {
     verifyBy: null,
     idleMinutes: 30,
     timeZone: 'Asia/Hebron',
+    digitStyle: 'WESTERN',
   },
 };
 

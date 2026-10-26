@@ -14,7 +14,7 @@ const IDENTITY = ['name', 'registrationNumber', 'taxId', 'phone', 'email', 'addr
 const REGIONAL = ['jurisdiction', 'defaultLanguage', 'currency', 'timezone'];
 const CURRENCIES = Intl.supportedValuesOf('currency');
 // Region zones only, as the API accepts (D-125).
-const TIME_ZONES = Intl.supportedValuesOf('timeZone').filter(
+export const TIME_ZONES = Intl.supportedValuesOf('timeZone').filter(
   (zone) => zone === 'UTC' || (zone.includes('/') && !zone.startsWith('Etc/')),
 );
 const shape = UpdateOfficeProfileSchema.shape;

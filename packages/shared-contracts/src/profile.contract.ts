@@ -1,7 +1,7 @@
 import { DIGIT_STYLES, NOTIFICATION_CATEGORIES, ROLES } from '@nexlegtiq/shared-types';
 import { z } from 'zod';
 
-import { PhoneSchema, plainText, TimeZoneSchema } from './fields.js';
+import { clearable, PhoneSchema, plainText, TimeZoneSchema } from './fields.js';
 
 /** `GET /users/me` (D-146): the caller's own profile. The avatar is a short-lived link (private storage, D-085). */
 export const ProfileSchema = z.object({
@@ -22,9 +22,9 @@ export type Profile = z.infer<typeof ProfileSchema>;
 export const UpdateProfileSchema = z
   .object({
     fullName: plainText(120).pipe(z.string().min(2, 'validation.tooShort')),
-    phone: PhoneSchema.nullable(),
+    phone: clearable(PhoneSchema),
     uiLanguage: z.enum(['AR', 'EN']),
-    timezone: TimeZoneSchema.nullable(),
+    timezone: clearable(TimeZoneSchema),
     digitStyle: z.enum(DIGIT_STYLES),
   })
   .partial()

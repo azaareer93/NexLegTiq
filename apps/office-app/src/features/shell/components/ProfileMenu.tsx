@@ -1,11 +1,12 @@
 import { GlobalOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons';
-import { Bdi, DirectionalIcon, useLanguage } from '@nexlegtiq/shared-ui';
+import { Bdi, DirectionalIcon, useApiErrorHandler, useLanguage } from '@nexlegtiq/shared-ui';
 import { Avatar, Button, Dropdown } from 'antd';
 import type { MenuProps } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 
 import { signOut, useSession } from '../../auth';
+import { saveLanguage } from '../../profile/api/use-profile';
 
 /**
  * Initials for the avatar: first letters of the first two words. Arabic letters would join into one cursive shape, so they
@@ -31,10 +32,16 @@ export function ProfileMenu({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { locale, setLocale } = useLanguage();
+  const { notify } = useApiErrorHandler();
   const user = useSession((state) => state.user);
   const name = user?.fullName ?? '';
 
-  // The language applies at once; saving it to the profile comes with `PATCH users/me` (D-087 `onLocaleChange`).
+  // The language applies at once and is saved to the profile, so a reload keeps it (D-087, D-146); a failed save is
+  // reported and the language still applies for this session.
+  const pick = (next: 'ar' | 'en') => {
+    setLocale(next);
+    saveLanguage(next === 'ar' ? 'AR' : 'EN').catch(notify);
+  };
   const items: MenuProps['items'] = [
     {
       key: 'profile',
@@ -75,8 +82,8 @@ export function ProfileMenu({
 
   const onClick: MenuProps['onClick'] = ({ key }) => {
     if (key === 'profile') void navigate('/profile');
-    else if (key === 'lang-ar') setLocale('ar');
-    else if (key === 'lang-en') setLocale('en');
+    else if (key === 'lang-ar') pick('ar');
+    else if (key === 'lang-en') pick('en');
     else if (key === 'logout') void signOut();
   };
 

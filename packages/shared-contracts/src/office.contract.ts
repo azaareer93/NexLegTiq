@@ -15,14 +15,8 @@ import {
   plainText,
   searchText,
   TimeZoneSchema,
+  clearable,
 } from './fields.js';
-
-/** An optional profile field: `null` (or an empty string) clears it. */
-const clearable = <T extends z.ZodType<string | null>>(schema: T) =>
-  z.preprocess(
-    (value) => (typeof value === 'string' && value.trim() === '' ? null : value),
-    schema.nullable(),
-  );
 
 /** No control or bidi characters (as `plainText`), then an http(s) URL. */
 const WebsiteSchema = searchText(200).pipe(

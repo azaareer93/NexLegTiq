@@ -1,0 +1,44 @@
+{
+  "title": "My account",
+  "personal": {
+    "title": "Personal details",
+    "fullName": "Full name",
+    "phone": "Phone",
+    "email": "Email",
+    "emailHint": "Your sign-in email is changed by the office manager."
+  },
+  "avatar": {
+    "title": "Picture",
+    "upload": "Upload a picture",
+    "remove": "Remove",
+    "hint": "PNG or JPEG. It is cropped to a square and made smaller before upload.",
+    "uploaded": "Picture updated",
+    "removed": "Picture removed",
+    "alt": "Picture of {{name}}",
+    "unreadable": "This image could not be read."
+  },
+  "preferences": {
+    "title": "Language and display",
+    "language": "Interface language",
+    "timezone": "My time zone",
+    "timezoneOffice": "Office's time zone ({{zone}})",
+    "timezoneHint": "Used for what is sent to you, like hearing reminder emails. Dates on screen stay in the office's time zone so everyone sees the same times.",
+    "digits": "Digits"
+  },
+  "password": {
+    "title": "Password",
+    "current": "Current password",
+    "next": "New password",
+    "confirm": "Confirm new password",
+    "submit": "Change password",
+    "changed": "Password changed. Your other sessions were signed out."
+  },
+  "notifications": {
+    "title": "Notifications",
+    "category": "Notify me about",
+    "inApp": "In the app",
+    "email": "By email",
+    "noEmail": "No email for this",
+    "hint": "Turned-off notifications are not shown or sent. Anything important to a file stays on its timeline."
+  }
+}
