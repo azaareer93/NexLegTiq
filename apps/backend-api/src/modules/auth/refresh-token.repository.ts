@@ -13,6 +13,7 @@ export const USER_FOR_SESSION = {
   email: true,
   role: true,
   uiLanguage: true,
+  digitStyle: true,
   isActive: true,
   emailVerifiedAt: true,
   createdAt: true,

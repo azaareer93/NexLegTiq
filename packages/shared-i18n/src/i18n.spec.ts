@@ -36,11 +36,20 @@ const ENUM_LABELS = {
   FOLDER_SYSTEM_KEYS: 'folderSystemKey',
   REMINDER_STATUSES: 'reminderStatus',
   SUBSCRIPTION_STATUSES: 'subscriptionStatus',
+  DIGIT_STYLES: 'digitStyle',
+  NOTIFICATION_CATEGORIES: 'notificationCategory',
   AI_SOURCE_TYPES: 'aiSourceType',
   AI_JOB_STATUSES: 'aiJobStatus',
 } as const;
 /** Value lists translated elsewhere (`errors.*`, `common.language.*`), or not shown to users yet (permissions, D-087). */
-const LABELLED_ELSEWHERE = ['ERROR_CODES', 'SUPPORTED_LOCALES', 'PERMISSIONS'];
+const LABELLED_ELSEWHERE = [
+  'ERROR_CODES',
+  'SUPPORTED_LOCALES',
+  'PERMISSIONS',
+  // Channel names and the email subset are shown through the profile namespace's own column headings.
+  'NOTIFICATION_CHANNELS',
+  'EMAIL_CATEGORIES',
+];
 
 describe('findMissingKeys', () => {
   it('should find a key that exists in one locale only, at any depth', () => {

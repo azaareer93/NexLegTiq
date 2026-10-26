@@ -12,6 +12,7 @@ import { TenantRunner } from '../../../common/tenancy/tenant-runner';
 import { PrismaService } from '../../../database/prisma.service';
 import { CREATE_NOTIFICATION_JOB, NotificationJobSchema } from '../notification-job';
 import type { NotificationJob } from '../notification-job';
+import { wants } from '../notification-preferences';
 
 /**
  * The single consumer of the `notification` queue: writes in-app notifications (MVP-68). The user's composite foreign
@@ -37,6 +38,13 @@ export class NotificationProcessor extends TenantProcessor<NotificationJob> {
       throw new UnrecoverableError(`Unknown notification job ${job.name}`);
     }
     const { officeId, userId, type, titleKey, params, link } = job.data;
+    // Turned off for this category in the recipient's preferences (D-146): nothing is written or pushed.
+    const recipient = await this.prisma.db.user.findUnique({
+      where: { id: job.data.userId },
+      select: { notificationPrefs: true },
+    });
+    if (!wants(recipient?.notificationPrefs ?? {}, job.data.type, 'inApp'))
+      return { skipped: 'preferences' };
     const { id } = await this.prisma.db.notification.create({
       data: { officeId, userId, type, titleKey, params, link, channel: 'IN_APP' },
       select: { id: true },

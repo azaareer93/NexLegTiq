@@ -36,6 +36,13 @@ export type { Priority } from './priority.js';
 export { COURT_TYPES } from './court.js';
 export type { CourtType } from './court.js';
 export { SUBSCRIPTION_STATUSES } from './subscription.js';
+export {
+  DIGIT_STYLES,
+  EMAIL_CATEGORIES,
+  NOTIFICATION_CATEGORIES,
+  NOTIFICATION_CHANNELS,
+} from './profile.js';
+export type { DigitStyle, NotificationCategory, NotificationChannel } from './profile.js';
 export type { SubscriptionStatus } from './subscription.js';
 export { TASK_STATUSES } from './task.js';
 export { AI_JOB_STATUSES, AI_SOURCE_TYPES } from './ai.js';

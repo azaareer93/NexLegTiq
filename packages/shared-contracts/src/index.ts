@@ -255,3 +255,15 @@ export type {
   ResolveConflictRequest,
   UpdateFilePartyRequest,
 } from './party.contract.js';
+export {
+  NotificationPreferencesSchema,
+  ProfileSchema,
+  UpdateNotificationPreferencesSchema,
+  UpdateProfileSchema,
+} from './profile.contract.js';
+export type {
+  NotificationPreferences,
+  Profile,
+  UpdateNotificationPreferencesRequest,
+  UpdateProfileRequest,
+} from './profile.contract.js';

@@ -12,6 +12,7 @@ import type { Prisma } from '../../generated/prisma/client';
 import { CaseAccessService } from '../legal-files/case-access.service';
 import { CREATE_NOTIFICATION_JOB } from '../notifications/notification-job';
 import type { NotificationJob } from '../notifications/notification-job';
+import { wants } from '../notifications/notification-preferences';
 
 const DELIVERY_SELECT = {
   id: true,
@@ -25,6 +26,7 @@ const DELIVERY_SELECT = {
       isActive: true,
       uiLanguage: true,
       timezone: true,
+      notificationPrefs: true,
     },
   },
   session: {
@@ -119,22 +121,24 @@ export class ReminderDelivery {
         : session.court.nameAr
       : '';
     const jobId = reminderJobId(reminder.id);
-    await this.mail.send(
-      recipient.email,
-      'hearing-reminder',
-      recipient.uiLanguage,
-      {
-        name: recipient.fullName,
-        link: `${this.config.mail.officeAppUrl}${sessionPath(session.id)}`,
-        fileNumber: session.file.fileNumber,
-        fileTitle: session.file.title,
-        date: formatDate(session.startsAt, { locale, timeZone, style: 'long' }),
-        time: formatTime(session.startsAt, { locale, timeZone }),
-        court,
-        courtRoom: session.courtRoom ?? '',
-      },
-      { jobId: `${jobId}-email` },
-    );
+    // The email follows the recipient's preferences here; the in-app row is checked by the notification worker (D-146).
+    if (wants(recipient.notificationPrefs, 'SESSION_REMINDER', 'email'))
+      await this.mail.send(
+        recipient.email,
+        'hearing-reminder',
+        recipient.uiLanguage,
+        {
+          name: recipient.fullName,
+          link: `${this.config.mail.officeAppUrl}${sessionPath(session.id)}`,
+          fileNumber: session.file.fileNumber,
+          fileTitle: session.file.title,
+          date: formatDate(session.startsAt, { locale, timeZone, style: 'long' }),
+          time: formatTime(session.startsAt, { locale, timeZone }),
+          court,
+          courtRoom: session.courtRoom ?? '',
+        },
+        { jobId: `${jobId}-email` },
+      );
     await this.queues.enqueue<NotificationJob>(
       QUEUE.NOTIFICATION,
       CREATE_NOTIFICATION_JOB,

@@ -44,7 +44,10 @@ function setup(role: Role = 'LAWYER', row = accessRow()) {
     permissions: permissionsFor(role),
   };
   const tx = {
-    user: { findFirst: jest.fn().mockResolvedValue({ id: OTHER, role: 'PARALEGAL' }) },
+    user: {
+      findFirst: jest.fn().mockResolvedValue({ id: OTHER, role: 'PARALEGAL' }),
+      findMany: jest.fn().mockResolvedValue([]), // no preferences stored: notified (D-146)
+    },
     legalFile: { count: jest.fn().mockResolvedValue(1) },
     task: {
       aggregate: jest.fn().mockResolvedValue({ _max: { sortOrder: 4 } }),

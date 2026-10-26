@@ -23,6 +23,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { AfterCommit, ScopedTransaction } from '../../database/unit-of-work';
 import type { ClientInfo } from '../auth/client-info';
+import { recipientsWanting } from '../notifications/notification-preferences';
 import { ReminderScheduler } from '../sessions/reminder-scheduler';
 import { EntitlementsService } from '../subscriptions/entitlements.service';
 
@@ -208,7 +209,10 @@ export class TeamService {
         { responsibleLawyerId: file.to },
       ),
     });
-    if (file.to !== this.actorId()) {
+    const notify =
+      file.to !== this.actorId() &&
+      (await recipientsWanting(tx, [file.to], 'file.reassigned', 'inApp')).has(file.to);
+    if (notify) {
       await tx.notification.create({
         data: {
           officeId,

@@ -201,5 +201,16 @@
     "RUNNING": "In progress",
     "SUCCEEDED": "Completed",
     "FAILED": "Failed"
+  },
+  "digitStyle": {
+    "WESTERN": "Western (0123)",
+    "ARABIC_INDIC": "Arabic-Indic (٠١٢٣)"
+  },
+  "notificationCategory": {
+    "TASKS": "Tasks assigned to me",
+    "HEARINGS": "Hearing reminders",
+    "FILES": "Files given to me or I joined",
+    "TEAM": "Team (invitations accepted)",
+    "DOCUMENTS": "Documents I uploaded (problems)"
   }
 }

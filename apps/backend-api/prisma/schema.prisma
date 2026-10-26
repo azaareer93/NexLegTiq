@@ -46,6 +46,11 @@ enum AccountType {
   CORPORATE
 }
 
+enum DigitStyle {
+  WESTERN
+  ARABIC_INDIC
+}
+
 enum UiLanguage {
   AR
   EN
@@ -377,22 +382,22 @@ model Office {
 
 /// Typed per-office settings (not key/value). audit_retention_days >= 365 is a CHECK constraint (D-060).
 model OfficeSettings {
-  id                   String        @id @default(uuid(7)) @db.Uuid
-  officeId             String        @unique @map("office_id") @db.Uuid
-  courtReminderDays    Int[]         @default([7, 3, 1]) @map("court_reminder_days")
-  taskReminderDays     Int[]         @default([1]) @map("task_reminder_days")
-  defaultBillingRate   Decimal?      @map("default_billing_rate") @db.Decimal(14, 2)
-  defaultBillingMethod BillingMethod @default(HOURLY) @map("default_billing_method")
-  taxRatePercent       Decimal       @default(0) @map("tax_rate_percent") @db.Decimal(5, 2)
-  enableAi             Boolean       @default(true) @map("enable_ai")
-  enableOcr            Boolean       @default(true) @map("enable_ocr")
-  fileNumberFormat     String        @default("{YEAR}-{TYPE}-{SEQ:5}") @map("file_number_format")
-  sessionIdleMinutes   Int           @default(30) @map("session_idle_minutes")
-  auditRetentionDays   Int           @default(365) @map("audit_retention_days")
+  id                    String        @id @default(uuid(7)) @db.Uuid
+  officeId              String        @unique @map("office_id") @db.Uuid
+  courtReminderDays     Int[]         @default([7, 3, 1]) @map("court_reminder_days")
+  taskReminderDays      Int[]         @default([1]) @map("task_reminder_days")
+  defaultBillingRate    Decimal?      @map("default_billing_rate") @db.Decimal(14, 2)
+  defaultBillingMethod  BillingMethod @default(HOURLY) @map("default_billing_method")
+  taxRatePercent        Decimal       @default(0) @map("tax_rate_percent") @db.Decimal(5, 2)
+  enableAi              Boolean       @default(true) @map("enable_ai")
+  enableOcr             Boolean       @default(true) @map("enable_ocr")
+  fileNumberFormat      String        @default("{YEAR}-{TYPE}-{SEQ:5}") @map("file_number_format")
+  sessionIdleMinutes    Int           @default(30) @map("session_idle_minutes")
+  auditRetentionDays    Int           @default(365) @map("audit_retention_days")
   /// Highest retention ever set; kept by a trigger (never lowered) and used by the purge (D-136).
-  maxAuditRetentionDays Int @default(365) @map("max_audit_retention_days")
-  createdAt            DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt            DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  maxAuditRetentionDays Int           @default(365) @map("max_audit_retention_days")
+  createdAt             DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   office Office @relation(fields: [officeId], references: [id], onDelete: Cascade)
 
@@ -401,25 +406,30 @@ model OfficeSettings {
 
 /// One login = one office (D-032): email is unique across all offices.
 model User {
-  id              String     @id @default(uuid(7)) @db.Uuid
-  officeId        String     @map("office_id") @db.Uuid
-  fullName        String     @map("full_name")
-  email           String     @unique @db.Citext
-  passwordHash    String     @map("password_hash")
-  role            Role
-  phone           String?
-  avatarUrl       String?    @map("avatar_url")
-  isActive        Boolean    @default(true) @map("is_active")
-  lastLoginAt     DateTime?  @map("last_login_at") @db.Timestamptz(3)
+  id                String     @id @default(uuid(7)) @db.Uuid
+  officeId          String     @map("office_id") @db.Uuid
+  fullName          String     @map("full_name")
+  email             String     @unique @db.Citext
+  passwordHash      String     @map("password_hash")
+  role              Role
+  phone             String?
+  avatarUrl         String?    @map("avatar_url")
+  isActive          Boolean    @default(true) @map("is_active")
+  lastLoginAt       DateTime?  @map("last_login_at") @db.Timestamptz(3)
   /// Null until the signup email is confirmed; unverified accounts lose access 7 days after signup (AUTH-010, D-083).
-  emailVerifiedAt DateTime?  @map("email_verified_at") @db.Timestamptz(3)
-  uiLanguage      UiLanguage @default(AR) @map("ui_language")
-  timezone        String?
+  emailVerifiedAt   DateTime?  @map("email_verified_at") @db.Timestamptz(3)
+  uiLanguage        UiLanguage @default(AR) @map("ui_language")
+  /// The user's own zone: what is addressed to them (reminder emails, D-117) is written in it; screens show the office's (D-127, D-146).
+  timezone          String?
+  /// Digits on screen: Western (default) or Arabic-Indic (D-092, D-146).
+  digitStyle        DigitStyle @default(WESTERN) @map("digit_style")
+  /// Notification channels turned off, per category: {"HEARINGS": {"email": false}} — absent = on (D-146).
+  notificationPrefs Json       @default("{}") @map("notification_prefs")
   /// AES-256-GCM ciphertext (D-056), never the raw secret.
-  mfaSecret       String?    @map("mfa_secret")
-  mfaEnabled      Boolean    @default(false) @map("mfa_enabled")
-  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+  mfaSecret         String?    @map("mfa_secret")
+  mfaEnabled        Boolean    @default(false) @map("mfa_enabled")
+  createdAt         DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   office              Office                   @relation(fields: [officeId], references: [id])
   sentInvitations     OfficeInvitation[]

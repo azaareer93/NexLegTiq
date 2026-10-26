@@ -20,6 +20,7 @@ import { RealtimePublisher } from '../../common/realtime/realtime.publisher';
 import { TenantRunner } from '../../common/tenancy/tenant-runner';
 import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
+import { wants } from '../notifications/notification-preferences';
 import { EntitlementsService } from '../subscriptions/entitlements.service';
 
 const INVALID_LINK = 'Invitation link is invalid or has expired';
@@ -127,9 +128,12 @@ export class InvitationAcceptService {
         // Every active office manager is told (W2), not only the inviter, who may have left since.
         const managers = await tx.user.findMany({
           where: { role: 'OFFICE_MANAGER', isActive: true },
-          select: { id: true },
+          select: { id: true, notificationPrefs: true },
         });
-        for (const manager of managers) {
+        // Those who turned team notifications off in the app are skipped (D-146).
+        for (const manager of managers.filter((m) =>
+          wants(m.notificationPrefs, 'invitation.accepted', 'inApp'),
+        )) {
           const notification = await tx.notification.create({
             data: {
               officeId,
