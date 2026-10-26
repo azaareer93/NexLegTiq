@@ -267,3 +267,19 @@ export type {
   UpdateNotificationPreferencesRequest,
   UpdateProfileRequest,
 } from './profile.contract.js';
+export {
+  AdminConfirmEnrollmentSchema,
+  AdminEnrollmentSchema,
+  AdminEnrollSchema,
+  AdminLoginSchema,
+  AdminProfileSchema,
+  AdminSessionSchema,
+} from './admin-auth.contract.js';
+export type {
+  AdminConfirmEnrollmentRequest,
+  AdminEnrollment,
+  AdminEnrollRequest,
+  AdminLoginRequest,
+  AdminProfile,
+  AdminSession,
+} from './admin-auth.contract.js';

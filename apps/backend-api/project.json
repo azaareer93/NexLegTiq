@@ -127,6 +127,13 @@
           "NODE_OPTIONS": "--experimental-vm-modules"
         }
       }
+    },
+    "create-admin": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsx prisma/create-admin.ts",
+        "cwd": "apps/backend-api"
+      }
     }
   }
 }

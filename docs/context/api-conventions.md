@@ -80,6 +80,7 @@ GET `invoices` · GET/PATCH `invoices/:id` · POST `invoices/:id/send` · POST `
 **portal** (`/api/v1/portal`, portal realm): POST `auth/login|refresh|logout|accept-invite|forgot-password|reset-password` ·
 GET `me` · GET `files` · GET `files/:id` (status, next hearing, public timeline) · GET `files/:id/documents` · GET `documents/:id/download` ·
 POST `files/:id/uploads` (quarantined into CLIENT_UPLOADS) · GET `invoices` · GET `invoices/:id/pdf`
+**admin auth** (D-145, public + realm guard): POST `admin/auth/login` `{email, password, code?|recoveryCode?}` (401 AUTH-008 without a code — detail `mfaEnrollment` when not set up; AUTH-009 wrong code) · POST `admin/auth/enroll` `{email, password}` → `{otpauthUri, secret}` · POST `admin/auth/enroll/confirm` `{email, password, code}` → 201 session + `recoveryCodes` once · POST `admin/auth/refresh|logout` (cookie `nlq_admin_rt` + Origin + X-Requested-With) · GET `admin/auth/me`. Realm off (no `ADMIN_JWT_SECRET`) → 404; outside `ADMIN_IP_ALLOWLIST` → 403 AUTH-100.
 **admin** (`/api/v1/admin`, platform realm + MFA): offices list/detail/suspend · plans CRUD · subscriptions assign/extend/record-payment ·
 usage (AI, storage) · platform audit
 **health** (not under the `/api/v1` prefix): GET `/health` (liveness) · GET `/health/ready` (checks registered in
