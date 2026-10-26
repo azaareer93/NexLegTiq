@@ -25,6 +25,7 @@ export class EntitlementsService {
   // applies within 30 s. Move to Redis (`o:{officeId}:entitlements`, D-058) when the admin panel edits plans or a second
   // API instance runs.
   private readonly cache = new Map<string, { value: Entitlements; until: number }>();
+  private readonly zones = new Map<string, { value: string; until: number }>();
 
   constructor(
     private readonly subscriptions: SubscriptionsRepository,
@@ -82,6 +83,7 @@ export class EntitlementsService {
    * the quota resets, so the app can tell the user.
    */
   async assertAiQuota(): Promise<void> {
+    if ((await this.current()).aiQuotaMonthly === null) return; // unlimited: nothing to count
     const usage = await this.aiUsage();
     if (usage.remaining === 0) {
       throw new AppException('AUTH-103', 'Monthly AI quota of the plan reached', [
@@ -111,14 +113,25 @@ export class EntitlementsService {
 
   /** The office's calendar month around `now`, in its own time zone (D-092, D-144). */
   async aiMonth(now = new Date()): Promise<{ readonly start: Date; readonly resetsAt: Date }> {
-    const zone = await this.subscriptions.officeTimeZone();
-    const [year = 0, month = 1] = wallClock(now, zone).date.split('-').map(Number);
+    const zone = await this.timeZone();
+    const [year, month] = wallClock(now, zone).date.split('-').map(Number) as [number, number];
     const first = (y: number, m: number) =>
       new Date(zonedDateTime(`${y}-${String(m).padStart(2, '0')}-01`, '00:00', zone));
     return {
       start: first(year, month),
       resetsAt: month === 12 ? first(year + 1, 1) : first(year, month + 1),
     };
+  }
+
+  /** The office's time zone, cached like the entitlements (a change applies within 30 s). */
+  private async timeZone(): Promise<string> {
+    const officeId = this.officeId();
+    const now = Date.now();
+    const hit = this.zones.get(officeId);
+    if (hit && hit.until > now) return hit.value;
+    const value = await this.subscriptions.officeTimeZone();
+    this.zones.set(officeId, { value, until: now + CACHE_MS });
+    return value;
   }
 
   /** Active users, for the usage view. */

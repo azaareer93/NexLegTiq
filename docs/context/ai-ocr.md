@@ -53,7 +53,7 @@ Architecture (`modules/ai`):
   `AUTH-103` with `{remaining: 0, quota, resetsAt}` when used up; `GET /ai/usage` → `{used, quota, remaining, resetsAt}`.
 - Cache keys: `o:{officeId}:ai:summary:{documentId}:{versionNumber}:{lang}:{promptVersion}` (24h+; invalidated by new version).
 - Config (Zod env): `AI_PRIMARY_PROVIDER`, `AI_FALLBACK_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `GEMINI_API_KEY`, `GEMINI_MODEL`,
-  `ANTHROPIC_API_KEY?`, `AI_MAX_OUTPUT_TOKENS=4096`, `AI_TEMPERATURE=0.2`, `AI_CACHE_TTL=86400`, `AI_COST_ALERT_THRESHOLD_USD`.
+  `ANTHROPIC_API_KEY?`, `AI_MAX_OUTPUT_TOKENS=4096`, `AI_TEMPERATURE=0.2`, `AI_CACHE_TTL=86400`, `AI_COST_ALERT_THRESHOLD_USD` + `AI_COST_ALERT_EMAIL` (both or neither, no default; D-144).
   Model names are config, never hard-coded.
 
 ## Quality, ethics, UX

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { OfficeId } from '@nexlegtiq/shared-types';
+import { DEFAULT_TIME_ZONE } from '@nexlegtiq/shared-utils';
 
 import type { SubscriptionRow } from './entitlements';
 import { PrismaService } from '../../database/prisma.service';
@@ -59,7 +60,7 @@ export class SubscriptionsRepository {
   /** The office's IANA time zone (D-125), which decides when its month starts. */
   async officeTimeZone(): Promise<string> {
     const office = await this.prisma.db.office.findFirst({ select: { timezone: true } });
-    return office?.timezone ?? 'Asia/Hebron';
+    return office?.timezone ?? DEFAULT_TIME_ZONE;
   }
 
   pendingInvitations(now: Date): Promise<number> {

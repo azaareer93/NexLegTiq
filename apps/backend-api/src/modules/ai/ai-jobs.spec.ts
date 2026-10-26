@@ -320,10 +320,19 @@ describe('AiProcessor', () => {
     expect(queue.upsertJobScheduler).toHaveBeenCalledWith(
       'ai-cost-alert',
       { pattern: '0 6 * * *', tz: 'UTC' },
-      { name: 'ai-cost-alert', data: {} },
+      { name: 'ai-cost-alert', data: {}, opts: { attempts: 1 } },
     );
+    // A worker without the setting leaves the schedule alone (others may have it).
+    queue.upsertJobScheduler.mockClear();
     await build(null).onApplicationBootstrap();
-    expect(queue.removeJobScheduler).toHaveBeenCalledWith('ai-cost-alert');
+    expect(queue.upsertJobScheduler).not.toHaveBeenCalled();
+    expect(queue.removeJobScheduler).not.toHaveBeenCalled();
+    // The name is reserved: no feature can register it, and a job carrying an office never runs the platform check.
+    expect(() => new AiJobRegistry().register('ai-cost-alert', jest.fn())).toThrow('reserved');
+    await expect(
+      processor.process({ name: 'ai-cost-alert', data: { officeId: OFFICE, aiJobId: JOB } } as Job),
+    ).rejects.toBeDefined();
+    expect(run).toHaveBeenCalledTimes(1);
   });
 
   it('should name the error code of a failure', () => {

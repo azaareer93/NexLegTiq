@@ -307,4 +307,38 @@ describe('subscriptions and entitlements (HTTP + PostgreSQL)', () => {
       aiResetsAt: mine.body.data.resetsAt,
     });
   });
+
+  it("should count the AI month from midnight in the office's time zone and say when it resets (D-144)", async () => {
+    const manager = await seedOffice(10);
+    await raw.office.update({ where: { id: manager.officeId }, data: { timezone: 'Asia/Hebron' } });
+    const at = (iso: string) => ({
+      officeId: manager.officeId,
+      feature: 'rollover-test',
+      provider: 'fake',
+      model: 'fake-1',
+      inputTokens: 1,
+      outputTokens: 1,
+      costUsd: '0',
+      durationMs: 1,
+      createdAt: new Date(iso),
+    });
+    // Hebron is UTC+2 in winter: February starts at 22:00 UTC on 31 January.
+    await raw.aiUsage.createMany({
+      data: [at('2031-01-31T21:59:00Z'), at('2031-01-31T22:01:00Z'), at('2031-02-01T10:00:00Z')],
+    });
+    const now = new Date('2031-02-10T12:00:00Z');
+    await expect(inOffice(manager, () => entitlements.aiCallsThisMonth(now))).resolves.toBe(2);
+    await expect(inOffice(manager, () => entitlements.aiUsage(now))).resolves.toMatchObject({
+      used: 2,
+      resetsAt: '2031-02-28T22:00:00.000Z',
+    });
+    // Used up: refused with nothing remaining and the reset (the quota of PS_FREE is 5).
+    await raw.aiUsage.createMany({
+      data: Array.from({ length: 5 }, () => at(new Date().toISOString())),
+    });
+    await expect(inOffice(manager, () => entitlements.assertAiQuota())).rejects.toMatchObject({
+      code: 'AUTH-103',
+      details: [{ field: 'aiQuota', params: { remaining: '0', quota: '5' } }],
+    });
+  });
 });

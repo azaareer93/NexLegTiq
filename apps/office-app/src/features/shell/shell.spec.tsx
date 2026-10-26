@@ -529,41 +529,47 @@ describe('header', () => {
     expect(await screen.findByText('No notifications yet.')).toBeTruthy();
   });
 
-  it('should switch the language from the account menu and back, remember the pick on this device, and open my account', async () => {
-    asRole('LAWYER');
-    const { router } = renderApp('/');
-    await dashboard();
-    expect(screen.getByTestId('profile-menu').getAttribute('aria-label')).toBeNull();
-    expect(screen.getByTestId('profile-menu').textContent).toContain('Layla Haddad');
+  it(
+    'should switch the language from the account menu and back, remember the pick on this device, and open my account',
+    async () => {
+      asRole('LAWYER');
+      const { router } = renderApp('/');
+      await dashboard();
+      expect(screen.getByTestId('profile-menu').getAttribute('aria-label')).toBeNull();
+      expect(screen.getByTestId('profile-menu').textContent).toContain('Layla Haddad');
 
-    // The submenu arrow points where the submenu opens: right in English, left in Arabic.
-    const languageArrow = () =>
-      screen.getByTestId('menu-language').querySelector('.anticon-right, .anticon-left');
+      // The submenu arrow points where the submenu opens: right in English, left in Arabic.
+      const languageArrow = () =>
+        screen.getByTestId('menu-language').querySelector('.anticon-right, .anticon-left');
 
-    fireEvent.click(screen.getByTestId('profile-menu'));
-    fireEvent.click(await screen.findByText('Language'));
-    expect(languageArrow()?.classList.contains('anticon-right')).toBe(true);
-    expect((await screen.findByTestId('menu-lang-en')).getAttribute('aria-disabled')).toBe('true');
-    fireEvent.click(screen.getByTestId('menu-lang-ar'));
-    await waitFor(() => expect(document.documentElement.dir).toBe('rtl'));
-    expect(within(screen.getByTestId('nav-cases')).getByRole('link').textContent).toBe('ملفاتي');
-    expect(localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe('ar');
+      fireEvent.click(screen.getByTestId('profile-menu'));
+      fireEvent.click(await screen.findByText('Language'));
+      expect(languageArrow()?.classList.contains('anticon-right')).toBe(true);
+      expect((await screen.findByTestId('menu-lang-en')).getAttribute('aria-disabled')).toBe(
+        'true',
+      );
+      fireEvent.click(screen.getByTestId('menu-lang-ar'));
+      await waitFor(() => expect(document.documentElement.dir).toBe('rtl'));
+      expect(within(screen.getByTestId('nav-cases')).getByRole('link').textContent).toBe('ملفاتي');
+      expect(localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe('ar');
 
-    fireEvent.click(screen.getByTestId('profile-menu'));
-    fireEvent.click(await screen.findByText('اللغة'));
-    expect(languageArrow()?.classList.contains('anticon-left')).toBe(true);
-    fireEvent.click(await screen.findByTestId('menu-lang-en'));
-    await waitFor(() => expect(document.documentElement.dir).toBe('ltr'));
+      fireEvent.click(screen.getByTestId('profile-menu'));
+      fireEvent.click(await screen.findByText('اللغة'));
+      expect(languageArrow()?.classList.contains('anticon-left')).toBe(true);
+      fireEvent.click(await screen.findByTestId('menu-lang-en'));
+      await waitFor(() => expect(document.documentElement.dir).toBe('ltr'));
 
-    fireEvent.click(screen.getByTestId('profile-menu'));
-    expect(languageArrow()?.classList.contains('anticon-right')).toBe(true);
-    fireEvent.click(screen.getByTestId('profile-menu'));
+      fireEvent.click(screen.getByTestId('profile-menu'));
+      expect(languageArrow()?.classList.contains('anticon-right')).toBe(true);
+      fireEvent.click(screen.getByTestId('profile-menu'));
 
-    fireEvent.click(screen.getByTestId('profile-menu'));
-    fireEvent.click(await screen.findByText('My account'));
-    expect(await screen.findByTestId('page-profile')).toBeTruthy();
-    expect(router.state.location.pathname).toBe('/profile');
-  });
+      fireEvent.click(screen.getByTestId('profile-menu'));
+      fireEvent.click(await screen.findByText('My account'));
+      expect(await screen.findByTestId('page-profile')).toBeTruthy();
+      expect(router.state.location.pathname).toBe('/profile');
+    },
+    SLOW,
+  ); // three language switches re-render the whole shell; over 20 s when the suite runs in parallel
 
   it('should name the icon-only account button with its owner', async () => {
     setViewport(1000);

@@ -30,7 +30,7 @@ export const AiUsageSummarySchema = z.object({
   used: z.number().int().nonnegative(),
   quota: z.number().int().nonnegative().nullable(),
   remaining: z.number().int().nonnegative().nullable(),
-  resetsAt: z.iso.datetime({ offset: true }),
+  resetsAt: z.iso.datetime(),
 });
 export type AiUsageSummary = z.infer<typeof AiUsageSummarySchema>;
 
