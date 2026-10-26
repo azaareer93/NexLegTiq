@@ -61,6 +61,7 @@
   "unknownParty": "This party does not exist in your office.",
   "inviteRole": "Choose a role other than office manager.",
   "avatarSize": "The picture is too large: at most 2048 × 2048 pixels.",
+  "aiQuotaReached": "The office has used this month's AI operations. They start again on {{resetsAt}}.",
   "totpCode": "Enter the 6-digit code from your authenticator app.",
   "recoveryCode": "Enter a recovery code like ABCDE-FGHIJ.",
   "oneCode": "Enter either the app code or a recovery code, not both.",

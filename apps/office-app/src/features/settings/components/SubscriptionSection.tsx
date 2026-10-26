@@ -92,6 +92,9 @@ function Usage({
         show={(n) => format.number(n)}
         testId="usage-ai"
       />
+      <Typography.Text type="secondary" data-testid="usage-ai-resets">
+        {t('settings.subscription.usage.aiResets', { date: format.date(usage.aiResetsAt) })}
+      </Typography.Text>
     </>
   );
 }

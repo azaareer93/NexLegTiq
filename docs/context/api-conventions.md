@@ -73,7 +73,7 @@ PATCH/DELETE `cases/:id/folders/:folderId` (system folders fixed → 422 BIZ-014
 **billing**: CRUD `time-entries` · POST `time-entries/timer/start|stop` · POST `invoices` (from time entries, `fileId?` null=consolidated) ·
 GET `invoices` · GET/PATCH `invoices/:id` · POST `invoices/:id/send` · POST `invoices/:id/mark-paid` · POST `invoices/:id/void` · GET `invoices/:id/pdf`
 **search**: GET `search?q&type=all|cases|clients|documents|parties|tasks&limit` (grouped)
-**ai**: POST `ai/summaries` `{sourceType, sourceId, language}` → 202 · GET `ai/summaries?sourceType&sourceId` · GET `jobs/:id` · GET `ai/usage` (quota)
+**ai**: POST `ai/summaries` `{sourceType, sourceId, language}` → 202 · GET `ai/summaries?sourceType&sourceId` · GET `jobs/:id` · GET `ai/usage` `{used, quota, remaining, resetsAt}` (`use:ai`, D-144)
 **notifications**: GET `notifications` · POST `notifications/:id/read` · POST `notifications/read-all` · GET/PATCH `notifications/preferences` (per category: `inApp`, `email` where one exists; D-146)
 **dashboard**: GET `dashboard` (role-aware KPIs + upcoming + activity)
 **audit**: GET `audit?entityType&entityId&userId&from&to` · GET `audit/export`

@@ -22,5 +22,17 @@ export const AiJobSchema = z.object({
   finishedAt: z.iso.datetime().nullable(),
 });
 
+/**
+ * `GET /ai/usage` (D-144): successful, non-cached AI operations of the office this month, counted in its time zone.
+ * `quota` and `remaining` are null for an unlimited plan; `resetsAt` is the start of the office's next month.
+ */
+export const AiUsageSummarySchema = z.object({
+  used: z.number().int().nonnegative(),
+  quota: z.number().int().nonnegative().nullable(),
+  remaining: z.number().int().nonnegative().nullable(),
+  resetsAt: z.iso.datetime(),
+});
+export type AiUsageSummary = z.infer<typeof AiUsageSummarySchema>;
+
 export type AiJobAccepted = z.infer<typeof AiJobAcceptedSchema>;
 export type AiJob = z.infer<typeof AiJobSchema>;

@@ -1,23 +1,29 @@
 import { OnWorkerEvent, Processor } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
+import type { OnApplicationBootstrap } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { UnrecoverableError } from 'bullmq';
 import type { Job } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 import { z } from 'zod';
 
 import { AppException } from '../../../common/errors/app.exception';
-import { QUEUE, workerOptions } from '../../../common/queue/queues';
+import { getQueue, QUEUE, workerOptions } from '../../../common/queue/queues';
 import { parseTenantJob } from '../../../common/queue/tenant-job';
 import type { TenantJobData } from '../../../common/queue/tenant-job';
 import { TenantProcessor } from '../../../common/queue/tenant-processor';
+import { withTimeout } from '../../../common/queue/with-timeout';
 import { TenantRunner } from '../../../common/tenancy/tenant-runner';
+import { AppConfig } from '../../../config/app-config';
 import { PrismaService } from '../../../database/prisma.service';
+import { AI_COST_ALERT_JOB, AI_COST_ALERT_SCHEDULE, AiCostAlert } from '../ai-cost-alert';
 import { AiJobRegistry } from '../ai-job-registry';
 import { AiJobs } from '../ai-jobs';
 import type { AiJobData } from '../ai-jobs';
 import { AiFinalException } from '../ai-providers';
 
 const AiJobDataSchema = z.looseObject({ aiJobId: z.uuid() });
+const COST_ALERT_TIMEOUT_MS = 60_000;
 
 /**
  * Only a provider that was unavailable is worth another attempt (D-130); anything else — and an `AiFinalException`
@@ -40,7 +46,7 @@ export function errorCodeOf(error: unknown): string {
  */
 @Injectable()
 @Processor(QUEUE.AI, workerOptions(QUEUE.AI))
-export class AiProcessor extends TenantProcessor<AiJobData> {
+export class AiProcessor extends TenantProcessor<AiJobData> implements OnApplicationBootstrap {
   protected readonly schema = AiJobDataSchema;
 
   constructor(
@@ -49,8 +55,40 @@ export class AiProcessor extends TenantProcessor<AiJobData> {
     logger: PinoLogger,
     private readonly registry: AiJobRegistry,
     private readonly jobs: AiJobs,
+    private readonly costAlert: AiCostAlert,
+    private readonly config: AppConfig,
+    private readonly moduleRef: ModuleRef,
   ) {
     super(tenant, prisma, logger);
+  }
+
+  /**
+   * The daily platform cost check (D-144), scheduled by a worker that has the alert configured — one attempt, so a send
+   * that failed after delivery never emails twice. It is never removed here: workers without the setting would undo the
+   * schedule of those with it (a run without the setting does nothing). A Redis outage is logged.
+   */
+  async onApplicationBootstrap(): Promise<void> {
+    if (!this.config.aiCostAlert) return;
+    try {
+      await getQueue(this.moduleRef, QUEUE.AI).upsertJobScheduler(
+        AI_COST_ALERT_JOB,
+        AI_COST_ALERT_SCHEDULE,
+        { name: AI_COST_ALERT_JOB, data: {}, opts: { attempts: 1 } },
+      );
+    } catch (error) {
+      this.logger.warn({ err: error }, 'AI cost alert not scheduled');
+    }
+  }
+
+  /**
+   * The cost check spans every office, so it runs before the tenant checks of `TenantProcessor.process` — only as the
+   * scheduler queues it (no office in its data; the name is reserved in the registry), within a minute.
+   */
+  override async process(job: Job<AiJobData & TenantJobData>): Promise<unknown> {
+    if (job.name === AI_COST_ALERT_JOB && !('officeId' in (job.data ?? {}))) {
+      return withTimeout(() => this.costAlert.run(), COST_ALERT_TIMEOUT_MS);
+    }
+    return super.process(job);
   }
 
   protected async handle(

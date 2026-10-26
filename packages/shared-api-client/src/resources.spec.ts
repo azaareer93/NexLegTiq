@@ -475,7 +475,7 @@ describe('officesApi', () => {
       trialEndsAt: '2027-04-01T00:00:00.000Z',
       limits: { users: 5, storageMb: 2048, aiMonthly: 5 },
       features: { ai: true, clientPortal: true, googleVisionOcr: false },
-      usage: { users: 2, storageMb: 1, aiThisMonth: 0 },
+      usage: { users: 2, storageMb: 1, aiThisMonth: 0, aiResetsAt: '2026-10-31T22:00:00.000Z' },
     };
     server.use(http.get(url('offices/me/subscription'), () => ok(subscription)));
     const { offices } = setup('access-1');
