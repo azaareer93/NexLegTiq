@@ -38,7 +38,8 @@
     "category": "Notify me about",
     "inApp": "In the app",
     "email": "By email",
-    "noEmail": "No email for this",
-    "hint": "Turned-off notifications are not shown or sent. Anything important to a file stays on its timeline."
+    "noEmail": "Not sent by email",
+    "hint": "Turned-off notifications are not shown or sent. Anything important to a file stays on its timeline.",
+    "switchLabel": "{{category}} — {{channel}}"
   }
 }

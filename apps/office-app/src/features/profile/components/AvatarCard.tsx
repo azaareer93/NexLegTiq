@@ -30,14 +30,17 @@ export function AvatarCard({ profile }: { readonly profile: Profile }): React.JS
   return (
     <Card title={t('profile.avatar.title')} data-testid="profile-avatar">
       <Flex gap={16} align="center" wrap>
-        <Avatar
-          size={72}
-          src={profile.avatar?.url}
-          alt={t('profile.avatar.alt', { name: isolate(profile.fullName) })}
-          data-testid="profile-avatar-image"
-        >
-          <bdi>{initialsOf(profile.fullName)}</bdi>
-        </Avatar>
+        {/* One accessible name whether a picture or the initials show. */}
+        <span role="img" aria-label={t('profile.avatar.alt', { name: isolate(profile.fullName) })}>
+          <Avatar
+            size={72}
+            src={profile.avatar?.url}
+            aria-hidden="true"
+            data-testid="profile-avatar-image"
+          >
+            <bdi>{initialsOf(profile.fullName)}</bdi>
+          </Avatar>
+        </span>
         <Flex vertical gap={8}>
           <Flex gap={8} wrap>
             <Upload

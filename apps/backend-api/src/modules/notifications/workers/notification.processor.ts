@@ -40,10 +40,10 @@ export class NotificationProcessor extends TenantProcessor<NotificationJob> {
     const { officeId, userId, type, titleKey, params, link } = job.data;
     // Turned off for this category in the recipient's preferences (D-146): nothing is written or pushed.
     const recipient = await this.prisma.db.user.findUnique({
-      where: { id: job.data.userId },
+      where: { id: userId },
       select: { notificationPrefs: true },
     });
-    if (!wants(recipient?.notificationPrefs ?? {}, job.data.type, 'inApp'))
+    if (!wants(recipient?.notificationPrefs ?? {}, type, 'inApp'))
       return { skipped: 'preferences' };
     const { id } = await this.prisma.db.notification.create({
       data: { officeId, userId, type, titleKey, params, link, channel: 'IN_APP' },

@@ -16,7 +16,7 @@ import type {
 import type { Request } from 'express';
 import { z } from 'zod';
 
-import { ProfileService } from './profile.service';
+import { AVATAR_MAX_BYTES, ProfileService } from './profile.service';
 import { ZodValidationPipe } from '../../common/http/zod-validation.pipe';
 import { ApiZodBody, ApiZodResponse } from '../../common/openapi/api-zod.decorators';
 import { discardBody, readUpload } from '../documents/upload/multipart';
@@ -60,11 +60,11 @@ export class ProfileController {
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
     summary:
-      'Upload your picture: PNG or JPEG, ≤ 2 MB (413 VAL-006), ≤ 2048×2048 (400 VAL-001); 415 VAL-005 otherwise',
+      'Upload your picture: PNG or JPEG, ≤ 2 MB (413 VAL-006), ≤ 4 megapixels, e.g. 2048×2048 (400 VAL-001); 415 VAL-005 otherwise',
   })
   @ApiZodResponse(201, ProfileSchema)
   async avatar(@Req() req: Request): Promise<Profile> {
-    const { file } = await readUpload(req, z.object({}));
+    const { file } = await readUpload(req, z.object({}), AVATAR_MAX_BYTES);
     try {
       return await this.profile.setAvatar(file);
     } finally {
@@ -72,6 +72,8 @@ export class ProfileController {
     }
   }
 
+  // Removing one's own picture stores nothing, so it works while the office is read-only too (D-146).
+  @AllowWhenReadOnly()
   @Delete('users/me/avatar')
   @ApiOperation({ summary: 'Remove your picture' })
   @ApiZodResponse(200, ProfileSchema)

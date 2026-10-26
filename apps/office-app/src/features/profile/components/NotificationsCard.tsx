@@ -26,6 +26,7 @@ export function NotificationsCard({
         rowKey="category"
         dataSource={preferences}
         pagination={false}
+        aria-label={t('profile.notifications.title')}
         size="small"
         columns={[
           { title: t('profile.notifications.category'), render: (_, row) => label(row) },
@@ -35,7 +36,10 @@ export function NotificationsCard({
               <Switch
                 checked={row.inApp}
                 disabled={update.isPending}
-                aria-label={`${label(row)} — ${t('profile.notifications.inApp')}`}
+                aria-label={t('profile.notifications.switchLabel', {
+                  category: label(row),
+                  channel: t('profile.notifications.inApp'),
+                })}
                 onChange={(on) => set(row, 'inApp', on)}
                 data-testid={`pref-${row.category}-inApp`}
               />
@@ -52,7 +56,10 @@ export function NotificationsCard({
                 <Switch
                   checked={row.email}
                   disabled={update.isPending}
-                  aria-label={`${label(row)} — ${t('profile.notifications.email')}`}
+                  aria-label={t('profile.notifications.switchLabel', {
+                    category: label(row),
+                    channel: t('profile.notifications.email'),
+                  })}
                   onChange={(on) => set(row, 'email', on)}
                   data-testid={`pref-${row.category}-email`}
                 />

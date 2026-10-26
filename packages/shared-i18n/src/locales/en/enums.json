@@ -210,7 +210,7 @@
     "TASKS": "Tasks assigned to me",
     "HEARINGS": "Hearing reminders",
     "FILES": "Files given to me or I joined",
-    "TEAM": "Team (invitations accepted)",
-    "DOCUMENTS": "Documents I uploaded (problems)"
+    "TEAM": "Invitations to the team accepted",
+    "DOCUMENTS": "Problems with documents I uploaded"
   }
 }

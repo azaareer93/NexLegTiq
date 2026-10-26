@@ -2,6 +2,7 @@ import { ApiError } from '@nexlegtiq/shared-api-client';
 import { permissionsFor, ROLES } from '@nexlegtiq/shared-types';
 import type { Role } from '@nexlegtiq/shared-types';
 import { LANGUAGE_STORAGE_KEY } from '@nexlegtiq/shared-ui';
+import { isolate } from '@nexlegtiq/shared-utils';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import axe from 'axe-core';
 import { createMemoryRouter, RouterProvider } from 'react-router';
@@ -582,7 +583,7 @@ describe('header', () => {
     renderApp('/');
     await dashboard();
     expect(screen.getByTestId('profile-menu').getAttribute('aria-label')).toBe(
-      'Account menu — Layla Haddad',
+      `Account menu — ${isolate('Layla Haddad')}`,
     );
   });
 

@@ -1,7 +1,9 @@
 import { UpdateProfileSchema } from '@nexlegtiq/shared-contracts';
 import type { Profile } from '@nexlegtiq/shared-contracts';
 import { DIGIT_STYLES } from '@nexlegtiq/shared-types';
-import { Form, Input, Select, Typography } from 'antd';
+import { Ltr } from '@nexlegtiq/shared-ui';
+import { isolateLtr } from '@nexlegtiq/shared-utils';
+import { Form, Input, Select } from 'antd';
 import { useTranslation } from 'react-i18next';
 
 import { useSession } from '../../auth';
@@ -37,9 +39,9 @@ export function PersonalForm({ profile }: { readonly profile: Profile }): React.
         <Input dir="ltr" autoComplete="tel" data-testid="profile-phone" />
       </Form.Item>
       <Form.Item label={t('profile.personal.email')} extra={t('profile.personal.emailHint')}>
-        <Typography.Text dir="ltr" data-testid="profile-email">
-          {profile.email}
-        </Typography.Text>
+        <span data-testid="profile-email">
+          <Ltr>{profile.email}</Ltr>
+        </span>
       </Form.Item>
     </SettingsSection>
   );
@@ -85,7 +87,7 @@ export function DisplayForm({ profile }: { readonly profile: Profile }): React.J
             {
               value: '',
               title: officeZone,
-              label: t('profile.preferences.timezoneOffice', { zone: officeZone }),
+              label: t('profile.preferences.timezoneOffice', { zone: isolateLtr(officeZone) }),
             },
             ...TIME_ZONES.map((value) => ({
               value,

@@ -84,6 +84,12 @@ export class ReminderDelivery {
       await this.setStatus(reminderId, 'CANCELLED');
       return { cancelled: stale };
     }
+    // Muted on both channels: nobody is told, so the drawer shows it cancelled, not "sent" (D-146).
+    const prefs = reminder.recipient.notificationPrefs;
+    if (!wants(prefs, 'SESSION_REMINDER', 'email') && !wants(prefs, 'SESSION_REMINDER', 'inApp')) {
+      await this.setStatus(reminderId, 'CANCELLED');
+      return { cancelled: 'RECIPIENT_MUTED' };
+    }
     await this.send(reminder);
     await this.setStatus(reminderId, 'SENT', now);
     return { sent: reminder.recipient.id };

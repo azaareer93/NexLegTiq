@@ -48,9 +48,11 @@ const missingFile = () =>
 export function readUpload<S extends z.ZodType>(
   req: Request,
   schema: S,
+  /** The largest file the route accepts (documents: 50 MiB; the avatar route passes its own, smaller cap). */
+  maxBytes = MAX_UPLOAD_BYTES,
 ): Promise<{ fields: z.output<S>; file: IncomingFile }> {
   const announced = Number(req.headers['content-length'] ?? 0);
-  if (announced > MAX_UPLOAD_BYTES + FORM_OVERHEAD_BYTES) {
+  if (announced > maxBytes + FORM_OVERHEAD_BYTES) {
     // Discarded unread: nothing is parsed or stored.
     return discardBody(req).then(() => Promise.reject(tooLarge()));
   }
@@ -60,7 +62,7 @@ export function readUpload<S extends z.ZodType>(
       headers: req.headers,
       defParamCharset: 'utf8',
       // One byte over the limit, so a file of exactly the limit is not cut (busboy cuts at the limit itself).
-      limits: { files: 1, fields: 10, fieldSize: 4096, parts: 12, fileSize: MAX_UPLOAD_BYTES + 1 },
+      limits: { files: 1, fields: 10, fieldSize: 4096, parts: 12, fileSize: maxBytes + 1 },
     });
   } catch {
     return discardBody(req).then(() =>

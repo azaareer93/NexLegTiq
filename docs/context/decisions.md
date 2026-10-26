@@ -2393,3 +2393,17 @@ resized to 256 px JPEG in the browser before upload; an image the browser cannot
 language/time zone/digits, password change (D-086) and the notification switches, each saved at once; the page title is the
 menu's "My account". **Not done here:** changing one's email (needs re-verification), sign-in history, email preferences
 for categories that have no email yet (added with their emails).
+Review additions (same PR): **writes lock the user's row** (`SELECT … FOR UPDATE`) and read it again, so two tabs toggling
+different switches both land and audit rows hold the right old values; a preference change that changes nothing writes
+nothing. **Stored preferences are read entry by entry**: an unknown category (renamed later) or an unreadable entry is
+dropped alone, never resetting the user's other choices. **The avatar upload is capped at 2 MB at the parser**
+(`readUpload` takes the route's `maxBytes`), so a refused picture is not read to 50 MB; the old key is read under the lock
+and deleted after the commit, a failed save deletes the new object, and a stored key that cannot be served shows "no
+picture" instead of failing the profile. PNG headers must start with `IHDR`; the pixel limit is 4 megapixels (2048 × 2048).
+`DELETE users/me/avatar` also works while read-only (it stores nothing). **The malware alert is not a preference**:
+`DOCUMENT_QUARANTINED` is always delivered (DOCUMENTS covers `DOCUMENT_FAILED`). **A hearing reminder muted on both
+channels is CANCELLED** (`RECIPIENT_MUTED`), not SENT, so colleagues never read "sent" for a reminder nobody got.
+Deactivation reads the new lawyers' preferences once, not per file. **Known limits:** the server stores the avatar's bytes
+as uploaded (the browser re-encodes them; a direct API call can keep EXIF data) — strip or re-encode on the server before
+colleagues can see avatars; avatars are not counted in the storage quota (≤ 2 MB per user); the profile service reads
+Prisma directly rather than through a repository.

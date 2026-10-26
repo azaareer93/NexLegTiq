@@ -7,7 +7,7 @@ import type {
 } from '@nexlegtiq/shared-contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { apiClient, useSession } from '../../auth';
+import { apiClient, queryClient, useSession } from '../../auth';
 
 const profile = profileApi(apiClient);
 const users = usersApi(apiClient);
@@ -32,7 +32,12 @@ function adopt(saved: Profile): void {
 }
 
 export const useProfile = () =>
-  useQuery({ queryKey: profileKeys.profile, queryFn: ({ signal }) => profile.get(signal) });
+  useQuery({
+    queryKey: profileKeys.profile,
+    queryFn: ({ signal }) => profile.get(signal),
+    // The picture link lasts 15 min; refetching sooner would only download the picture again.
+    staleTime: 10 * 60_000,
+  });
 
 function useProfileWrite<A>(write: (args: A) => Promise<Profile>) {
   const queryClient = useQueryClient();
@@ -57,7 +62,10 @@ export const useRemoveAvatar = () => useProfileWrite(() => profile.removeAvatar(
 
 /** Language picked in the account menu, saved to the profile so it survives a reload (D-087 `onLocaleChange`). */
 export function saveLanguage(uiLanguage: 'AR' | 'EN'): Promise<void> {
-  return profile.update({ uiLanguage }).then(adopt);
+  return profile.update({ uiLanguage }).then((saved) => {
+    queryClient.setQueryData(profileKeys.profile, saved);
+    adopt(saved);
+  });
 }
 
 export const useNotificationPreferences = () =>

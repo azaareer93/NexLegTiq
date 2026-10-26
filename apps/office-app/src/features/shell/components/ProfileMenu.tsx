@@ -1,12 +1,13 @@
 import { GlobalOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons';
 import { Bdi, DirectionalIcon, useApiErrorHandler, useLanguage } from '@nexlegtiq/shared-ui';
+import { isolate } from '@nexlegtiq/shared-utils';
 import { Avatar, Button, Dropdown } from 'antd';
 import type { MenuProps } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 
 import { signOut, useSession } from '../../auth';
-import { saveLanguage } from '../../profile/api/use-profile';
+import { saveLanguage } from '../../profile';
 
 /**
  * Initials for the avatar: first letters of the first two words. Arabic letters would join into one cursive shape, so they
@@ -98,7 +99,7 @@ export function ProfileMenu({
       <Button
         type="text"
         // With the name visible, the name is the label (WCAG 2.5.3); icon-only, the menu says what it is and whose it is.
-        aria-label={compact ? `${t('shell.profile.menu')} — ${name}` : undefined}
+        aria-label={compact ? `${t('shell.profile.menu')} — ${isolate(name)}` : undefined}
         data-testid="profile-menu"
         style={{ paddingInline: 4 }}
       >

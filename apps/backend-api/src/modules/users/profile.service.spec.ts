@@ -1,6 +1,7 @@
 import { Readable } from 'node:stream';
 
 import type { ClsService } from 'nestjs-cls';
+import type { PinoLogger } from 'nestjs-pino';
 
 import { ProfileService } from './profile.service';
 import type { AuditService } from '../../common/audit/audit.service';
@@ -25,7 +26,9 @@ const USER = {
 function setup(user: Partial<typeof USER> = {}) {
   const row = { ...USER, ...user };
   const tx = {
+    $queryRaw: jest.fn().mockResolvedValue([]),
     user: {
+      findUniqueOrThrow: jest.fn().mockResolvedValue(row),
       update: jest.fn().mockImplementation(({ data }: { data: object }) => ({ ...row, ...data })),
     },
   };
@@ -40,13 +43,17 @@ function setup(user: Partial<typeof USER> = {}) {
     presignedGetUrl: jest.fn().mockResolvedValue('https://storage.test/avatar'),
   };
   const audit = { log: jest.fn() };
+  const logger = { setContext: jest.fn(), warn: jest.fn() };
   const service = new ProfileService(
     { db } as unknown as PrismaService,
     storage as unknown as StorageService,
     audit as unknown as AuditService,
-    { get: () => 'u1' } as unknown as ClsService<RequestContext>,
+    {
+      get: (key: string) => (key === 'officeId' ? 'o1' : 'u1'),
+    } as unknown as ClsService<RequestContext>,
+    logger as unknown as PinoLogger,
   );
-  return { service, tx, storage, audit };
+  return { service, tx, storage, audit, logger };
 }
 
 const file = (content: Buffer, filename: string, truncated = false) => ({
@@ -89,6 +96,25 @@ describe('ProfileService (D-146)', () => {
         file(Buffer.concat([jpegHeader(300, 300), Buffer.alloc(50)]), 'me.jpg'),
       ),
     ).resolves.toBeDefined();
+  });
+
+  it('should delete the new object when saving it fails, and lock the row before reading the old key', async () => {
+    const { service, storage, tx } = setup({ avatarUrl: 'o1/users/u1/avatar-old.png' });
+    tx.user.update.mockRejectedValueOnce(new Error('deadlock'));
+    await expect(
+      service.setAvatar(file(Buffer.concat([pngHeader(64, 64), Buffer.alloc(50)]), 'me.png')),
+    ).rejects.toThrow('deadlock');
+    const [stored] = storage.put.mock.calls[0] as [string];
+    expect(storage.delete).toHaveBeenCalledWith(stored);
+    expect(storage.delete).not.toHaveBeenCalledWith('o1/users/u1/avatar-old.png');
+    expect(tx.$queryRaw).toHaveBeenCalled();
+  });
+
+  it('should show no picture, not fail, when the stored key cannot be served', async () => {
+    const { service, storage, logger } = setup({ avatarUrl: 'elsewhere/avatar.png' });
+    storage.presignedGetUrl.mockRejectedValueOnce(new Error('tenant violation'));
+    await expect(service.get()).resolves.toMatchObject({ avatar: null });
+    expect(logger.warn).toHaveBeenCalled();
   });
 
   it('should refuse too heavy, wrong type, too large and truncated avatars', async () => {
@@ -134,6 +160,7 @@ describe('ProfileService (D-146)', () => {
     expect(next).toContainEqual({ category: 'TEAM', inApp: false, email: null });
     expect(next).toContainEqual({ category: 'HEARINGS', inApp: true, email: false });
     expect(next).toContainEqual({ category: 'TASKS', inApp: false, email: null });
+    expect(tx.$queryRaw).toHaveBeenCalled();
     expect(tx.user.update).toHaveBeenCalledWith({
       where: { id: 'u1' },
       data: {
@@ -144,5 +171,23 @@ describe('ProfileService (D-146)', () => {
         },
       },
     });
+  });
+
+  it('should write nothing for a switch that changes nothing, and keep choices next to an unreadable entry', async () => {
+    const { service, tx, audit } = setup({
+      notificationPrefs: {
+        TASKS: { inApp: false },
+        RENAMED: { inApp: false },
+        TEAM: { inApp: 'x' },
+      },
+    });
+    const prefs = await service.updatePreferences({
+      TASKS: { inApp: false },
+      FILES: { email: false },
+    });
+    expect(tx.user.update).not.toHaveBeenCalled();
+    expect(audit.log).not.toHaveBeenCalled();
+    expect(prefs).toContainEqual({ category: 'TASKS', inApp: false, email: null });
+    expect(prefs).toContainEqual({ category: 'TEAM', inApp: true, email: null });
   });
 });
