@@ -377,22 +377,22 @@ model Office {
 
 /// Typed per-office settings (not key/value). audit_retention_days >= 365 is a CHECK constraint (D-060).
 model OfficeSettings {
-  id                   String        @id @default(uuid(7)) @db.Uuid
-  officeId             String        @unique @map("office_id") @db.Uuid
-  courtReminderDays    Int[]         @default([7, 3, 1]) @map("court_reminder_days")
-  taskReminderDays     Int[]         @default([1]) @map("task_reminder_days")
-  defaultBillingRate   Decimal?      @map("default_billing_rate") @db.Decimal(14, 2)
-  defaultBillingMethod BillingMethod @default(HOURLY) @map("default_billing_method")
-  taxRatePercent       Decimal       @default(0) @map("tax_rate_percent") @db.Decimal(5, 2)
-  enableAi             Boolean       @default(true) @map("enable_ai")
-  enableOcr            Boolean       @default(true) @map("enable_ocr")
-  fileNumberFormat     String        @default("{YEAR}-{TYPE}-{SEQ:5}") @map("file_number_format")
-  sessionIdleMinutes   Int           @default(30) @map("session_idle_minutes")
-  auditRetentionDays   Int           @default(365) @map("audit_retention_days")
+  id                    String        @id @default(uuid(7)) @db.Uuid
+  officeId              String        @unique @map("office_id") @db.Uuid
+  courtReminderDays     Int[]         @default([7, 3, 1]) @map("court_reminder_days")
+  taskReminderDays      Int[]         @default([1]) @map("task_reminder_days")
+  defaultBillingRate    Decimal?      @map("default_billing_rate") @db.Decimal(14, 2)
+  defaultBillingMethod  BillingMethod @default(HOURLY) @map("default_billing_method")
+  taxRatePercent        Decimal       @default(0) @map("tax_rate_percent") @db.Decimal(5, 2)
+  enableAi              Boolean       @default(true) @map("enable_ai")
+  enableOcr             Boolean       @default(true) @map("enable_ocr")
+  fileNumberFormat      String        @default("{YEAR}-{TYPE}-{SEQ:5}") @map("file_number_format")
+  sessionIdleMinutes    Int           @default(30) @map("session_idle_minutes")
+  auditRetentionDays    Int           @default(365) @map("audit_retention_days")
   /// Highest retention ever set; kept by a trigger (never lowered) and used by the purge (D-136).
-  maxAuditRetentionDays Int @default(365) @map("max_audit_retention_days")
-  createdAt            DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt            DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  maxAuditRetentionDays Int           @default(365) @map("max_audit_retention_days")
+  createdAt             DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   office Office @relation(fields: [officeId], references: [id], onDelete: Cascade)
 
@@ -455,20 +455,84 @@ model User {
 
 /// Admin-panel operators. Not an office role; MFA is mandatory.
 model PlatformAdmin {
-  id           String    @id @default(uuid(7)) @db.Uuid
-  fullName     String    @map("full_name")
-  email        String    @unique @db.Citext
-  passwordHash String    @map("password_hash")
-  /// AES-256-GCM ciphertext (D-056).
-  mfaSecret    String    @map("mfa_secret")
-  isActive     Boolean   @default(true) @map("is_active")
-  lastLoginAt  DateTime? @map("last_login_at") @db.Timestamptz(3)
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id            String    @id @default(uuid(7)) @db.Uuid
+  fullName      String    @map("full_name")
+  email         String    @unique @db.Citext
+  passwordHash  String    @map("password_hash")
+  /// TOTP secret, AES-256-GCM ciphertext (D-056); set at enrolment, confirmed when `mfaEnrolledAt` is set (D-145).
+  mfaSecret     String?   @map("mfa_secret")
+  mfaEnrolledAt DateTime? @map("mfa_enrolled_at") @db.Timestamptz(3)
+  /// The last TOTP time step accepted: a code is never accepted twice (D-145).
+  mfaLastStep   Int?      @map("mfa_last_step")
+  isActive      Boolean   @default(true) @map("is_active")
+  lastLoginAt   DateTime? @map("last_login_at") @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  auditLogs AuditLog[]
+  auditLogs         AuditLog[]
+  sessions          PlatformSession[]
+  recoveryCodes     PlatformRecoveryCode[]
+  platformAuditLogs PlatformAuditLog[]
 
   @@map("platform_admins")
+}
+
+/// A platform admin's refresh token (D-145): 8 h from sign-in at most, 30 min without use ends it; rotated on refresh,
+/// a reused token ends its whole family.
+model PlatformSession {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  adminId      String    @map("admin_id") @db.Uuid
+  tokenHash    String    @unique @map("token_hash")
+  familyId     String    @map("family_id") @db.Uuid
+  startedAt    DateTime  @map("started_at") @db.Timestamptz(3)
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(3)
+  idleUntil    DateTime  @map("idle_until") @db.Timestamptz(3)
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(3)
+  replacedById String?   @map("replaced_by_id") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  admin PlatformAdmin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([familyId])
+  @@map("platform_sessions")
+}
+
+/// One-time recovery code of a platform admin (D-145): SHA-256 of a high-entropy code, shown once at enrolment.
+model PlatformRecoveryCode {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  adminId   String    @map("admin_id") @db.Uuid
+  codeHash  String    @unique @map("code_hash")
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  admin PlatformAdmin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@map("platform_recovery_codes")
+}
+
+/// What platform admins did (D-145), append-only like the office audit log (UPDATE/DELETE revoked from the app role).
+model PlatformAuditLog {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  /// Null for a refused sign-in that matched no admin.
+  adminId        String?  @map("admin_id") @db.Uuid
+  action         String
+  /// The office an action concerned, when it concerned one.
+  targetOfficeId String?  @map("target_office_id") @db.Uuid
+  entityType     String   @map("entity_type")
+  entityId       String?  @map("entity_id")
+  oldValues      Json?    @map("old_values")
+  newValues      Json?    @map("new_values")
+  ipAddress      String?  @map("ip_address")
+  userAgent      String?  @map("user_agent")
+  requestId      String?  @map("request_id")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  admin PlatformAdmin? @relation(fields: [adminId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([createdAt])
+  @@index([adminId, createdAt])
+  @@map("platform_audit_logs")
 }
 
 model OfficeInvitation {

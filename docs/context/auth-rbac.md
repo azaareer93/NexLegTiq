@@ -33,6 +33,11 @@ Client portal uses a separate realm: audience `portal`, secret `JWT_PORTAL_SECRE
 - **Deactivate** (W5): must reassign open files (responsible lawyer) in same request; last OFFICE_MANAGER can't be
   deactivated (`BIZ-001`); revokes sessions.
 - **MFA (TOTP)**: required for PlatformAdmin in MVP; optional for office users (Phase 5 enforcement).
+- **Platform admin realm (D-145)**: `/api/v1/admin/auth` — password + TOTP (or a one-time recovery code) on every sign-in,
+  enrolment on first sign-in, access JWT audience `admin` signed with `ADMIN_JWT_SECRET` (realm off — 404 — without it),
+  sessions of 8 h max / 30 min idle in `platform_sessions` (cookie `nlq_admin_rt`, SameSite=Strict), optional
+  `ADMIN_IP_ALLOWLIST`, every sign-in/out and enrolment in `platform_audit_logs`. Admins are created by
+  `pnpm nx run backend-api:create-admin` (no signup).
 
 ## Roles
 OFFICE_MANAGER (OM), SENIOR_LAWYER (SL), LAWYER (L), PARALEGAL (P), ADMIN (A — office admin/finance, read-only on

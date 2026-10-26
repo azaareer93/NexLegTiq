@@ -21,6 +21,8 @@ setupTestServer();
 /** The first visit loads the page's chunk cold, which takes several seconds on a busy runner. */
 const COLD = 20_000;
 const SLOW = 60_000;
+// axe with an open wizard takes over a minute when the whole suite runs in parallel.
+const AXE_SLOW = 180_000;
 
 const member = (id: string, extra: Partial<TeamMember>): TeamMember => ({
   id,
@@ -218,7 +220,7 @@ describe('Team management (D-124)', () => {
       });
       expect(violations.map((violation) => violation.id)).toEqual([]);
     },
-    SLOW,
+    AXE_SLOW,
   );
 
   it(
