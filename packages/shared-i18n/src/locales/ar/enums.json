@@ -1,88 +1,21 @@
 {
-  "jurisdiction": {
-    "PALESTINE": "فلسطين",
-    "JORDAN": "الأردن",
-    "EGYPT": "مصر",
-    "SAUDI_ARABIA": "المملكة العربية السعودية",
-    "UAE": "الإمارات العربية المتحدة",
-    "KUWAIT": "الكويت",
-    "QATAR": "قطر",
-    "OMAN": "عُمان",
-    "BAHRAIN": "البحرين",
-    "LEBANON": "لبنان",
-    "IRAQ": "العراق",
-    "MOROCCO": "المغرب",
-    "USA": "الولايات المتحدة الأمريكية",
-    "UK": "المملكة المتحدة",
-    "OTHER": "أخرى"
-  },
   "accountType": {
     "SOLO": "محامٍ مستقل",
     "FIRM": "مكتب محاماة",
     "CORPORATE": "دائرة قانونية في شركة"
   },
-  "officeLanguage": {
-    "AR": "العربية",
-    "EN": "الإنجليزية",
-    "BILINGUAL": "ثنائي اللغة"
+  "aiJobStatus": {
+    "QUEUED": "في الانتظار",
+    "RUNNING": "قيد المعالجة",
+    "SUCCEEDED": "مكتملة",
+    "FAILED": "فشلت"
   },
-  "role": {
-    "OFFICE_MANAGER": "مدير المكتب",
-    "SENIOR_LAWYER": "المحامي الأول",
-    "LAWYER": "المحامي",
-    "PARALEGAL": "مساعد قانوني",
-    "ADMIN": "موظف إداري",
-    "TRAINEE": "محامٍ متدرب",
-    "EXTERNAL_COLLABORATOR": "متعاون خارجي"
-  },
-  "priority": {
-    "LOW": "منخفضة",
-    "MEDIUM": "متوسطة",
-    "HIGH": "مرتفعة",
-    "URGENT": "عاجلة"
-  },
-  "fileType": {
-    "LITIGATION": "تقاضٍ",
-    "CRIMINAL": "قضية جزائية",
-    "CONTRACT_DRAFTING": "صياغة العقود",
-    "LEGAL_ADVISORY": "استشارة قانونية",
-    "COMPLIANCE": "امتثال",
-    "CONFLICT_RESOLUTION": "تسوية النزاعات",
-    "BUSINESS_SUPPORT": "دعم الأعمال",
-    "NDA_REVIEW": "مراجعة اتفاقية عدم الإفصاح",
-    "WILL_TRUST": "وصايا وأوقاف",
-    "COMPANY_FORMATION": "تأسيس الشركات",
-    "RENTAL_AGREEMENT": "عقد إيجار",
-    "EMPLOYMENT_CONTRACT": "عقد عمل"
-  },
-  "fileStatus": {
-    "OPEN": "مفتوح",
-    "SUSPENDED": "معلّق",
-    "CLOSED": "مغلق",
-    "ARCHIVED": "مؤرشف"
-  },
-  "clientType": {
-    "INDIVIDUAL": "فرد",
-    "CORPORATION": "شركة",
-    "GOVERNMENT": "جهة حكومية",
-    "NGO": "منظمة غير حكومية",
-    "PARTNERSHIP": "شراكة"
-  },
-  "fileTeamRole": {
-    "RESPONSIBLE_LAWYER": "المحامي المسؤول",
-    "PARALEGAL": "مساعد قانوني",
-    "MEMBER": "عضو الفريق"
-  },
-  "partyType": {
-    "PLAINTIFF": "المدعي",
-    "DEFENDANT": "المدعى عليه",
-    "APPELLANT": "المستأنف",
-    "RESPONDENT": "المستأنف ضده",
-    "THIRD_PARTY": "طرف ثالث",
-    "GUARANTOR": "الكفيل",
-    "SIGNATORY": "الموقّع",
-    "INTERESTED_PARTY": "صاحب مصلحة",
-    "PROSECUTION": "النيابة العامة"
+  "aiSourceType": {
+    "DOCUMENT": "مستند",
+    "SESSION": "جلسة",
+    "WITNESS_STATEMENT": "شهادة",
+    "COURT_RULING": "حكم المحكمة",
+    "OPPOSING_BRIEF": "مذكرة الخصم"
   },
   "billingMethod": {
     "HOURLY": "بالساعة",
@@ -90,11 +23,12 @@
     "RETAINER": "دفعة مقدمة",
     "CONTINGENCY": "أتعاب مشروطة بالنتيجة"
   },
-  "taskStatus": {
-    "TODO": "للتنفيذ",
-    "IN_PROGRESS": "قيد التنفيذ",
-    "BLOCKED": "متوقفة",
-    "DONE": "منجزة"
+  "clientType": {
+    "INDIVIDUAL": "فرد",
+    "CORPORATION": "شركة",
+    "GOVERNMENT": "جهة حكومية",
+    "NGO": "منظمة غير حكومية",
+    "PARTNERSHIP": "شراكة"
   },
   "courtType": {
     "CIVIL": "مدنية",
@@ -111,26 +45,22 @@
     "SUPREME": "عليا",
     "ARBITRATION": "تحكيم"
   },
-  "sessionType": {
-    "HEARING": "جلسة",
-    "MEDIATION": "وساطة",
-    "ARBITRATION": "تحكيم",
-    "PRE_TRIAL": "جلسة تمهيدية",
-    "STATUS_CONFERENCE": "جلسة متابعة",
-    "APPEAL_HEARING": "جلسة استئناف",
-    "JUDGMENT_PRONOUNCEMENT": "النطق بالحكم"
+  "digitStyle": {
+    "WESTERN": "لاتينية (0123)",
+    "ARABIC_INDIC": "هندية عربية (٠١٢٣)"
   },
-  "sessionOutcome": {
-    "ADJOURNED": "مؤجلة",
-    "DECIDED": "صدر الحكم",
-    "SETTLED": "تمت التسوية",
-    "DISMISSED": "رُدّت الدعوى",
-    "POSTPONED": "أُرجئت"
+  "documentLanguage": {
+    "AR": "العربية",
+    "EN": "الإنجليزية",
+    "MIXED": "العربية والإنجليزية"
   },
-  "sessionStatus": {
-    "SCHEDULED": "مجدولة",
-    "COMPLETED": "منعقدة",
-    "CANCELLED": "ملغاة"
+  "documentStatus": {
+    "UPLOADED": "مرفوع",
+    "SCANNING": "قيد الفحص",
+    "PROCESSING": "قيد المعالجة",
+    "READY": "جاهز",
+    "FAILED": "فشل",
+    "QUARANTINED": "معزول"
   },
   "documentType": {
     "PLEADING": "لائحة",
@@ -149,24 +79,30 @@
     "CORRESPONDENCE": "مراسلات",
     "OTHER": "أخرى"
   },
-  "documentStatus": {
-    "UPLOADED": "مرفوع",
-    "SCANNING": "قيد الفحص",
-    "PROCESSING": "قيد المعالجة",
-    "READY": "جاهز",
-    "FAILED": "فشل",
-    "QUARANTINED": "معزول"
+  "fileStatus": {
+    "OPEN": "مفتوح",
+    "SUSPENDED": "معلّق",
+    "CLOSED": "مغلق",
+    "ARCHIVED": "مؤرشف"
   },
-  "ocrStatus": {
-    "NOT_NEEDED": "غير مطلوب",
-    "PENDING": "قيد الانتظار",
-    "DONE": "مكتمل",
-    "FAILED": "فشل"
+  "fileTeamRole": {
+    "RESPONSIBLE_LAWYER": "المحامي المسؤول",
+    "PARALEGAL": "مساعد قانوني",
+    "MEMBER": "عضو الفريق"
   },
-  "documentLanguage": {
-    "AR": "العربية",
-    "EN": "الإنجليزية",
-    "MIXED": "العربية والإنجليزية"
+  "fileType": {
+    "LITIGATION": "تقاضٍ",
+    "CRIMINAL": "قضية جزائية",
+    "CONTRACT_DRAFTING": "صياغة العقود",
+    "LEGAL_ADVISORY": "استشارة قانونية",
+    "COMPLIANCE": "امتثال",
+    "CONFLICT_RESOLUTION": "تسوية النزاعات",
+    "BUSINESS_SUPPORT": "دعم الأعمال",
+    "NDA_REVIEW": "مراجعة اتفاقية عدم الإفصاح",
+    "WILL_TRUST": "وصايا وأوقاف",
+    "COMPANY_FORMATION": "تأسيس الشركات",
+    "RENTAL_AGREEMENT": "عقد إيجار",
+    "EMPLOYMENT_CONTRACT": "عقد عمل"
   },
   "folderSystemKey": {
     "PLEADINGS": "اللوائح",
@@ -176,11 +112,93 @@
     "CORRESPONDENCE": "المراسلات",
     "CLIENT_UPLOADS": "مرفوعات الموكل"
   },
+  "jurisdiction": {
+    "PALESTINE": "فلسطين",
+    "JORDAN": "الأردن",
+    "EGYPT": "مصر",
+    "SAUDI_ARABIA": "المملكة العربية السعودية",
+    "UAE": "الإمارات العربية المتحدة",
+    "KUWAIT": "الكويت",
+    "QATAR": "قطر",
+    "OMAN": "عُمان",
+    "BAHRAIN": "البحرين",
+    "LEBANON": "لبنان",
+    "IRAQ": "العراق",
+    "MOROCCO": "المغرب",
+    "USA": "الولايات المتحدة الأمريكية",
+    "UK": "المملكة المتحدة",
+    "OTHER": "أخرى"
+  },
+  "notificationCategory": {
+    "TASKS": "المهام المسندة إليّ",
+    "HEARINGS": "تذكيرات الجلسات",
+    "FILES": "الملفات المسندة إليّ أو التي انضممت إليها",
+    "TEAM": "قبول الدعوات إلى الفريق",
+    "DOCUMENTS": "تعذّر معالجة المستندات التي رفعتها"
+  },
+  "ocrStatus": {
+    "NOT_NEEDED": "غير مطلوب",
+    "PENDING": "قيد الانتظار",
+    "DONE": "مكتمل",
+    "FAILED": "فشل"
+  },
+  "officeLanguage": {
+    "AR": "العربية",
+    "EN": "الإنجليزية",
+    "BILINGUAL": "ثنائي اللغة"
+  },
+  "partyType": {
+    "PLAINTIFF": "المدعي",
+    "DEFENDANT": "المدعى عليه",
+    "APPELLANT": "المستأنف",
+    "RESPONDENT": "المستأنف ضده",
+    "THIRD_PARTY": "طرف ثالث",
+    "GUARANTOR": "الكفيل",
+    "SIGNATORY": "الموقّع",
+    "INTERESTED_PARTY": "صاحب مصلحة",
+    "PROSECUTION": "النيابة العامة"
+  },
+  "priority": {
+    "LOW": "منخفضة",
+    "MEDIUM": "متوسطة",
+    "HIGH": "مرتفعة",
+    "URGENT": "عاجلة"
+  },
   "reminderStatus": {
     "PENDING": "بانتظار الإرسال",
     "SENT": "أُرسل",
     "FAILED": "تعذّر الإرسال",
     "CANCELLED": "أُلغي"
+  },
+  "role": {
+    "OFFICE_MANAGER": "مدير المكتب",
+    "SENIOR_LAWYER": "المحامي الأول",
+    "LAWYER": "المحامي",
+    "PARALEGAL": "مساعد قانوني",
+    "ADMIN": "موظف إداري",
+    "TRAINEE": "محامٍ متدرب",
+    "EXTERNAL_COLLABORATOR": "متعاون خارجي"
+  },
+  "sessionOutcome": {
+    "ADJOURNED": "مؤجلة",
+    "DECIDED": "صدر الحكم",
+    "SETTLED": "تمت التسوية",
+    "DISMISSED": "رُدّت الدعوى",
+    "POSTPONED": "أُرجئت"
+  },
+  "sessionStatus": {
+    "SCHEDULED": "مجدولة",
+    "COMPLETED": "منعقدة",
+    "CANCELLED": "ملغاة"
+  },
+  "sessionType": {
+    "HEARING": "جلسة",
+    "MEDIATION": "وساطة",
+    "ARBITRATION": "تحكيم",
+    "PRE_TRIAL": "جلسة تمهيدية",
+    "STATUS_CONFERENCE": "جلسة متابعة",
+    "APPEAL_HEARING": "جلسة استئناف",
+    "JUDGMENT_PRONOUNCEMENT": "النطق بالحكم"
   },
   "subscriptionStatus": {
     "TRIALING": "فترة تجريبية",
@@ -189,28 +207,10 @@
     "CANCELLED": "مُلغى",
     "EXPIRED": "منتهٍ"
   },
-  "aiSourceType": {
-    "DOCUMENT": "مستند",
-    "SESSION": "جلسة",
-    "WITNESS_STATEMENT": "شهادة",
-    "COURT_RULING": "حكم المحكمة",
-    "OPPOSING_BRIEF": "مذكرة الخصم"
-  },
-  "aiJobStatus": {
-    "QUEUED": "في الانتظار",
-    "RUNNING": "قيد المعالجة",
-    "SUCCEEDED": "مكتملة",
-    "FAILED": "فشلت"
-  },
-  "digitStyle": {
-    "WESTERN": "لاتينية (0123)",
-    "ARABIC_INDIC": "هندية عربية (٠١٢٣)"
-  },
-  "notificationCategory": {
-    "TASKS": "المهام المسندة إليّ",
-    "HEARINGS": "تذكيرات الجلسات",
-    "FILES": "الملفات المسندة إليّ أو التي انضممت إليها",
-    "TEAM": "قبول الدعوات إلى الفريق",
-    "DOCUMENTS": "تعذّر معالجة المستندات التي رفعتها"
+  "taskStatus": {
+    "TODO": "للتنفيذ",
+    "IN_PROGRESS": "قيد التنفيذ",
+    "BLOCKED": "متوقفة",
+    "DONE": "منجزة"
   }
 }

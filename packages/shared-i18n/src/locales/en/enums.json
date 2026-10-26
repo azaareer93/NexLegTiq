@@ -1,88 +1,21 @@
 {
-  "jurisdiction": {
-    "PALESTINE": "Palestine",
-    "JORDAN": "Jordan",
-    "EGYPT": "Egypt",
-    "SAUDI_ARABIA": "Saudi Arabia",
-    "UAE": "United Arab Emirates",
-    "KUWAIT": "Kuwait",
-    "QATAR": "Qatar",
-    "OMAN": "Oman",
-    "BAHRAIN": "Bahrain",
-    "LEBANON": "Lebanon",
-    "IRAQ": "Iraq",
-    "MOROCCO": "Morocco",
-    "USA": "United States",
-    "UK": "United Kingdom",
-    "OTHER": "Other"
-  },
   "accountType": {
     "SOLO": "Solo practitioner",
     "FIRM": "Law firm",
     "CORPORATE": "Corporate legal department"
   },
-  "officeLanguage": {
-    "AR": "Arabic",
-    "EN": "English",
-    "BILINGUAL": "Bilingual"
+  "aiJobStatus": {
+    "QUEUED": "Queued",
+    "RUNNING": "In progress",
+    "SUCCEEDED": "Completed",
+    "FAILED": "Failed"
   },
-  "role": {
-    "OFFICE_MANAGER": "Office manager",
-    "SENIOR_LAWYER": "Senior lawyer",
-    "LAWYER": "Lawyer",
-    "PARALEGAL": "Paralegal",
-    "ADMIN": "Administrative staff",
-    "TRAINEE": "Trainee lawyer",
-    "EXTERNAL_COLLABORATOR": "External collaborator"
-  },
-  "priority": {
-    "LOW": "Low",
-    "MEDIUM": "Medium",
-    "HIGH": "High",
-    "URGENT": "Urgent"
-  },
-  "fileType": {
-    "LITIGATION": "Litigation",
-    "CRIMINAL": "Criminal",
-    "CONTRACT_DRAFTING": "Contract drafting",
-    "LEGAL_ADVISORY": "Legal advisory",
-    "COMPLIANCE": "Compliance",
-    "CONFLICT_RESOLUTION": "Dispute resolution",
-    "BUSINESS_SUPPORT": "Business support",
-    "NDA_REVIEW": "NDA review",
-    "WILL_TRUST": "Wills and endowments",
-    "COMPANY_FORMATION": "Company formation",
-    "RENTAL_AGREEMENT": "Rental agreement",
-    "EMPLOYMENT_CONTRACT": "Employment contract"
-  },
-  "fileStatus": {
-    "OPEN": "Open",
-    "SUSPENDED": "Suspended",
-    "CLOSED": "Closed",
-    "ARCHIVED": "Archived"
-  },
-  "clientType": {
-    "INDIVIDUAL": "Individual",
-    "CORPORATION": "Company",
-    "GOVERNMENT": "Government body",
-    "NGO": "Non-governmental organization",
-    "PARTNERSHIP": "Partnership"
-  },
-  "fileTeamRole": {
-    "RESPONSIBLE_LAWYER": "Responsible lawyer",
-    "PARALEGAL": "Paralegal",
-    "MEMBER": "Team member"
-  },
-  "partyType": {
-    "PLAINTIFF": "Plaintiff",
-    "DEFENDANT": "Defendant",
-    "APPELLANT": "Appellant",
-    "RESPONDENT": "Respondent",
-    "THIRD_PARTY": "Third party",
-    "GUARANTOR": "Guarantor",
-    "SIGNATORY": "Signatory",
-    "INTERESTED_PARTY": "Interested party",
-    "PROSECUTION": "Prosecution"
+  "aiSourceType": {
+    "DOCUMENT": "Document",
+    "SESSION": "Hearing",
+    "WITNESS_STATEMENT": "Testimony",
+    "COURT_RULING": "Court ruling",
+    "OPPOSING_BRIEF": "Opposing brief"
   },
   "billingMethod": {
     "HOURLY": "Hourly",
@@ -90,11 +23,12 @@
     "RETAINER": "Retainer",
     "CONTINGENCY": "Contingency fee"
   },
-  "taskStatus": {
-    "TODO": "To do",
-    "IN_PROGRESS": "In progress",
-    "BLOCKED": "Blocked",
-    "DONE": "Done"
+  "clientType": {
+    "INDIVIDUAL": "Individual",
+    "CORPORATION": "Company",
+    "GOVERNMENT": "Government body",
+    "NGO": "Non-governmental organization",
+    "PARTNERSHIP": "Partnership"
   },
   "courtType": {
     "CIVIL": "Civil",
@@ -111,26 +45,22 @@
     "SUPREME": "Supreme",
     "ARBITRATION": "Arbitration"
   },
-  "sessionType": {
-    "HEARING": "Hearing",
-    "MEDIATION": "Mediation",
-    "ARBITRATION": "Arbitration",
-    "PRE_TRIAL": "Pre-trial",
-    "STATUS_CONFERENCE": "Status conference",
-    "APPEAL_HEARING": "Appeal hearing",
-    "JUDGMENT_PRONOUNCEMENT": "Judgment pronouncement"
+  "digitStyle": {
+    "WESTERN": "Western (0123)",
+    "ARABIC_INDIC": "Arabic-Indic (٠١٢٣)"
   },
-  "sessionOutcome": {
-    "ADJOURNED": "Adjourned",
-    "DECIDED": "Decided",
-    "SETTLED": "Settled",
-    "DISMISSED": "Dismissed",
-    "POSTPONED": "Postponed"
+  "documentLanguage": {
+    "AR": "Arabic",
+    "EN": "English",
+    "MIXED": "Arabic and English"
   },
-  "sessionStatus": {
-    "SCHEDULED": "Scheduled",
-    "COMPLETED": "Held",
-    "CANCELLED": "Cancelled"
+  "documentStatus": {
+    "UPLOADED": "Uploaded",
+    "SCANNING": "Scanning",
+    "PROCESSING": "Processing",
+    "READY": "Ready",
+    "FAILED": "Failed",
+    "QUARANTINED": "Quarantined"
   },
   "documentType": {
     "PLEADING": "Pleading",
@@ -149,24 +79,30 @@
     "CORRESPONDENCE": "Correspondence",
     "OTHER": "Other"
   },
-  "documentStatus": {
-    "UPLOADED": "Uploaded",
-    "SCANNING": "Scanning",
-    "PROCESSING": "Processing",
-    "READY": "Ready",
-    "FAILED": "Failed",
-    "QUARANTINED": "Quarantined"
+  "fileStatus": {
+    "OPEN": "Open",
+    "SUSPENDED": "Suspended",
+    "CLOSED": "Closed",
+    "ARCHIVED": "Archived"
   },
-  "ocrStatus": {
-    "NOT_NEEDED": "Not needed",
-    "PENDING": "Pending",
-    "DONE": "Done",
-    "FAILED": "Failed"
+  "fileTeamRole": {
+    "RESPONSIBLE_LAWYER": "Responsible lawyer",
+    "PARALEGAL": "Paralegal",
+    "MEMBER": "Team member"
   },
-  "documentLanguage": {
-    "AR": "Arabic",
-    "EN": "English",
-    "MIXED": "Arabic and English"
+  "fileType": {
+    "LITIGATION": "Litigation",
+    "CRIMINAL": "Criminal",
+    "CONTRACT_DRAFTING": "Contract drafting",
+    "LEGAL_ADVISORY": "Legal advisory",
+    "COMPLIANCE": "Compliance",
+    "CONFLICT_RESOLUTION": "Dispute resolution",
+    "BUSINESS_SUPPORT": "Business support",
+    "NDA_REVIEW": "NDA review",
+    "WILL_TRUST": "Wills and endowments",
+    "COMPANY_FORMATION": "Company formation",
+    "RENTAL_AGREEMENT": "Rental agreement",
+    "EMPLOYMENT_CONTRACT": "Employment contract"
   },
   "folderSystemKey": {
     "PLEADINGS": "Pleadings",
@@ -176,11 +112,93 @@
     "CORRESPONDENCE": "Correspondence",
     "CLIENT_UPLOADS": "Client uploads"
   },
+  "jurisdiction": {
+    "PALESTINE": "Palestine",
+    "JORDAN": "Jordan",
+    "EGYPT": "Egypt",
+    "SAUDI_ARABIA": "Saudi Arabia",
+    "UAE": "United Arab Emirates",
+    "KUWAIT": "Kuwait",
+    "QATAR": "Qatar",
+    "OMAN": "Oman",
+    "BAHRAIN": "Bahrain",
+    "LEBANON": "Lebanon",
+    "IRAQ": "Iraq",
+    "MOROCCO": "Morocco",
+    "USA": "United States",
+    "UK": "United Kingdom",
+    "OTHER": "Other"
+  },
+  "notificationCategory": {
+    "TASKS": "Tasks assigned to me",
+    "HEARINGS": "Hearing reminders",
+    "FILES": "Files given to me or I joined",
+    "TEAM": "Invitations to the team accepted",
+    "DOCUMENTS": "Problems with documents I uploaded"
+  },
+  "ocrStatus": {
+    "NOT_NEEDED": "Not needed",
+    "PENDING": "Pending",
+    "DONE": "Done",
+    "FAILED": "Failed"
+  },
+  "officeLanguage": {
+    "AR": "Arabic",
+    "EN": "English",
+    "BILINGUAL": "Bilingual"
+  },
+  "partyType": {
+    "PLAINTIFF": "Plaintiff",
+    "DEFENDANT": "Defendant",
+    "APPELLANT": "Appellant",
+    "RESPONDENT": "Respondent",
+    "THIRD_PARTY": "Third party",
+    "GUARANTOR": "Guarantor",
+    "SIGNATORY": "Signatory",
+    "INTERESTED_PARTY": "Interested party",
+    "PROSECUTION": "Prosecution"
+  },
+  "priority": {
+    "LOW": "Low",
+    "MEDIUM": "Medium",
+    "HIGH": "High",
+    "URGENT": "Urgent"
+  },
   "reminderStatus": {
     "PENDING": "Pending",
     "SENT": "Sent",
     "FAILED": "Failed",
     "CANCELLED": "Cancelled"
+  },
+  "role": {
+    "OFFICE_MANAGER": "Office manager",
+    "SENIOR_LAWYER": "Senior lawyer",
+    "LAWYER": "Lawyer",
+    "PARALEGAL": "Paralegal",
+    "ADMIN": "Administrative staff",
+    "TRAINEE": "Trainee lawyer",
+    "EXTERNAL_COLLABORATOR": "External collaborator"
+  },
+  "sessionOutcome": {
+    "ADJOURNED": "Adjourned",
+    "DECIDED": "Decided",
+    "SETTLED": "Settled",
+    "DISMISSED": "Dismissed",
+    "POSTPONED": "Postponed"
+  },
+  "sessionStatus": {
+    "SCHEDULED": "Scheduled",
+    "COMPLETED": "Held",
+    "CANCELLED": "Cancelled"
+  },
+  "sessionType": {
+    "HEARING": "Hearing",
+    "MEDIATION": "Mediation",
+    "ARBITRATION": "Arbitration",
+    "PRE_TRIAL": "Pre-trial",
+    "STATUS_CONFERENCE": "Status conference",
+    "APPEAL_HEARING": "Appeal hearing",
+    "JUDGMENT_PRONOUNCEMENT": "Judgment pronouncement"
   },
   "subscriptionStatus": {
     "TRIALING": "Trial",
@@ -189,28 +207,10 @@
     "CANCELLED": "Cancelled",
     "EXPIRED": "Expired"
   },
-  "aiSourceType": {
-    "DOCUMENT": "Document",
-    "SESSION": "Hearing",
-    "WITNESS_STATEMENT": "Testimony",
-    "COURT_RULING": "Court ruling",
-    "OPPOSING_BRIEF": "Opposing brief"
-  },
-  "aiJobStatus": {
-    "QUEUED": "Queued",
-    "RUNNING": "In progress",
-    "SUCCEEDED": "Completed",
-    "FAILED": "Failed"
-  },
-  "digitStyle": {
-    "WESTERN": "Western (0123)",
-    "ARABIC_INDIC": "Arabic-Indic (٠١٢٣)"
-  },
-  "notificationCategory": {
-    "TASKS": "Tasks assigned to me",
-    "HEARINGS": "Hearing reminders",
-    "FILES": "Files given to me or I joined",
-    "TEAM": "Invitations to the team accepted",
-    "DOCUMENTS": "Problems with documents I uploaded"
+  "taskStatus": {
+    "TODO": "To do",
+    "IN_PROGRESS": "In progress",
+    "BLOCKED": "Blocked",
+    "DONE": "Done"
   }
 }

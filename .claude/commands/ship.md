@@ -25,4 +25,4 @@ Ship the current branch. Args: $ARGUMENTS
    workflow offers; list transitions first). Don't move to Done — merge does that.
 7. Memory: store durable, reusable learnings (patterns, gotchas) in Ruflo (`memory_store`, namespace `patterns` or `lessons`,
    key `MVP-<n>-<topic>`). If a new decision was made, ensure `decisions.md` has it.
-8. Output the PR URL. Never merge it.
+8. Output the PR URL. Never merge it here — `/autopilot` merges green PRs without `needs-human-review` (D-147).
