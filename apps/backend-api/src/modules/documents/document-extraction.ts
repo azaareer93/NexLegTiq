@@ -6,6 +6,8 @@ import type { DocumentJob } from './document-jobs';
 import { autoSummaryWanted } from './extraction/auto-summary';
 import { extractable, extractText } from './extraction/extract-text';
 import { ocr, ocrable } from './extraction/ocr';
+import type { OcrResult } from './extraction/ocr';
+import { visionWithin, weakRead } from './extraction/vision';
 import { QueueProducer } from '../../common/queue/queue-producer';
 import { QUEUE } from '../../common/queue/queues';
 import { RealtimePublisher } from '../../common/realtime/realtime.publisher';
@@ -17,6 +19,7 @@ import { Prisma } from '../../generated/prisma/client';
 import type { DocumentType } from '../../generated/prisma/client';
 import { CREATE_NOTIFICATION_JOB } from '../notifications/notification-job';
 import type { NotificationJob } from '../notifications/notification-job';
+import { EntitlementsService } from '../subscriptions/entitlements.service';
 
 /** READY with text, NO_TEXT = READY without (legacy .doc, OCR off), SUPERSEDED = replaced or deleted meanwhile. */
 export type ExtractionOutcome = 'READY' | 'NO_TEXT' | 'SUPERSEDED';
@@ -36,6 +39,7 @@ interface VersionText {
   readonly ocrEngine: string;
   readonly ocrConfidence?: number | null;
   readonly pageConfidences?: (number | null)[];
+  readonly ocrCostUsd?: string;
 }
 
 /** Why processing failed: EXT-002 (could not finish — a retry may succeed) or VAL-005 (unreadable — it will not). */
@@ -67,6 +71,14 @@ async function readAll(stream: NodeJS.ReadableStream, signal: AbortSignal): Prom
  * — `document.processed` (ids only) when it is ready or failed, and an in-app notification when it failed. A version
  * replaced or a document deleted meanwhile changes nothing.
  */
+const tesseractText = (result: OcrResult): VersionText => ({
+  text: result.text,
+  pageCount: result.pageCount,
+  ocrEngine: 'tesseract',
+  ocrConfidence: result.confidence,
+  pageConfidences: [...result.pageConfidences],
+});
+
 @Injectable()
 export class DocumentExtraction {
   constructor(
@@ -77,6 +89,7 @@ export class DocumentExtraction {
     private readonly queues: QueueProducer,
     private readonly config: AppConfig,
     private readonly logger: PinoLogger,
+    private readonly entitlements: EntitlementsService,
   ) {
     this.logger.setContext(DocumentExtraction.name);
   }
@@ -150,13 +163,69 @@ export class DocumentExtraction {
       signal,
     });
     signal.throwIfAborted();
+    return (
+      (await this.visionFallback(job, content, mimeType, result, signal)) ?? tesseractText(result)
+    );
+  }
+
+  /**
+   * Google Vision re-reads a scan Tesseract read poorly (D-142): mean confidence under OCR_VISION_MIN_CONFIDENCE, or no
+   * word at all on a scan with pages — only when `visionAllowed`. Vision's text is kept when it reads better than
+   * Tesseract's; either way the pages were paid for, so the cost is stored (and counts against the page budget).
+   */
+  private async visionFallback(
+    job: DocumentJob,
+    content: Buffer,
+    mimeType: string,
+    tesseract: OcrResult,
+    signal: AbortSignal,
+  ): Promise<VersionText | null> {
+    const config = this.config.vision;
+    if (!config || !weakRead(tesseract, config.minConfidence)) return null;
+    if (!(await this.visionAllowed(job, tesseract.pageCount))) return null;
+    const vision = await visionWithin(content, mimeType, {
+      pages: tesseract.pageCount,
+      signal,
+      config,
+    });
+    if (!vision) return null;
+    if ('failed' in vision) {
+      this.logger.warn(
+        { documentId: job.documentId, code: vision.failed },
+        'Google Vision failed; Tesseract result kept',
+      );
+      return null;
+    }
+    this.logger.info(
+      { documentId: job.documentId, pages: vision.pageCount, costUsd: vision.costUsd },
+      'Scan re-read by Google Vision',
+    );
+    const better =
+      vision.text.length > 0 && (vision.confidence ?? 0) > (tesseract.confidence ?? -1);
+    if (!better) return { ...tesseractText(tesseract), ocrCostUsd: vision.costUsd };
     return {
-      text: result.text,
-      pageCount: result.pageCount,
-      ocrEngine: 'tesseract',
-      ocrConfidence: result.confidence,
-      pageConfidences: [...result.pageConfidences],
+      text: vision.text,
+      pageCount: vision.pageCount,
+      ocrEngine: 'google-vision',
+      ocrConfidence: vision.confidence,
+      pageConfidences: [...vision.pageConfidences],
+      ocrCostUsd: vision.costUsd,
     };
+  }
+
+  /** Plan flag (not read-only), office opt-in, a non-confidential document, pages left this month. */
+  private async visionAllowed(job: DocumentJob, pages: number): Promise<boolean> {
+    const entitlements = await this.entitlements.current();
+    if (entitlements.readOnly || !entitlements.features.googleVisionOcr) return false;
+    const [settings, document] = await Promise.all([
+      this.prisma.db.officeSettings.findFirst({ select: { enableVisionOcr: true } }),
+      this.prisma.db.document.findFirst({
+        where: { id: job.documentId },
+        select: { isConfidential: true },
+      }),
+    ]);
+    if (!settings?.enableVisionOcr || document?.isConfidential !== false) return false;
+    return (await this.entitlements.visionPagesLeft()) >= pages;
   }
 
   /** The office's switch (D-125); a missing settings row keeps the column default (on). */
@@ -198,6 +267,7 @@ export class DocumentExtraction {
         pageCount: text.pageCount,
         ocrEngine: text.ocrEngine,
         ocrConfidence: text.ocrConfidence ?? null,
+        ocrCostUsd: text.ocrCostUsd ?? null,
         pageConfidences: text.pageConfidences ?? Prisma.DbNull,
         extractedAt: new Date(),
       };

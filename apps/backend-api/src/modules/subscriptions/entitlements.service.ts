@@ -83,6 +83,16 @@ export class EntitlementsService {
     }
   }
 
+  /** Google Vision pages the office may still use this UTC month (D-142); 0 when the plan has none. */
+  async visionPagesLeft(now = new Date()): Promise<number> {
+    const { ocrPagesMonthly } = await this.current();
+    if (ocrPagesMonthly <= 0) return 0;
+    const used = await this.subscriptions.visionPagesSince(
+      new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)),
+    );
+    return Math.max(0, ocrPagesMonthly - used);
+  }
+
   /** Active users, for the usage view. */
   activeUsers(): Promise<number> {
     return this.subscriptions.activeUsers();

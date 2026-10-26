@@ -35,7 +35,7 @@ Decision D-002: Phase 1 foundation + AI summarization + Client Portal. Target: b
 | 3 | Clients (+contact persons, 360 view) | |
 | 4 | Legal files (cases): CRUD, numbering, parties, conflict-of-interest check, team, timeline, close/reopen/archive, task templates | Heart of the product |
 | 5 | Courts & judges (global reference + office-owned), sessions/hearings, conflict check, reminders 7/3/1 days (email + in-app), calendar | RICE #1 & #3 |
-| 6 | Documents: upload, folders, versions, secure download, OCR (Tesseract ara+eng; Google Vision fallback for Arabic scans/handwriting) | |
+| 6 | Documents: upload, folders, versions, secure download, OCR (Tesseract ara+eng; Google Vision fallback for hard-to-read scans: plan flag + office opt-in + monthly page budget, D-142) | |
 | 7 | Tasks: per file, Kanban, templates, due reminders | |
 | 8 | Global search (Arabic-aware FTS) across files, clients, parties, documents (incl. OCR text), tasks | |
 | 9 | AI: document summarization + session-minutes summary with next steps → tasks; per-case "Ask AI" limited to summaries in MVP; quotas per plan; disclaimers; PII redaction | `ai-ocr.md` |

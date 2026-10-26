@@ -43,6 +43,7 @@ const SETTINGS = {
   taxRatePercent: true,
   enableAi: true,
   enableOcr: true,
+  enableVisionOcr: true,
   fileNumberFormat: true,
   sessionIdleMinutes: true,
   auditRetentionDays: true,

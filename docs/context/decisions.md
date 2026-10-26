@@ -2283,3 +2283,85 @@ environment is limited to `main`, the monthly copy happens only on scheduled run
 restore fails. `verify.sql` now also checks the purge function (SECURITY DEFINER) and the `document_texts` search trigger.
 **Not done:** images pinned by digest (the repo pins tags, D-078), a pre-migration snapshot in the deploy script (a provider
 snapshot by hand until the release pipeline story).
+
+**D-143 — Document preview drawer: bytes fetched by the app, pdf.js, the text tab and versions** · Accepted (owner chose option A for both questions; MVP-146, 2026-10-26) · Amends D-133
+D-085 serves every presigned link as an attachment, never inline, so the ticket's "inline via the presigned URL" could not
+work as written, and D-128 lets only the current version be downloaded. → **Bytes:** the drawer asks `GET
+/documents/:id/download` (the audited link, D-128) and **fetches the bytes itself** (`credentials: 'omit'`, no referrer) —
+the storage domain never renders anything, nothing on the server changed. This needs a **bucket CORS rule** (`GET`/`HEAD`
+from the office-app origins only): the dev stack's `s3-init` sets it on RustFS, the owner sets it on the production bucket
+(`docs/runbooks/deploy.md`), and the SPA's CSP, once defined, must allow `img-src blob:`, `worker-src 'self'` and the bucket
+in `connect-src`. **Drawer** (`features/cases/documents/preview`), opened from the document's name in the list (a button,
+`documents.preview.open`): title with the status, **Download** (a fresh link, followed as the attachment), and tabs mounted
+when first shown, so a preview, a text page or a link — each an audit row — is asked for only when looked at.
+**Preview:** PDFs through **pdf.js 6.3** (`pdfjs-dist`, pinned, a root dependency; loaded on first use in its own chunk,
+worker served from the app's assets, XFA off; pdf.js 6 has no `eval` font path, CVE-2024-4367), one page at a time on a
+canvas at the drawer's width with a pager; PNG and JPEG through an object URL (revoked when closed); TIFF, Word, Excel, CSV
+and legacy `.doc` get "cannot be previewed — read its text or download it" and no link is asked for. Bytes are kept only
+while shown (`gcTime: 0`, up to 50 MB) and never retried by themselves (each try is an audited link). A document not yet
+scanned clean shows the API's own reason (BIZ-015 / STO-004); a storage fetch that fails is **STO-002** ("the download
+failed") with a retry. **Text:** the current version's text, 20,000 characters a page (D-128), with a search that marks
+every case-insensitive match on the page and says how many (Arabic plural forms); the text block is `dir="auto"` with
+`unicode-bidi: plaintext`, so every paragraph takes its own direction (Arabic right to left, English left to right) in either
+interface language; "not ready yet" while OCR is PENDING, "no text" otherwise. **Versions:** every stored upload, newest
+first (version, uploaded name, author, date, size, note); **only the current version has a download** (D-128) — older ones
+show a disabled button explaining it; "upload a new version" (one file, the client checks of D-133, an optional note up to
+500 characters, progress) for those who may upload and not on an archived file — the API decides who may replace a
+colleague's document (D-126). Shared API client: `documentsApi.get|versions|downloadLink|text|uploadVersion`. **Amends
+D-133:** the "download/preview and version history" it deferred are done. **Not done:** downloading older versions (needs a
+per-version scan record, a backend story), search across pages of the text (global search), Arabic-normalised highlighting
+(hamza/alef variants are not folded when marking), thumbnails, previews in the list, the Cypress journey (E2E story).
+Review additions (same PR): **only the latest page draws** — a newer page or width cancels the running render and an
+older request stops after loading its page (paging fast once broke the whole preview: two renders on one canvas); the
+canvas is **capped at 16 MP** (pdf.js's own default — a hostile 1 × 14,400 pt page could otherwise take the tab down) and
+follows the pane's width through a `ResizeObserver` (the drawer animates open and can be resized). **Fewer audit rows:**
+text pages have their own query prefix like the bytes (`document-text`), fetched once per version — the realtime
+`document.processed` refresh and other documents' writes no longer re-read the open page (each read is a `VIEW` row,
+D-128); the drawer's text starts on page 1 for a new version. **Bytes wait for a clean scan:** a document that is not
+openable (anything but READY, PROCESSING, or FAILED after the scan) shows why (BIZ-015 / STO-004) without asking for a
+link, and its preview appears by itself once `document.processed` refreshes it. The download mutation keeps no link
+(`gcTime: 0`). Text paragraphs align to their own start (`unicode-bidi: plaintext` + `text-align: start`, no page-level
+`dir`); image `alt`, sizes and names are bidi-isolated; pagers are labelled `<nav>`s. **Worker CSP (deviation from the
+ticket's wording):** pdf.js's worker is served as one of the app's own assets, so the SPA needs `worker-src 'self'`, not
+`blob:` — narrower than the ticket asked; a CDN that serves assets from another origin must add that origin. The bucket may
+answer with `Access-Control-Allow-Credentials: true`; harmless, the fetch sends no credentials.
+**D-142 — Google Vision fallback for hard-to-read scans: opt-in, page budget, EU endpoint, cost per document** · Accepted (owner chose the recommended options; MVP-145, 2026-10-25) · Amends D-122, D-139
+Vision receives unredacted document images (scans cannot be PII-redacted, D-057), so the owner chose (Jira comment on the
+ticket): **office opt-in + plan flag, a monthly page budget, the EU endpoint and the owner's GCP project.** → **When:** after
+Tesseract (D-139), a scan whose mean confidence is below `OCR_VISION_MIN_CONFIDENCE` (default 70), or where Tesseract read no
+word on a scan that has pages, is re-read by Google Cloud Vision `DOCUMENT_TEXT_DETECTION` — only when **all** of: Vision is
+configured (`GOOGLE_VISION_CREDENTIALS`), the plan's flag `googleVisionOcr` is on (D-122; still off by default on every plan),
+the office's new setting **`enableVisionOcr`** is on (`office_settings.enable_vision_ocr`, default false, shown in Settings →
+Practice defaults with what it means, audited like every setting, D-125), and the **page budget** has room for every page of
+the scan: new plan column **`ocrPagesMonthly`** (default 0 = no Vision; the admin panel sets it per plan; `EntitlementsService
+.visionPagesLeft()` = budget − pages Vision read this UTC month, counted from `document_texts` rows with engine
+`google-vision`). Vision's result then **replaces** Tesseract's (engine `google-vision`, confidence and per-page confidence
+from Vision's page confidences); a scan over the remaining budget keeps Tesseract's result. **How:** `extraction/vision.ts`
+calls `POST {GOOGLE_VISION_ENDPOINT}/v1/images:annotate` (default `https://eu-vision.googleapis.com`, `https` required in
+production) with the API key in the **`x-goog-api-key` header, never the URL** (as Gemini, D-130), one page per request, two at
+a time, language hints `ar` and `en`, 30 s per request inside the attempt's abort signal. PDFs are rasterized for it by the
+same sandboxed `pdftoppm` as Tesseract (D-139: minimal environment, crop box) at 200 dpi JPEG, 10 pages a batch; JPEG and PNG
+are sent as they are up to 7 MB (larger ones, and TIFF, keep Tesseract's result). **Credentials:** `GOOGLE_VISION_CREDENTIALS`
+is an API key restricted to the Vision API in the owner's GCP project (simpler than a service account for one API; rotate in
+the console), redacted in logs, refused in production when it is a documented placeholder. **Errors:** a `VisionError` carries
+only a code (`HTTP_<status>`, `VISION_<code>`, `NETWORK`, `EMPTY_RESPONSE`) — the provider's message (which can quote the
+request) is never logged or stored; it fails the attempt, the queue retries (D-084), and the last attempt marks the document
+FAILED with EXT-002 (retry endpoint, D-132). **Cost:** `GOOGLE_VISION_PRICE_PER_1000_PAGES` (default 1.5 USD) × pages, computed
+with decimal.js (D-017) and stored per version in the new column `document_texts.ocr_cost_usd` (`Decimal(10,6)`, CHECK ≥ 0),
+and logged with the document id and pages. **Owner, before switching it on:** create the GCP project and key (Vision API only),
+put Google on the DPA sub-processor list (D-021), set `ocrPagesMonthly` and the `googleVisionOcr` flag on the plans that include
+it. **Not done:** TIFF pages through Vision, showing the page budget in the subscription view, a per-office cost report.
+Review additions (same PR): **a Vision failure never fails the document** — a provider error, a network failure or Vision's
+own **90 s deadline** inside the attempt (the 300 s `ocr` timeout also holds Tesseract's run, D-139) keeps Tesseract's result
+(logged by code only); only the job's own abort propagates. So a Vision outage cannot fail every weak scan, and the queue
+never retries — and pays again for — a Vision read. **Vision's text is kept only when it reads better** (text, and a mean
+confidence above Tesseract's); otherwise Tesseract's text stays, but the cost is stored all the same (the pages were paid):
+**the budget counts every version with an `ocr_cost_usd`**, whichever text was kept (partial index `(office_id,
+extracted_at) WHERE ocr_cost_usd IS NOT NULL`). **Never sent to Vision:** documents marked confidential (a cheap, safe default
+— the owner can relax it), and scans of a read-only office (D-122). **Production endpoint** must be `https://*.googleapis.com`
+(the key and unredacted scans go there). A failed response body is cancelled unread. **Amends D-057/D-131:** PII redaction
+covers text sent to LLMs; Vision receives the scan image itself — the privacy policy and DPA must name Google Vision for
+offices that opt in (ops-security.md). **Known limits:** the page budget is checked, not reserved — parallel OCR jobs of one
+office (concurrency 2) can overshoot it by about one scan each (as the AI quota, D-130); pages read before Vision's deadline
+or a failure are paid but not counted; nothing ships `ocrPagesMonthly` or the `googleVisionOcr` flag on a plan, so Vision is
+off everywhere until the owner sets them.

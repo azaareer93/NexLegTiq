@@ -2,7 +2,7 @@ import { MoreOutlined } from '@ant-design/icons';
 import type { Document, Folder } from '@nexlegtiq/shared-contracts';
 import { Bdi, StatusTag, useApiErrorHandler, useFormat } from '@nexlegtiq/shared-ui';
 import { isolate } from '@nexlegtiq/shared-utils';
-import { App, Button, Dropdown, Flex, Table, Tag, Tooltip, Typography } from 'antd';
+import { App, Button, Dropdown, Flex, Table, Tag, Tooltip } from 'antd';
 import type { MenuProps, TableColumnsType } from 'antd';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -44,13 +44,25 @@ function DocumentStatus({ document }: { readonly document: Document }): React.JS
   return <Tooltip title={messageOf({ code: document.processingErrorCode })}>{tag}</Tooltip>;
 }
 
-function DocumentName({ document }: { readonly document: Document }): React.JSX.Element {
+function DocumentName({
+  document,
+  onOpen,
+}: {
+  readonly document: Document;
+  readonly onOpen: (document: Document) => void;
+}): React.JSX.Element {
   const { t } = useTranslation();
   return (
     <Flex gap={6} align="center" wrap>
-      <Typography.Text strong>
+      <Button
+        type="link"
+        onClick={() => onOpen(document)}
+        aria-label={t('documents.preview.open', { name: isolate(document.name) })}
+        style={{ paddingInline: 0, fontWeight: 600 }}
+        data-testid={`document-open-${document.id}`}
+      >
         <bdi>{document.name}</bdi>
-      </Typography.Text>
+      </Button>
       {document.currentVersion > 1 ? (
         <Tooltip title={t('documents.list.versionLabel', { number: document.currentVersion })}>
           <Tag bordered={false}>
@@ -68,6 +80,7 @@ function DocumentName({ document }: { readonly document: Document }): React.JSX.
 function useColumns(
   rights: DocumentRights,
   onPick: (document: Document, key: string) => void,
+  onOpen: (document: Document) => void,
 ): TableColumnsType<Document> {
   const { t } = useTranslation();
   const format = useFormat();
@@ -85,7 +98,7 @@ function useColumns(
     {
       key: 'name',
       title: t('documents.list.name'),
-      render: (_, d) => <DocumentName document={d} />,
+      render: (_, d) => <DocumentName document={d} onOpen={onOpen} />,
     },
     {
       key: 'type',
@@ -145,8 +158,10 @@ export function DocumentsTable({
   rights,
   loading,
   pagination,
+  onOpen,
 }: {
   readonly fileId: string;
+  readonly onOpen: (document: Document) => void;
   readonly documents: readonly Document[];
   readonly folders: readonly Folder[];
   readonly rights: DocumentRights;
@@ -163,16 +178,20 @@ export function DocumentsTable({
   const { notify } = useApiErrorHandler();
   const retry = useRetryDocument(fileId);
   const [dialog, setDialog] = useState<Dialog>(null);
-  const columns = useColumns(rights, (document, key) => {
-    if (key !== 'retry') {
-      setDialog({ kind: key as DialogKind, document });
-      return;
-    }
-    retry.mutate(document.id, {
-      onSuccess: () => void message.success(t('documents.actions.retried')),
-      onError: notify,
-    });
-  });
+  const columns = useColumns(
+    rights,
+    (document, key) => {
+      if (key !== 'retry') {
+        setDialog({ kind: key as DialogKind, document });
+        return;
+      }
+      retry.mutate(document.id, {
+        onSuccess: () => void message.success(t('documents.actions.retried')),
+        onError: notify,
+      });
+    },
+    onOpen,
+  );
   return (
     <>
       <Table<Document>
