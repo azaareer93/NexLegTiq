@@ -42,7 +42,9 @@ export const QUEUE_POLICY: Readonly<Record<QueueName, QueuePolicy>> = {
   // Concurrency 2 (D-132): extraction parses up to 50 MB files in the worker process; OCR_WORKER_CONCURRENCY raises it.
   // 5 min: OCR of a scanned PDF up to OCR_MAX_PAGES (≈ 2 s a page, D-139).
   ocr: policy({ attempts: 3, backoff: { type: 'exponential', delay: 1000 } }, 300_000, 2),
-  ai: policy({ attempts: 2, backoff: { type: 'fixed', delay: 10_000 } }, 120_000, 5),
+  // 330 s (D-148): a long document's summary is 8 parts four at a time, then the merge — 3 × the 100 s execute deadline,
+  // plus reading the text and storing the summary.
+  ai: policy({ attempts: 2, backoff: { type: 'fixed', delay: 10_000 } }, 330_000, 5),
   reminder: policy({ attempts: 3, backoff: { type: 'exponential', delay: 1000 } }, 30_000, 10),
   email: policy({ attempts: 3, backoff: { type: 'fixed', delay: 5000 } }, 30_000, 2),
   notification: policy({ attempts: 3, backoff: { type: 'exponential', delay: 1000 } }, 30_000, 10),

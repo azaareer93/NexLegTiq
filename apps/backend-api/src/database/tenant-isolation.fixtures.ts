@@ -40,6 +40,17 @@ export const sessionIn = async (db: PrismaClient, office: SeededOffice) =>
     },
   });
 
+export const reminderIn = async (db: PrismaClient, office: SeededOffice) =>
+  db.sessionReminder.create({
+    data: {
+      officeId: office.officeId,
+      sessionId: (await sessionIn(db, office)).id,
+      recipientId: office.userId,
+      daysBefore: 1,
+      scheduledFor: new Date(),
+    },
+  });
+
 export const folderIn = async (db: PrismaClient, office: SeededOffice) =>
   db.documentFolder.create({
     data: {
@@ -87,6 +98,23 @@ export const documentTextIn = async (db: PrismaClient, office: SeededOffice) =>
 
 export const aiJobIn = (db: PrismaClient, { officeId, userId }: SeededOffice) =>
   db.aiJob.create({ data: { officeId, createdById: userId, type: 'isolation-test' } });
+
+export const aiSummaryIn = async (db: PrismaClient, office: SeededOffice) =>
+  db.aiSummary.create({
+    data: {
+      officeId: office.officeId,
+      sourceType: 'DOCUMENT',
+      sourceId: (await documentIn(db, office)).id,
+      fileId: (await fileIn(db, office)).id,
+      versionNumber: 1,
+      language: 'EN',
+      summary: 'Isolation test summary.',
+      provider: 'fake',
+      model: 'fake-1',
+      promptVersion: 'document-summary.v1',
+      createdById: office.userId,
+    },
+  });
 
 export const aiUsageIn = (db: PrismaClient, { officeId, userId }: SeededOffice) =>
   db.aiUsage.create({

@@ -100,11 +100,13 @@
 - **InvoiceLineItem** 🔒 — description, quantity, unitPrice, amount, timeEntryId?.
 
 ## AI
-- **AiSummary** 🔒 — `sourceType` (D-039), sourceId, fileId, language, summary, keyFacts JSON, keyLegalIssues JSON,
-  nextSteps JSON?, riskAssessment?, model, provider, promptVersion, createdById, createdAt.
+- **AiSummary** 🔒 — `sourceType` (D-039), sourceId, fileId, versionNumber?, language, summary, keyFacts JSON, keyLegalIssues
+  JSON, parties JSON, dates JSON, (session summaries add nextSteps JSON?, riskAssessment?), model, provider, promptVersion,
+  chunks, aiJobId?, createdById, createdAt; append-only, unique per source + version + language + prompt version (D-148).
 - **AiJob** 🔒 — type, sourceType, sourceId, status QUEUED|RUNNING|SUCCEEDED|FAILED, errorCode, attempts, result (ids only),
-  createdById, startedAt, finishedAt; the row id is the queue job id (D-130).
-- **AiUsage** 🔒 — feature, provider, model, inputTokens, outputTokens, costUsd Decimal(10,6), durationMs, cached, userId.
+  dedupeKey? (one live job per key, D-148), createdById, startedAt, finishedAt; the row id is the queue job id (D-130).
+- **AiUsage** 🔒 — feature, provider, model, inputTokens, outputTokens, costUsd Decimal(10,6), durationMs, cached, succeeded
+  (D-144), partial (D-148), redactionStats (D-131), userId.
 - Phase 2: ContractAnalysis, EvidenceSuggestion, DocumentTemplate, GeneratedDocument, LocalCourtProcess,
   FileProcessTracker, VoiceNote, IngestedEmail.
 

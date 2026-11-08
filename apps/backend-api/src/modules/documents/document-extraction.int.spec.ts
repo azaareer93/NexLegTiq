@@ -30,6 +30,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { TENANT_MODELS } from '../../database/tenant-models';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { PrismaClient } from '../../generated/prisma/client';
+import type { AiJobs } from '../ai/ai-jobs';
 import { bearerFor } from '../auth/auth.test-helper';
 import { EntitlementsService } from '../subscriptions/entitlements.service';
 import { liveSubscription } from '../subscriptions/subscription.test-helper';
@@ -91,6 +92,7 @@ describe('document text extraction (integration)', () => {
       app.get(AppConfig),
       quiet,
       app.get(EntitlementsService),
+      { enqueue: jest.fn() } as unknown as AiJobs,
     );
 
   async function seed(name: string): Promise<Person> {
@@ -273,7 +275,8 @@ describe('document text extraction (integration)', () => {
         .get(`/api/v1/documents/${job.documentId}/text`)
         .set(bearerFor(jwt, manager))
         .expect(200);
-      expect((text.body as { data: { text: string } }).data.text).toContain('عقد إيجار');
+      // Read upright: a sideways scan would not give a whole Arabic line (which lines a Tesseract build reads varies).
+      expect((text.body as { data: { text: string } }).data.text).toContain('محكمة بداية رام الله');
       await expect(ocrRow(job.documentId)).resolves.toMatchObject({ pageCount: 1 });
     });
 

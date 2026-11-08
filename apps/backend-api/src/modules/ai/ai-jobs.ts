@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { AiAccess } from './ai-access';
 import type { RequestContext } from '../../common/context/request-context';
 import { ResourceNotFoundException } from '../../common/errors/app.exception';
+import { isPrismaError } from '../../common/errors/prisma-error';
 import { QueueProducer } from '../../common/queue/queue-producer';
 import { QUEUE } from '../../common/queue/queues';
 import type { JobFields } from '../../common/queue/tenant-job';
@@ -21,7 +22,16 @@ export interface NewAiJob {
   readonly sourceType?: AiSourceType;
   readonly sourceId?: string;
   readonly fields?: Readonly<Record<string, unknown>> & JobFields;
+  /** Who the job is for when the system starts it (an auto-summary after OCR, D-148); else the caller. */
+  readonly createdById?: string;
+  /**
+   * The same work asked again while it is queued or running joins that job instead of paying twice (D-148). Scoped to the
+   * creator too: `GET /jobs/:id` shows a job to its creator only.
+   */
+  readonly dedupeKey?: string;
 }
+
+const LIVE = ['QUEUED', 'RUNNING'] as const;
 
 /** What an `ai` job carries besides the feature's fields: the AiJob row it moves. */
 export interface AiJobData {
@@ -64,14 +74,51 @@ export class AiJobs {
     private readonly cls: ClsService<RequestContext>,
   ) {}
 
-  async enqueue({ type, sourceType, sourceId, fields = {} }: NewAiJob): Promise<AiJobAccepted> {
-    const userId = this.cls.get('userId');
+  async enqueue(job: NewAiJob): Promise<AiJobAccepted> {
+    const userId = job.createdById ?? this.cls.get('userId');
     const officeId = this.cls.get('officeId');
     if (!userId || !officeId) throw new Error('No caller in the context of an AI job');
     await this.access.assertAvailable();
+    if (!job.dedupeKey) return this.create(job, officeId, userId, undefined);
+    return this.joinOrCreate(job, officeId, userId, `${job.dedupeKey}:${userId}`);
+  }
+
+  /** The same work already queued or running for this user is joined, not paid for twice (D-148). */
+  private async joinOrCreate(
+    job: NewAiJob,
+    officeId: string,
+    userId: string,
+    key: string,
+  ): Promise<AiJobAccepted> {
+    const live = await this.live(key);
+    if (live) return live;
+    try {
+      return await this.create(job, officeId, userId, key);
+    } catch (error) {
+      // A racing request created the same live job first (partial unique index): join it.
+      const joined = isPrismaError(error) && error.code === 'P2002' ? await this.live(key) : null;
+      if (joined) return joined;
+      throw error;
+    }
+  }
+
+  private async live(dedupeKey: string): Promise<AiJobAccepted | null> {
+    const row = await this.prisma.db.aiJob.findFirst({
+      where: { dedupeKey, status: { in: [...LIVE] } },
+      select: { id: true, status: true },
+    });
+    return row && { jobId: row.id, status: row.status };
+  }
+
+  private async create(
+    { type, sourceType, sourceId, fields = {} }: NewAiJob,
+    officeId: string,
+    userId: string,
+    dedupeKey: string | undefined,
+  ): Promise<AiJobAccepted> {
     const job = await this.uow.run(async (tx, afterCommit) => {
       const row = await tx.aiJob.create({
-        data: { officeId, type, sourceType, sourceId, createdById: userId },
+        data: { officeId, type, sourceType, sourceId, createdById: userId, dedupeKey },
         select: { id: true, status: true },
       });
       afterCommit(

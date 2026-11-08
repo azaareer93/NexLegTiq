@@ -65,7 +65,7 @@ timeline event → enqueue async work → audit log → invalidate cache → str
 | Queue | Priority | Jobs | Retry |
 |---|---|---|---|
 | `ocr` | high | `scan-document` (ClamAV, D-126), `process-document` | 3× exp 1s, timeout 300s (OCR, D-139); concurrency 2 (D-132) |
-| `ai` | medium | `summarize-document`, `summarize-session` | 2× 10s, timeout 120s |
+| `ai` | medium | `summarize-document`, `summarize-session` | 2× 10s, timeout 330s (D-148) |
 | `reminder` | high | `send-session-reminder`, `send-task-reminder` (delayed jobs), `reconcile-reminders` (daily scheduler, D-117) | 3× exp |
 | `email` | low | `send-email` | 3× fixed 5s |
 | `notification` | high | `create-notification` (DB; WS push later), `fan-out` | 3× |
