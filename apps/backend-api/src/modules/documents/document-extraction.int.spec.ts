@@ -275,7 +275,8 @@ describe('document text extraction (integration)', () => {
         .get(`/api/v1/documents/${job.documentId}/text`)
         .set(bearerFor(jwt, manager))
         .expect(200);
-      expect((text.body as { data: { text: string } }).data.text).toContain('عقد إيجار');
+      // Read upright: a sideways scan would not give a whole Arabic line (which lines a Tesseract build reads varies).
+      expect((text.body as { data: { text: string } }).data.text).toContain('محكمة بداية رام الله');
       await expect(ocrRow(job.documentId)).resolves.toMatchObject({ pageCount: 1 });
     });
 
