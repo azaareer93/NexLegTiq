@@ -2613,3 +2613,51 @@ summary may be asked on an archived file (it reads the file; its `SUMMARY_GENERA
 **Known limits:** `chunks` is the number of parts read, so a document cut at 8 parts is not marked as cut; parts of the
 same round still run (and are paid) when one fails; a new prompt version hides older summaries until regenerated;
 `ai_summaries.ai_job_id` has no FK (written only by the worker from its own job).
+
+**D-150 — Case timeline: one recorder, the cursor route, names in the page, portal types and the Timeline tab** · Accepted (MVP-63, 2026-11-08)
+MVP-63 left the recorder's shape, how a page names people its events mention, where "Upcoming" comes from and what
+"portal-visible flag per event type" means open. → **Recorder:** `TimelineService.record(tx, {fileId, eventType,
+sourceType?, sourceId?, payload?, actorId?})` (global `TimelineModule`, API and worker) writes the event inside the caller's
+transaction, the office from CLS and the actor the caller unless given (`null` = the system); every module that wrote
+`caseTimelineEvent` rows itself (cases, sessions, tasks, documents, parties, file clients and team, deactivation, AI
+summaries) now goes through it. Payload shapes stay as each module wrote them (ids, names the file's readers may see,
+dates; a confidential document's name stays out, D-126). **Route** `GET /cases/:id/timeline?cursor&types&limit` (ANY of
+`view:all|assigned:cases` and the file visible, D-096 — 404 otherwise, also for another office or a malformed id): newest
+first by `occurredAt` then id, ≤ 50 a page (default 20), `cursor` = the last id of the previous page, `types` a
+comma-separated list of `TIMELINE_EVENT_TYPES` (unknown → 400). Each item carries the actor `{id, fullName}`, the payload
+and `portalVisible`; the page adds **`names`** — the full names of colleagues and display names of clients that payloads
+name by id (`userId`, `fromUserId`, `toUserId`, `clientId`; two queries a page), so a reassignment reads "from X to Y"
+without exposing a user list. **Portal visibility** is a property of the event type, not a column:
+`PORTAL_TIMELINE_EVENT_TYPES` (shared-types) = file opened/closed/reopened, hearings scheduled/changed, document shared,
+invoice sent/paid — never team changes, internal documents, tasks, parties or AI (D-003); the Client Portal's public
+timeline will filter by it. `TIMELINE_EVENT_TYPES` joins shared-types (checked against the Prisma enum; labels
+`enums.timelineEventType.*` for the filter). **Upcoming** comes from the existing `GET /cases/:id/sessions?when=upcoming`
+(the scheduled ones), not from the timeline route. **Office app** `?tab=timeline` (`features/cases/timeline`, `timeline`
+namespace): an Upcoming card (each hearing opens its drawer), then the history grouped by month in the office's time zone
+(`formatMonth`, new in shared-utils: أكتوبر 2026 / October 2026), each event with an icon, its sentence
+(`timeline.event.<TYPE>`, nested for hearing changes and document versions), "by X" or "automatically", the time, "visible
+to the client" when portal-visible and **Open**: a hearing opens its drawer, a document or task switches to that tab. A type
+filter (multiple) and "load more" by cursor. **Sentences avoid gender agreement:** Arabic uses verbal nouns (فتح الملف،
+رفع المستند، إضافة الموكل…) and English short passives, with the actor on its own line, since a user's gender is not
+known. A test checks every event type has a sentence in both languages. **Not done here:** the portal's public timeline
+(Client Portal story), events for close/reopen, sharing, testimonies and invoices (their stories produce them; the
+sentences exist), editing or deleting events (append-only), a per-document link (the documents tab opens; the preview
+drawer has no deep link yet).
+Review additions (same PR): **payload strings are snapshots, filtered when read** — a document made confidential after
+its upload (D-128), or deleted, keeps its event, but readers who may not open it now (`DocumentAccessService.visibleWhere`,
+one query a page) get the event **without the name and without the link** (`sourceId` null); the app then says
+"confidential document" in a sentence of its own. Anything a later story adds that can become hidden afterwards must be
+filtered the same way, and the **portal timeline must re-check at read time** (sharing, the document's current state)
+rather than trust the stored payload, and decide whether staff names are shown to clients. **Reading is lenient** like
+D-149: `eventType` is text in the response and a row the contract cannot read is left out and logged. **Hearing outcomes
+on the portal:** `SESSION_UPDATED` (changes, cancellations and outcomes) is portal-visible as proposed; whether a client
+should see an outcome before their lawyer tells them is the owner's call — one line in `PORTAL_TIMELINE_EVENT_TYPES`, which
+a test now pins. **Texts:** user values are isolated in code (`isolate`, `isolateLtr` for file numbers: bidi controls inside
+are stripped, D-092), so the JSON carries no bidi characters; confidential documents, a reassignment without a previous
+lawyer and an unknown colleague or client have sentences or words of their own; team changes read "added to" / "removed
+from" the team; version numbers follow the reader's digits; event icons are hidden from screen readers. A hearing write from
+the drawer refreshes the timeline; Upcoming shares the next-hearing card's query. **Amends the ticket's key name:** the
+sentences are `timeline.event.<TYPE>` (nested for variants), not `timeline.<TYPE>`. **Not changed:** the recorder and the
+reader stay one global module (the worker gets idle read providers); a cursor naming another file's event only moves the page
+start within this file (nothing leaks); the four queries sit in the service (no repository layer yet); tasks and documents
+open their tab, not the item itself.

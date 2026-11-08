@@ -13,6 +13,7 @@ import type { Prisma } from '../../generated/prisma/client';
 import type { ClientInfo } from '../auth/client-info';
 import { assertCourtRefs } from '../courts/court-refs';
 import { CaseAccessService } from '../legal-files/case-access.service';
+import { TimelineService } from '../timeline/timeline.service';
 
 export const STATE_SELECT = {
   id: true,
@@ -66,6 +67,7 @@ export class SessionWriter {
     private readonly files: CaseAccessService,
     private readonly reminders: ReminderScheduler,
     private readonly realtime: RealtimePublisher,
+    private readonly timeline: TimelineService,
   ) {}
 
   /**
@@ -201,16 +203,13 @@ export class SessionWriter {
     eventType: TimelineType,
     payload: Record<string, string>,
   ): Promise<void> {
-    await tx.caseTimelineEvent.create({
-      data: {
-        officeId: this.officeId(),
-        fileId,
-        eventType,
-        sourceType: 'Session',
-        sourceId: sessionId,
-        actorId: this.actorId(),
-        payload,
-      },
+    await this.timeline.record(tx, {
+      fileId,
+      eventType,
+      sourceType: 'Session',
+      sourceId: sessionId,
+      actorId: this.actorId(),
+      payload,
     });
   }
 

@@ -26,6 +26,7 @@ import type { ClientInfo } from '../auth/client-info';
 import { recipientsWanting } from '../notifications/notification-preferences';
 import { ReminderScheduler } from '../sessions/reminder-scheduler';
 import { EntitlementsService } from '../subscriptions/entitlements.service';
+import { TimelineService } from '../timeline/timeline.service';
 
 /** shortcut: no paging — offices have tens of users; page it if an office ever passes 500 (as the directory). */
 const MAX_USERS = 500;
@@ -58,6 +59,7 @@ export class TeamService {
     private readonly entitlements: EntitlementsService,
     private readonly reminders: ReminderScheduler,
     private readonly realtime: RealtimePublisher,
+    private readonly timeline: TimelineService,
   ) {}
 
   async list(): Promise<TeamMember[]> {
@@ -204,14 +206,11 @@ export class TeamService {
       update: { role: 'RESPONSIBLE_LAWYER' },
       create: { officeId, fileId: file.id, userId: file.to, role: 'RESPONSIBLE_LAWYER' },
     });
-    await tx.caseTimelineEvent.create({
-      data: {
-        officeId,
-        fileId: file.id,
-        eventType: 'FILE_REASSIGNED',
-        actorId: this.actorId(),
-        payload: { fromUserId: file.from, toUserId: file.to, reason: 'DEACTIVATION' },
-      },
+    await this.timeline.record(tx, {
+      fileId: file.id,
+      eventType: 'FILE_REASSIGNED',
+      actorId: this.actorId(),
+      payload: { fromUserId: file.from, toUserId: file.to, reason: 'DEACTIVATION' },
     });
     await tx.auditLog.create({
       data: this.audit(

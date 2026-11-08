@@ -1,0 +1,52 @@
+{
+  "title": "السجل الزمني",
+  "upcoming": "الجلسات القادمة",
+  "noUpcoming": "لا توجد جلسات قادمة.",
+  "history": "السجل",
+  "empty": "لم يُسجَّل شيء على هذا الملف بعد.",
+  "emptyFiltered": "لا توجد أحداث من هذه الأنواع.",
+  "loadMore": "عرض المزيد",
+  "filter": "أنواع الأحداث",
+  "by": "بواسطة {{name}}",
+  "bySystem": "تلقائيًا",
+  "open": "فتح",
+  "portal": "ظاهر للموكل في البوابة",
+  "event": {
+    "FILE_OPENED": "فتح الملف {{fileNumber}}",
+    "FILE_CLOSED": "إغلاق الملف",
+    "FILE_REOPENED": "إعادة فتح الملف",
+    "FILE_REASSIGNED": {
+      "fromTo": "نقل الملف من {{from}} إلى {{to}}",
+      "to": "إسناد الملف إلى {{to}}"
+    },
+    "SESSION_CREATED": "تحديد موعد {{sessionType}} في {{date}}",
+    "SESSION_UPDATED": {
+      "UPDATED": "تعديل {{sessionType}} ({{date}})",
+      "CANCELLED": "إلغاء {{sessionType}} ({{date}})",
+      "OUTCOME": "نتيجة {{sessionType}} ({{date}}): {{outcome}}"
+    },
+    "DOCUMENT_UPLOADED": {
+      "first": "رفع المستند {{name}}",
+      "version": "رفع الإصدار {{versionNumber}} من {{name}}",
+      "firstConfidential": "رفع مستند سري",
+      "versionConfidential": "رفع الإصدار {{versionNumber}} من مستند سري"
+    },
+    "DOCUMENT_SHARED": {
+      "named": "مشاركة المستند {{name}} مع الموكل",
+      "confidential": "مشاركة مستند سري مع الموكل"
+    },
+    "TASK_COMPLETED": "إنجاز المهمة {{title}}",
+    "PARTY_ADDED": "إضافة {{name}} بصفة {{partyType}}",
+    "CLIENT_ADDED": "إضافة الموكل {{name}}",
+    "CLIENT_REMOVED": "إزالة الموكل {{name}}",
+    "TEAM_MEMBER_ADDED": "إضافة {{name}} إلى الفريق بصفة {{role}}",
+    "TEAM_MEMBER_REMOVED": "إزالة {{name}} من الفريق",
+    "WITNESS_STATEMENT_ADDED": "إضافة شهادة",
+    "SUMMARY_GENERATED": "إعداد ملخص بالذكاء الاصطناعي لمستند",
+    "INVOICE_SENT": "إرسال فاتورة",
+    "INVOICE_PAID": "تسديد فاتورة"
+  },
+  "separator": " · ",
+  "unknownPerson": "زميل",
+  "unknownClient": "(موكل غير معروف)"
+}

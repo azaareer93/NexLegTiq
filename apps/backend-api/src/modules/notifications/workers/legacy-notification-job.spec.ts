@@ -35,6 +35,14 @@ describe('upgradeLegacyJob (D-149)', () => {
     });
   });
 
+  it('should leave a malformed legacy job for the schema to refuse', () => {
+    // No recipient and no type: the fan-out schema then refuses it (min 1 user, a known type).
+    expect(upgradeLegacyJob(job('create-notification', { userId: 7, type: null })).data).toEqual({
+      userIds: [],
+      type: null,
+    });
+  });
+
   it('should leave every other job as it is', () => {
     const other = job('fan-out-notification', { userIds: ['u1'] });
     expect(upgradeLegacyJob(other)).toBe(other);

@@ -5,6 +5,7 @@ export type { TextDirection } from './direction.js';
 export {
   DEFAULT_TIME_ZONE,
   formatDate,
+  formatMonth,
   formatDateTime,
   formatMoney,
   formatNumber,

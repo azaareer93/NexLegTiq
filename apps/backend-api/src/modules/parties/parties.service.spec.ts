@@ -12,6 +12,7 @@ import type { PrismaService } from '../../database/prisma.service';
 import type { UnitOfWork } from '../../database/unit-of-work';
 import type { ClientInfo } from '../auth/client-info';
 import type { CaseAccessService } from '../legal-files/case-access.service';
+import { testTimeline } from '../timeline/timeline.test-helper';
 
 const OFFICE = '01920000-0000-7000-8000-00000000000a';
 const FILE = '01920000-0000-7000-8000-0000000000f1';
@@ -101,6 +102,7 @@ function setup({
     registry,
     access as unknown as CaseAccessService,
     conflicts as unknown as ConflictsService,
+    testTimeline(cls),
   );
   return { service, registry, tx, db, access };
 }

@@ -26,6 +26,7 @@ import {
   PartNotesSchema,
 } from '../ai/prompts/document-summary.v1';
 import type { DocumentSummaryOutput, PartNotes } from '../ai/prompts/document-summary.v1';
+import { TimelineService } from '../timeline/timeline.service';
 
 interface SummaryTarget {
   readonly id: string;
@@ -64,6 +65,7 @@ export class DocumentSummarizer extends BaseAiService implements OnModuleInit {
     private readonly realtime: RealtimePublisher,
     private readonly registry: AiJobRegistry,
     private readonly cls: ClsService<RequestContext>,
+    private readonly timeline: TimelineService,
   ) {
     super(executor);
   }
@@ -215,16 +217,13 @@ export class DocumentSummarizer extends BaseAiService implements OnModuleInit {
         select: { id: true },
       });
       // Ids only: a confidential document's name stays out of the file's timeline (D-126).
-      await tx.caseTimelineEvent.create({
-        data: {
-          officeId: this.officeId(),
-          fileId: document.fileId,
-          eventType: 'SUMMARY_GENERATED',
-          sourceType: 'Document',
-          sourceId: document.id,
-          actorId: userId,
-          payload: { summaryId: row.id, versionNumber, language },
-        },
+      await this.timeline.record(tx, {
+        fileId: document.fileId,
+        eventType: 'SUMMARY_GENERATED',
+        sourceType: 'Document',
+        sourceId: document.id,
+        actorId: userId,
+        payload: { summaryId: row.id, versionNumber, language },
       });
       afterCommit(async () => {
         this.realtime.toUser(userId, 'document.summary.ready', {

@@ -212,5 +212,25 @@
     "IN_PROGRESS": "قيد التنفيذ",
     "BLOCKED": "متوقفة",
     "DONE": "منجزة"
+  },
+  "timelineEventType": {
+    "FILE_OPENED": "فتح الملف",
+    "FILE_CLOSED": "إغلاق الملف",
+    "FILE_REOPENED": "إعادة فتح الملف",
+    "FILE_REASSIGNED": "نقل الملف",
+    "SESSION_CREATED": "تحديد جلسة",
+    "SESSION_UPDATED": "تعديل جلسة",
+    "DOCUMENT_UPLOADED": "رفع مستند",
+    "DOCUMENT_SHARED": "مشاركة مستند",
+    "TASK_COMPLETED": "إنجاز مهمة",
+    "PARTY_ADDED": "إضافة طرف",
+    "CLIENT_ADDED": "إضافة موكل",
+    "CLIENT_REMOVED": "إزالة موكل",
+    "TEAM_MEMBER_ADDED": "إضافة عضو إلى الفريق",
+    "TEAM_MEMBER_REMOVED": "إزالة عضو من الفريق",
+    "WITNESS_STATEMENT_ADDED": "إضافة شهادة",
+    "SUMMARY_GENERATED": "ملخص بالذكاء الاصطناعي",
+    "INVOICE_SENT": "إرسال فاتورة",
+    "INVOICE_PAID": "تسديد فاتورة"
   }
 }

@@ -2,6 +2,7 @@ import {
   formatDate,
   formatDateTime,
   formatMoney,
+  formatMonth,
   formatNumber,
   formatRelative,
   formatTime,
@@ -15,6 +16,19 @@ const LRM = '\u200E';
 // …and keeps amount and currency together with a no-break space (U+00A0).
 const NBSP = '\u00A0';
 const AT = '2026-10-13T12:05:00Z'; // 15:05 in Hebron (UTC+3, summer time)
+
+describe('formatMonth', () => {
+  it('should name the month and year of the instant in its zone, in both languages and digit styles', () => {
+    // 23:30 UTC on 31 October is already November in Hebron.
+    const instant = '2026-10-31T23:30:00.000Z';
+    expect(formatMonth(instant, { locale: 'en', timeZone: 'Asia/Hebron' })).toBe('November 2026');
+    expect(formatMonth(instant, { locale: 'en', timeZone: 'UTC' })).toBe('October 2026');
+    expect(formatMonth(instant, { locale: 'ar', timeZone: 'Asia/Hebron' })).toBe('نوفمبر 2026');
+    expect(formatMonth(instant, { locale: 'ar', timeZone: 'Asia/Hebron', digits: 'arab' })).toBe(
+      'نوفمبر ٢٠٢٦',
+    );
+  });
+});
 
 describe('formatDate', () => {
   it.each([

@@ -27,6 +27,7 @@ import type { ScopedTransaction } from '../../database/unit-of-work';
 import { Prisma } from '../../generated/prisma/client';
 import type { ClientInfo } from '../auth/client-info';
 import { assertCourtRefs, nextCourtRefs } from '../courts/court-refs';
+import { TimelineService } from '../timeline/timeline.service';
 
 /** The office's calendar date in its time zone (D-092): a file opened at 01:00 in Hebron is opened that day. */
 export function todayIn(timeZone: string, now: Date): string {
@@ -47,6 +48,7 @@ export class CasesService {
     private readonly access: CaseAccessService,
     private readonly numbers: FileNumberService,
     private readonly cases: CasesRepository,
+    private readonly timeline: TimelineService,
   ) {}
 
   /** Opens a file: number, client links, team, FILE_OPENED timeline event and audit row in one transaction. */
@@ -83,14 +85,11 @@ export class CasesService {
         select: { id: true },
       });
       await this.addParticipants(tx, file.id, input);
-      await tx.caseTimelineEvent.create({
-        data: {
-          officeId: this.officeId(),
-          fileId: file.id,
-          eventType: 'FILE_OPENED',
-          actorId,
-          payload: { fileNumber },
-        },
+      await this.timeline.record(tx, {
+        fileId: file.id,
+        eventType: 'FILE_OPENED',
+        actorId,
+        payload: { fileNumber },
       });
       await tx.auditLog.create({
         data: this.audit(client, file.id, 'CREATE', null, {

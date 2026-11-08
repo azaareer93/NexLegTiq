@@ -11,6 +11,7 @@ import type { RequestContext } from '../../common/context/request-context';
 import type { QueueProducer } from '../../common/queue/queue-producer';
 import type { PrismaService } from '../../database/prisma.service';
 import type { UnitOfWork } from '../../database/unit-of-work';
+import { testTimeline } from '../timeline/timeline.test-helper';
 
 jest.mock('./upload/multipart', () => ({
   readUpload: jest.fn(),
@@ -105,6 +106,7 @@ function setup({ existing = null as Existing, current = 1 } = {}) {
     documents as unknown as DocumentAccessService,
     intake as unknown as UploadIntake,
     queues as unknown as QueueProducer,
+    testTimeline({ get: (key: keyof RequestContext) => context[key] }),
   );
   return { service, tx, db, uow, intake, queues, tasks, documents };
 }

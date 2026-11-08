@@ -114,6 +114,15 @@ export function formatDate(
   return options.digits === 'arab' ? toArabicIndicDigits(text) : text;
 }
 
+/** The month and year a date falls in, in its zone (أكتوبر 2026 / October 2026) — headings of a timeline (D-150). */
+export function formatMonth(value: DateInput, options: FormatOptions): string {
+  return dateTimeFormat(intlLocale(options.locale, options.digits), {
+    month: 'long',
+    year: 'numeric',
+    timeZone: zoneFor(value, options.timeZone),
+  }).format(toDate(value));
+}
+
 /** The time of day: 12-hour with ص/م in Arabic, AM/PM in English. */
 export function formatTime(value: DateInput, options: FormatOptions): string {
   return dateTimeFormat(intlLocale(options.locale, options.digits), {

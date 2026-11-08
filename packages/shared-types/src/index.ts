@@ -82,3 +82,5 @@ export {
   ROLES,
 } from './permissions.js';
 export type { Permission, PermissionCondition, Role } from './permissions.js';
+export { PORTAL_TIMELINE_EVENT_TYPES, TIMELINE_EVENT_TYPES } from './timeline.js';
+export type { TimelineEventType } from './timeline.js';

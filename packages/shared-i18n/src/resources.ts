@@ -15,6 +15,7 @@ import arSettings from './locales/ar/settings.json' with { type: 'json' };
 import arShell from './locales/ar/shell.json' with { type: 'json' };
 import arTasks from './locales/ar/tasks.json' with { type: 'json' };
 import arTeam from './locales/ar/team.json' with { type: 'json' };
+import arTimeline from './locales/ar/timeline.json' with { type: 'json' };
 import arValidation from './locales/ar/validation.json' with { type: 'json' };
 import enAuth from './locales/en/auth.json' with { type: 'json' };
 import enCases from './locales/en/cases.json' with { type: 'json' };
@@ -31,6 +32,7 @@ import enSettings from './locales/en/settings.json' with { type: 'json' };
 import enShell from './locales/en/shell.json' with { type: 'json' };
 import enTasks from './locales/en/tasks.json' with { type: 'json' };
 import enTeam from './locales/en/team.json' with { type: 'json' };
+import enTimeline from './locales/en/timeline.json' with { type: 'json' };
 import enValidation from './locales/en/validation.json' with { type: 'json' };
 import type { I18N_NAMESPACES, I18nNamespace } from './namespaces.js';
 
@@ -48,6 +50,7 @@ const en = {
   documents: enDocuments,
   tasks: enTasks,
   parties: enParties,
+  timeline: enTimeline,
   settings: enSettings,
   team: enTeam,
   profile: enProfile,
@@ -66,6 +69,7 @@ const ar = {
   documents: arDocuments,
   tasks: arTasks,
   parties: arParties,
+  timeline: arTimeline,
   settings: arSettings,
   team: arTeam,
   profile: arProfile,

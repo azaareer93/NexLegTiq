@@ -16,6 +16,7 @@ import {
 import { assignedFilesWhere } from '../../common/rbac/case-scope';
 import type { UnitOfWork } from '../../database/unit-of-work';
 import { Prisma } from '../../generated/prisma/client';
+import { testTimeline } from '../timeline/timeline.test-helper';
 
 const OFFICE = '01920000-0000-7000-8000-0000000000aa';
 const USER = '01920000-0000-7000-8000-000000000001';
@@ -94,7 +95,7 @@ function setup(context: Partial<RequestContext> = caller('OFFICE_MANAGER')) {
     list: jest.fn().mockResolvedValue({ items: [], total: 0 }),
   } as unknown as CasesRepository;
   return {
-    service: new CasesService(cls, uow, access, numbers, cases),
+    service: new CasesService(cls, uow, access, numbers, cases, testTimeline(cls)),
     tx,
     access,
     numbers,

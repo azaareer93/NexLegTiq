@@ -225,6 +225,36 @@ describe('casesApi', () => {
   };
   const pagination = { page: 2, limit: 20, total: 21, totalPages: 2, hasMore: false };
 
+  it("should read a file's timeline page by cursor and types (D-150)", async () => {
+    let query = '';
+    const page = {
+      items: [
+        {
+          id: row.responsibleLawyer.id,
+          eventType: 'FILE_OPENED',
+          sourceType: null,
+          sourceId: null,
+          occurredAt: '2026-10-01T10:00:00.000Z',
+          actor: null,
+          payload: { fileNumber: row.fileNumber },
+          portalVisible: true,
+        },
+      ],
+      nextCursor: null,
+      names: {},
+    };
+    server.use(
+      http.get(url(`cases/${row.id}/timeline`), ({ request }) => {
+        query = new URL(request.url).search;
+        return HttpResponse.json({ success: true, data: page, meta });
+      }),
+    );
+    await expect(
+      setup('access-1').cases.timeline(row.id, { cursor: row.id, types: 'FILE_OPENED' }),
+    ).resolves.toEqual(page);
+    expect(new URLSearchParams(query).get('types')).toBe('FILE_OPENED');
+  });
+
   it('should send the filters and return the rows with the pagination', async () => {
     let query = '';
     server.use(

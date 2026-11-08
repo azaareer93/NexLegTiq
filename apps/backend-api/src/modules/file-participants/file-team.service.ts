@@ -22,6 +22,7 @@ import type { AfterCommit, ScopedTransaction } from '../../database/unit-of-work
 import { CaseAccessService } from '../legal-files/case-access.service';
 import { recipientsWanting } from '../notifications/notification-preferences';
 import { ReminderScheduler } from '../sessions/reminder-scheduler';
+import { TimelineService } from '../timeline/timeline.service';
 
 const ROLE_ORDER: Record<FileTeamRole, number> = { RESPONSIBLE_LAWYER: 0, PARALEGAL: 1, MEMBER: 2 };
 
@@ -49,6 +50,7 @@ export class FileTeamService {
     private readonly audit: AuditService,
     private readonly reminders: ReminderScheduler,
     private readonly realtime: RealtimePublisher,
+    private readonly timeline: TimelineService,
   ) {}
 
   async list(fileId: string): Promise<FileTeamMember[]> {
@@ -191,14 +193,11 @@ export class FileTeamService {
   }
 
   private async reassigned({ tx, afterCommit, fileId, file }: Change, userId: string) {
-    await tx.caseTimelineEvent.create({
-      data: {
-        officeId: this.officeId(),
-        fileId,
-        eventType: 'FILE_REASSIGNED',
-        actorId: this.actorId(),
-        payload: { fromUserId: file.responsibleLawyerId, toUserId: userId, reason: 'TEAM' },
-      },
+    await this.timeline.record(tx, {
+      fileId,
+      eventType: 'FILE_REASSIGNED',
+      actorId: this.actorId(),
+      payload: { fromUserId: file.responsibleLawyerId, toUserId: userId, reason: 'TEAM' },
     });
     await this.reminders.resetForFile(tx, afterCommit, fileId);
     await this.notify(tx, afterCommit, userId, {
@@ -302,9 +301,7 @@ export class FileTeamService {
     eventType: 'TEAM_MEMBER_ADDED' | 'TEAM_MEMBER_REMOVED',
     payload: Record<string, string>,
   ): Promise<void> {
-    await tx.caseTimelineEvent.create({
-      data: { officeId: this.officeId(), fileId, eventType, actorId: this.actorId(), payload },
-    });
+    await this.timeline.record(tx, { fileId, eventType, actorId: this.actorId(), payload });
   }
 
   /** Responsible lawyer, paralegal, then members by name. */

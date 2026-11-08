@@ -24,6 +24,7 @@ import { ReminderDelivery } from '../modules/sessions/reminder-delivery';
 import { ReminderScheduler } from '../modules/sessions/reminder-scheduler';
 import { ReminderProcessor } from '../modules/sessions/workers/reminder.processor';
 import { SubscriptionsModule } from '../modules/subscriptions/subscriptions.module';
+import { TimelineModule } from '../modules/timeline/timeline.module';
 
 /**
  * Root module of the worker process (D-011). Processors (`TenantProcessor` subclasses) are registered only here, so
@@ -39,6 +40,7 @@ import { SubscriptionsModule } from '../modules/subscriptions/subscriptions.modu
     MailModule,
     SubscriptionsModule,
     NotificationsModule,
+    TimelineModule,
     AiModule,
   ],
   providers: [

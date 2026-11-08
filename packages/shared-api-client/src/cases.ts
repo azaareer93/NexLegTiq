@@ -3,6 +3,7 @@ import {
   CaseSchema,
   FileClientSchema,
   FileTeamMemberSchema,
+  TimelinePageSchema,
 } from '@nexlegtiq/shared-contracts';
 import type {
   AddFileClientRequest,
@@ -13,6 +14,7 @@ import type {
   CreateCaseSchema,
   FileClient,
   FileTeamMember,
+  TimelinePage,
   UpdateCaseRequest,
 } from '@nexlegtiq/shared-contracts';
 import type { z } from 'zod';
@@ -35,6 +37,16 @@ export function casesApi(client: ApiClient) {
   return {
     list: (query: CaseListParams, signal?: AbortSignal): Promise<Page<CaseListItem>> =>
       client.requestPage({ method: 'GET', path: 'cases', query, signal }, CaseListItemSchema),
+    /** The file's events, newest first (D-150); `cursor` is the previous page's `nextCursor`. */
+    timeline: (
+      id: string,
+      query: { readonly cursor?: string; readonly types?: string; readonly limit?: number },
+      signal?: AbortSignal,
+    ): Promise<TimelinePage> =>
+      client.request(
+        { method: 'GET', path: `${path(id)}/timeline`, query: { ...query }, signal },
+        TimelinePageSchema,
+      ),
     get: (id: string, signal?: AbortSignal): Promise<Case> =>
       client.request({ method: 'GET', path: path(id), signal }, CaseSchema),
     create: (body: Input<typeof CreateCaseSchema>): Promise<Case> =>

@@ -212,5 +212,25 @@
     "IN_PROGRESS": "In progress",
     "BLOCKED": "Blocked",
     "DONE": "Done"
+  },
+  "timelineEventType": {
+    "FILE_OPENED": "File opened",
+    "FILE_CLOSED": "File closed",
+    "FILE_REOPENED": "File reopened",
+    "FILE_REASSIGNED": "File reassigned",
+    "SESSION_CREATED": "Hearing scheduled",
+    "SESSION_UPDATED": "Hearing changed",
+    "DOCUMENT_UPLOADED": "Document uploaded",
+    "DOCUMENT_SHARED": "Document shared",
+    "TASK_COMPLETED": "Task completed",
+    "PARTY_ADDED": "Party added",
+    "CLIENT_ADDED": "Client added",
+    "CLIENT_REMOVED": "Client removed",
+    "TEAM_MEMBER_ADDED": "Team member added",
+    "TEAM_MEMBER_REMOVED": "Team member removed",
+    "WITNESS_STATEMENT_ADDED": "Testimony added",
+    "SUMMARY_GENERATED": "AI summary",
+    "INVOICE_SENT": "Invoice sent",
+    "INVOICE_PAID": "Invoice paid"
   }
 }

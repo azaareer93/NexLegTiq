@@ -21,6 +21,7 @@ import { DIGIT_STYLES, NOTIFICATION_CATEGORIES, NOTIFICATION_TYPES } from './pro
 import { REMINDER_STATUSES, SESSION_OUTCOMES, SESSION_STATUSES, SESSION_TYPES } from './session.js';
 import { SUBSCRIPTION_STATUSES } from './subscription.js';
 import { TASK_STATUSES } from './task.js';
+import { TIMELINE_EVENT_TYPES } from './timeline.js';
 
 /** D-016: enum values are UPPER_SNAKE and unique; the backend checks they equal the Prisma enums. */
 describe('enum value lists', () => {
@@ -53,6 +54,7 @@ describe('enum value lists', () => {
       NOTIFICATION_TYPES,
       AI_SOURCE_TYPES,
       AI_JOB_STATUSES,
+      TIMELINE_EVENT_TYPES,
     }),
   )('%s should hold unique UPPER_SNAKE values', (_name, values) => {
     expect(values.length).toBeGreaterThan(0);

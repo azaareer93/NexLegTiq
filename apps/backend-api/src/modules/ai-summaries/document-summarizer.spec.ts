@@ -8,6 +8,7 @@ import type { UnitOfWork } from '../../database/unit-of-work';
 import type { AiAccess } from '../ai/ai-access';
 import type { AiExecutor } from '../ai/ai-executor';
 import { AiJobRegistry } from '../ai/ai-job-registry';
+import { testTimeline } from '../timeline/timeline.test-helper';
 
 const SUMMARY = {
   summary: 'x'.repeat(60),
@@ -67,6 +68,7 @@ function setup({
     realtime as unknown as RealtimePublisher,
     registry,
     { get: () => 'o1' } as unknown as ClsService<RequestContext>,
+    testTimeline({ get: () => 'o1' }),
   );
   service.onModuleInit();
   return { service, registry, executor, access, realtime, tx, db };

@@ -40,6 +40,7 @@ const ENUM_LABELS = {
   NOTIFICATION_CATEGORIES: 'notificationCategory',
   AI_SOURCE_TYPES: 'aiSourceType',
   AI_JOB_STATUSES: 'aiJobStatus',
+  TIMELINE_EVENT_TYPES: 'timelineEventType',
 } as const;
 /** Value lists translated elsewhere (`errors.*`, `common.language.*`), or not shown to users yet (permissions, D-087). */
 const LABELLED_ELSEWHERE = [
@@ -51,6 +52,8 @@ const LABELLED_ELSEWHERE = [
   'EMAIL_CATEGORIES',
   // Shown through each notification's own titleKey (D-149).
   'NOTIFICATION_TYPES',
+  // A set of the values above, not a list of its own.
+  'PORTAL_TIMELINE_EVENT_TYPES',
 ];
 
 describe('findMissingKeys', () => {
@@ -228,3 +231,26 @@ function flattenValues(tree: object): string[] {
     typeof value === 'string' ? [value] : flattenValues(value as object),
   );
 }
+
+describe('timeline sentences (D-150)', () => {
+  it.each(SUPPORTED_LOCALES)('should give every timeline event type a sentence in %s', (locale) => {
+    const events = (RESOURCES[locale].timeline as { event: Record<string, unknown> }).event;
+    expect(sharedTypes.TIMELINE_EVENT_TYPES.filter((type) => !events[type])).toEqual([]);
+    // Hearing changes and document uploads have one sentence per variant.
+    expect(Object.keys(events.SESSION_UPDATED as object).sort()).toEqual([
+      'CANCELLED',
+      'OUTCOME',
+      'UPDATED',
+    ]);
+    expect(Object.keys(events.DOCUMENT_UPLOADED as object).sort()).toEqual([
+      'first',
+      'firstConfidential',
+      'version',
+      'versionConfidential',
+    ]);
+    expect(Object.keys(events.DOCUMENT_SHARED as object).sort()).toEqual(['confidential', 'named']);
+    expect(Object.keys(events.FILE_REASSIGNED as object).sort()).toEqual(['fromTo', 'to']);
+    // Names are isolated in code (isolate()), so the texts carry no bidi controls of their own.
+    expect(JSON.stringify(RESOURCES[locale].timeline)).not.toMatch(/[⁦-⁩]/);
+  });
+});
