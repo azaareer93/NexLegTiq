@@ -21,7 +21,7 @@ const FIELDS = {
   link: '/calendar?session=1',
 };
 
-function setup(prefs: Record<string, unknown> = {}) {
+function setup(prefs: Record<string, unknown> = {}, moduleRef: object = {}) {
   const createManyAndReturn = jest.fn(({ data }: { data: { userId: string }[] }) =>
     Promise.resolve(data.map(({ userId }, i) => ({ id: `n${i}`, userId }))),
   );
@@ -48,7 +48,7 @@ function setup(prefs: Record<string, unknown> = {}) {
     prisma,
     logger,
     realtime as unknown as RealtimePublisher,
-    {} as ModuleRef,
+    moduleRef as ModuleRef,
   );
   const job = (name: string, data: object, office: string | null = OFFICE) =>
     ({
@@ -58,7 +58,7 @@ function setup(prefs: Record<string, unknown> = {}) {
       attemptsMade: 0,
       data: office ? { officeId: office, requestId: null, ...data } : data,
     }) as unknown as Job<never>;
-  return { processor, createManyAndReturn, deleteMany, realtime, job };
+  return { processor, createManyAndReturn, deleteMany, realtime, job, logger };
 }
 
 describe('NotificationProcessor (D-149)', () => {
@@ -106,6 +106,28 @@ describe('NotificationProcessor (D-149)', () => {
       UnrecoverableError,
     );
     expect(deleteMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('should schedule the daily purge at boot, and only log when Redis is down', async () => {
+    const upsertJobScheduler = jest.fn().mockResolvedValue(undefined);
+    const up = setup({}, { get: () => ({ upsertJobScheduler }) });
+    await up.processor.onApplicationBootstrap();
+    expect(upsertJobScheduler).toHaveBeenCalledWith(
+      'purge-notifications',
+      { pattern: '30 3 * * *', tz: 'UTC' },
+      { name: 'purge-notifications', data: {} },
+    );
+    const down = setup(
+      {},
+      {
+        get: () => ({ upsertJobScheduler: jest.fn().mockRejectedValue(new Error('redis down')) }),
+      },
+    );
+    await expect(down.processor.onApplicationBootstrap()).resolves.toBeUndefined();
+    expect(down.logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      'Notification retention purge not scheduled',
+    );
   });
 
   it.each([
