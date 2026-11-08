@@ -6,7 +6,6 @@ import { isErrorCode } from '@nexlegtiq/shared-types';
 import {
   Bdi,
   ConfirmModal,
-  EmptyState,
   ErrorState,
   isApiError,
   LoadingSkeleton,
@@ -29,6 +28,7 @@ import { TasksView } from '../../tasks';
 import { caseKeys, useCase, useDeleteCase } from '../api/use-cases';
 import { FileStatusTag } from '../components/case-cells';
 import { CaseDetailsTab } from '../components/CaseDetailsTab';
+import { ComingSoonTab } from '../components/ComingSoonTab';
 import { EditCaseDrawer } from '../components/EditCaseDrawer';
 import { DocumentsTab } from '../documents/DocumentsTab';
 import { fileActions, readTab, visibleTabs } from '../file-page';
@@ -38,6 +38,7 @@ import { PartiesTab } from '../parties/PartiesTab';
 import { useHearingShortcut, useSessionRights } from '../sessions/session-rights';
 import { SessionDrawer } from '../sessions/SessionDrawer';
 import { SessionsTab } from '../sessions/SessionsTab';
+import { TimelineTab } from '../timeline/TimelineTab';
 
 type Dialog = 'edit' | 'delete' | 'comingSoon' | null;
 type MenuKey = 'edit' | 'reassign' | 'status' | 'archive' | 'delete';
@@ -140,14 +141,6 @@ function Header({
   );
 }
 
-/** A tab whose story has not shipped yet. */
-function ComingSoonTab(): React.JSX.Element {
-  const { t } = useTranslation();
-  return (
-    <EmptyState title={t('shell.comingSoon.title')} description={t('shell.comingSoon.body')} />
-  );
-}
-
 function FileView({
   file,
   user,
@@ -207,6 +200,9 @@ function FileView({
     if (key === 'parties') return <PartiesTab fileId={file.id} canEdit={actions.edit} />;
     if (key === 'sessions') {
       return <SessionsTab fileId={file.id} canCreate={sessionRights.create} onOpen={setHearing} />;
+    }
+    if (key === 'timeline') {
+      return <TimelineTab fileId={file.id} onOpenHearing={setHearing} onOpenTab={selectTab} />;
     }
     return <ComingSoonTab />;
   };
