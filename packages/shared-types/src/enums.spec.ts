@@ -17,7 +17,7 @@ import {
 } from './legal-file.js';
 import { ACCOUNT_TYPES, JURISDICTIONS, OFFICE_LANGUAGES } from './office.js';
 import { PRIORITIES } from './priority.js';
-import { DIGIT_STYLES, NOTIFICATION_CATEGORIES } from './profile.js';
+import { DIGIT_STYLES, NOTIFICATION_CATEGORIES, NOTIFICATION_TYPES } from './profile.js';
 import { REMINDER_STATUSES, SESSION_OUTCOMES, SESSION_STATUSES, SESSION_TYPES } from './session.js';
 import { SUBSCRIPTION_STATUSES } from './subscription.js';
 import { TASK_STATUSES } from './task.js';
@@ -50,6 +50,7 @@ describe('enum value lists', () => {
       SUBSCRIPTION_STATUSES,
       DIGIT_STYLES,
       NOTIFICATION_CATEGORIES,
+      NOTIFICATION_TYPES,
       AI_SOURCE_TYPES,
       AI_JOB_STATUSES,
     }),

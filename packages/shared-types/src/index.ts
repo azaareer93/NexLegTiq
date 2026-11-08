@@ -41,8 +41,14 @@ export {
   EMAIL_CATEGORIES,
   NOTIFICATION_CATEGORIES,
   NOTIFICATION_CHANNELS,
+  NOTIFICATION_TYPES,
 } from './profile.js';
-export type { DigitStyle, NotificationCategory, NotificationChannel } from './profile.js';
+export type {
+  DigitStyle,
+  NotificationCategory,
+  NotificationChannel,
+  NotificationType,
+} from './profile.js';
 export type { SubscriptionStatus } from './subscription.js';
 export { TASK_STATUSES } from './task.js';
 export { AI_JOB_STATUSES, AI_SOURCE_TYPES } from './ai.js';

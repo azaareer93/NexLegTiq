@@ -34,7 +34,18 @@
     "fileTeamAdded": "You were added to the team of file ⁨{{fileNumber}}⁩",
     "documentQuarantined": "⁨{{name}}⁩ was blocked: it contains malware",
     "documentFailed": "The text of ⁨{{name}}⁩ could not be read",
-    "invitationAccepted": "⁨{{name}}⁩ accepted your invitation"
+    "invitationAccepted": "⁨{{name}}⁩ accepted your invitation",
+    "documentProcessed": "The text of ⁨{{name}}⁩ is ready",
+    "markAllRead": "Mark all as read",
+    "markRead": "Mark as read",
+    "viewAll": "See all notifications",
+    "all": "All",
+    "unread": "Unread",
+    "loadMore": "Load more",
+    "emptyUnread": "No unread notifications.",
+    "unreadCount_one": "{{count}} unread notification",
+    "unreadCount_other": "{{count}} unread notifications",
+    "unreadDot": "Unread"
   },
   "profile": {
     "menu": "Account menu",

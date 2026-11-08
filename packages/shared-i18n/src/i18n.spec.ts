@@ -49,6 +49,8 @@ const LABELLED_ELSEWHERE = [
   // Channel names and the email subset are shown through the profile namespace's own column headings.
   'NOTIFICATION_CHANNELS',
   'EMAIL_CATEGORIES',
+  // Shown through each notification's own titleKey (D-149).
+  'NOTIFICATION_TYPES',
 ];
 
 describe('findMissingKeys', () => {
