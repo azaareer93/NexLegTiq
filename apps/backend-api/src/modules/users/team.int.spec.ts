@@ -470,7 +470,7 @@ describe('team management (HTTP + PostgreSQL)', () => {
       [`/cases/${file.id}`, `/cases/${suspended.id}`].sort(),
     );
     expect(notifications[0]).toMatchObject({
-      type: 'file.reassigned',
+      type: 'FILE_REASSIGNED',
       titleKey: 'shell.notifications.fileReassigned',
     });
     // The attending lawyer and the new responsible lawyer are reminded; the leaver is not.

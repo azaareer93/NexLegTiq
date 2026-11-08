@@ -137,7 +137,7 @@ export class TeamService {
         const wanting = await recipientsWanting(
           tx,
           [...new Set(reassignments.map((row) => row.newResponsibleLawyerId))],
-          'file.reassigned',
+          'FILE_REASSIGNED',
           'inApp',
         );
         for (const file of files) {
@@ -228,7 +228,7 @@ export class TeamService {
         data: {
           officeId,
           userId: file.to,
-          type: 'file.reassigned',
+          type: 'FILE_REASSIGNED',
           titleKey: 'shell.notifications.fileReassigned',
           params: { fileId: file.id, fileNumber: file.fileNumber },
           link: `/cases/${file.id}`,

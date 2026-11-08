@@ -10,6 +10,7 @@ import type { QueueProducer } from '../../common/queue/queue-producer';
 import type { StorageService } from '../../common/storage/storage.service';
 import type { PrismaService } from '../../database/prisma.service';
 import type { UnitOfWork } from '../../database/unit-of-work';
+import { NotificationService } from '../notifications/notification.service';
 
 const JOB = { documentId: '01920000-0000-7000-8000-0000000000d1', versionNumber: 2 };
 const VERSION = {
@@ -47,6 +48,7 @@ function setup(
     scanner as unknown as ClamavScanner,
     queues as unknown as QueueProducer,
     { setContext: jest.fn(), warn: jest.fn() } as unknown as PinoLogger,
+    new NotificationService(queues as unknown as QueueProducer),
   );
   return { scan, db, storage, queues, tasks };
 }
@@ -96,9 +98,9 @@ describe('DocumentScan', () => {
     expect(storage.delete).toHaveBeenCalledWith(VERSION.storageKey);
     expect(queues.enqueue).toHaveBeenCalledWith(
       'notification',
-      'create-notification',
+      'fan-out-notification',
       expect.objectContaining({
-        userId: 'u1',
+        userIds: ['u1'],
         titleKey: 'shell.notifications.documentQuarantined',
         link: '/cases/f1?tab=documents',
       }),

@@ -8,8 +8,6 @@ import { extractable, extractText } from './extraction/extract-text';
 import { ocr, ocrable } from './extraction/ocr';
 import type { OcrResult } from './extraction/ocr';
 import { visionWithin, weakRead } from './extraction/vision';
-import { QueueProducer } from '../../common/queue/queue-producer';
-import { QUEUE } from '../../common/queue/queues';
 import { RealtimePublisher } from '../../common/realtime/realtime.publisher';
 import { StorageService } from '../../common/storage/storage.service';
 import { AppConfig } from '../../config/app-config';
@@ -17,8 +15,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
 import { Prisma } from '../../generated/prisma/client';
 import type { DocumentType } from '../../generated/prisma/client';
-import { CREATE_NOTIFICATION_JOB } from '../notifications/notification-job';
-import type { NotificationJob } from '../notifications/notification-job';
+import { NotificationService } from '../notifications/notification.service';
 import { EntitlementsService } from '../subscriptions/entitlements.service';
 
 /** READY with text, NO_TEXT = READY without (legacy .doc, OCR off), SUPERSEDED = replaced or deleted meanwhile. */
@@ -29,6 +26,7 @@ interface ProcessedVersion {
   readonly document: {
     readonly officeId: string;
     readonly fileId: string;
+    readonly name: string;
     readonly documentType: DocumentType;
   };
 }
@@ -86,10 +84,10 @@ export class DocumentExtraction {
     private readonly uow: UnitOfWork,
     private readonly storage: StorageService,
     private readonly realtime: RealtimePublisher,
-    private readonly queues: QueueProducer,
     private readonly config: AppConfig,
     private readonly logger: PinoLogger,
     private readonly entitlements: EntitlementsService,
+    private readonly notifications: NotificationService,
   ) {
     this.logger.setContext(DocumentExtraction.name);
   }
@@ -108,7 +106,7 @@ export class DocumentExtraction {
         storageKey: true,
         mimeType: true,
         createdById: true,
-        document: { select: { officeId: true, fileId: true, documentType: true } },
+        document: { select: { officeId: true, fileId: true, name: true, documentType: true } },
       },
     });
     if (!version) return 'SUPERSEDED';
@@ -261,6 +259,20 @@ export class DocumentExtraction {
         async () => this.told(version.createdById, job.documentId, document.fileId),
         'realtime document.processed',
       );
+      afterCommit(
+        () =>
+          this.notifications.notify(
+            [version.createdById],
+            {
+              type: 'DOCUMENT_PROCESSED',
+              titleKey: 'shell.notifications.documentProcessed',
+              params: { documentId: job.documentId, name: document.name.slice(0, 500) },
+              link: `/cases/${document.fileId}?tab=documents`,
+            },
+            { jobId: `${documentJobId('process', job)}-ready` },
+          ),
+        'notify processed upload',
+      );
       if (!text) return true;
       const data = {
         text: text.text,
@@ -317,11 +329,9 @@ export class DocumentExtraction {
     });
     if (count === 0) return;
     this.told(version.createdById, job.documentId, version.document.fileId);
-    await this.queues.enqueue<NotificationJob>(
-      QUEUE.NOTIFICATION,
-      CREATE_NOTIFICATION_JOB,
+    await this.notifications.notify(
+      [version.createdById],
       {
-        userId: version.createdById,
         type: 'DOCUMENT_FAILED',
         titleKey: 'shell.notifications.documentFailed',
         params: { documentId: job.documentId, name: version.document.name.slice(0, 500), code },

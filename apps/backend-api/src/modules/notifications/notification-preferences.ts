@@ -1,18 +1,28 @@
 import { NOTIFICATION_CATEGORIES } from '@nexlegtiq/shared-types';
-import type { NotificationCategory, NotificationChannel } from '@nexlegtiq/shared-types';
+import type {
+  NotificationCategory,
+  NotificationChannel,
+  NotificationType,
+} from '@nexlegtiq/shared-types';
 import { z } from 'zod';
 
 /**
- * The category each notification type belongs to (D-146); a type not listed is always delivered — as the malware alert
- * (`DOCUMENT_QUARANTINED`), a security notice.
+ * The category each notification type belongs to (D-146, D-149); `null` = always delivered — the malware alert
+ * (`DOCUMENT_QUARANTINED`) is a security notice.
  */
-export const CATEGORY_OF_TYPE: Readonly<Record<string, NotificationCategory>> = {
-  'task.assigned': 'TASKS',
-  SESSION_REMINDER: 'HEARINGS',
-  'file.reassigned': 'FILES',
-  'file.teamAdded': 'FILES',
-  'invitation.accepted': 'TEAM',
+export const CATEGORY_OF_TYPE: Readonly<Record<NotificationType, NotificationCategory | null>> = {
+  HEARING_REMINDER: 'HEARINGS',
+  TASK_ASSIGNED: 'TASKS',
+  TASK_DUE: 'TASKS',
+  DOCUMENT_PROCESSED: 'DOCUMENTS',
   DOCUMENT_FAILED: 'DOCUMENTS',
+  DOCUMENT_QUARANTINED: null,
+  AI_SUMMARY_READY: 'DOCUMENTS',
+  INVITE_ACCEPTED: 'TEAM',
+  FILE_REASSIGNED: 'FILES',
+  FILE_TEAM_ADDED: 'FILES',
+  CONFLICT_DETECTED: 'FILES',
+  CLIENT_UPLOAD: 'DOCUMENTS',
 };
 
 const ChannelsSchema = z.object({ email: z.boolean().optional(), inApp: z.boolean().optional() });
@@ -35,7 +45,11 @@ export function readPrefs(stored: unknown): NotificationPrefs {
 }
 
 /** Does a user with these preferences want this notification type on this channel? On unless turned off. */
-export function wants(prefs: unknown, type: string, channel: NotificationChannel): boolean {
+export function wants(
+  prefs: unknown,
+  type: NotificationType,
+  channel: NotificationChannel,
+): boolean {
   const category = CATEGORY_OF_TYPE[type];
   if (!category) return true;
   return readPrefs(prefs)[category]?.[channel] !== false;
@@ -57,7 +71,7 @@ interface UserReader {
 export async function recipientsWanting(
   client: UserReader,
   userIds: readonly string[],
-  type: string,
+  type: NotificationType,
   channel: NotificationChannel,
 ): Promise<Set<string>> {
   if (userIds.length === 0 || !CATEGORY_OF_TYPE[type]) return new Set(userIds);

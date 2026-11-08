@@ -6,6 +6,7 @@ import { AppConfig } from '../../config/app-config';
 import { testEnv } from '../../config/env.fixture';
 import { parseEnv } from '../../config/env.schema';
 import type { PrismaService } from '../../database/prisma.service';
+import { NotificationService } from '../notifications/notification.service';
 
 const APP = 'https://app.test';
 const NOW = new Date('2026-11-05T07:00:00Z');
@@ -61,9 +62,9 @@ function setup(found: unknown = row()) {
   const delivery = new ReminderDelivery(
     { db } as unknown as PrismaService,
     mail as unknown as MailService,
-    queues as unknown as QueueProducer,
     config,
     { toUser: jest.fn(), toUsers: jest.fn(), toOffice: jest.fn() } as unknown as RealtimePublisher,
+    new NotificationService(queues as unknown as QueueProducer),
   );
   return { delivery, db, mail, queues };
 }
@@ -91,10 +92,10 @@ describe('ReminderDelivery', () => {
     );
     expect(queues.enqueue).toHaveBeenCalledWith(
       'notification',
-      'create-notification',
+      'fan-out-notification',
       {
-        userId: 'u1',
-        type: 'SESSION_REMINDER',
+        userIds: ['u1'],
+        type: 'HEARING_REMINDER',
         titleKey: 'shell.notifications.hearingReminder',
         params: {
           fileNumber: '2026-LIT-00001',

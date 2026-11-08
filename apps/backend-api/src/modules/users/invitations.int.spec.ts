@@ -196,7 +196,7 @@ describe('invitations (HTTP + PostgreSQL)', () => {
     expect(await raw.legalAcceptance.count({ where: { userId: user.id } })).toBe(2);
     expect(
       await raw.notification.findFirst({
-        where: { userId: manager.userId, type: 'invitation.accepted' },
+        where: { userId: manager.userId, type: 'INVITE_ACCEPTED' },
       }),
     ).toMatchObject({ link: '/team', params: { userId: user.id, name: 'Nadia New' } });
     expect(

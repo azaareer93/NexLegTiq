@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { ModuleRef } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
@@ -16,7 +17,6 @@ import { ReminderProcessor } from './workers/reminder.processor';
 import { AppModule } from '../../app/app.module';
 import { configureApp } from '../../app/configure-app';
 import { MailService } from '../../common/mail/mail.service';
-import { QueueProducer } from '../../common/queue/queue-producer';
 import { getQueue, QUEUE } from '../../common/queue/queues';
 import { RealtimePublisher } from '../../common/realtime/realtime.publisher';
 import { TenantRunner } from '../../common/tenancy/tenant-runner';
@@ -26,6 +26,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { TENANT_MODELS } from '../../database/tenant-models';
 import type { PrismaClient } from '../../generated/prisma/client';
 import { bearerFor } from '../auth/auth.test-helper';
+import { NotificationService } from '../notifications/notification.service';
 import { NotificationProcessor } from '../notifications/workers/notification.processor';
 import { liveSubscription } from '../subscriptions/subscription.test-helper';
 
@@ -141,9 +142,9 @@ describe('hearing reminders (HTTP + PostgreSQL + Redis)', () => {
     delivery = new ReminderDelivery(
       prisma,
       app.get(MailService),
-      app.get(QueueProducer),
       app.get(AppConfig),
       app.get(RealtimePublisher),
+      app.get(NotificationService, { strict: false }),
     );
     processor = new ReminderProcessor(
       tenant,
@@ -440,29 +441,33 @@ describe('hearing reminders (HTTP + PostgreSQL + Redis)', () => {
       app.get(PrismaService),
       await app.resolve(PinoLogger),
       app.get(RealtimePublisher),
+      app.get(ModuleRef),
     );
     const fields = {
-      userId: user('attending').userId,
-      type: 'SESSION_REMINDER',
+      userIds: [user('attending').userId],
+      type: 'HEARING_REMINDER',
       titleKey: 'shell.notifications.hearingReminder',
       params: { fileNumber: 'R-1' },
       link: '/calendar?session=x',
     };
-    const fake = (office: string, userId = fields.userId) =>
+    const fake = (office: string, userIds = fields.userIds) =>
       ({
         id: randomUUID(),
-        name: 'create-notification',
+        name: 'fan-out-notification',
         queueName: 'notification',
         attemptsMade: 0,
         opts: { attempts: 3 },
-        data: { ...fields, userId, officeId: office, requestId: null },
+        data: { ...fields, userIds, officeId: office, requestId: null },
       }) as never;
-    const result = (await notifications.process(fake(officeId))) as { notificationId: string };
+    await expect(notifications.process(fake(officeId))).resolves.toEqual({ created: 1 });
     expect(
-      await raw.notification.findUnique({ where: { id: result.notificationId } }),
+      await raw.notification.findFirst({
+        where: { userId: fields.userIds[0], link: fields.link },
+        orderBy: { createdAt: 'desc' },
+      }),
     ).toMatchObject({
       officeId,
-      userId: fields.userId,
+      userId: fields.userIds[0],
       titleKey: fields.titleKey,
       channel: 'IN_APP',
     });

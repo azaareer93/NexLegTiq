@@ -183,7 +183,7 @@ describe('tasks API (HTTP + PostgreSQL)', () => {
         raw.notification.findMany({ where: { userId: user('paralegal').userId } }),
       ).resolves.toEqual([
         expect.objectContaining({
-          type: 'task.assigned',
+          type: 'TASK_ASSIGNED',
           titleKey: 'common.notifications.taskAssigned',
           params: { taskId: created.id, title: 'Draft the statement of claim' },
         }),

@@ -1457,6 +1457,7 @@ model Notification {
   id        String              @id @default(uuid(7)) @db.Uuid
   officeId  String              @map("office_id") @db.Uuid
   userId    String              @map("user_id") @db.Uuid
+  /// NOTIFICATION_TYPES (shared-types, D-149), UPPER_SNAKE.
   type      String
   /// i18n key; the UI renders it with `params`, never stored text.
   titleKey  String              @map("title_key")
@@ -1471,6 +1472,8 @@ model Notification {
 
   // "My notifications, newest first"; unread counts filter on read_at within the same (office, user) range.
   @@index([officeId, userId, createdAt(sort: Desc)])
+  /// The daily 90-day retention purge across offices (D-149).
+  @@index([createdAt])
   @@map("notifications")
 }
 

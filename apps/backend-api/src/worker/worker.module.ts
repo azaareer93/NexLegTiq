@@ -17,6 +17,7 @@ import { DocumentExtraction } from '../modules/documents/document-extraction';
 import { DocumentScan } from '../modules/documents/document-scan';
 import { ClamavScanner } from '../modules/documents/upload/clamav-scanner';
 import { OcrProcessor } from '../modules/documents/workers/ocr.processor';
+import { NotificationsModule } from '../modules/notifications/notifications.module';
 import { NotificationProcessor } from '../modules/notifications/workers/notification.processor';
 import { ReminderDelivery } from '../modules/sessions/reminder-delivery';
 import { ReminderScheduler } from '../modules/sessions/reminder-scheduler';
@@ -36,6 +37,7 @@ import { SubscriptionsModule } from '../modules/subscriptions/subscriptions.modu
     StorageModule,
     MailModule,
     SubscriptionsModule,
+    NotificationsModule,
     AiModule,
   ],
   providers: [

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { AddTeamMemberRequest, FileTeamMember } from '@nexlegtiq/shared-contracts';
-import type { FileTeamRole } from '@nexlegtiq/shared-types';
+import type { FileTeamRole, NotificationType } from '@nexlegtiq/shared-types';
 import { ClsService } from 'nestjs-cls';
 
 import { lockFile, mayExpose } from './file-lock';
@@ -202,7 +202,7 @@ export class FileTeamService {
     });
     await this.reminders.resetForFile(tx, afterCommit, fileId);
     await this.notify(tx, afterCommit, userId, {
-      type: 'file.reassigned',
+      type: 'FILE_REASSIGNED',
       titleKey: 'shell.notifications.fileReassigned',
       fileId,
       fileNumber: file.fileNumber,
@@ -264,7 +264,7 @@ export class FileTeamService {
     userId: string,
   ): Promise<void> {
     await this.notify(tx, afterCommit, userId, {
-      type: 'file.teamAdded',
+      type: 'FILE_TEAM_ADDED',
       titleKey: 'shell.notifications.fileTeamAdded',
       fileId,
       fileNumber: file.fileNumber,
@@ -276,7 +276,7 @@ export class FileTeamService {
     tx: ScopedTransaction,
     afterCommit: AfterCommit,
     userId: string,
-    note: { type: string; titleKey: string; fileId: string; fileNumber: string },
+    note: { type: NotificationType; titleKey: string; fileId: string; fileNumber: string },
   ): Promise<void> {
     if (userId === this.actorId()) return;
     if (!(await recipientsWanting(tx, [userId], note.type, 'inApp')).has(userId)) return; // D-146

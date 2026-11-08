@@ -142,7 +142,7 @@ describe('TasksService', () => {
         data: expect.objectContaining({ entityType: 'Task', action: 'CREATE' }),
       });
       expect(tx.notification.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({ userId: OTHER, type: 'task.assigned' }),
+        data: expect.objectContaining({ userId: OTHER, type: 'TASK_ASSIGNED' }),
         select: { id: true },
       });
       expect(realtime.toUser).toHaveBeenCalledWith(OTHER, 'task.assigned', {
