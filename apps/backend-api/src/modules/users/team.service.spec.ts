@@ -8,6 +8,7 @@ import type { UnitOfWork } from '../../database/unit-of-work';
 import type { ClientInfo } from '../auth/client-info';
 import type { ReminderScheduler } from '../sessions/reminder-scheduler';
 import type { EntitlementsService } from '../subscriptions/entitlements.service';
+import { testTimeline } from '../timeline/timeline.test-helper';
 
 const ME = 'manager-1';
 const client: ClientInfo = { ip: '127.0.0.1', userAgent: 'jest', requestId: 'req-12345678' };
@@ -73,6 +74,7 @@ function setup(
     entitlements as unknown as EntitlementsService,
     reminders as unknown as ReminderScheduler,
     { disconnectUser: jest.fn() } as unknown as RealtimePublisher,
+    testTimeline(cls),
   );
   return { service, tx, entitlements, reminders };
 }

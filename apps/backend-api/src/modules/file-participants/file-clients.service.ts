@@ -17,6 +17,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { ScopedTransaction } from '../../database/unit-of-work';
 import { CaseAccessService } from '../legal-files/case-access.service';
+import { TimelineService } from '../timeline/timeline.service';
 
 const CLIENT_SELECT = {
   isPrimary: true,
@@ -36,6 +37,7 @@ export class FileClientsService {
     private readonly uow: UnitOfWork,
     private readonly access: CaseAccessService,
     private readonly audit: AuditService,
+    private readonly timeline: TimelineService,
   ) {}
 
   async list(fileId: string): Promise<FileClient[]> {
@@ -165,9 +167,7 @@ export class FileClientsService {
     eventType: 'CLIENT_ADDED' | 'CLIENT_REMOVED',
     payload: Record<string, string | boolean>,
   ): Promise<void> {
-    await tx.caseTimelineEvent.create({
-      data: { officeId: this.officeId(), fileId, eventType, actorId: this.actorId(), payload },
-    });
+    await this.timeline.record(tx, { fileId, eventType, actorId: this.actorId(), payload });
   }
 
   /** Primary first, then by name; a client deleted later still shows on the files it belongs to. */

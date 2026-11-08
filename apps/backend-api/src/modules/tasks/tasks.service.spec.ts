@@ -17,6 +17,7 @@ import type { RealtimePublisher } from '../../common/realtime/realtime.publisher
 import type { PrismaService } from '../../database/prisma.service';
 import type { UnitOfWork } from '../../database/unit-of-work';
 import type { CaseAccessService } from '../legal-files/case-access.service';
+import { testTimeline } from '../timeline/timeline.test-helper';
 
 const OFFICE = '01920000-0000-7000-8000-0000000000aa';
 const ME = '01920000-0000-7000-8000-000000000001';
@@ -106,6 +107,7 @@ function setup(role: Role = 'LAWYER', row = accessRow()) {
       access,
       tasks,
       realtime as unknown as RealtimePublisher,
+      testTimeline(cls),
     ),
     realtime,
     tx,

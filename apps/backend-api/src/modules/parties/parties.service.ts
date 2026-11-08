@@ -27,6 +27,7 @@ import { UnitOfWork } from '../../database/unit-of-work';
 import type { ScopedTransaction } from '../../database/unit-of-work';
 import type { ClientInfo } from '../auth/client-info';
 import { CaseAccessService } from '../legal-files/case-access.service';
+import { TimelineService } from '../timeline/timeline.service';
 
 /**
  * The parties of a file (MVP-62, W9, D-030, D-135): add an existing or new party, retype, remove. Adding or retyping runs
@@ -40,6 +41,7 @@ export class PartiesService {
     private readonly registry: PartyRegistry,
     private readonly access: CaseAccessService,
     private readonly conflicts: ConflictsService,
+    private readonly timeline: TimelineService,
   ) {}
 
   async listForFile(fileId: string): Promise<FileParty[]> {
@@ -77,16 +79,13 @@ export class PartiesService {
         },
         select: { id: true },
       });
-      await tx.caseTimelineEvent.create({
-        data: {
-          officeId,
-          fileId,
-          eventType: 'PARTY_ADDED',
-          actorId: this.registry.actorId(),
-          sourceType: 'FileParty',
-          sourceId: row.id,
-          payload: { partyId: party.id, name: nameOf(party), partyType: input.partyType },
-        },
+      await this.timeline.record(tx, {
+        fileId,
+        eventType: 'PARTY_ADDED',
+        actorId: this.registry.actorId(),
+        sourceType: 'FileParty',
+        sourceId: row.id,
+        payload: { partyId: party.id, name: nameOf(party), partyType: input.partyType },
       });
       await tx.auditLog.create({
         data: this.registry.audit(client, 'FileParty', row.id, 'CREATE', null, {

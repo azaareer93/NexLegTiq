@@ -9,6 +9,7 @@ import type { PrismaService } from '../../database/prisma.service';
 import type { UnitOfWork } from '../../database/unit-of-work';
 import type { CaseAccessService } from '../legal-files/case-access.service';
 import type { ReminderScheduler } from '../sessions/reminder-scheduler';
+import { testTimeline } from '../timeline/timeline.test-helper';
 
 const ME = 'manager-1';
 const FILE = 'file-1';
@@ -103,6 +104,7 @@ function setup(overrides: Partial<Options> = {}) {
     audit as unknown as AuditService,
     reminders as unknown as ReminderScheduler,
     realtime as unknown as RealtimePublisher,
+    testTimeline(cls),
   );
   const clients$ = new FileClientsService(
     cls,
@@ -110,6 +112,7 @@ function setup(overrides: Partial<Options> = {}) {
     uow,
     access,
     audit as unknown as AuditService,
+    testTimeline(cls),
   );
   const flush = async () => {
     for (const task of tasks) await task();

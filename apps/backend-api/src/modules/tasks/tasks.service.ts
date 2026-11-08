@@ -31,6 +31,7 @@ import type { Prisma } from '../../generated/prisma/client';
 import type { ClientInfo } from '../auth/client-info';
 import { CaseAccessService } from '../legal-files/case-access.service';
 import { todayIn } from '../legal-files/cases.service';
+import { TimelineService } from '../timeline/timeline.service';
 
 const EDITABLE = {
   title: true,
@@ -53,6 +54,7 @@ export class TasksService {
     private readonly access: TaskAccessService,
     private readonly tasks: TasksRepository,
     private readonly realtime: RealtimePublisher,
+    private readonly timeline: TimelineService,
   ) {}
 
   async create(input: CreateTaskRequest, client: ClientInfo): Promise<Task> {
@@ -180,16 +182,13 @@ export class TasksService {
       });
       if (count === 0) throw new ResourceConflictException('RES-003');
       if (done && task.fileId) {
-        await tx.caseTimelineEvent.create({
-          data: {
-            officeId: this.officeId(),
-            fileId: task.fileId,
-            eventType: 'TASK_COMPLETED',
-            sourceType: 'Task',
-            sourceId: id,
-            actorId: this.access.actorId(),
-            payload: { title: task.title },
-          },
+        await this.timeline.record(tx, {
+          fileId: task.fileId,
+          eventType: 'TASK_COMPLETED',
+          sourceType: 'Task',
+          sourceId: id,
+          actorId: this.access.actorId(),
+          payload: { title: task.title },
         });
       }
       await tx.auditLog.create({

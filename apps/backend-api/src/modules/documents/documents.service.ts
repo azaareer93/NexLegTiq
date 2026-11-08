@@ -25,6 +25,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { AfterCommit, ScopedTransaction } from '../../database/unit-of-work';
 import type { ClientInfo } from '../auth/client-info';
+import { TimelineService } from '../timeline/timeline.service';
 
 /** A client-chosen retry key (api-conventions.md: `Idempotency-Key`). */
 const IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{8,128}$/;
@@ -54,6 +55,7 @@ export class DocumentsService {
     private readonly documents: DocumentAccessService,
     private readonly intake: UploadIntake,
     private readonly queues: QueueProducer,
+    private readonly timeline: TimelineService,
   ) {}
 
   async upload(
@@ -238,16 +240,13 @@ export class DocumentsService {
         createdById: userId,
       },
     });
-    await tx.caseTimelineEvent.create({
-      data: {
-        officeId,
-        fileId,
-        eventType: 'DOCUMENT_UPLOADED',
-        sourceType: 'Document',
-        sourceId: documentId,
-        actorId: userId,
-        payload: version.confidential ? { versionNumber } : { name: filename, versionNumber },
-      },
+    await this.timeline.record(tx, {
+      fileId,
+      eventType: 'DOCUMENT_UPLOADED',
+      sourceType: 'Document',
+      sourceId: documentId,
+      actorId: userId,
+      payload: version.confidential ? { versionNumber } : { name: filename, versionNumber },
     });
     const job: DocumentJob = { documentId, versionNumber };
     afterCommit(

@@ -32,6 +32,7 @@ import type { AiRequest } from '../ai/providers/ai-provider';
 import { AiProcessor } from '../ai/workers/ai.processor';
 import { bearerFor } from '../auth/auth.test-helper';
 import { liveSubscription } from '../subscriptions/subscription.test-helper';
+import { TimelineService } from '../timeline/timeline.service';
 
 type Person = { userId: string; officeId: string; role: string };
 
@@ -186,6 +187,7 @@ describe('Document AI summaries (integration)', () => {
       app.get(RealtimePublisher),
       registry,
       app.get(ClsService),
+      app.get(TimelineService, { strict: false }),
     ).onModuleInit();
     processor = new AiProcessor(
       app.get(TenantRunner),
