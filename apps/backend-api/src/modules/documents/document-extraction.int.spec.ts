@@ -30,6 +30,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { TENANT_MODELS } from '../../database/tenant-models';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { PrismaClient } from '../../generated/prisma/client';
+import type { AiJobs } from '../ai/ai-jobs';
 import { bearerFor } from '../auth/auth.test-helper';
 import { NotificationService } from '../notifications/notification.service';
 import { EntitlementsService } from '../subscriptions/entitlements.service';
@@ -92,6 +93,7 @@ describe('document text extraction (integration)', () => {
       app.get(AppConfig),
       quiet,
       app.get(EntitlementsService),
+      { enqueue: jest.fn() } as unknown as AiJobs,
       app.get(NotificationService, { strict: false }),
     );
 

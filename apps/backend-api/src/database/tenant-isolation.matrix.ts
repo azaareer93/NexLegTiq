@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import {
   aiJobIn,
+  aiSummaryIn,
   aiUsageIn,
   clientIn,
   documentIn,
@@ -10,6 +11,7 @@ import {
   folderIn,
   notificationIn,
   partyIn,
+  reminderIn,
   sessionIn,
   soon,
   versionIn,
@@ -276,16 +278,7 @@ export const TENANT_ISOLATION_MATRIX: readonly TenantResource[] = [
   },
   {
     model: 'SessionReminder',
-    create: async (db, office) =>
-      db.sessionReminder.create({
-        data: {
-          officeId: office.officeId,
-          sessionId: (await sessionIn(db, office)).id,
-          recipientId: office.userId,
-          daysBefore: 1,
-          scheduledFor: new Date(),
-        },
-      }),
+    create: reminderIn,
     update: { status: 'CANCELLED' },
   },
   {
@@ -310,4 +303,5 @@ export const TENANT_ISOLATION_MATRIX: readonly TenantResource[] = [
   { model: 'DocumentText', create: documentTextIn, update: { text: 'Changed' } },
   { model: 'AiJob', create: aiJobIn, update: { status: 'RUNNING' } },
   { model: 'AiUsage', create: aiUsageIn, update: { cached: true } },
+  { model: 'AiSummary', create: aiSummaryIn, update: { summary: 'Changed' } },
 ];

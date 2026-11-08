@@ -16,6 +16,8 @@ export interface UsageEntry {
   readonly cached: boolean;
   /** The answer passed validation (D-144); a cache hit always did. Defaults to true. */
   readonly succeeded?: boolean;
+  /** A map step of a larger request: recorded, not counted against the quota (D-148). */
+  readonly partial?: boolean;
   readonly userId: string | null;
   /** USD, summed over the calls (`cost` per call). */
   readonly costUsd: string;

@@ -3,10 +3,11 @@ import { PinoLogger } from 'nestjs-pino';
 
 import { documentJobId } from './document-jobs';
 import type { DocumentJob } from './document-jobs';
-import { autoSummaryWanted } from './extraction/auto-summary';
+import { autoSummaryWanted, enqueueAutoSummary } from './extraction/auto-summary';
 import { extractable, extractText } from './extraction/extract-text';
 import { ocr, ocrable } from './extraction/ocr';
 import type { OcrResult } from './extraction/ocr';
+import { processedNotification } from './extraction/processed-notification';
 import { visionWithin, weakRead } from './extraction/vision';
 import { RealtimePublisher } from '../../common/realtime/realtime.publisher';
 import { StorageService } from '../../common/storage/storage.service';
@@ -15,6 +16,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
 import { Prisma } from '../../generated/prisma/client';
 import type { DocumentType } from '../../generated/prisma/client';
+import { AiJobs } from '../ai/ai-jobs';
 import { NotificationService } from '../notifications/notification.service';
 import { EntitlementsService } from '../subscriptions/entitlements.service';
 
@@ -87,6 +89,7 @@ export class DocumentExtraction {
     private readonly config: AppConfig,
     private readonly logger: PinoLogger,
     private readonly entitlements: EntitlementsService,
+    private readonly aiJobs: AiJobs,
     private readonly notifications: NotificationService,
   ) {
     this.logger.setContext(DocumentExtraction.name);
@@ -265,12 +268,7 @@ export class DocumentExtraction {
         () =>
           this.notifications.notify(
             [version.createdById],
-            {
-              type: 'DOCUMENT_PROCESSED',
-              titleKey: 'shell.notifications.documentProcessed',
-              params: { documentId: job.documentId, name: document.name.slice(0, 500) },
-              link: `/cases/${document.fileId}?tab=documents`,
-            },
+            processedNotification(job.documentId, document.name, document.fileId),
             { jobId: `${documentJobId('process', job)}-ready` },
           ),
         'notify processed upload',
@@ -304,8 +302,11 @@ export class DocumentExtraction {
     if (!ready) return 'SUPERSEDED';
     if (!text) return 'NO_TEXT';
     if (autoSummaryWanted(this.config.ocr.autoSummary, document.documentType, text.text)) {
-      // The document-summary story enqueues the summary here (ai-ocr.md OCR pipeline, step 6).
-      this.logger.info({ documentId: job.documentId }, 'Auto-summary wanted');
+      await enqueueAutoSummary(this.prisma.db, this.aiJobs, this.logger, {
+        documentId: job.documentId,
+        versionNumber: job.versionNumber,
+        uploaderId: version.createdById,
+      });
     }
     return 'READY';
   }
