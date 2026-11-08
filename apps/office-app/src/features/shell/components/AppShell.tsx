@@ -7,7 +7,6 @@ import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, Outlet, useLocation, useNavigation } from 'react-router';
 
-import { NotificationsBell } from './NotificationsBell';
 import { ProfileMenu } from './ProfileMenu';
 import { QuickActions } from './QuickActions';
 import { ReadOnlyBanner } from './ReadOnlyBanner';
@@ -16,6 +15,7 @@ import { VerifyBanner } from './VerifyBanner';
 import { APP_NAME } from '../../../app/app-name';
 import { useSession } from '../../auth';
 import { QuickCreateCaseHost } from '../../cases';
+import { NotificationsBell } from '../../notifications';
 import { RealtimeBridge } from '../../realtime';
 import { TaskDrawerHost } from '../../tasks';
 import { navKeyOf, PRIMARY_KEYS, useNavItems } from '../nav';
