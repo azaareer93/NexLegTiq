@@ -1,0 +1,44 @@
+{
+  "title": "Timeline",
+  "upcoming": "Upcoming hearings",
+  "noUpcoming": "No hearing scheduled.",
+  "history": "History",
+  "empty": "Nothing has happened on this file yet.",
+  "emptyFiltered": "No event of these types.",
+  "loadMore": "Load more",
+  "filter": "Event types",
+  "by": "by ⁨{{name}}⁩",
+  "bySystem": "automatically",
+  "someone": "someone",
+  "confidentialDocument": "a confidential document",
+  "open": "Open",
+  "portal": "Visible to the client",
+  "event": {
+    "FILE_OPENED": "File ⁨{{fileNumber}}⁩ opened",
+    "FILE_CLOSED": "File closed",
+    "FILE_REOPENED": "File reopened",
+    "FILE_REASSIGNED": "File reassigned from ⁨{{from}}⁩ to ⁨{{to}}⁩",
+    "SESSION_CREATED": "{{sessionType}} scheduled for {{date}}",
+    "SESSION_UPDATED": {
+      "UPDATED": "{{sessionType}} of {{date}} changed",
+      "CANCELLED": "{{sessionType}} of {{date}} cancelled",
+      "OUTCOME": "Outcome of the {{sessionType}} of {{date}}: {{outcome}}"
+    },
+    "DOCUMENT_UPLOADED": {
+      "first": "Document ⁨{{name}}⁩ uploaded",
+      "version": "Version {{versionNumber}} of ⁨{{name}}⁩ uploaded"
+    },
+    "DOCUMENT_SHARED": "Document ⁨{{name}}⁩ shared with the client",
+    "TASK_COMPLETED": "Task ⁨{{title}}⁩ completed",
+    "PARTY_ADDED": "⁨{{name}}⁩ added as {{partyType}}",
+    "CLIENT_ADDED": "Client ⁨{{name}}⁩ added",
+    "CLIENT_REMOVED": "Client ⁨{{name}}⁩ removed",
+    "TEAM_MEMBER_ADDED": "⁨{{name}}⁩ joined the team as {{role}}",
+    "TEAM_MEMBER_REMOVED": "⁨{{name}}⁩ left the team",
+    "WITNESS_STATEMENT_ADDED": "Testimony added",
+    "SUMMARY_GENERATED": "AI summary of a document prepared",
+    "INVOICE_SENT": "Invoice sent",
+    "INVOICE_PAID": "Invoice paid"
+  },
+  "separator": " · "
+}

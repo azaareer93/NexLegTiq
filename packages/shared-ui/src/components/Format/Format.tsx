@@ -4,6 +4,7 @@ import {
   formatDateTime,
   formatMoney,
   formatNumber,
+  formatMonth,
   formatRelative,
   formatTime,
 } from '@nexlegtiq/shared-utils';
@@ -48,6 +49,8 @@ type DateInput = Date | string | number;
 export interface Formatters {
   /** 13/10/2026 (`long`: 13 أكتوبر 2026 / 13 October 2026). */
   readonly date: (value: DateInput, style?: 'short' | 'long') => string;
+  /** أكتوبر 2026 / October 2026 — the month an instant falls in, in the user's zone. */
+  readonly month: (value: DateInput) => string;
   /** 3:05 م / 3:05 PM. */
   readonly time: (value: DateInput) => string;
   /** 13/10/2026 3:05 م. */
@@ -72,6 +75,7 @@ export function useFormat(): Formatters {
     const options: FormatOptions = { locale, timeZone, digits };
     return {
       date: (value, style = 'short') => formatDate(value, { ...options, style }),
+      month: (value) => formatMonth(value, options),
       time: (value) => formatTime(value, options),
       dateTime: (value) => formatDateTime(value, options),
       relative: (value, now) => formatRelative(value, { ...options, now }),

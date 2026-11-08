@@ -1,0 +1,44 @@
+{
+  "title": "السجل الزمني",
+  "upcoming": "الجلسات القادمة",
+  "noUpcoming": "لا توجد جلسة محددة.",
+  "history": "السجل",
+  "empty": "لم يُسجَّل شيء على هذا الملف بعد.",
+  "emptyFiltered": "لا توجد أحداث من هذه الأنواع.",
+  "loadMore": "عرض المزيد",
+  "filter": "أنواع الأحداث",
+  "by": "بواسطة ⁨{{name}}⁩",
+  "bySystem": "تلقائيًا",
+  "someone": "شخص ما",
+  "confidentialDocument": "مستند سري",
+  "open": "فتح",
+  "portal": "يراه الموكل",
+  "event": {
+    "FILE_OPENED": "فتح الملف ⁨{{fileNumber}}⁩",
+    "FILE_CLOSED": "إغلاق الملف",
+    "FILE_REOPENED": "إعادة فتح الملف",
+    "FILE_REASSIGNED": "نقل الملف من ⁨{{from}}⁩ إلى ⁨{{to}}⁩",
+    "SESSION_CREATED": "تحديد موعد {{sessionType}}: {{date}}",
+    "SESSION_UPDATED": {
+      "UPDATED": "تعديل {{sessionType}} ({{date}})",
+      "CANCELLED": "إلغاء {{sessionType}} ({{date}})",
+      "OUTCOME": "نتيجة {{sessionType}} ({{date}}): {{outcome}}"
+    },
+    "DOCUMENT_UPLOADED": {
+      "first": "رفع المستند ⁨{{name}}⁩",
+      "version": "رفع الإصدار {{versionNumber}} من ⁨{{name}}⁩"
+    },
+    "DOCUMENT_SHARED": "مشاركة المستند ⁨{{name}}⁩ مع الموكل",
+    "TASK_COMPLETED": "إنجاز المهمة ⁨{{title}}⁩",
+    "PARTY_ADDED": "إضافة ⁨{{name}}⁩ بصفة {{partyType}}",
+    "CLIENT_ADDED": "إضافة الموكل ⁨{{name}}⁩",
+    "CLIENT_REMOVED": "إزالة الموكل ⁨{{name}}⁩",
+    "TEAM_MEMBER_ADDED": "انضمام ⁨{{name}}⁩ إلى الفريق بصفة {{role}}",
+    "TEAM_MEMBER_REMOVED": "مغادرة ⁨{{name}}⁩ الفريق",
+    "WITNESS_STATEMENT_ADDED": "إضافة شهادة",
+    "SUMMARY_GENERATED": "إعداد ملخص لمستند بالذكاء الاصطناعي",
+    "INVOICE_SENT": "إرسال فاتورة",
+    "INVOICE_PAID": "تسديد فاتورة"
+  },
+  "separator": " · "
+}
