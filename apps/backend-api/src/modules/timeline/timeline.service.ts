@@ -2,11 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { TimelineEventSchema } from '@nexlegtiq/shared-contracts';
 import type { TimelineEvent, TimelinePage, TimelineQuery } from '@nexlegtiq/shared-contracts';
 import { PORTAL_TIMELINE_EVENT_TYPES } from '@nexlegtiq/shared-types';
-import type { TimelineEventType } from '@nexlegtiq/shared-types';
+import type { TimelineEventType, UserId } from '@nexlegtiq/shared-types';
 import { ClsService } from 'nestjs-cls';
 import { PinoLogger } from 'nestjs-pino';
 
 import type { RequestContext } from '../../common/context/request-context';
+import { assignedFilesWhere } from '../../common/rbac/case-scope';
 import { PrismaService } from '../../database/prisma.service';
 import type { ScopedTransaction } from '../../database/unit-of-work';
 import type { Prisma } from '../../generated/prisma/client';
@@ -27,6 +28,26 @@ export interface TimelineEntry {
 }
 
 const withoutName = ({ name: _name, ...rest }: Prisma.JsonObject): Prisma.JsonObject => rest;
+
+const EVENT_SELECT = {
+  id: true,
+  eventType: true,
+  sourceType: true,
+  sourceId: true,
+  occurredAt: true,
+  payload: true,
+  actor: { select: { id: true, fullName: true } },
+} as const;
+
+interface EventRow {
+  readonly id: string;
+  readonly eventType: TimelineEventType;
+  readonly sourceType: string | null;
+  readonly sourceId: string | null;
+  readonly occurredAt: Date;
+  readonly payload: Prisma.JsonValue;
+  readonly actor: { id: string; fullName: string } | null;
+}
 
 const isObject = (value: Prisma.JsonValue): value is Prisma.JsonObject =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -71,27 +92,55 @@ export class TimelineService {
       orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
       take: limit + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-      select: {
-        id: true,
-        eventType: true,
-        sourceType: true,
-        sourceId: true,
-        occurredAt: true,
-        payload: true,
-        actor: { select: { id: true, fullName: true } },
-      },
+      select: EVENT_SELECT,
     });
     const page = rows.slice(0, limit);
+    return {
+      items: await this.readable(page),
+      nextCursor: rows.length > limit ? (page.at(-1)?.id ?? null) : null,
+      names: await this.names(page.map((row) => row.payload)),
+    };
+  }
+
+  /** The latest events of the files the caller is assigned to (the dashboard, D-151), each with its file. */
+  async recent(limit: number): Promise<{
+    items: (TimelineEvent & { file: { id: string; fileNumber: string; title: string } })[];
+    names: Record<string, string>;
+  }> {
+    const userId = this.cls.get('userId');
+    if (!userId) throw new Error('No caller in the request context');
+    const rows = await this.prisma.db.caseTimelineEvent.findMany({
+      where: { file: { AND: [this.access.visibleWhere(), assignedFilesWhere(userId as UserId)] } },
+      orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
+      take: limit,
+      select: { ...EVENT_SELECT, file: { select: { id: true, fileNumber: true, title: true } } },
+    });
+    const items = await this.readable(rows);
+    const files = new Map(rows.map((row) => [row.id, row.file]));
+    return {
+      items: items.flatMap((item) => {
+        const file = files.get(item.id);
+        return file ? [{ ...item, file }] : [];
+      }),
+      names: await this.names(rows.map((row) => row.payload)),
+    };
+  }
+
+  /** Rows as contract events, with what the reader may no longer see removed. */
+  private async readable(page: readonly EventRow[]): Promise<TimelineEvent[]> {
     const hidden = await this.hiddenDocuments(page);
-    const items = page.flatMap((row) => {
+    return page.flatMap((row) => {
       // Payload strings are snapshots: a document made confidential later, or deleted, keeps neither its name nor its
       // link for readers who may not open it now (D-126, D-150).
       const payload = isObject(row.payload) ? row.payload : {};
       const secret =
         row.sourceType === 'Document' && row.sourceId !== null && hidden.has(row.sourceId);
       const parsed = TimelineEventSchema.safeParse({
-        ...row,
+        id: row.id,
+        eventType: row.eventType,
+        sourceType: row.sourceType,
         sourceId: secret ? null : row.sourceId,
+        actor: row.actor,
         payload: secret ? withoutName(payload) : payload,
         occurredAt: row.occurredAt.toISOString(),
         portalVisible: PORTAL_TIMELINE_EVENT_TYPES.has(row.eventType),
@@ -101,11 +150,6 @@ export class TimelineService {
       this.logger.warn({ eventId: row.id }, 'Unreadable timeline event left out');
       return [] as TimelineEvent[];
     });
-    return {
-      items,
-      nextCursor: rows.length > limit ? (page.at(-1)?.id ?? null) : null,
-      names: await this.names(page.map((row) => row.payload)),
-    };
   }
 
   /** The documents of the page the caller may not open (confidential, deleted): one query. */

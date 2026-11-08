@@ -20,6 +20,7 @@ import { AuthModule } from '../modules/auth/auth.module';
 import { JwtAuthGuard } from '../modules/auth/jwt-auth.guard';
 import { ClientsModule } from '../modules/clients/clients.module';
 import { CourtsModule } from '../modules/courts/courts.module';
+import { DashboardModule } from '../modules/dashboard/dashboard.module';
 import { DocumentsModule } from '../modules/documents/documents.module';
 import { FileParticipantsModule } from '../modules/file-participants/file-participants.module';
 import { LegalFilesModule } from '../modules/legal-files/legal-files.module';
@@ -52,6 +53,7 @@ import { UsersModule } from '../modules/users/users.module';
     SubscriptionsModule,
     NotificationsModule,
     TimelineModule,
+    DashboardModule,
     AiModule,
     AiSummariesModule,
     ClientsModule,
