@@ -24,6 +24,9 @@ export interface TimelineEntry {
   readonly actorId?: string | null;
 }
 
+const isObject = (value: Prisma.JsonValue): value is Prisma.JsonObject =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
 /** Payload keys that name a user or a client: their names come with the page, so the app can say who. */
 const PERSON_KEYS = ['fromUserId', 'toUserId', 'userId', 'clientId'] as const;
 
@@ -74,6 +77,8 @@ export class TimelineService {
     return TimelinePageSchema.parse({
       items: page.map((row) => ({
         ...row,
+        // A payload that is not an object (never written so) reads as none instead of failing the page.
+        payload: isObject(row.payload) ? row.payload : {},
         occurredAt: row.occurredAt.toISOString(),
         portalVisible: PORTAL_TIMELINE_EVENT_TYPES.has(row.eventType),
       })),
@@ -87,7 +92,7 @@ export class TimelineService {
     const users = new Set<string>();
     const clients = new Set<string>();
     for (const payload of payloads) {
-      if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) continue;
+      if (!isObject(payload)) continue;
       for (const key of PERSON_KEYS) {
         const value = payload[key];
         if (typeof value === 'string') (key === 'clientId' ? clients : users).add(value);

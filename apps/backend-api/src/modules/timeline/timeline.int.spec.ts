@@ -36,7 +36,7 @@ describe('case timeline (HTTP + PostgreSQL)', () => {
       data: { name, settings: { create: {} }, subscriptions: liveSubscription() },
     });
     officeIds.push(row.id);
-    return async (role: Role, fullName = role): Promise<Person> => {
+    return async (role: Role, fullName: string = role): Promise<Person> => {
       const user = await raw.user.create({
         data: {
           officeId: row.id,

@@ -45,14 +45,15 @@ function setup(
 describe('TimelineService (D-150)', () => {
   it('should record an event in the office of the request, by its caller unless told otherwise', async () => {
     const { service } = setup();
-    const tx = { caseTimelineEvent: { create: jest.fn() } };
+    const create = jest.fn();
+    const tx = { caseTimelineEvent: { create } } as never;
     await service.record(tx, {
       fileId: FILE,
       eventType: 'FILE_OPENED',
       payload: { fileNumber: 'F-1' },
     });
     await service.record(tx, { fileId: FILE, eventType: 'SUMMARY_GENERATED', actorId: null });
-    expect(tx.caseTimelineEvent.create.mock.calls.map(([arg]) => arg)).toEqual([
+    expect(create.mock.calls.map(([arg]) => arg)).toEqual([
       {
         data: {
           officeId: 'o1',
@@ -100,6 +101,40 @@ describe('TimelineService (D-150)', () => {
       occurredAt: '2026-11-03T10:00:00.000Z',
     });
     expect(page.names).toEqual({ [ID(10)]: 'Layla', [ID(11)]: 'Omar', [ID(20)]: 'Nour Trading' });
+  });
+
+  it('should record an event without a caller as the system, and skip ids that are not text', async () => {
+    const create = jest.fn();
+    await setup({ officeId: 'o1' }).service.record({ caseTimelineEvent: { create } } as never, {
+      fileId: FILE,
+      eventType: 'FILE_OPENED',
+    });
+    expect(create).toHaveBeenCalledWith({ data: expect.objectContaining({ actorId: null }) });
+    const { service, db } = setup();
+    db.caseTimelineEvent.findMany.mockResolvedValueOnce([
+      {
+        id: ID(1),
+        eventType: 'TEAM_MEMBER_ADDED',
+        sourceType: null,
+        sourceId: null,
+        occurredAt: new Date(),
+        payload: { userId: 5 },
+        actor: null,
+      },
+      {
+        id: ID(0),
+        eventType: 'FILE_OPENED',
+        sourceType: null,
+        sourceId: null,
+        occurredAt: new Date(),
+        payload: null,
+        actor: null,
+      },
+    ]);
+    const page = await service.list(FILE, { limit: 20 });
+    expect(page.names).toEqual({});
+    expect(page.items[1]?.payload).toEqual({});
+    expect(db.user.findMany).not.toHaveBeenCalled();
   });
 
   it('should end the history on a short page and ask no names when none are mentioned', async () => {
