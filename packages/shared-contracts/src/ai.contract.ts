@@ -36,3 +36,42 @@ export type AiUsageSummary = z.infer<typeof AiUsageSummarySchema>;
 
 export type AiJobAccepted = z.infer<typeof AiJobAcceptedSchema>;
 export type AiJob = z.infer<typeof AiJobSchema>;
+
+const SummaryLanguageSchema = z.enum(['AR', 'EN']);
+
+/** `POST /ai/summaries` (D-148): summarise a document in a language — 202 `{jobId}`, or 200 with a stored summary. */
+export const CreateAiSummarySchema = z.object({
+  sourceType: z.literal('DOCUMENT'),
+  sourceId: z.uuid(),
+  language: SummaryLanguageSchema,
+});
+export type CreateAiSummaryRequest = z.infer<typeof CreateAiSummarySchema>;
+
+/** `GET /ai/summaries?sourceType&sourceId`: the latest summary per language of the document's current version. */
+export const AiSummaryQuerySchema = z.object({
+  sourceType: z.literal('DOCUMENT'),
+  sourceId: z.uuid(),
+});
+export type AiSummaryQuery = z.infer<typeof AiSummaryQuerySchema>;
+
+/** An AI summary (D-148): always shown with its disclaimer (D-057); `dates` keep the document's own wording. */
+export const AiSummarySchema = z.object({
+  id: z.uuid(),
+  sourceType: z.enum(AI_SOURCE_TYPES),
+  sourceId: z.uuid(),
+  fileId: z.uuid(),
+  versionNumber: z.number().int().nullable(),
+  language: SummaryLanguageSchema,
+  summary: z.string(),
+  keyFacts: z.array(z.string()),
+  keyLegalIssues: z.array(z.string()),
+  parties: z.array(z.string()),
+  dates: z.array(z.object({ date: z.string(), event: z.string() })),
+  provider: z.string(),
+  model: z.string(),
+  promptVersion: z.string(),
+  /** How many parts a long document was read in (1 = whole). */
+  chunks: z.number().int().positive(),
+  createdAt: z.iso.datetime(),
+});
+export type AiSummary = z.infer<typeof AiSummarySchema>;
