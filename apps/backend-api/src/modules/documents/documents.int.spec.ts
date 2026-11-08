@@ -475,7 +475,7 @@ describe('documents upload API (HTTP + PostgreSQL + storage + ClamAV)', () => {
       `${officeId}_scan-${infected.documentId}-v1-quarantined`,
     );
     expect(notification?.data).toMatchObject({
-      userId: user('lawyer').userId,
+      userIds: [user('lawyer').userId],
       titleKey: 'shell.notifications.documentQuarantined',
     });
   });

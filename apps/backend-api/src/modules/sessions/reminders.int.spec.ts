@@ -279,7 +279,7 @@ describe('hearing reminders (HTTP + PostgreSQL + Redis)', () => {
     expect(email?.data).toMatchObject({ template: 'hearing-reminder', locale: 'EN' });
     const notification = await job(QUEUE.NOTIFICATION, `reminder-${reminder?.id}-notification`);
     expect(notification?.data).toMatchObject({
-      userId: user('responsible').userId,
+      userIds: [user('responsible').userId],
       titleKey: 'shell.notifications.hearingReminder',
     });
     expect(await raw.sessionReminder.findUnique({ where: { id: reminder?.id } })).toMatchObject({
