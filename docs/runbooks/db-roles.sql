@@ -87,6 +87,11 @@ BEGIN
   IF to_regclass('public.ai_usages') IS NOT NULL THEN
     REVOKE UPDATE, TRUNCATE ON public.ai_usages FROM nexlegtiq_app;
   END IF;
+  -- AI summaries are history (D-148) and carry document content: append-only, hidden from the read-only role.
+  IF to_regclass('public.ai_summaries') IS NOT NULL THEN
+    REVOKE UPDATE, TRUNCATE ON public.ai_summaries FROM nexlegtiq_app;
+    REVOKE ALL ON public.ai_summaries FROM nexlegtiq_readonly;
+  END IF;
   -- Extracted text is document content: the read-only support role never reads it (D-119).
   IF to_regclass('public.document_texts') IS NOT NULL THEN
     REVOKE ALL ON public.document_texts FROM nexlegtiq_readonly;

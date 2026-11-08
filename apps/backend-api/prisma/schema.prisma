@@ -353,6 +353,7 @@ model Office {
   notifications       Notification[]
   aiJobs              AiJob[]
   aiUsages            AiUsage[]
+  aiSummaries         AiSummary[]
   clients             Client[]
   contactPersons      ContactPerson[]
   legalFiles          LegalFile[]
@@ -457,8 +458,9 @@ model User {
   documentVersions    DocumentVersion[]        @relation("DocumentVersionCreator")
 
   /// Target of the composite (user_id, office_id) FKs: a child row can never name a user of another office (D-079).
-  aiJobs   AiJob[]
-  aiUsages AiUsage[]
+  aiJobs      AiJob[]
+  aiUsages    AiUsage[]
+  aiSummaries AiSummary[]
 
   @@unique([id, officeId])
   @@index([officeId, role])
@@ -832,6 +834,7 @@ model LegalFile {
   conflictsAsA         ConflictOfInterest[] @relation("ConflictFileA")
   conflictsAsB         ConflictOfInterest[] @relation("ConflictFileB")
   timeline             CaseTimelineEvent[]
+  aiSummaries          AiSummary[]
   notes                FileNote[]
   tasks                Task[]
   sessions             Session[]
@@ -1501,6 +1504,41 @@ model AiJob {
   @@map("ai_jobs")
 }
 
+/// A structured AI summary of a document (D-148; later also of a session or witness statement): one row per generation,
+/// kept as history. Append-only: no updatedAt, UPDATE revoked from the app role. Never shown without its disclaimer.
+model AiSummary {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  officeId       String       @map("office_id") @db.Uuid
+  sourceType     AiSourceType @map("source_type")
+  /// The summarised row (a Document for DOCUMENT); polymorphic, so no FK (D-015).
+  sourceId       String       @map("source_id") @db.Uuid
+  fileId         String       @map("file_id") @db.Uuid
+  /// The document version summarised: a new version makes the summary stale.
+  versionNumber  Int?         @map("version_number")
+  language       UiLanguage
+  summary        String
+  keyFacts       Json         @default("[]") @map("key_facts")
+  keyLegalIssues Json         @default("[]") @map("key_legal_issues")
+  parties        Json         @default("[]")
+  dates          Json         @default("[]")
+  provider       String
+  model          String
+  promptVersion  String       @map("prompt_version")
+  /// The chunks a long document was read in (1 = read whole).
+  chunks         Int          @default(1)
+  aiJobId        String?      @map("ai_job_id") @db.Uuid
+  createdById    String       @map("created_by_id") @db.Uuid
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  office    Office    @relation(fields: [officeId], references: [id])
+  file      LegalFile @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  createdBy User      @relation(fields: [createdById, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([officeId, sourceType, sourceId, language, createdAt(sort: Desc)])
+  @@index([officeId, fileId])
+  @@map("ai_summaries")
+}
+
 /// One AI provider call (or cache hit) for cost tracking and the monthly quota (D-130, ai-ocr.md CostTracker).
 /// Append-only: no updatedAt, UPDATE revoked from the app role.
 model AiUsage {
@@ -1519,6 +1557,9 @@ model AiUsage {
   cached         Boolean  @default(false)
   /// The answer passed validation (D-144): only successful, non-cached operations count against the monthly quota.
   succeeded      Boolean  @default(true)
+  /// A map step of a larger request (a chunk of a long document, D-148): paid and recorded, but only the request's final
+  /// call counts against the quota.
+  partial        Boolean  @default(false)
   /// How many values of each kind the PII redactor replaced, e.g. {"PARTY":3,"PHONE":1} (D-131) — counts, never values.
   redactionStats Json     @default("{}") @map("redaction_stats")
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
