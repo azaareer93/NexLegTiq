@@ -114,6 +114,7 @@
 - **AuditLog** 🔒 — userId?|clientUserId?|platformAdminId?, entityType, entityId, `action: CREATE|UPDATE|DELETE|VIEW|
   DOWNLOAD|SHARE|LOGIN|LOGOUT|EXPORT|PERMISSION_DENIED`, oldValues JSON?, newValues JSON? (secrets redacted),
   ipAddress, userAgent, requestId, occurredAt. Append-only (no update/delete grants for app role).
+- **CaseTimelineEvent** 🔒 — written only through `TimelineService.record` (D-150); portal visibility is a property of the event type (`PORTAL_TIMELINE_EVENT_TYPES`), not a column.
 - **Notification** 🔒 — userId|clientUserId, type (`NOTIFICATION_TYPES`, UPPER_SNAKE, D-149), titleKey, params JSON, link, readAt, channel; kept 90 days.
 - **ConsentRecord** — cookie/marketing consents.
 

@@ -58,7 +58,7 @@ GET `clients/:id/invoices` · `clients/:id/notes` · portal access: POST `client
 **cases** (legal files): POST/GET `cases` (`?status, fileType, priority, scope=mine|all, search, clientId, sort`) · GET/PATCH/DELETE `cases/:id` ·
 POST `cases/:id/close` · POST `cases/:id/reopen` · POST `cases/:id/archive` · POST `cases/:id/reassign` ·
 GET/POST `cases/:id/clients`, PATCH (`{isPrimary: true}`)/DELETE `cases/:id/clients/:clientId` (last client → 422 BIZ-018) · GET/POST `cases/:id/team`, PATCH (`{role}`)/DELETE `cases/:id/team/:userId` (the responsible lawyer cannot leave → 422 BIZ-019; D-140) · GET/POST `cases/:id/parties` (POST and PATCH return `{fileParty, conflicts[]}`), PATCH/DELETE `cases/:id/parties/:filePartyId` (D-135) · `cases/:id/witnesses` (+statements) ·
-GET `cases/:id/timeline` · `cases/:id/notes` · GET `cases/:id/audit` · GET `conflicts?resolved&fileId` · PATCH `conflicts/:id/resolve` (`{notes}`; already resolved → 422 BIZ-017) ·
+GET `cases/:id/timeline?cursor&types&limit` (`{items, nextCursor, names}`, newest first; D-150) · `cases/:id/notes` · GET `cases/:id/audit` · GET `conflicts?resolved&fileId` · PATCH `conflicts/:id/resolve` (`{notes}`; already resolved → 422 BIZ-017) ·
 GET `parties?search=` (reuse: Arabic-normalised name or exact national/tax id) · CRUD `task-templates`
 **courts**: GET `courts?jurisdiction&courtType&search` (global+office) · GET `courts/:id` · POST/PATCH/DELETE `courts` (office-owned; global → 403) · GET/POST `courts/:id/judges`, PATCH/DELETE `courts/:id/judges/:judgeId` · CRUD `prosecutors` (D-115)
 **sessions**: POST `sessions` (409 BIZ-004 unless `acknowledgeConflict`) · GET `sessions?from&to&lawyerId&fileId` (calendar) ·
