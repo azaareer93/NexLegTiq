@@ -21,6 +21,8 @@ export interface NewAiJob {
   readonly sourceType?: AiSourceType;
   readonly sourceId?: string;
   readonly fields?: Readonly<Record<string, unknown>> & JobFields;
+  /** Who the job is for when the system starts it (an auto-summary after OCR, D-148); else the caller. */
+  readonly createdById?: string;
 }
 
 /** What an `ai` job carries besides the feature's fields: the AiJob row it moves. */
@@ -64,8 +66,14 @@ export class AiJobs {
     private readonly cls: ClsService<RequestContext>,
   ) {}
 
-  async enqueue({ type, sourceType, sourceId, fields = {} }: NewAiJob): Promise<AiJobAccepted> {
-    const userId = this.cls.get('userId');
+  async enqueue({
+    type,
+    sourceType,
+    sourceId,
+    fields = {},
+    createdById,
+  }: NewAiJob): Promise<AiJobAccepted> {
+    const userId = createdById ?? this.cls.get('userId');
     const officeId = this.cls.get('officeId');
     if (!userId || !officeId) throw new Error('No caller in the context of an AI job');
     await this.access.assertAvailable();

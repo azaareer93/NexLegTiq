@@ -54,7 +54,8 @@ export class SubscriptionsRepository {
   /** Successful AI operations of the office since `monthStart`; cache hits are free (D-130, D-144). */
   aiCallsSince(monthStart: Date): Promise<number> {
     return this.prisma.db.aiUsage.count({
-      where: { cached: false, succeeded: true, createdAt: { gte: monthStart } },
+      // A map step (`partial`) is part of a request whose final call is counted (D-148).
+      where: { cached: false, succeeded: true, partial: false, createdAt: { gte: monthStart } },
     });
   }
 

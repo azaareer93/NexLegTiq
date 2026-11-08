@@ -40,6 +40,11 @@ export interface ExecuteOptions<T> {
   /** Who asked; null for work the system started. */
   readonly userId?: string | null;
   readonly signal?: AbortSignal;
+  /**
+   * A map step of a larger request (D-148): the caller checked the quota once for the whole request; this call is
+   * recorded (it is paid) but not counted, so one summary of a long document costs the office one operation.
+   */
+  readonly partial?: boolean;
 }
 
 export interface AiResult<T> {
@@ -54,7 +59,7 @@ export interface AiResult<T> {
 export const MAX_INPUT_CHARS = 400_000;
 
 /**
- * Time for one `execute`, all attempts included (primary, fallback, repair): inside the `ai` queue's 120 s job timeout
+ * Time for one `execute`, all attempts included (primary, fallback, repair): inside the `ai` queue's 300 s job timeout
  * (D-084), so the job is never cut off in the middle of a provider call.
  */
 export const EXECUTE_DEADLINE_MS = 100_000;
@@ -84,7 +89,7 @@ export class AiExecutor {
     const key = options.cacheKey && [options.feature, ...options.cacheKey, options.prompt.version];
     const hit = key ? await this.fromCache(officeId, key, options) : null;
     if (hit) return hit;
-    await this.access.assertQuota();
+    if (!options.partial) await this.access.assertQuota();
     const result = await this.call(options);
     if (key) {
       const ttl = options.ttlSeconds ?? this.config.ai.cacheTtlSeconds;
@@ -208,6 +213,7 @@ export class AiExecutor {
     if (!last) return;
     await this.usage.record({
       succeeded,
+      partial: options.partial === true,
       feature: options.feature,
       provider: last.provider,
       model: last.model,
