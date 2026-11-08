@@ -95,13 +95,20 @@ export class NotificationProcessor
     return { created: rows.length };
   }
 
-  /** Every office: rows older than 90 days go (D-149); the read state does not matter. */
+  /** Every office, one statement each (a first run never holds one huge DELETE): rows older than 90 days go (D-149). */
   async purge(): Promise<{ readonly removed: number }> {
     // unscoped: the daily retention purge covers every office.
-    const { count } = await this.prisma.unscoped().notification.deleteMany({
-      where: { createdAt: { lt: new Date(Date.now() - NOTIFICATION_RETENTION_DAYS * DAY_MS) } },
-    });
-    this.logger.info({ removed: count }, 'Notification retention applied');
-    return { removed: count };
+    const raw = this.prisma.unscoped();
+    const before = new Date(Date.now() - NOTIFICATION_RETENTION_DAYS * DAY_MS);
+    const offices = await raw.office.findMany({ select: { id: true }, orderBy: { id: 'asc' } });
+    let removed = 0;
+    for (const { id } of offices) {
+      const { count } = await raw.notification.deleteMany({
+        where: { officeId: id, createdAt: { lt: before } },
+      });
+      removed += count;
+    }
+    this.logger.info({ removed }, 'Notification retention applied');
+    return { removed };
   }
 }

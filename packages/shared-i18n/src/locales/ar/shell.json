@@ -29,8 +29,8 @@
   "notifications": {
     "open": "الإشعارات",
     "empty": "لا توجد إشعارات بعد.",
-    "hearingReminder": "جلسة قادمة في الملف {{fileNumber}}",
-    "fileReassigned": "أُسند إليك الملف {{fileNumber}}",
+    "hearingReminder": "جلسة قادمة في الملف ⁨{{fileNumber}}⁩",
+    "fileReassigned": "أُسند إليك الملف ⁨{{fileNumber}}⁩",
     "fileTeamAdded": "تمت إضافتك إلى فريق الملف ⁨{{fileNumber}}⁩",
     "documentQuarantined": "حُجب المستند ⁨{{name}}⁩ لاحتوائه على برمجية خبيثة",
     "documentFailed": "تعذّر استخراج نص المستند ⁨{{name}}⁩",
@@ -43,13 +43,15 @@
     "unread": "غير المقروءة",
     "loadMore": "عرض المزيد",
     "emptyUnread": "لا توجد إشعارات غير مقروءة.",
-    "unreadCount_zero": "لا توجد إشعارات غير مقروءة",
-    "unreadCount_one": "إشعار واحد غير مقروء",
-    "unreadCount_two": "إشعاران غير مقروءين",
-    "unreadCount_few": "{{count}} إشعارات غير مقروءة",
-    "unreadCount_many": "{{count}} إشعارًا غير مقروء",
-    "unreadCount_other": "{{count}} إشعار غير مقروء",
-    "unreadDot": "غير مقروء"
+    "unreadDot": "غير مقروء",
+    "generic": "لديك إشعار جديد",
+    "openWithCount_zero": "الإشعارات، لا توجد إشعارات غير مقروءة",
+    "openWithCount_one": "الإشعارات، إشعار واحد غير مقروء",
+    "openWithCount_two": "الإشعارات، إشعاران غير مقروءين",
+    "openWithCount_few": "الإشعارات، {{count}} إشعارات غير مقروءة",
+    "openWithCount_many": "الإشعارات، {{count}} إشعارًا غير مقروء",
+    "openWithCount_other": "الإشعارات، {{count}} إشعار غير مقروء",
+    "markReadOf": "تعليم «⁨{{title}}⁩» كمقروء"
   },
   "profile": {
     "menu": "قائمة الحساب",

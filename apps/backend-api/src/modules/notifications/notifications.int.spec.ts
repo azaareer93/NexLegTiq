@@ -111,15 +111,24 @@ describe('notifications (HTTP + PostgreSQL)', () => {
     process.env = savedEnv;
   });
 
-  it('should write rows only for recipients who want the type, in the job office', async () => {
+  it('should write rows only for recipients who want the type, in the job office, and push each', async () => {
+    const push = jest.spyOn(app.get(RealtimePublisher), 'toUser');
     await expect(fanOut(a1, [a1.userId, a2.userId])).resolves.toEqual({ created: 1 });
+    const row = await raw.notification.findFirstOrThrow({ where: { userId: a1.userId } });
+    // Delivered over the realtime channel to the recipient only (ids only, D-129).
+    expect(push.mock.calls).toEqual([[a1.userId, 'notification', { notificationId: row.id }]]);
+    push.mockRestore();
     await expect(raw.notification.count({ where: { userId: a2.userId } })).resolves.toBe(0);
     // A malware alert cannot be muted (D-146).
     await expect(fanOut(a1, [a2.userId], 'DOCUMENT_QUARANTINED')).resolves.toEqual({
       created: 1,
     });
-    // A user of another office cannot be named (composite foreign key).
-    await expect(fanOut(b1, [a1.userId])).rejects.toThrow();
+    // A user of another office is not a recipient there: nothing is written for them (and the composite foreign key
+    // would refuse it anyway).
+    await expect(fanOut(b1, [a1.userId, b1.userId])).resolves.toEqual({ created: 1 });
+    await expect(
+      raw.notification.count({ where: { userId: a1.userId, officeId: b1.officeId } }),
+    ).resolves.toBe(0);
   });
 
   it('should page the own notifications by cursor and count the unread ones', async () => {
@@ -141,7 +150,8 @@ describe('notifications (HTTP + PostgreSQL)', () => {
     const count = await http().get('/api/v1/notifications/unread-count').set(bearerFor(jwt, a1));
     expect(count.body.data).toEqual({ count: 5 });
     const other = await http().get('/api/v1/notifications/unread-count').set(bearerFor(jwt, b1));
-    expect(other.body.data).toEqual({ count: 1 });
+    // One from the first test, one here.
+    expect(other.body.data).toEqual({ count: 2 });
   });
 
   it('should mark one or all read, and never those of someone else', async () => {
@@ -166,7 +176,7 @@ describe('notifications (HTTP + PostgreSQL)', () => {
     expect(all.body.data).toEqual({ count: 4 });
     await expect(
       raw.notification.count({ where: { userId: b1.userId, readAt: null } }),
-    ).resolves.toBe(1);
+    ).resolves.toBe(2);
   });
 
   it('should purge notifications older than 90 days in every office', async () => {

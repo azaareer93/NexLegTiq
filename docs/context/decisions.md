@@ -2544,3 +2544,21 @@ read and its link followed; an unread one shows a dot and the word "Unread" (nev
 refreshes `['notifications']` on each `notification` event. Test helpers answer the bell's calls with "nothing" by default.
 **Not done here:** emails for other types, grouping or digests, notification sounds or browser push, the portal's client
 notifications (`clientUserId`, Client Portal story), a page per notification type.
+Review additions (same PR): **recipients are active users of the office** — `recipientsWanting` now keeps only the ids the
+scoped user query finds with `isActive`, for every writer (fan-out and in-transaction alike): a deactivated colleague gets
+nothing, and an id of another office is left out instead of failing the whole batch on the foreign key. **Links** are checked
+by one rule, `isAppPath` (shared-contracts: a single leading slash and URL characters only — no whitespace, control
+characters or backslash, which a browser strips or turns into another site), in the job schema and again in the office app,
+which renders a real link (keyboard, screen readers, new tab) only for such a path. **Reading is lenient**: the response's
+`type` is text (a type added by a newer server never breaks the list) and a stored row the contract cannot read is left out
+and logged, never a 500 for the whole inbox; params named like i18next options (`lng`, `ns`, `context`, `returnObjects`,
+`defaultValue`…) are dropped before rendering. **DOCUMENT_PROCESSED only when there is text** (a legacy .doc or a scan with
+OCR off turns READY without any). The purge runs office by office (as D-136); `notify` splits lists over 500 users into
+several jobs; the per-user index follows the id order of the list (`(office_id, user_id, id DESC)`); the bell's accessible
+name is one translated sentence with Arabic plural forms, the number badge is hidden from screen readers, each "mark as read"
+names its notification, the hearing and reassignment texts isolate the file number, and an unknown title key shows "You have a
+new notification". **Deploy:** jobs still queued under the removed `create-notification` name fail at once (pre-production,
+nothing to keep); drain the `notification` queue before the first deploy that has data. **Not done (also):** a partial index
+for unread counts, a repository layer for the four queries (they are the module's only Prisma access), and the notification
+routes in the HTTP isolation matrix (they take no file or office: `notifications.int.spec.ts` checks someone else's
+notification → 404 in the office and across offices).

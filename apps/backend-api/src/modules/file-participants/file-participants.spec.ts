@@ -75,7 +75,12 @@ function setup(overrides: Partial<Options> = {}) {
     legalFile: { update: jest.fn() },
     caseTimelineEvent: { create: jest.fn() },
     // No preferences stored: every channel on (D-146).
-    user: { findMany: jest.fn().mockResolvedValue([]) },
+    // Every asked-for user is an active user of the office with no preferences stored (D-146).
+    user: {
+      findMany: jest.fn(({ where }: { where: { id: { in: string[] } } }) =>
+        Promise.resolve(where.id.in.map((id) => ({ id, notificationPrefs: {} }))),
+      ),
+    },
     notification: { create: jest.fn().mockResolvedValue({ id: 'n1' }) },
   };
   const context: Record<string, unknown> = { userId: ME, officeId: 'office-1', role, permissions };

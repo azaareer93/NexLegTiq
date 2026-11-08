@@ -259,6 +259,8 @@ export class DocumentExtraction {
         async () => this.told(version.createdById, job.documentId, document.fileId),
         'realtime document.processed',
       );
+      if (!text) return true;
+      // Only when there is text to read: a legacy .doc or a scan with OCR off is READY without any.
       afterCommit(
         () =>
           this.notifications.notify(
@@ -273,7 +275,6 @@ export class DocumentExtraction {
           ),
         'notify processed upload',
       );
-      if (!text) return true;
       const data = {
         text: text.text,
         pageCount: text.pageCount,

@@ -1,4 +1,5 @@
 import type { ClsService } from 'nestjs-cls';
+import type { PinoLogger } from 'nestjs-pino';
 
 import { NotificationService } from './notification.service';
 import { NotificationsService } from './notifications.service';
@@ -27,6 +28,7 @@ function setup(rows: ReturnType<typeof row>[] = [], userId: string | null = 'u1'
   const service = new NotificationsService(
     { db: { notification } } as unknown as PrismaService,
     { get: () => userId ?? undefined } as unknown as ClsService<RequestContext>,
+    { setContext: jest.fn(), warn: jest.fn() } as unknown as PinoLogger,
   );
   return { service, notification };
 }

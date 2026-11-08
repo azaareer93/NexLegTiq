@@ -41,7 +41,9 @@ export function NotificationsBell(): React.JSX.Element {
         )}
       </Flex>
       {latest.isError ? (
-        <Typography.Text type="danger">{messageOf(latest.error)}</Typography.Text>
+        <Typography.Text type="danger" role="alert">
+          {messageOf(latest.error)}
+        </Typography.Text>
       ) : latest.data ? (
         <NotificationList
           items={latest.data.items}
@@ -64,12 +66,12 @@ export function NotificationsBell(): React.JSX.Element {
         type="text"
         aria-label={
           count > 0
-            ? `${t('shell.notifications.open')} — ${t('shell.notifications.unreadCount', { count })}`
+            ? t('shell.notifications.openWithCount', { count })
             : t('shell.notifications.open')
         }
         data-testid="notifications"
         icon={
-          <Badge count={count} size="small" overflowCount={99}>
+          <Badge count={count} size="small" overflowCount={99} aria-hidden>
             <BellOutlined />
           </Badge>
         }

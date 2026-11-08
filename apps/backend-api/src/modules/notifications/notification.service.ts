@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { FAN_OUT_NOTIFICATION_JOB } from './notification-job';
+import { FAN_OUT_NOTIFICATION_JOB, MAX_RECIPIENTS } from './notification-job';
 import type { FanOutNotificationJob, NotificationContent } from './notification-job';
 import { QueueProducer } from '../../common/queue/queue-producer';
 import { QUEUE } from '../../common/queue/queues';
@@ -21,12 +21,15 @@ export class NotificationService {
     options: { readonly jobId?: string } = {},
   ): Promise<void> {
     const unique = [...new Set(userIds)];
-    if (unique.length === 0) return;
-    await this.queues.enqueue<FanOutNotificationJob>(
-      QUEUE.NOTIFICATION,
-      FAN_OUT_NOTIFICATION_JOB,
-      { ...content, userIds: unique },
-      options,
-    );
+    // One job holds at most MAX_RECIPIENTS users (the job schema's limit); a larger list becomes several jobs.
+    for (let start = 0; start < unique.length; start += MAX_RECIPIENTS) {
+      const part = start / MAX_RECIPIENTS;
+      await this.queues.enqueue<FanOutNotificationJob>(
+        QUEUE.NOTIFICATION,
+        FAN_OUT_NOTIFICATION_JOB,
+        { ...content, userIds: unique.slice(start, start + MAX_RECIPIENTS) },
+        options.jobId ? { jobId: part ? `${options.jobId}-${part}` : options.jobId } : {},
+      );
+    }
   }
 }

@@ -58,14 +58,14 @@ export function wants(
 interface UserReader {
   user: {
     findMany(args: {
-      where: { id: { in: string[] } };
+      where: { id: { in: string[] }; isActive: true };
       select: { id: true; notificationPrefs: true };
     }): Promise<{ id: string; notificationPrefs: unknown }[]>;
   };
 }
 
 /**
- * Of these recipients, those who want the notification type on the channel — one query, in the caller's client or
+ * Of these recipients, the active users of the office who want the notification type on the channel — one query, in the caller's client or
  * transaction (scoped: the office's own users only).
  */
 export async function recipientsWanting(
@@ -74,12 +74,12 @@ export async function recipientsWanting(
   type: NotificationType,
   channel: NotificationChannel,
 ): Promise<Set<string>> {
-  if (userIds.length === 0 || !CATEGORY_OF_TYPE[type]) return new Set(userIds);
+  if (userIds.length === 0) return new Set();
+  // Only active users of this office (scoped client): a deactivated colleague gets nothing, and an id of another office
+  // can never make the write of the others fail.
   const users = await client.user.findMany({
-    where: { id: { in: [...userIds] } },
+    where: { id: { in: [...userIds] }, isActive: true },
     select: { id: true, notificationPrefs: true },
   });
-  const prefs = new Map(users.map((u) => [u.id, u.notificationPrefs]));
-  // A recipient not found (it cannot be: the notification's foreign key needs the user) keeps the defaults.
-  return new Set(userIds.filter((id) => wants(prefs.get(id) ?? {}, type, channel)));
+  return new Set(users.filter((u) => wants(u.notificationPrefs, type, channel)).map((u) => u.id));
 }

@@ -1,4 +1,4 @@
-import { NotificationQuerySchema, NotificationSchema } from './notification.contract.js';
+import { isAppPath, NotificationQuerySchema, NotificationSchema } from './notification.contract.js';
 import { REALTIME_EVENTS, RealtimePayloadSchemas } from './realtime.contract.js';
 
 const ID = '01920000-0000-7000-8000-000000000001';
@@ -15,7 +15,7 @@ describe('notification contracts (D-149)', () => {
     expect(NotificationQuerySchema.safeParse({ limit: '51' }).success).toBe(false);
   });
 
-  it('should accept only the known notification types', () => {
+  it('should read any stored type, so a newer server never breaks the list', () => {
     const note = {
       id: ID,
       type: 'TASK_ASSIGNED',
@@ -26,7 +26,22 @@ describe('notification contracts (D-149)', () => {
       createdAt: '2026-11-08T10:00:00.000Z',
     };
     expect(NotificationSchema.parse(note)).toEqual(note);
-    expect(NotificationSchema.safeParse({ ...note, type: 'task.assigned' }).success).toBe(false);
+    expect(NotificationSchema.parse({ ...note, type: 'SOMETHING_NEW' }).type).toBe('SOMETHING_NEW');
+  });
+
+  it('should accept only paths of this app as links', () => {
+    expect(isAppPath('/cases/1?tab=documents')).toBe(true);
+    for (const bad of [
+      '//evil.test',
+      '/\\evil.test',
+      '/\t/evil.test',
+      'https://evil.test',
+      'cases',
+      '/a b',
+    ]) {
+      expect(isAppPath(bad)).toBe(false);
+    }
+    expect(isAppPath(`/${'a'.repeat(500)}`)).toBe(false);
   });
 
   it('should push only the id of a new notification', () => {

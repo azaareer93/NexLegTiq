@@ -68,9 +68,7 @@ describe('notifications (D-149)', () => {
       signedIn();
       renderApp('/');
       const bell = await screen.findByTestId('notifications', {}, { timeout: COLD });
-      await waitFor(() =>
-        expect(bell.getAttribute('aria-label')).toBe('Notifications — 12 unread notifications'),
-      );
+      await waitFor(() => expect(bell.getAttribute('aria-label')).toBe('Notifications, 12 unread'));
       fireEvent.click(bell);
       const list = await screen.findByTestId('notifications-bell-list');
       expect(shown(list)).toHaveLength(10);

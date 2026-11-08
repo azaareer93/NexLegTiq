@@ -7,6 +7,7 @@ import type {
   NotificationQuery,
 } from '@nexlegtiq/shared-contracts';
 import { ClsService } from 'nestjs-cls';
+import { PinoLogger } from 'nestjs-pino';
 
 import type { RequestContext } from '../../common/context/request-context';
 import { ResourceNotFoundException } from '../../common/errors/app.exception';
@@ -42,7 +43,10 @@ export class NotificationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cls: ClsService<RequestContext>,
-  ) {}
+    private readonly logger: PinoLogger,
+  ) {
+    this.logger.setContext(NotificationsService.name);
+  }
 
   async list({ cursor, unread, limit }: NotificationQuery): Promise<NotificationPage> {
     const rows = await this.prisma.db.notification.findMany({
@@ -57,7 +61,7 @@ export class NotificationsService {
     });
     const page = rows.slice(0, limit);
     return {
-      items: page.map(present),
+      items: page.flatMap((row) => this.readable(row)),
       nextCursor: rows.length > limit ? (page.at(-1)?.id ?? null) : null,
     };
   }
@@ -77,8 +81,9 @@ export class NotificationsService {
       data: { readAt: new Date() },
     });
     const row = await this.prisma.db.notification.findFirst({ where, select: SELECT });
-    if (!row) throw new ResourceNotFoundException();
-    return present(row);
+    const [readable] = row ? this.readable(row) : [];
+    if (!readable) throw new ResourceNotFoundException();
+    return readable;
   }
 
   async markAllRead(): Promise<NotificationCount> {
@@ -89,18 +94,21 @@ export class NotificationsService {
     return { count };
   }
 
+  /** A row the contract cannot read (written by a bug elsewhere) is left out and logged, never a 500 for the whole list. */
+  private readable(row: Row): Notification[] {
+    const parsed = NotificationSchema.safeParse({
+      ...row,
+      readAt: row.readAt?.toISOString() ?? null,
+      createdAt: row.createdAt.toISOString(),
+    });
+    if (parsed.success) return [parsed.data];
+    this.logger.warn({ notificationId: row.id }, 'Unreadable notification left out');
+    return [];
+  }
+
   private userId(): string {
     const userId = this.cls.get('userId');
     if (!userId) throw new Error('No caller in the context of notifications');
     return userId;
   }
-}
-
-/** The stored row in the contract's shape (a row of an unknown type would be a programming error, so it fails loudly). */
-function present(row: Row): Notification {
-  return NotificationSchema.parse({
-    ...row,
-    readAt: row.readAt?.toISOString() ?? null,
-    createdAt: row.createdAt.toISOString(),
-  });
 }

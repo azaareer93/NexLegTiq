@@ -36,7 +36,10 @@ function setup(prefs: Record<string, unknown> = {}) {
         ),
       },
     },
-    unscoped: () => ({ notification: { deleteMany } }),
+    unscoped: () => ({
+      notification: { deleteMany },
+      office: { findMany: jest.fn().mockResolvedValue([{ id: OFFICE }]) },
+    }),
   } as unknown as PrismaService;
   const logger = { warn: jest.fn(), error: jest.fn(), info: jest.fn() } as unknown as PinoLogger;
   const realtime = { toUser: jest.fn(), toUsers: jest.fn(), toOffice: jest.fn() };

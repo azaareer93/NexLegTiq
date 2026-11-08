@@ -1,10 +1,28 @@
+import { isAppPath } from '@nexlegtiq/shared-contracts';
 import type { Notification } from '@nexlegtiq/shared-contracts';
 import { EmptyState, useFormat } from '@nexlegtiq/shared-ui';
 import { Badge, Button, Flex, List, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router';
+import { Link } from 'react-router';
 
 import { useMarkRead } from '../api/use-notifications';
+
+/** i18next options that are not interpolation values: a param named like one never changes how the text is read. */
+const RESERVED = new Set([
+  'lng',
+  'lngs',
+  'ns',
+  'context',
+  'returnObjects',
+  'defaultValue',
+  'postProcess',
+]);
+const values = (params: Notification['params']): Record<string, string | number> =>
+  Object.fromEntries(
+    Object.entries(params)
+      .filter(([key]) => !RESERVED.has(key))
+      .map(([key, value]) => [key, value ?? '']),
+  );
 
 interface NotificationListProps {
   readonly items: readonly Notification[];
@@ -26,15 +44,13 @@ export function NotificationList({
 }: NotificationListProps): React.JSX.Element {
   const { t, i18n } = useTranslation();
   const { relative } = useFormat();
-  const navigate = useNavigate();
   const markRead = useMarkRead();
 
   if (items.length === 0) return <EmptyState description={emptyText} />;
 
-  const open = (item: Notification) => {
+  const opened = (item: Notification) => {
     if (!item.readAt) markRead.mutate(item.id);
     onOpen?.();
-    if (item.link) void navigate(item.link);
   };
 
   return (
@@ -44,8 +60,10 @@ export function NotificationList({
       renderItem={(item) => {
         // A key this build does not know (a newer server) shows the generic title rather than the raw key.
         const title = i18n.exists(item.titleKey)
-          ? t(item.titleKey as 'shell.notifications.open', item.params as Record<string, string>)
-          : t('shell.notifications.open');
+          ? t(item.titleKey as 'shell.notifications.generic', values(item.params))
+          : t('shell.notifications.generic');
+        // Only a path of this app becomes a link (the server checks it too, D-149).
+        const link = item.link && isAppPath(item.link) ? item.link : null;
         return (
           <List.Item
             key={item.id}
@@ -59,6 +77,7 @@ export function NotificationList({
                       type="link"
                       size="small"
                       onClick={() => markRead.mutate(item.id)}
+                      aria-label={t('shell.notifications.markReadOf', { title })}
                       data-testid={`notification-read-${item.id}`}
                     >
                       {t('shell.notifications.markRead')}
@@ -67,13 +86,20 @@ export function NotificationList({
             }
           >
             <Flex vertical gap={2}>
-              <Typography.Link
-                strong={!item.readAt}
-                onClick={() => open(item)}
-                data-testid={`notification-open-${item.id}`}
-              >
-                {title}
-              </Typography.Link>
+              {link ? (
+                // A real link: keyboard, screen readers and "open in a new tab" all work.
+                <Link
+                  to={link}
+                  onClick={() => opened(item)}
+                  data-testid={`notification-open-${item.id}`}
+                >
+                  {item.readAt ? title : <strong>{title}</strong>}
+                </Link>
+              ) : (
+                <Typography.Text strong={!item.readAt} data-testid={`notification-open-${item.id}`}>
+                  {title}
+                </Typography.Text>
+              )}
               <Flex gap={8} wrap>
                 <Typography.Text type="secondary">{relative(item.createdAt)}</Typography.Text>
                 {!item.readAt && (

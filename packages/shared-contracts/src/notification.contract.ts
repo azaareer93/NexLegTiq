@@ -1,4 +1,3 @@
-import { NOTIFICATION_TYPES } from '@nexlegtiq/shared-types';
 import { z } from 'zod';
 
 /**
@@ -15,10 +14,19 @@ export const NotificationQuerySchema = z.object({
 });
 export type NotificationQuery = z.infer<typeof NotificationQuerySchema>;
 
+/**
+ * A notification link is a path of this app: a single leading slash and URL characters only — no whitespace, control
+ * characters or backslash, which a browser strips or turns into another site (`/\t/evil.test` → `//evil.test`).
+ */
+export const APP_PATH_PATTERN = /^\/(?![/\\])[A-Za-z0-9\-._~!$&'()*+,;=:@%/?#]*$/;
+export const isAppPath = (value: string): boolean =>
+  value.length <= 500 && APP_PATH_PATTERN.test(value);
+
 /** One notification: the UI renders `titleKey` with `params` in the reader's language; `link` is an office-app path. */
 export const NotificationSchema = z.object({
   id: z.uuid(),
-  type: z.enum(NOTIFICATION_TYPES),
+  /** One of NOTIFICATION_TYPES; read as text, so a type added by a newer server never breaks the list. */
+  type: z.string(),
   titleKey: z.string(),
   params: z.record(z.string(), z.union([z.string(), z.number(), z.null()])),
   link: z.string().nullable(),

@@ -23,16 +23,20 @@ describe('notification preferences (D-146)', () => {
       'INVITE_ACCEPTED',
       'inApp',
     );
-    expect([...wanted].sort()).toEqual(['b', 'c']);
-    expect(findMany).toHaveBeenCalledTimes(1);
-    // Nobody, or a type no one can turn off: no query at all.
+    // c is not an active user of the office: left out, so it can never fail the write for the others.
+    expect([...wanted].sort()).toEqual(['b']);
+    expect(findMany).toHaveBeenCalledWith({
+      where: { id: { in: ['a', 'b', 'c'] }, isActive: true },
+      select: { id: true, notificationPrefs: true },
+    });
+    // A type no one can turn off still goes to the active users only; nobody at all: no query.
+    expect(
+      await recipientsWanting({ user: { findMany } }, ['a', 'c'], 'DOCUMENT_QUARANTINED', 'inApp'),
+    ).toEqual(new Set(['a', 'b']));
     findMany.mockClear();
     expect(await recipientsWanting({ user: { findMany } }, [], 'TASK_ASSIGNED', 'inApp')).toEqual(
       new Set(),
     );
-    expect(
-      await recipientsWanting({ user: { findMany } }, ['a'], 'DOCUMENT_QUARANTINED', 'inApp'),
-    ).toEqual(new Set(['a']));
     expect(findMany).not.toHaveBeenCalled();
   });
 });

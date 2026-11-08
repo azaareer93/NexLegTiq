@@ -471,7 +471,9 @@ describe('hearing reminders (HTTP + PostgreSQL + Redis)', () => {
       titleKey: fields.titleKey,
       channel: 'IN_APP',
     });
-    // A user of another office cannot be named (composite foreign key).
-    await expect(notifications.process(fake(otherOffice.officeId))).rejects.toThrow();
+    // A user of another office is not a recipient there: nothing is written.
+    await expect(notifications.process(fake(otherOffice.officeId))).resolves.toEqual({
+      created: 0,
+    });
   });
 });
