@@ -2557,8 +2557,9 @@ OCR off turns READY without any). The purge runs office by office (as D-136); `n
 several jobs; the per-user index follows the id order of the list (`(office_id, user_id, id DESC)`); the bell's accessible
 name is one translated sentence with Arabic plural forms, the number badge is hidden from screen readers, each "mark as read"
 names its notification, the hearing and reassignment texts isolate the file number, and an unknown title key shows "You have a
-new notification". **Deploy:** jobs still queued under the removed `create-notification` name fail at once (pre-production,
-nothing to keep); drain the `notification` queue before the first deploy that has data. **Not done (also):** a partial index
+new notification". **Deploy:** a job still queued under the old `create-notification` name (one `userId`, old type names) is
+turned into a one-user fan-out job by the worker, so no notification waiting in Redis is lost; the shim goes after one
+release. **Not done (also):** a partial index
 for unread counts, a repository layer for the four queries (they are the module's only Prisma access), and the notification
 routes in the HTTP isolation matrix (they take no file or office: `notifications.int.spec.ts` checks someone else's
 notification → 404 in the office and across offices).

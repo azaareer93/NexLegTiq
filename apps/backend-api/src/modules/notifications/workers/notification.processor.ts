@@ -20,6 +20,7 @@ import {
 } from '../notification-job';
 import type { FanOutNotificationJob } from '../notification-job';
 import { recipientsWanting } from '../notification-preferences';
+import { upgradeLegacyJob } from './legacy-notification-job';
 
 /** Daily at 03:30 UTC, after the audit purge. */
 const PURGE_SCHEDULE = { pattern: '30 3 * * *', tz: 'UTC' } as const;
@@ -67,7 +68,7 @@ export class NotificationProcessor
     const data: unknown = job.data;
     const platform = typeof data === 'object' && data !== null && !('officeId' in data);
     if (job.name === PURGE_NOTIFICATIONS_JOB && platform) return this.purge();
-    return super.process(job);
+    return super.process(upgradeLegacyJob(job));
   }
 
   protected async handle(job: Job<FanOutNotificationJob & TenantJobData>): Promise<unknown> {
