@@ -2509,3 +2509,33 @@ them (`scripts/sort-locales.mjs` via lint-staged) and the shared-i18n test fails
 `merge=union` (D-114). **Not done:** `env.schema.ts` refinements still meet at the end of the chain (rare; a later
 change can split them per area). Why: the owner reviews only what needs a human, and parallel tickets stop colliding on
 lines nobody chose.
+**D-148 — Document AI summaries: map-reduce, one counted operation, the stored summary and the auto trigger** · Accepted (MVP-86, 2026-11-08) · Amends D-130, D-132, D-144
+MVP-86 left the chunk size, how a long document counts against the quota, the job timeout, what "cached" means and the
+auto-summary's user and language open. → **API** (`src/modules/ai-summaries`, `use:ai`): `POST /ai/summaries {sourceType:
+DOCUMENT, sourceId, language: AR|EN}` — the office's AI switch first (AI-005), then the document's own access rule (D-126:
+file scope, confidential documents for their people only; 404 otherwise); QUARANTINED → 422 STO-004, not READY → 422
+BIZ-015, a version without text → **422 BIZ-020 (new: "no text to summarise")**; a summary of the **current version in that
+language under the current prompt version** is returned at once (**200**, "cached" = stored, no provider call, no quota),
+else the job is queued (**202** `{jobId, status}`, D-130's availability and quota checks). `GET /ai/summaries?sourceType&
+sourceId` → the newest summary per language of the current version; a new version makes older summaries stale (they stay
+as history). **Worker** (`DocumentSummarizer`, `ai/summarize-document`): reads the version's `DocumentText`; up to
+**60,000 characters** (≈ 15k tokens) it is one call (`whole`), longer text is split at paragraph/page breaks into parts of
+that size — at most **8 parts** (≈ 200 pages; a longer document is summarised from its first parts, and `chunks` records how
+many were read — a per-plan input budget can replace the cap) — each part summarised into notes (**map**, four at a time),
+then the notes merged (**reduce**). Output (`document-summary.v1`, Zod-validated with D-130's repair): `summary`,
+`keyFacts` ≤ 10, `keyLegalIssues` ≤ 5, `parties`, `dates [{date, event}]` in the document's own wording, in the language
+asked. Redaction context = the file's clients, parties, team and responsible lawyer (D-131). **Quota (amends D-130/D-144):**
+new column `AiUsage.partial` — map steps are recorded and priced but **not counted**; the quota is checked once before the
+first part and the merge is the one counted operation, so a summary costs one AI operation however long the document.
+**Timeout (amends D-084/D-130):** the `ai` queue's attempt timeout is now **300 s** (two rounds of four parts plus the merge,
+each inside the 100 s execute deadline). **Stored** as `AiSummary` (tenant table: source type/id, file, version, language,
+the output fields, provider, model, prompt version, chunks, job, creator; append-only — UPDATE revoked from the app role,
+hidden from the read-only role like `document_texts`; cascades with a purged file), a `SUMMARY_GENERATED` timeline event
+(ids, version and language only — a confidential document's name stays out, D-126) and `document.summary.ready` (D-129) to
+the job's creator. A job finding a summary of that version, language and prompt already stored reuses it. **Auto trigger
+(amends D-132):** with `AI_AUTO_SUMMARY` on, a READY PLEADING/EVIDENCE/JUDGMENT/COURT_ORDER of more than 500 words queues a
+summary for the **version's uploader, in their interface language** (`AiJobs.enqueue` takes `createdById` for system-started
+jobs); AI off, no plan flag or no quota → skipped and logged with its code, never surfaced, the document stays READY.
+**Not done here:** the AI tab and summary cards (UI story), session and witness-statement summaries (the table already
+takes their source types), regenerate on demand with a new prompt version (a new prompt version simply yields a new row),
+the evaluation set (its own story).
