@@ -15,6 +15,7 @@ import { DatabaseModule } from '../database/database.module';
 import { HealthModule } from '../health/health.module';
 import { MetricsModule } from '../metrics/metrics.module';
 import { AiModule } from '../modules/ai/ai.module';
+import { AiSummariesModule } from '../modules/ai-summaries/ai-summaries.module';
 import { AuthModule } from '../modules/auth/auth.module';
 import { JwtAuthGuard } from '../modules/auth/jwt-auth.guard';
 import { ClientsModule } from '../modules/clients/clients.module';
@@ -48,6 +49,7 @@ import { UsersModule } from '../modules/users/users.module';
     PlatformAuthModule,
     SubscriptionsModule,
     AiModule,
+    AiSummariesModule,
     ClientsModule,
     CourtsModule,
     LegalFilesModule,

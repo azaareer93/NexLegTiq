@@ -7,12 +7,14 @@ import { DocumentAccessService } from './document-access.service';
 import { DocumentExtraction } from './document-extraction';
 import type { DocumentRecordsService } from './document-records.service';
 import { DocumentRetry } from './document-retry';
+import type { AiJobs } from '../ai/ai-jobs';
 import { MIME } from './extraction/extract-text';
 import { buildDocx, buildPdf } from './extraction/fixtures.test-helper';
 import { ocr } from './extraction/ocr';
 import { visionWithin } from './extraction/vision';
 import type { UploadIntake } from './upload/upload-intake';
 import type { RequestContext } from '../../common/context/request-context';
+import { AppException } from '../../common/errors/app.exception';
 import type { QueueProducer } from '../../common/queue/queue-producer';
 import type { RealtimePublisher } from '../../common/realtime/realtime.publisher';
 import type { StorageService } from '../../common/storage/storage.service';
@@ -100,11 +102,13 @@ function extractionSetup(overrides: Partial<Setup> = {}) {
       findFirst: jest.fn().mockResolvedValue({ isConfidential: confidential }),
     },
     officeSettings: { findFirst: jest.fn().mockResolvedValue({ enableOcr, enableVisionOcr }) },
+    user: { findFirstOrThrow: jest.fn().mockResolvedValue({ uiLanguage: 'EN' }) },
   };
   const realtime = { toUser: jest.fn() };
   const queues = { enqueue: jest.fn() };
   const storage = { getStream: jest.fn().mockResolvedValue(Readable.from([body])) };
   const logger = { setContext: jest.fn(), info: jest.fn(), warn: jest.fn() };
+  const aiJobs = { enqueue: jest.fn().mockResolvedValue({ jobId: 'j1', status: 'QUEUED' }) };
   const entitlements = {
     current: jest.fn().mockResolvedValue({ readOnly, features: { googleVisionOcr: visionPlan } }),
     visionPagesLeft: jest.fn().mockResolvedValue(pagesLeft),
@@ -128,8 +132,9 @@ function extractionSetup(overrides: Partial<Setup> = {}) {
     ),
     logger as unknown as PinoLogger,
     entitlements as unknown as EntitlementsService,
+    aiJobs as unknown as AiJobs,
   );
-  return { service, tx, db, realtime, queues, storage, logger, entitlements };
+  return { service, tx, db, realtime, queues, storage, logger, entitlements, aiJobs };
 }
 
 const LIVE_PROCESSING = {
@@ -141,7 +146,7 @@ const LIVE_PROCESSING = {
 
 describe('DocumentExtraction', () => {
   it('should store the text, make the document READY and tell the uploader of the version', async () => {
-    const { service, tx, db, realtime, logger } = extractionSetup();
+    const { service, tx, db, realtime } = extractionSetup();
     await expect(service.run(JOB)).resolves.toBe('READY');
     expect(db.documentVersion.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({ where: { ...JOB, document: LIVE_PROCESSING } }),
@@ -159,13 +164,36 @@ describe('DocumentExtraction', () => {
       documentId: JOB.documentId,
       fileId: 'f1',
     });
-    expect(logger.info).not.toHaveBeenCalledWith(expect.anything(), 'Auto-summary wanted');
   });
 
-  it('should note an auto-summary when switched on', async () => {
-    const { service, logger } = extractionSetup({ autoSummary: 'true' });
-    await service.run(JOB);
-    expect(logger.info).toHaveBeenCalledWith({ documentId: JOB.documentId }, 'Auto-summary wanted');
+  it('should queue a summary for the uploader in their language when auto-summary is on (D-148)', async () => {
+    const off = extractionSetup();
+    await off.service.run(JOB);
+    expect(off.aiJobs.enqueue).not.toHaveBeenCalled();
+    const { service, aiJobs } = extractionSetup({ autoSummary: 'true' });
+    await expect(service.run(JOB)).resolves.toBe('READY');
+    expect(aiJobs.enqueue).toHaveBeenCalledWith({
+      type: 'summarize-document',
+      sourceType: 'DOCUMENT',
+      sourceId: JOB.documentId,
+      fields: { documentId: JOB.documentId, language: 'EN' },
+      createdById: 'u2',
+    });
+  });
+
+  it('should skip the auto-summary, not fail the document, when AI is off or the quota is used up', async () => {
+    for (const [failure, code] of [
+      [new AppException('AUTH-103', 'Quota used up'), 'AUTH-103'],
+      [new Error('redis down'), 'SYS-001'],
+    ] as const) {
+      const { service, aiJobs, logger } = extractionSetup({ autoSummary: 'true' });
+      aiJobs.enqueue.mockRejectedValueOnce(failure);
+      await expect(service.run(JOB)).resolves.toBe('READY');
+      expect(logger.info).toHaveBeenCalledWith(
+        { documentId: JOB.documentId, code },
+        'Auto-summary skipped',
+      );
+    }
   });
 
   it('should change nothing for a version no longer processed, nor when the document moved on meanwhile', async () => {
