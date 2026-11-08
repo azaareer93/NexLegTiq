@@ -14,5 +14,5 @@ export const testTimeline = (cls: unknown): TimelineService =>
     {} as PrismaService,
     {} as CaseAccessService,
     {} as DocumentAccessService,
-    {} as PinoLogger,
+    { setContext: () => undefined, warn: () => undefined } as unknown as PinoLogger,
   );
