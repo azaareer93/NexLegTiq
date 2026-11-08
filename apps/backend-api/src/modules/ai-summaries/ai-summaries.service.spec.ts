@@ -59,7 +59,8 @@ describe('AiSummariesService (D-148)', () => {
       type: 'summarize-document',
       sourceType: 'DOCUMENT',
       sourceId: DOC,
-      fields: { documentId: DOC, language: 'AR' },
+      fields: { documentId: DOC, versionNumber: 1, language: 'AR' },
+      dedupeKey: `summary:${DOC}:v1:AR`,
     });
   });
 

@@ -102,7 +102,11 @@ function extractionSetup(overrides: Partial<Setup> = {}) {
       findFirst: jest.fn().mockResolvedValue({ isConfidential: confidential }),
     },
     officeSettings: { findFirst: jest.fn().mockResolvedValue({ enableOcr, enableVisionOcr }) },
-    user: { findFirstOrThrow: jest.fn().mockResolvedValue({ uiLanguage: 'EN' }) },
+    user: {
+      findFirstOrThrow: jest
+        .fn()
+        .mockResolvedValue({ uiLanguage: 'EN', role: 'LAWYER', isActive: true }),
+    },
   };
   const realtime = { toUser: jest.fn() };
   const queues = { enqueue: jest.fn() };
@@ -176,24 +180,43 @@ describe('DocumentExtraction', () => {
       type: 'summarize-document',
       sourceType: 'DOCUMENT',
       sourceId: JOB.documentId,
-      fields: { documentId: JOB.documentId, language: 'EN' },
+      fields: { documentId: JOB.documentId, versionNumber: JOB.versionNumber, language: 'EN' },
       createdById: 'u2',
+      dedupeKey: `summary:${JOB.documentId}:v${JOB.versionNumber}:EN`,
     });
   });
 
-  it('should skip the auto-summary, not fail the document, when AI is off or the quota is used up', async () => {
-    for (const [failure, code] of [
-      [new AppException('AUTH-103', 'Quota used up'), 'AUTH-103'],
-      [new Error('redis down'), 'SYS-001'],
-    ] as const) {
-      const { service, aiJobs, logger } = extractionSetup({ autoSummary: 'true' });
-      aiJobs.enqueue.mockRejectedValueOnce(failure);
+  it('should not queue an auto-summary for an uploader who may not use AI or is inactive', async () => {
+    for (const user of [
+      { uiLanguage: 'AR', role: 'EXTERNAL_COLLABORATOR', isActive: true },
+      { uiLanguage: 'AR', role: 'LAWYER', isActive: false },
+    ]) {
+      const { service, aiJobs, db, logger } = extractionSetup({ autoSummary: 'true' });
+      db.user.findFirstOrThrow.mockResolvedValueOnce(user);
       await expect(service.run(JOB)).resolves.toBe('READY');
+      expect(aiJobs.enqueue).not.toHaveBeenCalled();
       expect(logger.info).toHaveBeenCalledWith(
-        { documentId: JOB.documentId, code },
+        { documentId: JOB.documentId, code: 'AUTH-100' },
         'Auto-summary skipped',
       );
     }
+  });
+
+  it('should skip the auto-summary, not fail the document, when AI is off or the quota is used up', async () => {
+    const quota = extractionSetup({ autoSummary: 'true' });
+    quota.aiJobs.enqueue.mockRejectedValueOnce(new AppException('AUTH-103', 'Quota used up'));
+    await expect(quota.service.run(JOB)).resolves.toBe('READY');
+    expect(quota.logger.info).toHaveBeenCalledWith(
+      { documentId: JOB.documentId, code: 'AUTH-103' },
+      'Auto-summary skipped',
+    );
+    const broken = extractionSetup({ autoSummary: 'true' });
+    broken.aiJobs.enqueue.mockRejectedValueOnce(new Error('redis down'));
+    await expect(broken.service.run(JOB)).resolves.toBe('READY');
+    expect(broken.logger.warn).toHaveBeenCalledWith(
+      { documentId: JOB.documentId, error: 'Error' },
+      'Auto-summary could not be queued',
+    );
   });
 
   it('should change nothing for a version no longer processed, nor when the document moved on meanwhile', async () => {

@@ -59,7 +59,7 @@ export interface AiResult<T> {
 export const MAX_INPUT_CHARS = 400_000;
 
 /**
- * Time for one `execute`, all attempts included (primary, fallback, repair): inside the `ai` queue's 300 s job timeout
+ * Time for one `execute`, all attempts included (primary, fallback, repair): inside the `ai` queue's 330 s job timeout
  * (D-084), so the job is never cut off in the middle of a provider call.
  */
 export const EXECUTE_DEADLINE_MS = 100_000;

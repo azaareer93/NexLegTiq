@@ -29,7 +29,7 @@ AUTH-100 permission denied · 101 insufficient role · 102 plan feature not avai
 VAL-001 invalid input · 002 email · 003 phone · 004 date · 005 file type · 006 file too large · 007 required
 RES-001 not found (incl. cross-tenant) · 002 already exists · 003 conflict/version · 004 deleted
 BIZ-001 last office manager · 002 case already closed · 003 open tasks block close · 004 session conflict ·
-005 retainer insufficient · 006 invoice immutable · 007 file archived · 008 user limit reached · 009 party conflict of interest · 010 client has open files · 011 court or judge still referenced · 012 session not scheduled (cancelled or held) · 013 folder not empty · 014 system folder is fixed · 015 document not scanned clean yet (scanning or failed) · 016 document has not failed (nothing to retry) · 017 conflict already resolved · 018 last client of a file · 019 file needs a responsible lawyer (D-140)
+005 retainer insufficient · 006 invoice immutable · 007 file archived · 008 user limit reached · 009 party conflict of interest · 010 client has open files · 011 court or judge still referenced · 012 session not scheduled (cancelled or held) · 013 folder not empty · 014 system folder is fixed · 015 document not scanned clean yet (scanning or failed) · 016 document has not failed (nothing to retry) · 017 conflict already resolved · 018 last client of a file · 019 file needs a responsible lawyer (D-140) · 020 document has no text to summarise (D-148)
 AI-001 provider unavailable · 002 rate limited · 003 input too large · 004 output invalid · 005 AI disabled for office
 STO-001 upload failed · 002 download failed · 003 delete failed · 004 malware detected
 EXT-001 email provider · 002 OCR provider
@@ -73,7 +73,7 @@ PATCH/DELETE `cases/:id/folders/:folderId` (system folders fixed → 422 BIZ-014
 **billing**: CRUD `time-entries` · POST `time-entries/timer/start|stop` · POST `invoices` (from time entries, `fileId?` null=consolidated) ·
 GET `invoices` · GET/PATCH `invoices/:id` · POST `invoices/:id/send` · POST `invoices/:id/mark-paid` · POST `invoices/:id/void` · GET `invoices/:id/pdf`
 **search**: GET `search?q&type=all|cases|clients|documents|parties|tasks&limit` (grouped)
-**ai**: POST `ai/summaries` `{sourceType, sourceId, language}` → 202 · GET `ai/summaries?sourceType&sourceId` · GET `jobs/:id` · GET `ai/usage` `{used, quota, remaining, resetsAt}` (`use:ai`, D-144)
+**ai**: POST `ai/summaries` `{sourceType, sourceId, language}` → 200 with the stored summary of the current version, else 202 (the same request while queued joins its job; 422 BIZ-015 not ready, STO-004 quarantined, BIZ-020 no text; 403 AI-005; 20/min; D-148) · GET `ai/summaries?sourceType&sourceId` (newest per language of the current version) · GET `jobs/:id` · GET `ai/usage` `{used, quota, remaining, resetsAt}` (`use:ai`, D-144)
 **notifications**: GET `notifications` · POST `notifications/:id/read` · POST `notifications/read-all` · GET/PATCH `notifications/preferences` (per category: `inApp`, `email` where one exists; D-146)
 **dashboard**: GET `dashboard` (role-aware KPIs + upcoming + activity)
 **audit**: GET `audit?entityType&entityId&userId&from&to` · GET `audit/export`

@@ -7,7 +7,7 @@ import type {
   CreateAiSummaryRequest,
 } from '@nexlegtiq/shared-contracts';
 
-import { SUMMARIZE_DOCUMENT_JOB } from './summary-job';
+import { SUMMARIZE_DOCUMENT_JOB, summaryDedupeKey } from './summary-job';
 import { AppException, BusinessRuleException } from '../../common/errors/app.exception';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
@@ -75,7 +75,8 @@ export class AiSummariesService {
       type: SUMMARIZE_DOCUMENT_JOB,
       sourceType: 'DOCUMENT',
       sourceId,
-      fields: { documentId: sourceId, language },
+      fields: { documentId: sourceId, versionNumber: document.currentVersion, language },
+      dedupeKey: summaryDedupeKey(sourceId, document.currentVersion, language),
     });
     return { status: 202, accepted };
   }
@@ -92,7 +93,7 @@ export class AiSummariesService {
   private async readable(id: string) {
     await this.documents.assertDocumentAccess(id, 'read');
     return this.prisma.db.document.findFirstOrThrow({
-      where: { id },
+      where: { id, deletedAt: null },
       select: { status: true, currentVersion: true },
     });
   }

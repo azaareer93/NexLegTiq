@@ -14,12 +14,27 @@ const FILE_PEOPLE = {
   clients: {
     select: {
       client: {
-        select: { clientType: true, displayName: true, fullName: true, companyName: true },
+        select: {
+          clientType: true,
+          displayName: true,
+          fullName: true,
+          companyName: true,
+          contacts: { select: { fullName: true } },
+        },
       },
     },
   },
   parties: {
-    select: { party: { select: { isIndividual: true, fullName: true, companyName: true } } },
+    select: {
+      party: {
+        select: {
+          isIndividual: true,
+          fullName: true,
+          companyName: true,
+          legalRepresentative: true,
+        },
+      },
+    },
   },
   teamMembers: { select: { user: { select: { fullName: true } } } },
 } as const;
@@ -32,10 +47,16 @@ interface FilePeople {
       displayName: string;
       fullName: string | null;
       companyName: string | null;
+      contacts: { fullName: string }[];
     };
   }[];
   parties: {
-    party: { isIndividual: boolean; fullName: string | null; companyName: string | null };
+    party: {
+      isIndividual: boolean;
+      fullName: string | null;
+      companyName: string | null;
+      legalRepresentative: string | null;
+    };
   }[];
   teamMembers: { user: { fullName: string } }[];
 }
@@ -45,7 +66,7 @@ const present = (values: readonly (string | null)[]): string[] => [
 ];
 
 /**
- * Who the PII redactor must hide in a file's documents (D-057, D-131): its clients, parties and team as people, and
+ * Who the PII redactor must hide in a file's documents (D-057, D-131): its clients and their contact persons, parties and their legal representatives, and team as people, and
  * the companies and bodies among them as organisations (matched whole only).
  */
 export async function fileRedactionContext(
@@ -63,6 +84,8 @@ export async function fileRedactionContext(
       ...file.teamMembers.map(({ user }) => user.fullName),
       ...people.flatMap((client) => [client.displayName, client.fullName]),
       ...parties.filter((party) => party.isIndividual).map((party) => party.fullName),
+      ...parties.map((party) => party.legalRepresentative),
+      ...clients.flatMap((client) => client.contacts.map((contact) => contact.fullName)),
     ]),
     organisations: present([
       ...bodies.flatMap((client) => [client.displayName, client.companyName]),

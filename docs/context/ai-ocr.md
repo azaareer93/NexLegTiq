@@ -28,7 +28,7 @@ flag, the office opt-in `enableVisionOcr` and the monthly page budget `ocrPagesM
 ## AI module (MVP features)
 | Feature | Trigger | Output schema |
 |---|---|---|
-| Document summary (P0) | manual button or auto (above) | `DocumentSummarySchema { summary (50–1500 chars), keyFacts[≤10], keyLegalIssues[≤5], parties[]?, dates[]? }` |
+| Document summary (P0) | manual button or auto (above) | `DocumentSummarySchema { summary (50–1500 chars), keyFacts[≤10], keyLegalIssues[≤5], parties[]?, dates[{date, event}]? }` — read whole up to 60,000 characters, else in up to 8 parts (map) then merged (reduce); one counted operation (D-148) |
 | Session summary + next steps (P0) | `POST sessions/:id/outcome` with minutes > 100 words, or manual | `SessionSummarySchema { summary, keyFacts[], nextSteps[{action, dueInDays?}], riskAssessment: LOW|MEDIUM|HIGH }` |
 | Witness statement summary (P1-in-MVP) | manual | same as document summary |
 "Create tasks from next steps" creates Task rows with `sourceType=AI_NEXT_STEP` after the user confirms (never silently).
@@ -53,7 +53,7 @@ Architecture (`modules/ai`):
   UTC when yesterday's cost > `AI_COST_ALERT_THRESHOLD_USD` (email to `AI_COST_ALERT_EMAIL`; off when unset, D-144); office
   quota from plan (`aiQuotaMonthly`) = successful, non-cached operations in the office's calendar month (its time zone),
   `AUTH-103` with `{remaining: 0, quota, resetsAt}` when used up; `GET /ai/usage` → `{used, quota, remaining, resetsAt}`.
-- Cache keys: `o:{officeId}:ai:summary:{documentId}:{versionNumber}:{lang}:{promptVersion}` (24h+; invalidated by new version).
+- Cache keys: summaries are stored (`AiSummary`, one per version + language + prompt version) and served from the table, not Redis; a new version or prompt version needs a new summary (D-148). Each map step's notes are cached in Redis so a retried job does not pay for them again.
 - Config (Zod env): `AI_PRIMARY_PROVIDER`, `AI_FALLBACK_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `GEMINI_API_KEY`, `GEMINI_MODEL`,
   `ANTHROPIC_API_KEY?`, `AI_MAX_OUTPUT_TOKENS=4096`, `AI_TEMPERATURE=0.2`, `AI_CACHE_TTL=86400`, `AI_COST_ALERT_THRESHOLD_USD` + `AI_COST_ALERT_EMAIL` (both or neither, no default; D-144).
   Model names are config, never hard-coded.

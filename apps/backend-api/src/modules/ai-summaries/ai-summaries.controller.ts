@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Post, Query, Res } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import {
   AiJobAcceptedSchema,
   AiSummaryQuerySchema,
@@ -28,6 +29,8 @@ export class AiSummariesController {
 
   @Post()
   @RequirePermissions('use:ai')
+  // Each request may queue paid model calls (D-148).
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiOperation({
     summary:
       'Summarise a document: 200 with the stored summary of its current version, else 202 with the job (not READY → 422 BIZ-015, quarantined → 422 STO-004, no text → 422 BIZ-020, AI off → 403 AI-005)',

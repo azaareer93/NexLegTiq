@@ -2527,8 +2527,8 @@ then the notes merged (**reduce**). Output (`document-summary.v1`, Zod-validated
 asked. Redaction context = the file's clients, parties, team and responsible lawyer (D-131). **Quota (amends D-130/D-144):**
 new column `AiUsage.partial` — map steps are recorded and priced but **not counted**; the quota is checked once before the
 first part and the merge is the one counted operation, so a summary costs one AI operation however long the document.
-**Timeout (amends D-084/D-130):** the `ai` queue's attempt timeout is now **300 s** (two rounds of four parts plus the merge,
-each inside the 100 s execute deadline). **Stored** as `AiSummary` (tenant table: source type/id, file, version, language,
+**Timeout (amends D-084/D-130):** the `ai` queue's attempt timeout is now **330 s** (two rounds of four parts plus the merge,
+each inside the 100 s execute deadline, plus reading the text and storing). **Stored** as `AiSummary` (tenant table: source type/id, file, version, language,
 the output fields, provider, model, prompt version, chunks, job, creator; append-only — UPDATE revoked from the app role,
 hidden from the read-only role like `document_texts`; cascades with a purged file), a `SUMMARY_GENERATED` timeline event
 (ids, version and language only — a confidential document's name stays out, D-126) and `document.summary.ready` (D-129) to
@@ -2539,3 +2539,23 @@ jobs); AI off, no plan flag or no quota → skipped and logged with its code, ne
 **Not done here:** the AI tab and summary cards (UI story), session and witness-statement summaries (the table already
 takes their source types), regenerate on demand with a new prompt version (a new prompt version simply yields a new row),
 the evaluation set (its own story).
+Review additions (same PR): **a long request counts once, and counts even when it fails** — its **first part** is the
+counted call and the other parts and the merge are `partial`, so a merge that fails after paid parts still counts one
+operation (otherwise failed long requests were free and repeatable); the merge no longer re-checks the quota. **Retries do
+not pay twice:** each part's notes are cached in Redis (`[document, version, language, index/count]`, D-130 cache). **No
+duplicate paid jobs:** `AiJob.dedupeKey` (`summary:{document}:v{n}:{lang}:{user}`, one live job per key — partial unique
+index over QUEUED/RUNNING) makes a repeated request — a double click, a second tab, the auto-summary and a manual one —
+join the job already running; it is **per user**, because `GET /jobs/:id` shows a job to its creator only, so two
+colleagues asking at the same instant still each pay. `ai_summaries` is **unique per source, version, language and prompt
+version**: a racing job keeps the row stored first. **The job pins the version asked for** (`versionNumber` in its
+fields); a newer version uploaded meanwhile ends it as `{superseded: 1}`. A job finding the summary already stored also
+pushes `document.summary.ready`. **The auto-summary runs only for an uploader who is active and holds `use:ai`**
+(otherwise skipped, `AUTH-100` in the log — outside collaborators and admin staff upload but cannot open summaries); a
+failure that is not an `AppException` is logged as a warning with its error class. **Redaction context** adds the
+parties' legal representatives and the clients' contact persons (D-131). **Prompt-injection hardening:** the task and the
+output shape are in the system prompt; the user message holds only the material between `<material>` tags (a tag inside
+the text is defused). `POST /ai/summaries` is throttled at 20/min per IP; part splitting cuts at any whitespace. A
+summary may be asked on an archived file (it reads the file; its `SUMMARY_GENERATED` event is history, not an edit).
+**Known limits:** `chunks` is the number of parts read, so a document cut at 8 parts is not marked as cut; parts of the
+same round still run (and are paid) when one fails; a new prompt version hides older summaries until regenerated;
+`ai_summaries.ai_job_id` has no FK (written only by the worker from its own job).

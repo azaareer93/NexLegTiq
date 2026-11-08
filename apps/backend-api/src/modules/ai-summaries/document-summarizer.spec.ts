@@ -17,7 +17,11 @@ const SUMMARY = {
   dates: [],
 };
 const CONTEXT = { aiJobId: 'j1', userId: 'u1', signal: new AbortController().signal };
-const FIELDS = { documentId: '01920000-0000-7000-8000-000000000001', language: 'AR' };
+const FIELDS = {
+  documentId: '01920000-0000-7000-8000-000000000001',
+  versionNumber: 2,
+  language: 'AR',
+};
 const FILE = {
   responsibleLawyer: { fullName: 'Lawyer' },
   clients: [],
@@ -36,7 +40,7 @@ function setup({
   };
   const db = {
     document: { findFirst: jest.fn().mockResolvedValue(document) },
-    aiSummary: { findFirst: jest.fn().mockResolvedValue(existing) },
+    aiSummary: { findFirst: jest.fn().mockResolvedValue(existing), findFirstOrThrow: jest.fn() },
     documentText: { findFirst: jest.fn().mockResolvedValue(text === null ? null : { text }) },
     legalFile: { findFirstOrThrow: jest.fn().mockResolvedValue(FILE) },
   };
@@ -65,7 +69,7 @@ function setup({
     { get: () => 'o1' } as unknown as ClsService<RequestContext>,
   );
   service.onModuleInit();
-  return { service, registry, executor, access, realtime, tx };
+  return { service, registry, executor, access, realtime, tx, db };
 }
 
 describe('DocumentSummarizer (D-148)', () => {
@@ -86,18 +90,44 @@ describe('DocumentSummarizer (D-148)', () => {
     });
   });
 
-  it('should check the quota once and not count the parts of a long document', async () => {
+  it('should check the quota once and count a long document once, its first part', async () => {
     const { service, executor, access } = setup({ text: `${'a '.repeat(40_000)}\n\n`.repeat(3) });
     await service.run({ ...FIELDS, language: 'EN' }, CONTEXT);
     expect(access.assertQuota).toHaveBeenCalledTimes(1);
-    const calls = executor.execute.mock.calls.map(([options]) => options as { partial?: boolean });
-    expect(calls.filter((options) => options.partial)).toHaveLength(calls.length - 1);
+    const calls = executor.execute.mock.calls.map(
+      ([options]) => options as { partial?: boolean; cacheKey?: string[] },
+    );
+    const parts = calls.length - 1;
+    expect(calls.map((options) => options.partial)).toEqual([false, ...Array(parts).fill(true)]);
+    // Each part is cached (a retry does not pay again); the merge is not.
+    expect(calls[0]?.cacheKey).toEqual([FIELDS.documentId, 'v2', 'EN', `0/${parts}`]);
+    expect(calls.at(-1)?.cacheKey).toBeUndefined();
+  });
+
+  it('should end as superseded when a newer version arrived, and keep a summary a racing job stored', async () => {
+    const newer = setup({ document: { id: FIELDS.documentId, fileId: 'f1', currentVersion: 3 } });
+    await expect(newer.service.run(FIELDS, CONTEXT)).resolves.toEqual({ superseded: 1 });
+    expect(newer.executor.execute).not.toHaveBeenCalled();
+    const raced = setup();
+    raced.tx.aiSummary.create.mockRejectedValueOnce(
+      Object.assign(new Error('unique'), { name: 'PrismaClientKnownRequestError', code: 'P2002' }),
+    );
+    raced.db.aiSummary.findFirstOrThrow.mockResolvedValueOnce({ id: 's9' });
+    await expect(raced.service.run(FIELDS, CONTEXT)).resolves.toEqual({ summaryId: 's9' });
+    expect(raced.realtime.toUser).toHaveBeenCalledWith('u1', 'document.summary.ready', {
+      documentId: FIELDS.documentId,
+      fileId: 'f1',
+    });
   });
 
   it('should reuse a stored summary, and refuse a missing document or one without text', async () => {
     const reused = setup({ existing: { id: 's0' } });
     await expect(reused.service.run(FIELDS, CONTEXT)).resolves.toEqual({ summaryId: 's0' });
     expect(reused.executor.execute).not.toHaveBeenCalled();
+    expect(reused.realtime.toUser).toHaveBeenCalledWith('u1', 'document.summary.ready', {
+      documentId: FIELDS.documentId,
+      fileId: 'f1',
+    });
     await expect(setup({ document: null }).service.run(FIELDS, CONTEXT)).rejects.toMatchObject({
       code: 'RES-001',
     });

@@ -295,6 +295,7 @@ export class DocumentExtraction {
     if (autoSummaryWanted(this.config.ocr.autoSummary, document.documentType, text.text)) {
       await enqueueAutoSummary(this.prisma.db, this.aiJobs, this.logger, {
         documentId: job.documentId,
+        versionNumber: job.versionNumber,
         uploaderId: version.createdById,
       });
     }

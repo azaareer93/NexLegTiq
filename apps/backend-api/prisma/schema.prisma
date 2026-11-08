@@ -1491,6 +1491,9 @@ model AiJob {
   errorCode   String?       @map("error_code")
   attempts    Int           @default(0)
   result      Json?
+  /// Same work asked twice while it is queued or running joins the first job (D-148), e.g.
+  /// summary:{documentId}:v{n}:{lang}; unique among QUEUED/RUNNING jobs (partial index, migration).
+  dedupeKey   String?       @map("dedupe_key")
   createdById String        @map("created_by_id") @db.Uuid
   startedAt   DateTime?     @map("started_at") @db.Timestamptz(3)
   finishedAt  DateTime?     @map("finished_at") @db.Timestamptz(3)
@@ -1534,7 +1537,7 @@ model AiSummary {
   file      LegalFile @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
   createdBy User      @relation(fields: [createdById, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
 
-  @@index([officeId, sourceType, sourceId, language, createdAt(sort: Desc)])
+  @@unique([officeId, sourceType, sourceId, versionNumber, language, promptVersion])
   @@index([officeId, fileId])
   @@map("ai_summaries")
 }

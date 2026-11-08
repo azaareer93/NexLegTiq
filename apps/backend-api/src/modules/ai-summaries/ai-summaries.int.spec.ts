@@ -54,6 +54,8 @@ describe('Document AI summaries (integration)', () => {
   let a1: Person;
   let a2: Person;
   let b1: Person;
+  let senior: Person;
+  let outsider: Person;
   const officeIds: string[] = [];
   const savedEnv = { ...process.env };
 
@@ -74,11 +76,16 @@ describe('Document AI summaries (integration)', () => {
       });
       return { userId: user.id, officeId: office.id, role };
     };
-    return [await person('OFFICE_MANAGER'), await person('LAWYER')] as const;
+    return [await person('OFFICE_MANAGER'), await person('LAWYER'), person] as const;
   }
 
   /** A READY document on a file whose responsible lawyer is `lawyer`, with `text` as its current version's text. */
-  async function documentWith(lawyer: Person, text: string | null, status = 'READY') {
+  async function documentWith(
+    lawyer: Person,
+    text: string | null,
+    status = 'READY',
+    isConfidential = false,
+  ) {
     const file = await raw.legalFile.create({
       data: {
         officeId: lawyer.officeId,
@@ -103,6 +110,7 @@ describe('Document AI summaries (integration)', () => {
         fileId: file.id,
         name: 'Statement of claim',
         status: status as never,
+        isConfidential,
         documentType: 'PLEADING',
         ...stored,
         uploadedById: lawyer.userId,
@@ -124,6 +132,11 @@ describe('Document AI summaries (integration)', () => {
     }
     return document;
   }
+
+  const list = (person: Person, sourceId: string) =>
+    request(app.getHttpServer())
+      .get(`/api/v1/ai/summaries?sourceType=DOCUMENT&sourceId=${sourceId}`)
+      .set(bearerFor(jwt, person));
 
   const post = (person: Person, body: object) =>
     request(app.getHttpServer())
@@ -184,10 +197,13 @@ describe('Document AI summaries (integration)', () => {
       app.get(AppConfig),
       app.get(ModuleRef),
     );
-    [a1, a2] = await seedOffice('Summary office A');
+    let person: (role: string) => Promise<Person>;
+    [a1, a2, person] = await seedOffice('Summary office A');
+    senior = await person('SENIOR_LAWYER');
+    outsider = await person('EXTERNAL_COLLABORATOR');
     [b1] = await seedOffice('Summary office B');
     providers.fake.define('document-summary', (req: AiRequest) =>
-      req.user.startsWith('This is part') ? NOTES : SUMMARY,
+      req.system.includes('The material is part') ? NOTES : SUMMARY,
     );
   }, 120_000);
 
@@ -246,10 +262,8 @@ describe('Document AI summaries (integration)', () => {
     const again = await post(a2, { sourceType: 'DOCUMENT', sourceId: document.id, language: 'EN' });
     expect(again.status).toBe(200);
     expect(again.body.data).toMatchObject({ id: stored.id, chunks: 1, keyFacts: SUMMARY.keyFacts });
-    const list = await request(app.getHttpServer())
-      .get(`/api/v1/ai/summaries?sourceType=DOCUMENT&sourceId=${document.id}`)
-      .set(bearerFor(jwt, a1));
-    expect(list.body.data.map((row: { id: string }) => row.id)).toEqual([stored.id]);
+    const listed = await list(a1, document.id);
+    expect(listed.body.data.map((row: { id: string }) => row.id)).toEqual([stored.id]);
   });
 
   it('should read a long document in parts and count one operation against the quota', async () => {
@@ -266,8 +280,9 @@ describe('Document AI summaries (integration)', () => {
     });
     await runQueued(a2, queued.body.data.jobId);
     const requests = providers.fake.requests;
-    expect(requests.filter((r) => r.user.startsWith('This is part'))).toHaveLength(3);
-    expect(requests.at(-1)?.user).toContain('Merge them');
+    expect(requests.filter((r) => r.system.includes('The material is part'))).toHaveLength(3);
+    expect(requests.at(-1)?.system).toContain('Merge them');
+    expect(requests.every((r) => r.user.startsWith('<material>'))).toBe(true);
     expect(requests.every((r) => r.system.includes('Modern Standard Arabic'))).toBe(true);
     const stored = await raw.aiSummary.findFirstOrThrow({ where: { sourceId: document.id } });
     expect(stored).toMatchObject({ language: 'AR', chunks: 3 });
@@ -306,5 +321,55 @@ describe('Document AI summaries (integration)', () => {
         data: { enableAi: true },
       });
     }
+  });
+
+  it('should join a summary already queued, and treat a new version as not summarised', async () => {
+    const document = await documentWith(a2, 'Layla Haddad claims unpaid rent. '.repeat(40));
+    const body = { sourceType: 'DOCUMENT', sourceId: document.id, language: 'EN' };
+    const first = await post(a2, body);
+    const second = await post(a2, body);
+    expect(second.body.data.jobId).toBe(first.body.data.jobId);
+    await runQueued(a2, first.body.data.jobId);
+    expect((await list(a2, document.id)).body.data).toHaveLength(1);
+    await raw.documentVersion.create({
+      data: {
+        officeId: a2.officeId,
+        documentId: document.id,
+        versionNumber: 2,
+        createdById: a2.userId,
+        originalFilename: 'claim-2.pdf',
+        mimeType: 'application/pdf',
+        sizeBytes: 1024n,
+        checksumSha256: 'b'.repeat(64),
+        storageKey: `${a2.officeId}/${document.fileId}/${randomUUID()}.pdf`,
+      },
+    });
+    await raw.documentText.create({
+      data: { officeId: a2.officeId, documentId: document.id, versionNumber: 2, text: 'New text.' },
+    });
+    await raw.document.update({ where: { id: document.id }, data: { currentVersion: 2 } });
+    expect((await list(a2, document.id)).body.data).toEqual([]);
+    expect((await post(a2, body)).status).toBe(202);
+  });
+
+  it('should hide summaries from those who may not use AI, see the document, or belong to another office', async () => {
+    const document = await documentWith(
+      a2,
+      'Text of a confidential claim. '.repeat(40),
+      'READY',
+      true,
+    );
+    const body = { sourceType: 'DOCUMENT', sourceId: document.id, language: 'EN' };
+    const refused = await post(outsider, body);
+    expect([refused.status, refused.body.error.code]).toEqual([403, 'AUTH-100']);
+    expect((await list(outsider, document.id)).status).toBe(403);
+    // A senior lawyer sees every file, but not a confidential document they are not on (D-126).
+    expect((await post(senior, body)).status).toBe(404);
+    expect((await list(senior, document.id)).status).toBe(404);
+    expect((await list(b1, document.id)).status).toBe(404);
+    expect((await post(a1, body)).status).toBe(202);
+    await expect(
+      raw.aiJob.count({ where: { createdById: { in: [outsider.userId, senior.userId] } } }),
+    ).resolves.toBe(0);
   });
 });

@@ -6,6 +6,13 @@ export const PART_CHARS = 60_000;
  */
 export const MAX_PARTS = 8;
 
+/** The index of the last whitespace character at or before `limit` (-1 when there is none). */
+function lastWhitespace(text: string, limit: number): number {
+  for (let i = Math.min(limit, text.length - 1); i >= 0; i--)
+    if (/\s/.test(text.charAt(i))) return i;
+  return -1;
+}
+
 /**
  * Splits text into parts of at most `size` characters at paragraph or page breaks; a paragraph longer than a part is cut at
  * its last whitespace before the limit (or at the limit when it has none).
@@ -18,7 +25,7 @@ export function splitText(text: string, size = PART_CHARS): string[] {
     while (rest.length > size) {
       if (current) parts.push(current);
       current = '';
-      const cut = rest.lastIndexOf(' ', size);
+      const cut = lastWhitespace(rest, size);
       const at = cut > size / 2 ? cut + 1 : size;
       parts.push(rest.slice(0, at));
       rest = rest.slice(at);
