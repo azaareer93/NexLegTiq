@@ -23,6 +23,7 @@ import { CourtsModule } from '../modules/courts/courts.module';
 import { DocumentsModule } from '../modules/documents/documents.module';
 import { FileParticipantsModule } from '../modules/file-participants/file-participants.module';
 import { LegalFilesModule } from '../modules/legal-files/legal-files.module';
+import { NotificationsModule } from '../modules/notifications/notifications.module';
 import { OfficesModule } from '../modules/offices/offices.module';
 import { PartiesModule } from '../modules/parties/parties.module';
 import { PlatformAuthModule } from '../modules/platform-auth/platform-auth.module';
@@ -48,6 +49,7 @@ import { UsersModule } from '../modules/users/users.module';
     AuthModule,
     PlatformAuthModule,
     SubscriptionsModule,
+    NotificationsModule,
     AiModule,
     AiSummariesModule,
     ClientsModule,

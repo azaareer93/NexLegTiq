@@ -11,8 +11,7 @@ import { QUEUE } from '../../common/queue/queues';
 import { StorageService } from '../../common/storage/storage.service';
 import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
-import { CREATE_NOTIFICATION_JOB } from '../notifications/notification-job';
-import type { NotificationJob } from '../notifications/notification-job';
+import { NotificationService } from '../notifications/notification.service';
 
 export type ScanOutcome = 'CLEAN' | 'QUARANTINED' | 'SUPERSEDED';
 
@@ -41,6 +40,7 @@ export class DocumentScan {
     private readonly scanner: ClamavScanner,
     private readonly queues: QueueProducer,
     private readonly logger: PinoLogger,
+    private readonly notifications: NotificationService,
   ) {
     this.logger.setContext(DocumentScan.name);
   }
@@ -89,11 +89,9 @@ export class DocumentScan {
       afterCommit(() => this.storage.delete(version.storageKey), 'delete infected object');
       afterCommit(
         () =>
-          this.queues.enqueue<NotificationJob>(
-            QUEUE.NOTIFICATION,
-            CREATE_NOTIFICATION_JOB,
+          this.notifications.notify(
+            [version.createdById],
             {
-              userId: version.createdById,
               type: 'DOCUMENT_QUARANTINED',
               titleKey: 'shell.notifications.documentQuarantined',
               params: {

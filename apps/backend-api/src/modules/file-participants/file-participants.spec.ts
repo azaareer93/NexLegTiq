@@ -75,7 +75,12 @@ function setup(overrides: Partial<Options> = {}) {
     legalFile: { update: jest.fn() },
     caseTimelineEvent: { create: jest.fn() },
     // No preferences stored: every channel on (D-146).
-    user: { findMany: jest.fn().mockResolvedValue([]) },
+    // Every asked-for user is an active user of the office with no preferences stored (D-146).
+    user: {
+      findMany: jest.fn(({ where }: { where: { id: { in: string[] } } }) =>
+        Promise.resolve(where.id.in.map((id) => ({ id, notificationPrefs: {} }))),
+      ),
+    },
     notification: { create: jest.fn().mockResolvedValue({ id: 'n1' }) },
   };
   const context: Record<string, unknown> = { userId: ME, officeId: 'office-1', role, permissions };
@@ -129,7 +134,7 @@ describe('FileTeamService (D-140)', () => {
     );
     expect(tx.notification.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ type: 'file.teamAdded' }) as object,
+        data: expect.objectContaining({ type: 'FILE_TEAM_ADDED' }) as object,
       }),
     );
     await flush();
@@ -203,7 +208,7 @@ describe('FileTeamService (D-140)', () => {
     expect(reminders.resetForFile).toHaveBeenCalledWith(tx, expect.any(Function), FILE);
     expect(tx.notification.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ type: 'file.reassigned' }) as object,
+        data: expect.objectContaining({ type: 'FILE_REASSIGNED' }) as object,
       }),
     );
   });
@@ -272,7 +277,7 @@ describe('FileTeamService roles and context (D-140)', () => {
     expect(reminders.resetForFile).not.toHaveBeenCalled();
     expect(tx.notification.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ type: 'file.teamAdded' }) as object,
+        data: expect.objectContaining({ type: 'FILE_TEAM_ADDED' }) as object,
       }),
     );
   });

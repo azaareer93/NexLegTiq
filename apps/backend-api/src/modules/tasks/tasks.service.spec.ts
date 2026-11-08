@@ -46,7 +46,10 @@ function setup(role: Role = 'LAWYER', row = accessRow()) {
   const tx = {
     user: {
       findFirst: jest.fn().mockResolvedValue({ id: OTHER, role: 'PARALEGAL' }),
-      findMany: jest.fn().mockResolvedValue([]), // no preferences stored: notified (D-146)
+      // Active users of the office with no preferences stored: notified (D-146).
+      findMany: jest.fn(({ where }: { where: { id: { in: string[] } } }) =>
+        Promise.resolve(where.id.in.map((id) => ({ id, notificationPrefs: {} }))),
+      ),
     },
     legalFile: { count: jest.fn().mockResolvedValue(1) },
     task: {
@@ -142,7 +145,7 @@ describe('TasksService', () => {
         data: expect.objectContaining({ entityType: 'Task', action: 'CREATE' }),
       });
       expect(tx.notification.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({ userId: OTHER, type: 'task.assigned' }),
+        data: expect.objectContaining({ userId: OTHER, type: 'TASK_ASSIGNED' }),
         select: { id: true },
       });
       expect(realtime.toUser).toHaveBeenCalledWith(OTHER, 'task.assigned', {

@@ -114,7 +114,7 @@
 - **AuditLog** 🔒 — userId?|clientUserId?|platformAdminId?, entityType, entityId, `action: CREATE|UPDATE|DELETE|VIEW|
   DOWNLOAD|SHARE|LOGIN|LOGOUT|EXPORT|PERMISSION_DENIED`, oldValues JSON?, newValues JSON? (secrets redacted),
   ipAddress, userAgent, requestId, occurredAt. Append-only (no update/delete grants for app role).
-- **Notification** 🔒 — userId|clientUserId, type, titleKey, params JSON, link, readAt, channel.
+- **Notification** 🔒 — userId|clientUserId, type (`NOTIFICATION_TYPES`, UPPER_SNAKE, D-149), titleKey, params JSON, link, readAt, channel; kept 90 days.
 - **ConsentRecord** — cookie/marketing consents.
 
 ## Invariants (test these)

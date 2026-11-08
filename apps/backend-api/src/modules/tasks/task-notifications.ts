@@ -11,7 +11,7 @@ export async function assignedNotification(
   userId: string,
   task: { readonly id: string; readonly title: string },
 ): Promise<string | null> {
-  const type = 'task.assigned';
+  const type = 'TASK_ASSIGNED';
   if (!(await recipientsWanting(tx, [userId], type, 'inApp')).has(userId)) return null;
   const { id } = await tx.notification.create({
     data: {

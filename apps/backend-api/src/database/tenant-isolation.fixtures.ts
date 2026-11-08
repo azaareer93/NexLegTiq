@@ -25,6 +25,11 @@ export const fileIn = (db: PrismaClient, { officeId, userId }: SeededOffice) =>
     },
   });
 
+export const notificationIn = (db: PrismaClient, { officeId, userId }: SeededOffice) =>
+  db.notification.create({
+    data: { officeId, userId, type: 'TASK_ASSIGNED', titleKey: 'test.title' },
+  });
+
 export const partyIn = (db: PrismaClient, { officeId }: SeededOffice) =>
   db.party.create({ data: { officeId, isIndividual: true, fullName: 'Isolation party' } });
 

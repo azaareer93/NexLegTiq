@@ -25,6 +25,7 @@ import { TENANT_MODELS } from '../../database/tenant-models';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { PrismaClient } from '../../generated/prisma/client';
 import { bearerFor } from '../auth/auth.test-helper';
+import { NotificationService } from '../notifications/notification.service';
 import { liveSubscription } from '../subscriptions/subscription.test-helper';
 
 type Delegate = { deleteMany(args: unknown): Promise<unknown> };
@@ -141,6 +142,7 @@ describe('documents upload API (HTTP + PostgreSQL + storage + ClamAV)', () => {
       new ClamavScanner(app.get(AppConfig)),
       app.get(QueueProducer),
       { setContext: () => undefined, warn: () => undefined } as unknown as PinoLogger,
+      app.get(NotificationService, { strict: false }),
     );
 
   beforeAll(async () => {
@@ -473,7 +475,7 @@ describe('documents upload API (HTTP + PostgreSQL + storage + ClamAV)', () => {
       `${officeId}_scan-${infected.documentId}-v1-quarantined`,
     );
     expect(notification?.data).toMatchObject({
-      userId: user('lawyer').userId,
+      userIds: [user('lawyer').userId],
       titleKey: 'shell.notifications.documentQuarantined',
     });
   });

@@ -3,16 +3,13 @@ import { formatDate, formatTime } from '@nexlegtiq/shared-utils';
 
 import { reminderJobId } from './reminder-scheduler';
 import { MailService } from '../../common/mail/mail.service';
-import { QueueProducer } from '../../common/queue/queue-producer';
-import { QUEUE } from '../../common/queue/queues';
 import { RealtimePublisher } from '../../common/realtime/realtime.publisher';
 import { AppConfig } from '../../config/app-config';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
 import { CaseAccessService } from '../legal-files/case-access.service';
-import { CREATE_NOTIFICATION_JOB } from '../notifications/notification-job';
-import type { NotificationJob } from '../notifications/notification-job';
 import { wants } from '../notifications/notification-preferences';
+import { NotificationService } from '../notifications/notification.service';
 
 const DELIVERY_SELECT = {
   id: true,
@@ -67,9 +64,9 @@ export class ReminderDelivery {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
-    private readonly queues: QueueProducer,
     private readonly config: AppConfig,
     private readonly realtime: RealtimePublisher,
+    private readonly notifications: NotificationService,
   ) {}
 
   async deliver(reminderId: string, now = new Date()): Promise<DeliveryResult> {
@@ -86,7 +83,7 @@ export class ReminderDelivery {
     }
     // Muted on both channels: nobody is told, so the drawer shows it cancelled, not "sent" (D-146).
     const prefs = reminder.recipient.notificationPrefs;
-    if (!wants(prefs, 'SESSION_REMINDER', 'email') && !wants(prefs, 'SESSION_REMINDER', 'inApp')) {
+    if (!wants(prefs, 'HEARING_REMINDER', 'email') && !wants(prefs, 'HEARING_REMINDER', 'inApp')) {
       await this.setStatus(reminderId, 'CANCELLED');
       return { cancelled: 'RECIPIENT_MUTED' };
     }
@@ -128,7 +125,7 @@ export class ReminderDelivery {
       : '';
     const jobId = reminderJobId(reminder.id);
     // The email follows the recipient's preferences here; the in-app row is checked by the notification worker (D-146).
-    if (wants(recipient.notificationPrefs, 'SESSION_REMINDER', 'email'))
+    if (wants(recipient.notificationPrefs, 'HEARING_REMINDER', 'email'))
       await this.mail.send(
         recipient.email,
         'hearing-reminder',
@@ -145,12 +142,10 @@ export class ReminderDelivery {
         },
         { jobId: `${jobId}-email` },
       );
-    await this.queues.enqueue<NotificationJob>(
-      QUEUE.NOTIFICATION,
-      CREATE_NOTIFICATION_JOB,
+    await this.notifications.notify(
+      [recipient.id],
       {
-        userId: recipient.id,
-        type: 'SESSION_REMINDER',
+        type: 'HEARING_REMINDER',
         titleKey: 'shell.notifications.hearingReminder',
         params: {
           fileNumber: session.file.fileNumber,

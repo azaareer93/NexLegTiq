@@ -32,6 +32,7 @@ import { UnitOfWork } from '../../database/unit-of-work';
 import type { PrismaClient } from '../../generated/prisma/client';
 import type { AiJobs } from '../ai/ai-jobs';
 import { bearerFor } from '../auth/auth.test-helper';
+import { NotificationService } from '../notifications/notification.service';
 import { EntitlementsService } from '../subscriptions/entitlements.service';
 import { liveSubscription } from '../subscriptions/subscription.test-helper';
 
@@ -81,6 +82,7 @@ describe('document text extraction (integration)', () => {
       new ClamavScanner(app.get(AppConfig)),
       app.get(QueueProducer),
       quiet,
+      app.get(NotificationService, { strict: false }),
     );
   const extraction = () =>
     new DocumentExtraction(
@@ -88,11 +90,11 @@ describe('document text extraction (integration)', () => {
       app.get(UnitOfWork),
       app.get(StorageService),
       app.get(RealtimePublisher),
-      app.get(QueueProducer),
       app.get(AppConfig),
       quiet,
       app.get(EntitlementsService),
       { enqueue: jest.fn() } as unknown as AiJobs,
+      app.get(NotificationService, { strict: false }),
     );
 
   async function seed(name: string): Promise<Person> {

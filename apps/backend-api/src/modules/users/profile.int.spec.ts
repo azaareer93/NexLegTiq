@@ -190,7 +190,7 @@ describe('profile and notification preferences (HTTP + PostgreSQL)', () => {
       .send({ title: 'File the appeal', assignedToId: lawyer.userId })
       .expect(201);
     expect(
-      await raw.notification.count({ where: { userId: lawyer.userId, type: 'task.assigned' } }),
+      await raw.notification.count({ where: { userId: lawyer.userId, type: 'TASK_ASSIGNED' } }),
     ).toBe(1);
   });
 });

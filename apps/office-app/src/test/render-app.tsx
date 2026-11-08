@@ -44,7 +44,16 @@ export const USER: AuthUser = {
 };
 export const SESSION = { accessToken: 'access-1', expiresIn: 900, user: USER };
 
-export const server = setupServer();
+/**
+ * Calls the shell makes on every page (the bell, D-149) answer "nothing" unless a test says otherwise; `resetHandlers`
+ * keeps these.
+ */
+const SHELL_DEFAULTS = [
+  http.get(api('notifications/unread-count'), () => ok({ count: 0 })),
+  http.get(api('notifications'), () => ok({ items: [], nextCursor: null })),
+];
+
+export const server = setupServer(...SHELL_DEFAULTS);
 
 /** MSW + a fresh session per test. Call once at the top of a spec file. */
 export function setupTestServer(): void {

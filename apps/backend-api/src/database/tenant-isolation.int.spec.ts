@@ -156,12 +156,12 @@ describe('tenant isolation (two offices, scoped Prisma client)', () => {
   it('should inject the current office on create and reject a foreign one', () =>
     asOffice(a, async () => {
       const created = await prisma.db.notification.create({
-        data: { userId: a.userId, type: 'TEST', titleKey: 'test.title' } as never,
+        data: { userId: a.userId, type: 'TASK_ASSIGNED', titleKey: 'test.title' } as never,
       });
       expect(created.officeId).toBe(a.officeId);
       await expect(
         prisma.db.notification.create({
-          data: { officeId: b.officeId, userId: b.userId, type: 'TEST', titleKey: 't' },
+          data: { officeId: b.officeId, userId: b.userId, type: 'TASK_ASSIGNED', titleKey: 't' },
         }),
       ).rejects.toThrow(TenantViolationError);
     }));
@@ -172,7 +172,9 @@ describe('tenant isolation (two offices, scoped Prisma client)', () => {
         prisma.db.user.update({
           where: { id: a.userId },
           data: {
-            notifications: { create: { officeId: a.officeId, type: 'TEST', titleKey: 't' } },
+            notifications: {
+              create: { officeId: a.officeId, type: 'TASK_ASSIGNED', titleKey: 't' },
+            },
           } as never,
         }),
       ).rejects.toThrow(TenantViolationError);
@@ -234,7 +236,7 @@ describe('tenant isolation (two offices, scoped Prisma client)', () => {
       // Scalar FKs pass the extension; the database refuses a user or rotated token of office B (D-079, D-080).
       await expect(
         prisma.db.notification.create({
-          data: { userId: b.userId, type: 'TEST', titleKey: 't' } as never,
+          data: { userId: b.userId, type: 'TASK_ASSIGNED', titleKey: 't' } as never,
         }),
       ).rejects.toMatchObject({ code: 'P2003' });
       const mine = await prisma.db.refreshToken.create({

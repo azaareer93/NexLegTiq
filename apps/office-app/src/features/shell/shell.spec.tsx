@@ -527,7 +527,7 @@ describe('header', () => {
     SLOW,
   );
 
-  it('should show the notifications slot with its empty state', async () => {
+  it('should show the bell with its empty state', async () => {
     asRole('LAWYER');
     renderApp('/');
     await dashboard();

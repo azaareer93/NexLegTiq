@@ -7,9 +7,8 @@ import { autoSummaryWanted, enqueueAutoSummary } from './extraction/auto-summary
 import { extractable, extractText } from './extraction/extract-text';
 import { ocr, ocrable } from './extraction/ocr';
 import type { OcrResult } from './extraction/ocr';
+import { processedNotification } from './extraction/processed-notification';
 import { visionWithin, weakRead } from './extraction/vision';
-import { QueueProducer } from '../../common/queue/queue-producer';
-import { QUEUE } from '../../common/queue/queues';
 import { RealtimePublisher } from '../../common/realtime/realtime.publisher';
 import { StorageService } from '../../common/storage/storage.service';
 import { AppConfig } from '../../config/app-config';
@@ -18,8 +17,7 @@ import { UnitOfWork } from '../../database/unit-of-work';
 import { Prisma } from '../../generated/prisma/client';
 import type { DocumentType } from '../../generated/prisma/client';
 import { AiJobs } from '../ai/ai-jobs';
-import { CREATE_NOTIFICATION_JOB } from '../notifications/notification-job';
-import type { NotificationJob } from '../notifications/notification-job';
+import { NotificationService } from '../notifications/notification.service';
 import { EntitlementsService } from '../subscriptions/entitlements.service';
 
 /** READY with text, NO_TEXT = READY without (legacy .doc, OCR off), SUPERSEDED = replaced or deleted meanwhile. */
@@ -30,6 +28,7 @@ interface ProcessedVersion {
   readonly document: {
     readonly officeId: string;
     readonly fileId: string;
+    readonly name: string;
     readonly documentType: DocumentType;
   };
 }
@@ -87,11 +86,11 @@ export class DocumentExtraction {
     private readonly uow: UnitOfWork,
     private readonly storage: StorageService,
     private readonly realtime: RealtimePublisher,
-    private readonly queues: QueueProducer,
     private readonly config: AppConfig,
     private readonly logger: PinoLogger,
     private readonly entitlements: EntitlementsService,
     private readonly aiJobs: AiJobs,
+    private readonly notifications: NotificationService,
   ) {
     this.logger.setContext(DocumentExtraction.name);
   }
@@ -110,7 +109,7 @@ export class DocumentExtraction {
         storageKey: true,
         mimeType: true,
         createdById: true,
-        document: { select: { officeId: true, fileId: true, documentType: true } },
+        document: { select: { officeId: true, fileId: true, name: true, documentType: true } },
       },
     });
     if (!version) return 'SUPERSEDED';
@@ -264,6 +263,16 @@ export class DocumentExtraction {
         'realtime document.processed',
       );
       if (!text) return true;
+      // Only when there is text to read: a legacy .doc or a scan with OCR off is READY without any.
+      afterCommit(
+        () =>
+          this.notifications.notify(
+            [version.createdById],
+            processedNotification(job.documentId, document.name, document.fileId),
+            { jobId: `${documentJobId('process', job)}-ready` },
+          ),
+        'notify processed upload',
+      );
       const data = {
         text: text.text,
         pageCount: text.pageCount,
@@ -322,11 +331,9 @@ export class DocumentExtraction {
     });
     if (count === 0) return;
     this.told(version.createdById, job.documentId, version.document.fileId);
-    await this.queues.enqueue<NotificationJob>(
-      QUEUE.NOTIFICATION,
-      CREATE_NOTIFICATION_JOB,
+    await this.notifications.notify(
+      [version.createdById],
       {
-        userId: version.createdById,
         type: 'DOCUMENT_FAILED',
         titleKey: 'shell.notifications.documentFailed',
         params: { documentId: job.documentId, name: version.document.name.slice(0, 500), code },

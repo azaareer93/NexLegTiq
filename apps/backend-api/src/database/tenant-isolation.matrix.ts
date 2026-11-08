@@ -9,6 +9,7 @@ import {
   documentTextIn,
   fileIn,
   folderIn,
+  notificationIn,
   partyIn,
   reminderIn,
   sessionIn,
@@ -128,12 +129,7 @@ export const TENANT_ISOLATION_MATRIX: readonly TenantResource[] = [
       }),
     update: { userAgent: 'changed' },
   },
-  {
-    model: 'Notification',
-    create: (db, { officeId, userId }) =>
-      db.notification.create({ data: { officeId, userId, type: 'TEST', titleKey: 'test.title' } }),
-    update: { readAt: new Date() },
-  },
+  { model: 'Notification', create: notificationIn, update: { readAt: new Date() } },
   {
     model: 'Client',
     create: clientIn,

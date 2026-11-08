@@ -9,6 +9,7 @@ export * from './document.contract.js';
 export * from './fields.js';
 export * from './folder.contract.js';
 export * from './locale.contract.js';
+export * from './notification.contract.js';
 export * from './office.contract.js';
 export * from './party.contract.js';
 export * from './password.contract.js';

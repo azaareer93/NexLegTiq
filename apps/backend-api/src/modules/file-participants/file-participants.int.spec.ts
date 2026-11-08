@@ -217,7 +217,7 @@ describe('file clients and team (HTTP + PostgreSQL)', () => {
         target.id,
       );
       await expect(
-        raw.notification.count({ where: { userId: lawyer.userId, type: 'file.teamAdded' } }),
+        raw.notification.count({ where: { userId: lawyer.userId, type: 'FILE_TEAM_ADDED' } }),
       ).resolves.toBe(1);
 
       await http()
@@ -290,7 +290,7 @@ describe('file clients and team (HTTP + PostgreSQL)', () => {
         'FILE_REASSIGNED',
       );
       await expect(
-        raw.notification.count({ where: { userId: lawyer.userId, type: 'file.reassigned' } }),
+        raw.notification.count({ where: { userId: lawyer.userId, type: 'FILE_REASSIGNED' } }),
       ).resolves.toBe(1);
 
       const removal = await http().delete(`${team}/${lawyer.userId}`).set(as(manager)).expect(422);

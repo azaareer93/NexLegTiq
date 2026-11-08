@@ -29,12 +29,25 @@
   "notifications": {
     "open": "Notifications",
     "empty": "No notifications yet.",
-    "hearingReminder": "Upcoming hearing in file {{fileNumber}}",
-    "fileReassigned": "File {{fileNumber}} is now assigned to you",
+    "hearingReminder": "Upcoming hearing in file ⁨{{fileNumber}}⁩",
+    "fileReassigned": "File ⁨{{fileNumber}}⁩ is now assigned to you",
     "fileTeamAdded": "You were added to the team of file ⁨{{fileNumber}}⁩",
     "documentQuarantined": "⁨{{name}}⁩ was blocked: it contains malware",
     "documentFailed": "The text of ⁨{{name}}⁩ could not be read",
-    "invitationAccepted": "⁨{{name}}⁩ accepted your invitation"
+    "invitationAccepted": "⁨{{name}}⁩ accepted your invitation",
+    "documentProcessed": "The text of ⁨{{name}}⁩ is ready",
+    "markAllRead": "Mark all as read",
+    "markRead": "Mark as read",
+    "viewAll": "See all notifications",
+    "all": "All",
+    "unread": "Unread",
+    "loadMore": "Load more",
+    "emptyUnread": "No unread notifications.",
+    "unreadDot": "Unread",
+    "generic": "You have a new notification",
+    "openWithCount_one": "Notifications, {{count}} unread",
+    "openWithCount_other": "Notifications, {{count}} unread",
+    "markReadOf": "Mark “⁨{{title}}⁩” as read"
   },
   "profile": {
     "menu": "Account menu",

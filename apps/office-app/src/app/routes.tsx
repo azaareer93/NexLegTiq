@@ -4,6 +4,7 @@ import type { RouteObject } from 'react-router';
 import { authRoutes, RequireAuth } from '../features/auth';
 import { casesRoutes } from '../features/cases';
 import { clientsRoutes } from '../features/clients';
+import { notificationsRoutes } from '../features/notifications';
 import { profileRoutes } from '../features/profile';
 import { settingsRoutes } from '../features/settings';
 import {
@@ -64,6 +65,7 @@ export const routes: RouteObject[] = [
                 children: [
                   ...menuRoutes,
                   { path: 'profile', children: profileRoutes },
+                  { path: 'notifications', children: notificationsRoutes },
                   { path: '*', element: <NotFoundPage /> },
                 ],
               },

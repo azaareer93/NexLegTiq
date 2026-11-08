@@ -132,13 +132,13 @@ export class InvitationAcceptService {
         });
         // Those who turned team notifications off in the app are skipped (D-146).
         for (const manager of managers.filter((m) =>
-          wants(m.notificationPrefs, 'invitation.accepted', 'inApp'),
+          wants(m.notificationPrefs, 'INVITE_ACCEPTED', 'inApp'),
         )) {
           const notification = await tx.notification.create({
             data: {
               officeId,
               userId: manager.id,
-              type: 'invitation.accepted',
+              type: 'INVITE_ACCEPTED',
               titleKey: 'shell.notifications.invitationAccepted',
               params: { userId, name: body.fullName },
               link: '/team',

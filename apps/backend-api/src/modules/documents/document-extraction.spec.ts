@@ -24,6 +24,7 @@ import { parseEnv } from '../../config/env.schema';
 import type { PrismaService } from '../../database/prisma.service';
 import type { UnitOfWork } from '../../database/unit-of-work';
 import type { ClientInfo } from '../auth/client-info';
+import { NotificationService } from '../notifications/notification.service';
 import type { EntitlementsService } from '../subscriptions/entitlements.service';
 
 jest.mock('./extraction/ocr', () => ({
@@ -125,7 +126,6 @@ function extractionSetup(overrides: Partial<Setup> = {}) {
     } as unknown as UnitOfWork,
     storage as unknown as StorageService,
     realtime as unknown as RealtimePublisher,
-    queues as unknown as QueueProducer,
     new AppConfig(
       parseEnv(
         testEnv({
@@ -137,6 +137,7 @@ function extractionSetup(overrides: Partial<Setup> = {}) {
     logger as unknown as PinoLogger,
     entitlements as unknown as EntitlementsService,
     aiJobs as unknown as AiJobs,
+    new NotificationService(queues as unknown as QueueProducer),
   );
   return { service, tx, db, realtime, queues, storage, logger, entitlements, aiJobs };
 }
@@ -306,9 +307,9 @@ describe('DocumentExtraction', () => {
     expect(realtime.toUser).toHaveBeenCalledTimes(1);
     expect(queues.enqueue).toHaveBeenCalledWith(
       'notification',
-      'create-notification',
+      'fan-out-notification',
       expect.objectContaining({
-        userId: 'u2',
+        userIds: ['u2'],
         type: 'DOCUMENT_FAILED',
         params: { documentId: JOB.documentId, name: 'Lease.docx', code: 'VAL-005' },
       }),
