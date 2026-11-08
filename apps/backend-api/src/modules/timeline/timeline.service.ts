@@ -1,14 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import { TimelinePageSchema } from '@nexlegtiq/shared-contracts';
-import type { TimelinePage, TimelineQuery } from '@nexlegtiq/shared-contracts';
+import { TimelineEventSchema } from '@nexlegtiq/shared-contracts';
+import type { TimelineEvent, TimelinePage, TimelineQuery } from '@nexlegtiq/shared-contracts';
 import { PORTAL_TIMELINE_EVENT_TYPES } from '@nexlegtiq/shared-types';
 import type { TimelineEventType } from '@nexlegtiq/shared-types';
 import { ClsService } from 'nestjs-cls';
+import { PinoLogger } from 'nestjs-pino';
 
 import type { RequestContext } from '../../common/context/request-context';
 import { PrismaService } from '../../database/prisma.service';
 import type { ScopedTransaction } from '../../database/unit-of-work';
 import type { Prisma } from '../../generated/prisma/client';
+import { DocumentAccessService } from '../documents/document-access.service';
 import { CaseAccessService } from '../legal-files/case-access.service';
 
 /** One event of a file's history (D-150): the text is rendered by the app from its type and `payload`. */
@@ -23,6 +25,8 @@ export interface TimelineEntry {
   /** Who did it; the caller by default, `null` for the system. */
   readonly actorId?: string | null;
 }
+
+const withoutName = ({ name: _name, ...rest }: Prisma.JsonObject): Prisma.JsonObject => rest;
 
 const isObject = (value: Prisma.JsonValue): value is Prisma.JsonObject =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -41,7 +45,11 @@ export class TimelineService {
     private readonly cls: ClsService<RequestContext>,
     private readonly prisma: PrismaService,
     private readonly access: CaseAccessService,
-  ) {}
+    private readonly documents: DocumentAccessService,
+    private readonly logger: PinoLogger,
+  ) {
+    this.logger.setContext(TimelineService.name);
+  }
 
   async record(
     tx: Pick<ScopedTransaction, 'caseTimelineEvent'>,
@@ -74,17 +82,48 @@ export class TimelineService {
       },
     });
     const page = rows.slice(0, limit);
-    return TimelinePageSchema.parse({
-      items: page.map((row) => ({
+    const hidden = await this.hiddenDocuments(page);
+    const items = page.flatMap((row) => {
+      // Payload strings are snapshots: a document made confidential later, or deleted, keeps neither its name nor its
+      // link for readers who may not open it now (D-126, D-150).
+      const payload = isObject(row.payload) ? row.payload : {};
+      const secret =
+        row.sourceType === 'Document' && row.sourceId !== null && hidden.has(row.sourceId);
+      const parsed = TimelineEventSchema.safeParse({
         ...row,
-        // A payload that is not an object (never written so) reads as none instead of failing the page.
-        payload: isObject(row.payload) ? row.payload : {},
+        sourceId: secret ? null : row.sourceId,
+        payload: secret ? withoutName(payload) : payload,
         occurredAt: row.occurredAt.toISOString(),
         portalVisible: PORTAL_TIMELINE_EVENT_TYPES.has(row.eventType),
-      })),
+      });
+      if (parsed.success) return [parsed.data];
+      // A row the contract cannot read is left out (logged), never a 500 for the whole history (as D-149).
+      this.logger.warn({ eventId: row.id }, 'Unreadable timeline event left out');
+      return [] as TimelineEvent[];
+    });
+    return {
+      items,
       nextCursor: rows.length > limit ? (page.at(-1)?.id ?? null) : null,
       names: await this.names(page.map((row) => row.payload)),
+    };
+  }
+
+  /** The documents of the page the caller may not open (confidential, deleted): one query. */
+  private async hiddenDocuments(
+    rows: readonly { sourceType: string | null; sourceId: string | null }[],
+  ): Promise<Set<string>> {
+    const ids = [
+      ...new Set(
+        rows.flatMap((r) => (r.sourceType === 'Document' && r.sourceId ? [r.sourceId] : [])),
+      ),
+    ];
+    if (ids.length === 0) return new Set();
+    const visible = await this.prisma.db.document.findMany({
+      where: { AND: [{ id: { in: ids } }, this.documents.visibleWhere()] },
+      select: { id: true },
     });
+    const seen = new Set(visible.map((d) => d.id));
+    return new Set(ids.filter((id) => !seen.has(id)));
   }
 
   /** Names of the colleagues and clients the page's events mention, by id (one query each). */

@@ -161,7 +161,10 @@ async function openTimeline(locale: 'en' | 'ar' = 'en') {
 
 describe('timeline sentences (D-150)', () => {
   it('should read every event type in both languages, with names, labels and dates', async () => {
-    const format = { dateTime: (value: Date | string | number) => `<${String(value)}>` };
+    const format = {
+      dateTime: (value: Date | string | number) => `<${String(value)}>`,
+      number: (value: number | string) => String(value),
+    };
     for (const locale of ['en', 'ar'] as const) {
       const t = createI18n(locale).t;
       expect(eventSentence(t, format, EVENTS[2] as TimelineEvent, { [CLIENT]: 'Omar' })).toContain(
@@ -170,10 +173,10 @@ describe('timeline sentences (D-150)', () => {
     }
     const t = createI18n('en').t;
     expect(eventSentence(t, format, EVENTS[0] as TimelineEvent, {})).toBe(
-      'Hearing scheduled for <2026-12-01T07:30:00.000Z>',
+      'Hearing scheduled for ⁨<2026-12-01T07:30:00.000Z>⁩',
     );
     expect(eventSentence(t, format, event(9, 'DOCUMENT_UPLOADED', { versionNumber: 2 }), {})).toBe(
-      'Version 2 of ⁨a confidential document⁩ uploaded',
+      'Version 2 of a confidential document uploaded',
     );
     expect(
       eventSentence(
@@ -192,7 +195,7 @@ describe('timeline sentences (D-150)', () => {
       eventSentence(t, format, event(9, 'FILE_REASSIGNED', { fromUserId: 'x', toUserId: LAWYER }), {
         [LAWYER]: 'Sami',
       }),
-    ).toBe('File reassigned from ⁨someone⁩ to ⁨Sami⁩');
+    ).toBe('File reassigned from ⁨a colleague⁩ to ⁨Sami⁩');
     expect(eventSentence(t, format, event(9, 'INVOICE_PAID', {}), {})).toBe('Invoice paid');
   });
 });
@@ -207,9 +210,9 @@ describe('Timeline tab (D-150)', () => {
       expect(within(history).getByText('November 2026')).toBeTruthy();
       expect(within(history).getByText('October 2026')).toBeTruthy();
       expect(within(history).getByText('Client ⁨Omar Khalil⁩ added')).toBeTruthy();
-      expect(within(history).getByText('File ⁨2026-LIT-00007⁩ opened')).toBeTruthy();
-      expect(within(history).getAllByText('Visible to the client')).toHaveLength(2);
-      expect(screen.getByText('No hearing scheduled.')).toBeTruthy();
+      expect(within(history).getByText('File ⁦2026-LIT-00007⁩ opened')).toBeTruthy();
+      expect(within(history).getAllByText('Visible on the client portal')).toHaveLength(2);
+      expect(screen.getByText('No hearing coming up.')).toBeTruthy();
       fireEvent.click(screen.getByTestId(`timeline-open-${EVENTS[1]?.id}`));
       await waitFor(() => expect(router.state.location.search).toBe('?tab=documents'));
     },
@@ -221,9 +224,9 @@ describe('Timeline tab (D-150)', () => {
     async () => {
       const queries = serve([EVENTS.slice(0, 2), EVENTS.slice(2)]);
       await openTimeline();
-      expect(screen.queryByText('File ⁨2026-LIT-00007⁩ opened')).toBeNull();
+      expect(screen.queryByText('File ⁦2026-LIT-00007⁩ opened')).toBeNull();
       fireEvent.click(screen.getByTestId('timeline-more'));
-      expect(await screen.findByText('File ⁨2026-LIT-00007⁩ opened')).toBeTruthy();
+      expect(await screen.findByText('File ⁦2026-LIT-00007⁩ opened')).toBeTruthy();
       expect(queries[1]).toContain(`cursor=${EVENTS[1]?.id}`);
       const filter = screen.getByTestId('timeline-filter');
       fireEvent.mouseDown(filter.querySelector('input') ?? filter);

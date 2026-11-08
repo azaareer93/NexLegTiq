@@ -2643,3 +2643,21 @@ known. A test checks every event type has a sentence in both languages. **Not do
 (Client Portal story), events for close/reopen, sharing, testimonies and invoices (their stories produce them; the
 sentences exist), editing or deleting events (append-only), a per-document link (the documents tab opens; the preview
 drawer has no deep link yet).
+Review additions (same PR): **payload strings are snapshots, filtered when read** — a document made confidential after
+its upload (D-128), or deleted, keeps its event, but readers who may not open it now (`DocumentAccessService.visibleWhere`,
+one query a page) get the event **without the name and without the link** (`sourceId` null); the app then says
+"confidential document" in a sentence of its own. Anything a later story adds that can become hidden afterwards must be
+filtered the same way, and the **portal timeline must re-check at read time** (sharing, the document's current state)
+rather than trust the stored payload, and decide whether staff names are shown to clients. **Reading is lenient** like
+D-149: `eventType` is text in the response and a row the contract cannot read is left out and logged. **Hearing outcomes
+on the portal:** `SESSION_UPDATED` (changes, cancellations and outcomes) is portal-visible as proposed; whether a client
+should see an outcome before their lawyer tells them is the owner's call — one line in `PORTAL_TIMELINE_EVENT_TYPES`, which
+a test now pins. **Texts:** user values are isolated in code (`isolate`, `isolateLtr` for file numbers: bidi controls inside
+are stripped, D-092), so the JSON carries no bidi characters; confidential documents, a reassignment without a previous
+lawyer and an unknown colleague or client have sentences or words of their own; team changes read "added to" / "removed
+from" the team; version numbers follow the reader's digits; event icons are hidden from screen readers. A hearing write from
+the drawer refreshes the timeline; Upcoming shares the next-hearing card's query. **Amends the ticket's key name:** the
+sentences are `timeline.event.<TYPE>` (nested for variants), not `timeline.<TYPE>`. **Not changed:** the recorder and the
+reader stay one global module (the worker gets idle read providers); a cursor naming another file's event only moves the page
+start within this file (nothing leaks); the four queries sit in the service (no repository layer yet); tasks and documents
+open their tab, not the item itself.

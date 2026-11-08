@@ -242,6 +242,15 @@ describe('timeline sentences (D-150)', () => {
       'OUTCOME',
       'UPDATED',
     ]);
-    expect(Object.keys(events.DOCUMENT_UPLOADED as object).sort()).toEqual(['first', 'version']);
+    expect(Object.keys(events.DOCUMENT_UPLOADED as object).sort()).toEqual([
+      'first',
+      'firstConfidential',
+      'version',
+      'versionConfidential',
+    ]);
+    expect(Object.keys(events.DOCUMENT_SHARED as object).sort()).toEqual(['confidential', 'named']);
+    expect(Object.keys(events.FILE_REASSIGNED as object).sort()).toEqual(['fromTo', 'to']);
+    // Names are isolated in code (isolate()), so the texts carry no bidi controls of their own.
+    expect(JSON.stringify(RESOURCES[locale].timeline)).not.toMatch(/[⁦-⁩]/);
   });
 });

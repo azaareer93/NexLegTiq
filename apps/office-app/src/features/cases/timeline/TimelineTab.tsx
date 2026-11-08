@@ -2,6 +2,7 @@ import {
   AuditOutlined,
   CalendarOutlined,
   CheckCircleOutlined,
+  ClockCircleOutlined,
   DollarOutlined,
   FileTextOutlined,
   FolderOpenOutlined,
@@ -24,6 +25,7 @@ import {
   useApiErrorHandler,
   useFormat,
 } from '@nexlegtiq/shared-ui';
+import { isolate } from '@nexlegtiq/shared-utils';
 import { Button, Card, Flex, List, Select, Tag, Timeline, Typography } from 'antd';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -32,7 +34,7 @@ import { eventSentence } from './timeline-text';
 import { useTimeline } from './use-timeline';
 import { useFileSessions } from '../sessions/use-sessions';
 
-const ICONS: Record<TimelineEventType, React.ReactNode> = {
+const ICONS: Readonly<Record<string, React.ReactNode>> = {
   FILE_OPENED: <FolderOpenOutlined />,
   FILE_CLOSED: <FolderOpenOutlined />,
   FILE_REOPENED: <FolderOpenOutlined />,
@@ -101,7 +103,9 @@ function EventItem({
       <Typography.Text>{eventSentence(t, format, event, names)}</Typography.Text>
       <Flex gap={8} wrap align="center">
         <Typography.Text type="secondary">
-          {event.actor ? t('timeline.by', { name: event.actor.fullName }) : t('timeline.bySystem')}
+          {event.actor
+            ? t('timeline.by', { name: isolate(event.actor.fullName) })
+            : t('timeline.bySystem')}
           {t('timeline.separator')}
           <Bdi>{format.dateTime(event.occurredAt)}</Bdi>
         </Typography.Text>
@@ -164,7 +168,8 @@ function History({
           <Timeline
             items={month.events.map((event) => ({
               key: event.id,
-              dot: ICONS[event.eventType],
+              // Decorative: the sentence says what happened (an icon's own label is English).
+              dot: <span aria-hidden>{ICONS[event.eventType] ?? <ClockCircleOutlined />}</span>,
               children: <EventItem event={event} names={names} open={open} />,
             }))}
           />
@@ -193,8 +198,10 @@ function Upcoming({
 }): React.JSX.Element {
   const { t } = useTranslation();
   const format = useFormat();
-  const upcoming = useFileSessions(fileId, { when: 'upcoming', limit: 10 });
-  const ahead = upcoming.data?.items.filter((session) => session.status === 'SCHEDULED') ?? [];
+  // The next-hearing card's query (D-127): one request and one cache for both.
+  const upcoming = useFileSessions(fileId, { when: 'upcoming', limit: 50 });
+  const ahead =
+    upcoming.data?.items.filter((session) => session.status === 'SCHEDULED').slice(0, 10) ?? [];
   return (
     <Card title={t('timeline.upcoming')} data-testid="timeline-upcoming">
       {upcoming.data && ahead.length === 0 ? (
@@ -207,7 +214,7 @@ function Upcoming({
             <List.Item key={session.id}>
               <Button
                 type="link"
-                icon={<CalendarOutlined />}
+                icon={<CalendarOutlined aria-hidden />}
                 onClick={() => onOpen(session.id)}
                 data-testid={`timeline-upcoming-${session.id}`}
               >

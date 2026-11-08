@@ -61,6 +61,8 @@ function useSessionWrite<B>(write: (body: B) => ReturnType<typeof sessions.get>,
     onSuccess: (session) => {
       queryClient.setQueryData(sessionKeys.detail(session.id), session);
       void queryClient.invalidateQueries({ queryKey: sessionKeys.file(fileId) });
+      // Every hearing write adds an event to the file's timeline (D-150).
+      void queryClient.invalidateQueries({ queryKey: ['cases', 'detail', fileId, 'timeline'] });
     },
   });
 }

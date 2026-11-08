@@ -4,11 +4,13 @@ import { JwtService } from '@nestjs/jwt';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import type { Role } from '@nexlegtiq/shared-types';
+import type { OfficeId, Role, UserId } from '@nexlegtiq/shared-types';
 import request from 'supertest';
 
+import { TimelineService } from './timeline.service';
 import { AppModule } from '../../app/app.module';
 import { configureApp } from '../../app/configure-app';
+import { TenantRunner } from '../../common/tenancy/tenant-runner';
 import { integrationEnv } from '../../config/env.fixture';
 import { PrismaService } from '../../database/prisma.service';
 import type { PrismaClient } from '../../generated/prisma/client';
@@ -25,6 +27,7 @@ describe('case timeline (HTTP + PostgreSQL)', () => {
   let manager: Person;
   let lawyer: Person;
   let outsider: Person;
+  let senior: Person;
   let other: Person;
   let fileId: string;
   const officeIds: string[] = [];
@@ -66,6 +69,7 @@ describe('case timeline (HTTP + PostgreSQL)', () => {
     manager = await inA('OFFICE_MANAGER', 'Layla Manager');
     lawyer = await inA('LAWYER', 'Omar Lawyer');
     outsider = await inA('LAWYER', 'Sami Elsewhere');
+    senior = await inA('SENIOR_LAWYER', 'Hana Senior');
     other = await (await office('Timeline office B'))('OFFICE_MANAGER');
     const file = await raw.legalFile.create({
       data: {
@@ -152,5 +156,70 @@ describe('case timeline (HTTP + PostgreSQL)', () => {
     }
     const malformed = await http().get('/api/v1/cases/x/timeline').set(bearerFor(jwt, manager));
     expect(malformed.status).toBe(404);
+  });
+
+  it('should write through TimelineService.record and read the event back', async () => {
+    await app
+      .get(TenantRunner)
+      .run({ officeId: manager.officeId as OfficeId, userId: manager.userId as UserId }, () =>
+        app.get(PrismaService).db.$transaction((tx) =>
+          app.get(TimelineService, { strict: false }).record(tx, {
+            fileId,
+            eventType: 'TASK_COMPLETED',
+            sourceType: 'Task',
+            payload: { title: 'Draft the reply' },
+          }),
+        ),
+      );
+    const page = await timeline(manager, '?types=TASK_COMPLETED');
+    expect(page.body.data.items).toEqual([
+      expect.objectContaining({
+        eventType: 'TASK_COMPLETED',
+        actor: { id: manager.userId, fullName: 'Layla Manager' },
+        payload: { title: 'Draft the reply' },
+      }),
+    ]);
+  });
+
+  it('should hide the name of a document made confidential after its upload from readers who cannot open it', async () => {
+    const document = await raw.document.create({
+      data: {
+        officeId: manager.officeId,
+        fileId,
+        name: 'Settlement offer.pdf',
+        originalFilename: 'Settlement offer.pdf',
+        mimeType: 'application/pdf',
+        sizeBytes: 10n,
+        checksumSha256: 'a'.repeat(64),
+        storageKey: `${manager.officeId}/${fileId}/${randomUUID()}.pdf`,
+        status: 'READY',
+        isConfidential: true,
+        uploadedById: manager.userId,
+      },
+    });
+    // Written while the document was not confidential: the name is in the stored payload.
+    await raw.caseTimelineEvent.create({
+      data: {
+        officeId: manager.officeId,
+        fileId,
+        eventType: 'DOCUMENT_UPLOADED',
+        sourceType: 'Document',
+        sourceId: document.id,
+        actorId: manager.userId,
+        payload: { name: 'Settlement offer.pdf', versionNumber: 1 },
+      },
+    });
+    const query = '?types=DOCUMENT_UPLOADED';
+    const [seen] = (await timeline(manager, query)).body.data.items;
+    expect(seen).toMatchObject({
+      sourceId: document.id,
+      payload: { name: 'Settlement offer.pdf' },
+    });
+    // A senior lawyer sees every file, but not a confidential document they are not on (D-126).
+    const [hidden] = (await timeline(senior, query)).body.data.items;
+    expect(hidden).toMatchObject({ sourceId: null, payload: { versionNumber: 1 } });
+    expect(hidden.payload).not.toHaveProperty('name');
+    await raw.caseTimelineEvent.deleteMany({ where: { sourceId: document.id } });
+    await raw.document.delete({ where: { id: document.id } });
   });
 });

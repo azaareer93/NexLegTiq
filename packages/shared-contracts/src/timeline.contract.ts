@@ -19,7 +19,8 @@ export type TimelineQuery = z.infer<typeof TimelineQuerySchema>;
 /** One event: the app renders `timeline.event.<eventType>` with `payload`; `actor` is null for the system. */
 export const TimelineEventSchema = z.object({
   id: z.uuid(),
-  eventType: z.enum(TIMELINE_EVENT_TYPES),
+  /** One of TIMELINE_EVENT_TYPES; read as text, so a type added by a newer server never breaks the page. */
+  eventType: z.string(),
   sourceType: z.string().nullable(),
   sourceId: z.uuid().nullable(),
   occurredAt: z.iso.datetime(),

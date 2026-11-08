@@ -1,8 +1,10 @@
 import type { ClsService } from 'nestjs-cls';
+import type { PinoLogger } from 'nestjs-pino';
 
 import { TimelineService } from './timeline.service';
 import type { RequestContext } from '../../common/context/request-context';
 import type { PrismaService } from '../../database/prisma.service';
+import type { DocumentAccessService } from '../documents/document-access.service';
 import type { CaseAccessService } from '../legal-files/case-access.service';
 
 const ID = (n: number) => `01920000-0000-7000-8000-${String(n).padStart(12, '0')}`;
@@ -29,6 +31,7 @@ function setup(
         { id: ID(11), fullName: 'Omar' },
       ]),
     },
+    document: { findMany: jest.fn().mockResolvedValue([]) },
     client: {
       findMany: jest.fn().mockResolvedValue([{ id: ID(20), displayName: 'Nour Trading' }]),
     },
@@ -38,6 +41,8 @@ function setup(
     { get: (key: keyof RequestContext) => context[key] } as unknown as ClsService<RequestContext>,
     { db } as unknown as PrismaService,
     access as unknown as CaseAccessService,
+    { visibleWhere: () => ({ visible: true }) } as unknown as DocumentAccessService,
+    { setContext: jest.fn(), warn: jest.fn() } as unknown as PinoLogger,
   );
   return { service, db, access };
 }
@@ -155,5 +160,34 @@ describe('TimelineService (D-150)', () => {
     expect(page.items[0]?.portalVisible).toBe(true);
     expect(db.user.findMany).not.toHaveBeenCalled();
     expect(db.client.findMany).not.toHaveBeenCalled();
+  });
+
+  it('should hide the name and link of a document the reader may not open, and leave out an unreadable row', async () => {
+    const { service, db } = setup();
+    const doc = (n: number) => ({
+      id: ID(n),
+      eventType: 'DOCUMENT_UPLOADED',
+      sourceType: 'Document',
+      sourceId: ID(100 + n),
+      occurredAt: new Date(),
+      payload: { name: `doc-${n}.pdf`, versionNumber: 1 },
+      actor: null,
+    });
+    db.caseTimelineEvent.findMany.mockResolvedValueOnce([
+      doc(1),
+      doc(2),
+      { ...doc(3), id: 'not-a-uuid' },
+    ]);
+    // Only document 101 is still visible to the reader.
+    db.document.findMany.mockResolvedValueOnce([{ id: ID(101) }]);
+    const page = await service.list(FILE, { limit: 20 });
+    expect(db.document.findMany).toHaveBeenCalledWith({
+      where: { AND: [{ id: { in: [ID(101), ID(102), ID(103)] } }, { visible: true }] },
+      select: { id: true },
+    });
+    expect(page.items.map((item) => [item.sourceId, item.payload])).toEqual([
+      [ID(101), { name: 'doc-1.pdf', versionNumber: 1 }],
+      [null, { versionNumber: 1 }],
+    ]);
   });
 });
