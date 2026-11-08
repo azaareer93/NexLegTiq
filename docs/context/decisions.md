@@ -2509,3 +2509,38 @@ them (`scripts/sort-locales.mjs` via lint-staged) and the shared-i18n test fails
 `merge=union` (D-114). **Not done:** `env.schema.ts` refinements still meet at the end of the chain (rare; a later
 change can split them per area). Why: the owner reviews only what needs a human, and parallel tickets stop colliding on
 lines nobody chose.
+
+**D-149 — In-app notifications: types, the fan-out worker, the caller's routes, retention and the bell** · Accepted (MVP-95, 2026-11-08) · Amends D-117, D-146
+MVP-95 left the type names (stored ones were mixed: `task.assigned`, `SESSION_REMINDER`…), which writers go through the
+fan-out, the email part, the cursor and the retention job open. → **Types** are UPPER_SNAKE like every enum value (D-016):
+`NOTIFICATION_TYPES` in shared-types = HEARING_REMINDER, TASK_ASSIGNED, TASK_DUE, DOCUMENT_PROCESSED, DOCUMENT_FAILED,
+DOCUMENT_QUARANTINED, AI_SUMMARY_READY, INVITE_ACCEPTED, FILE_REASSIGNED, FILE_TEAM_ADDED, CONFLICT_DETECTED, CLIENT_UPLOAD;
+a migration renames the rows written before (`SESSION_REMINDER` → HEARING_REMINDER, `task.assigned` → TASK_ASSIGNED,
+`file.reassigned` → FILE_REASSIGNED, `file.teamAdded` → FILE_TEAM_ADDED, `invitation.accepted` → INVITE_ACCEPTED). The
+column stays text (a Prisma enum would need a migration per new type); the job schema and the API contract only accept the
+list. Every type has a preference category (D-146; `CATEGORY_OF_TYPE` is now typed over the list, so a new type cannot be
+forgotten): DOCUMENT_PROCESSED, AI_SUMMARY_READY and CLIENT_UPLOAD join DOCUMENTS, TASK_DUE joins TASKS, CONFLICT_DETECTED
+joins FILES; DOCUMENT_QUARANTINED is always delivered. The text is the row's `titleKey` with its params, so types have no
+labels. TASK_DUE, AI_SUMMARY_READY, CONFLICT_DETECTED and CLIENT_UPLOAD are reserved for the stories that produce them.
+**`NotificationService.notify(userIds, {type, titleKey, params, link}, {jobId?})`** (global `NotificationsModule`, API and
+worker) queues one `notification/fan-out-notification` job (≤ 500 users, duplicates dropped); the worker keeps the
+recipients who want the type in-app (one query), writes their rows with one `createManyAndReturn` (the composite user FK
+keeps them in the job's office) and pushes `notification` (D-129) to each. The hearing reminder (amends D-117), the
+document failure and quarantine messages, and the new **DOCUMENT_PROCESSED** (the version's uploader, when a document turns
+READY; job id per version) use it; the single-user `create-notification` job is gone. Writers that create the row in the
+transaction of their own change — task assignment, file reassignment and team additions, an accepted invitation — keep
+writing it there (atomic with the change). **Email** stays with the features that send one: only hearing reminders have an
+email today (D-146); the fan-out sends none. **API** (`src/modules/notifications`, no permission — everyone reads their own,
+scoped client + `userId`, someone else's or a malformed id → 404 RES-001): `GET /notifications?cursor&unread&limit` (≤ 50,
+default 20) → `{items, nextCursor}` — ids are UUID v7, so id order is creation order and the cursor is the last id of the
+page; `GET /notifications/unread-count` → `{count}`; `POST /notifications/:id/read` → the notification (reading again keeps
+the first time); `POST /notifications/read-all` → `{count}` marked. Marking read works while the office is read-only (D-122:
+a "seen" mark). **Retention:** a daily scheduler on the `notification` queue (`purge-notifications`, 03:30 UTC, a platform job
+— run only when the job carries no office) deletes rows older than **90 days** in every office, read or not; index on
+`created_at`. **Office app** (`features/notifications`): the bell shows the unread count (badge, and in its accessible name
+with Arabic plural forms) and, once opened, the latest ten with "mark all as read" and "see all notifications"; `/notifications`
+lists them all, newest first, 20 at a time with "load more", All / Unread. A notification is opened by its title: it is marked
+read and its link followed; an unread one shows a dot and the word "Unread" (never colour alone). The realtime bridge already
+refreshes `['notifications']` on each `notification` event. Test helpers answer the bell's calls with "nothing" by default.
+**Not done here:** emails for other types, grouping or digests, notification sounds or browser push, the portal's client
+notifications (`clientUserId`, Client Portal story), a page per notification type.

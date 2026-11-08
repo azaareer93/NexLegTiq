@@ -74,7 +74,7 @@ PATCH/DELETE `cases/:id/folders/:folderId` (system folders fixed → 422 BIZ-014
 GET `invoices` · GET/PATCH `invoices/:id` · POST `invoices/:id/send` · POST `invoices/:id/mark-paid` · POST `invoices/:id/void` · GET `invoices/:id/pdf`
 **search**: GET `search?q&type=all|cases|clients|documents|parties|tasks&limit` (grouped)
 **ai**: POST `ai/summaries` `{sourceType, sourceId, language}` → 202 · GET `ai/summaries?sourceType&sourceId` · GET `jobs/:id` · GET `ai/usage` `{used, quota, remaining, resetsAt}` (`use:ai`, D-144)
-**notifications**: GET `notifications` · POST `notifications/:id/read` · POST `notifications/read-all` · GET/PATCH `notifications/preferences` (per category: `inApp`, `email` where one exists; D-146)
+**notifications**: GET `notifications?cursor&unread&limit` (`{items, nextCursor}`, own only) · GET `notifications/unread-count` (`{count}`) · POST `notifications/:id/read` (someone else's → 404) · POST `notifications/read-all` (`{count}`; D-149) · GET/PATCH `notifications/preferences` (per category: `inApp`, `email` where one exists; D-146)
 **dashboard**: GET `dashboard` (role-aware KPIs + upcoming + activity)
 **audit**: GET `audit?entityType&entityId&userId&from&to` · GET `audit/export`
 **portal** (`/api/v1/portal`, portal realm): POST `auth/login|refresh|logout|accept-invite|forgot-password|reset-password` ·
