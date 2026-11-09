@@ -13,9 +13,7 @@
     "recoveryCode": "Recovery code"
   },
   "home": {
-    "empty": "Offices, plans and platform usage will appear here.",
-    "signOut": "Sign out",
-    "title": "Platform administration"
+    "signOut": "Sign out"
   },
   "login": {
     "codeHint": "The 6-digit code from your authenticator app.",
@@ -25,6 +23,82 @@
     "title": "Admin sign-in",
     "useCode": "Use the authenticator code",
     "useRecovery": "Lost access to your phone? Use a recovery code"
+  },
+  "offices": {
+    "actions": {
+      "reactivate": "Reactivate",
+      "suspend": "Suspend"
+    },
+    "back": "Back to offices",
+    "columns": {
+      "ai": "AI this month",
+      "created": "Created",
+      "files": "Cases",
+      "jurisdiction": "Jurisdiction",
+      "lastActivity": "Last activity",
+      "name": "Office",
+      "plan": "Plan",
+      "status": "Status",
+      "storage": "Storage",
+      "users": "Users"
+    },
+    "detail": {
+      "accountType": "Account type",
+      "currency": "Currency",
+      "email": "Email",
+      "phone": "Phone",
+      "profile": "Office profile",
+      "subscriptions": "Subscription history",
+      "timezone": "Time zone",
+      "usage": "Usage"
+    },
+    "empty": {
+      "filteredTitle": "No offices match these filters",
+      "title": "No offices yet"
+    },
+    "filters": {
+      "clear": "Clear filters",
+      "createdFrom": "Created from",
+      "createdTo": "Created to",
+      "jurisdiction": "Jurisdiction",
+      "plan": "Plan code",
+      "search": "Search by office name",
+      "status": "Status"
+    },
+    "mb": "{{value}} MB",
+    "modal": {
+      "reactivate": {
+        "intro": "Users of this office will be able to sign in again.",
+        "ok": "Reactivate",
+        "success": "The office was reactivated.",
+        "title": "Reactivate this office"
+      },
+      "reason": "Reason",
+      "suspend": {
+        "intro": "Nobody in this office will be able to sign in until you reactivate it. The reason is kept in the platform audit log.",
+        "ok": "Suspend",
+        "success": "The office was suspended.",
+        "title": "Suspend this office"
+      }
+    },
+    "none": "—",
+    "notFound": "This office does not exist.",
+    "status": {
+      "ACTIVE": "Active",
+      "SUSPENDED": "Suspended"
+    },
+    "subscriptions": {
+      "end": "Period end",
+      "plan": "Plan",
+      "start": "Period start",
+      "status": "Status",
+      "trialEnds": "Trial ends"
+    },
+    "suspension": {
+      "reason": "Reason",
+      "title": "Suspended since {{date}}"
+    },
+    "title": "Offices"
   },
   "recovery": {
     "continue": "Continue to the admin panel",
