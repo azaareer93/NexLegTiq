@@ -47,6 +47,13 @@ const SUMMARY_SELECT = {
   createdAt: true,
 } as const;
 
+/** Newest first: a regeneration beats the row it replaced, then creation time, then id. */
+const NEWEST: Prisma.AiSummaryOrderByWithRelationInput[] = [
+  { regeneration: 'desc' },
+  { createdAt: 'desc' },
+  { id: 'desc' },
+];
+
 export type SummaryAnswer =
   | { readonly status: 200; readonly summary: AiSummary }
   | { readonly status: 202; readonly accepted: AiJobAccepted };
@@ -109,8 +116,7 @@ export class AiSummariesService {
     const sourceId = query.sourceId ?? '';
     const document = await this.readable(sourceId);
     const rows = await this.latest(sourceId, document.currentVersion);
-    const seen = new Set<string>();
-    return rows.filter((row) => !seen.has(row.language) && seen.add(row.language)).map(present);
+    return rows.map(present);
   }
 
   /** The newest summary per document and language, for the current version of every document the caller may see. */
@@ -118,7 +124,7 @@ export class AiSummariesService {
     await this.files.assertFileAccess(fileId, 'read');
     const documents = await this.prisma.db.document.findMany({
       where: { AND: [{ fileId }, this.documents.visibleWhere()] },
-      select: { id: true, name: true, currentVersion: true },
+      select: { id: true, name: true, currentVersion: true, isConfidential: true },
     });
     if (documents.length === 0) return [];
     const rows = await this.prisma.db.aiSummary.findMany({
@@ -127,24 +133,24 @@ export class AiSummariesService {
         promptVersion: DOCUMENT_SUMMARY_V1.version,
         OR: documents.map((d) => ({ sourceId: d.id, versionNumber: d.currentVersion })),
       },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      // Newest first (a regeneration beats an older row); one per document and language, at most 200.
+      orderBy: NEWEST,
+      distinct: ['sourceId', 'language'],
+      take: 200,
       select: SUMMARY_SELECT,
     });
-    const byId = new Map(documents.map((d) => [d.id, d.name]));
-    const seen = new Set<string>();
-    return rows
-      .filter(
-        (row) =>
-          !seen.has(`${row.sourceId}:${row.language}`) &&
-          seen.add(`${row.sourceId}:${row.language}`),
-      )
-      .slice(0, 200)
-      .map((row) =>
-        AiSummaryListItemSchema.parse({
-          ...present(row),
-          source: { type: 'DOCUMENT', id: row.sourceId, name: byId.get(row.sourceId) },
-        }),
-      );
+    const byId = new Map(documents.map((d) => [d.id, d]));
+    return rows.map((row) =>
+      AiSummaryListItemSchema.parse({
+        ...present(row),
+        source: {
+          type: 'DOCUMENT',
+          id: row.sourceId,
+          name: byId.get(row.sourceId)?.name,
+          isConfidential: byId.get(row.sourceId)?.isConfidential,
+        },
+      }),
+    );
   }
 
   /** A rating of a summary the caller can see (its document is visible, D-126); the comment never enters the audit log. */
@@ -194,8 +200,10 @@ export class AiSummariesService {
         promptVersion: DOCUMENT_SUMMARY_V1.version,
         ...(language ? { language } : {}),
       },
-      orderBy: { createdAt: 'desc' },
-      take: language ? 1 : 10,
+      orderBy: NEWEST,
+      // One row per language, newest (regenerations must not push a language out).
+      distinct: ['language'],
+      take: language ? 1 : 2,
       select: SUMMARY_SELECT,
     });
   }

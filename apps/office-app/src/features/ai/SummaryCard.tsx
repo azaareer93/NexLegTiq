@@ -6,6 +6,7 @@ import { AiDisclaimer, Bdi, useApiErrorHandler, useFormat } from '@nexlegtiq/sha
 import { isolate } from '@nexlegtiq/shared-utils';
 import { App, Button, Card, Flex, Form, Input, List, Modal, Select, Tag, Typography } from 'antd';
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useSummaryFeedback } from './use-ai';
@@ -19,11 +20,19 @@ export interface SummaryCardProps {
   readonly busy: boolean;
   /** Null when the user may not write notes (or the file is archived). */
   readonly onCopyToNote: (() => void) | null;
+  readonly copying: boolean;
 }
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const PLAIN = { unicodeBidi: 'plaintext', textAlign: 'start' } as const;
 
-function Section({ title, items }: { readonly title: string; readonly items: readonly string[] }) {
+function Section({
+  title,
+  items,
+}: {
+  readonly title: string;
+  readonly items: readonly ReactNode[];
+}) {
   if (items.length === 0) return null;
   return (
     <div>
@@ -31,8 +40,8 @@ function Section({ title, items }: { readonly title: string; readonly items: rea
       <List
         size="small"
         split={false}
-        dataSource={[...items]}
-        renderItem={(entry) => <List.Item style={PLAIN}>{entry}</List.Item>}
+        dataSource={items.map((entry, index) => ({ entry, index }))}
+        renderItem={({ entry }) => <List.Item style={PLAIN}>{entry}</List.Item>}
       />
     </div>
   );
@@ -47,7 +56,7 @@ function FeedbackModal({
 }) {
   const { t } = useTranslation();
   const { message } = App.useApp();
-  const { notify } = useApiErrorHandler();
+  const { notify, translateKey } = useApiErrorHandler();
   const feedback = useSummaryFeedback();
   const [form] = Form.useForm<{ reason: AiFeedbackReason; comment?: string }>();
   return (
@@ -55,7 +64,7 @@ function FeedbackModal({
       open
       title={t('aiSummary.feedback.title')}
       onCancel={onClose}
-      okText={t('common.actions.save')}
+      okText={t('aiSummary.feedback.send')}
       cancelText={t('common.actions.cancel')}
       confirmLoading={feedback.isPending}
       onOk={() => form.submit()}
@@ -84,7 +93,7 @@ function FeedbackModal({
         <Form.Item
           name="reason"
           label={t('aiSummary.feedback.reason')}
-          rules={[{ required: true }]}
+          rules={[{ required: true, message: translateKey('validation.required') }]}
         >
           <Select
             data-testid="ai-feedback-reason"
@@ -103,7 +112,7 @@ function FeedbackModal({
 }
 
 /** One AI summary (D-148); the disclaimer is part of the card, never optional (D-057). */
-export function SummaryCard({ item, onRequest, busy, onCopyToNote }: SummaryCardProps) {
+export function SummaryCard({ item, onRequest, busy, onCopyToNote, copying }: SummaryCardProps) {
   const { t } = useTranslation();
   const format = useFormat();
   const [reporting, setReporting] = useState(false);
@@ -129,7 +138,12 @@ export function SummaryCard({ item, onRequest, busy, onCopyToNote }: SummaryCard
         <Section title={t('aiSummary.summary.parties')} items={item.parties} />
         <Section
           title={t('aiSummary.summary.dates')}
-          items={item.dates.map((entry) => `${entry.date}: ${entry.event}`)}
+          items={item.dates.map((entry) => (
+            <>
+              <Bdi>{ISO_DATE.test(entry.date) ? format.date(entry.date) : entry.date}</Bdi>:{' '}
+              {entry.event}
+            </>
+          ))}
         />
         <AiDisclaimer />
         <Flex gap={8} wrap>
@@ -155,6 +169,7 @@ export function SummaryCard({ item, onRequest, busy, onCopyToNote }: SummaryCard
             <Button
               size="small"
               icon={<CopyOutlined aria-hidden />}
+              disabled={copying}
               onClick={onCopyToNote}
               data-testid={`ai-copy-${item.id}`}
             >

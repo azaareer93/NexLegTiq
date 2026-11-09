@@ -2954,3 +2954,10 @@ pending and failed jobs (realtime `ai.job.*` / `document.summary.ready`, D-129, 
 from `GET /ai/usage` and an upgrade hint on AUTH-103; with the office's AI off (AI-005) the tab says so and offers nothing.
 **Known limits:** a pending card lives in the tab's state (leaving mid-job shows the result on the next visit, not the
 progress); session summaries come with their own story; Swagger describes both query forms with the list-item shape.
+Review additions (same PR): **a confidential document's summary is copied into a confidential note** (`source.isConfidential`
+in the list item), and "Copy to note" is offered for it only to the office manager and the file's assigned people — the ones
+who may create confidential notes (D-154) — so a summary never reaches readers who may not open its document (D-126). The
+read-only role has no access to `ai_feedbacks` (migration `ai_feedback_readonly_revoke`, as `db-roles.sql`). Lists take the
+newest per document and language by `regeneration`, then time (`distinct`, capped in the query), so regenerations never push a
+language out. The disclaimer also shows on pending and failed cards; the quota badge uses the user's digits and Arabic plural
+forms. **Accepted:** two forced regenerations at the same instant are both paid and one result is kept (as D-148's races).

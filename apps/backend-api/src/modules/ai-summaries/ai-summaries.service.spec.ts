@@ -102,14 +102,18 @@ describe('AiSummariesService (D-148)', () => {
     });
   });
 
-  it('should list the newest summary per language only', async () => {
-    const other = '01920000-0000-7000-8000-000000000009';
-    const { service } = setup({ rows: [row('EN', DOC), row('AR', other), row('EN', other)] });
+  it('should ask for the newest row per language, regenerations first', async () => {
+    const { service, db } = setup({
+      rows: [row('EN', DOC), row('AR', '01920000-0000-7000-8000-0000000000a2')],
+    });
     const list = await service.list({ sourceType: 'DOCUMENT', sourceId: DOC });
-    expect(list.map((summary) => [summary.language, summary.id])).toEqual([
-      ['EN', DOC],
-      ['AR', other],
-    ]);
+    expect(list.map((summary) => summary.language)).toEqual(['EN', 'AR']);
+    expect(db.aiSummary.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        distinct: ['language'],
+        orderBy: [{ regeneration: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
+      }),
+    );
   });
 
   it('should queue a new job for a forced regeneration even when a summary is stored', async () => {
@@ -138,21 +142,26 @@ describe('AiSummariesService (D-148)', () => {
 
   it('should list the summaries of a file newest per document and language, with the document name', async () => {
     const other = '01920000-0000-7000-8000-000000000009';
-    const { service, assertFileAccess } = setup({
+    const { service, db, assertFileAccess } = setup({
       docs: [
-        { id: DOC, name: 'Claim', currentVersion: 1 },
-        { id: other, name: 'Reply', currentVersion: 1 },
+        { id: DOC, name: 'Claim', currentVersion: 1, isConfidential: true },
+        { id: other, name: 'Reply', currentVersion: 1, isConfidential: false },
       ],
-      rows: [
-        row('EN', DOC),
-        { ...row('EN', 'x1'), id: 'dup' },
-        { ...row('AR', other), sourceId: other },
-      ],
+      rows: [row('EN', DOC), { ...row('AR', other), sourceId: other }],
     });
     const items = await service.list({ fileId: '01920000-0000-7000-8000-000000000002' });
     expect(assertFileAccess).toHaveBeenCalledWith('01920000-0000-7000-8000-000000000002', 'read');
+    expect(db.aiSummary.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        distinct: ['sourceId', 'language'],
+        take: 200,
+        orderBy: [{ regeneration: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
+      }),
+    );
     expect(items).toHaveLength(2);
-    expect(items[0]).toMatchObject({ source: { type: 'DOCUMENT', id: DOC, name: 'Claim' } });
+    expect(items[0]).toMatchObject({
+      source: { type: 'DOCUMENT', id: DOC, name: 'Claim', isConfidential: true },
+    });
     expect(items[1]).toMatchObject({ source: { id: other, name: 'Reply' } });
   });
 

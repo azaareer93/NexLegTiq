@@ -55,7 +55,12 @@ describe('aiApi (D-148)', () => {
         queries.push(new URL(request.url).search);
         return ok(
           queries.length === 1
-            ? [{ ...SUMMARY, source: { type: 'DOCUMENT', id: DOC, name: 'a.pdf' } }]
+            ? [
+                {
+                  ...SUMMARY,
+                  source: { type: 'DOCUMENT', id: DOC, name: 'a.pdf', isConfidential: false },
+                },
+              ]
             : [SUMMARY],
         );
       }),

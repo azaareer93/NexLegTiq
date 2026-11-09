@@ -21,6 +21,7 @@
   "feedback": {
     "comment": "Details (optional)",
     "reason": "What was wrong?",
+    "send": "Send",
     "sent": "Thank you, your report was sent",
     "title": "Report an issue with this summary"
   },
@@ -39,9 +40,11 @@
   "model": "Model: {{model}}",
   "pending": "Preparing the summary of {{name}}…",
   "quota": {
-    "badge": "{{used}} of {{quota}} AI operations used this month",
+    "badge_one": "{{formatted}} of {{quota}} AI operation used this month",
+    "badge_other": "{{formatted}} of {{quota}} AI operations used this month",
     "hint": "Your office has used its AI allowance. Contact us to upgrade your plan.",
-    "unlimited": "{{used}} AI operations used this month"
+    "unlimited_one": "{{formatted}} AI operation used this month",
+    "unlimited_other": "{{formatted}} AI operations used this month"
   },
   "summary": {
     "dates": "Dates",
@@ -49,5 +52,6 @@
     "legalIssues": "Legal issues",
     "parties": "Parties",
     "title": "Summary"
-  }
+  },
+  "unnamedDocument": "the document"
 }

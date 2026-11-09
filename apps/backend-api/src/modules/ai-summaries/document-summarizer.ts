@@ -99,7 +99,7 @@ export class DocumentSummarizer extends BaseAiService implements OnModuleInit {
         // A forced job only reuses its own result (a retry after the row was stored), never an older summary.
         ...(force ? { aiJobId: context.aiJobId } : {}),
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ regeneration: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
       select: { id: true },
     });
     if (existing) return this.reused(existing.id, document, context.userId);
@@ -197,7 +197,7 @@ export class DocumentSummarizer extends BaseAiService implements OnModuleInit {
           language,
           promptVersion,
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ regeneration: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
         select: { id: true },
       });
       this.reused(stored.id, document, context.userId);

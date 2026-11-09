@@ -34,7 +34,7 @@ import { EditCaseDrawer } from '../components/EditCaseDrawer';
 import { LifecycleDialogs } from '../components/LifecycleDialogs';
 import type { LifecycleDialog } from '../components/LifecycleDialogs';
 import { DocumentsTab } from '../documents/DocumentsTab';
-import { fileActions, isAssigned, readTab, visibleTabs } from '../file-page';
+import { canWriteConfidentialNotes, fileActions, readTab, visibleTabs } from '../file-page';
 import type { FileActions } from '../file-page';
 import { NotesTab } from '../notes/NotesTab';
 import { ConflictBanner } from '../parties/ConflictBanner';
@@ -203,12 +203,12 @@ function FileView({
         <NotesTab
           fileId={file.id}
           canWrite={actions.edit}
-          canConfidential={user.role === 'OFFICE_MANAGER' || isAssigned(file, user.id)}
+          canConfidential={canWriteConfidentialNotes(file, user)}
           readOnly={file.status === 'ARCHIVED'}
         />
       );
     }
-    if (key === 'ai') return <AiTab fileId={file.id} canWriteNotes={actions.edit} />;
+    if (key === 'ai') return <AiTab file={file} user={user} canWriteNotes={actions.edit} />;
     return <ComingSoonTab />;
   };
 

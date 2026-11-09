@@ -396,6 +396,35 @@ describe('Document AI summaries (integration)', () => {
     expect(listed.body.data.map((row: { id: string }) => row.id)).toEqual([rows[1]?.id]);
     expect(listed.body.data[0].id).not.toBe(original?.id);
 
+    // Many regenerations of one language never push another language out of the list.
+    const base = {
+      officeId: a2.officeId,
+      sourceType: 'DOCUMENT',
+      sourceId: visible.id,
+      fileId: visible.fileId,
+      versionNumber: 1,
+      summary: 'Extra.',
+      provider: 'fake',
+      model: 'fake-1',
+      promptVersion: 'document-summary.v1',
+      createdById: a2.userId,
+    } as const;
+    await raw.aiSummary.create({ data: { ...base, language: 'AR' } });
+    for (const regeneration of [2, 3, 4]) {
+      await raw.aiSummary.create({ data: { ...base, language: 'EN', regeneration } });
+    }
+    const bothLanguages = await list(a2, visible.id);
+    expect(bothLanguages.body.data.map((row: { language: string }) => row.language).sort()).toEqual(
+      ['AR', 'EN'],
+    );
+    const newest = await raw.aiSummary.findFirstOrThrow({
+      where: { sourceId: visible.id, language: 'EN' },
+      orderBy: { regeneration: 'desc' },
+    });
+    expect(
+      bothLanguages.body.data.find((row: { language: string }) => row.language === 'EN').id,
+    ).toBe(newest.id);
+
     // The hidden document gets a summary from its own people only.
     await raw.aiSummary.create({
       data: {
@@ -419,21 +448,23 @@ describe('Document AI summaries (integration)', () => {
     const mine = await byFile(a2, hidden.fileId);
     expect(mine.status).toBe(200);
     expect(mine.body.data[0]).toMatchObject({
-      source: { type: 'DOCUMENT', id: hidden.id, name: 'Statement of claim' },
+      source: { type: 'DOCUMENT', id: hidden.id, name: 'Statement of claim', isConfidential: true },
     });
     expect((await byFile(senior, hidden.fileId)).status).toBe(200);
     // A document of the file the colleague may not see is left out of the list.
     const seniorView = await byFile(senior, visible.fileId);
-    expect(seniorView.body.data.map((row: { sourceId: string }) => row.sourceId)).toEqual([
-      visible.id,
-    ]);
+    expect(new Set(seniorView.body.data.map((row: { sourceId: string }) => row.sourceId))).toEqual(
+      new Set([visible.id]),
+    );
     const sameFile = await raw.document.update({
       where: { id: hidden.id },
       data: { fileId: visible.fileId },
     });
     expect(sameFile.fileId).toBe(visible.fileId);
     const mixed = await byFile(senior, visible.fileId);
-    expect(mixed.body.data.map((row: { sourceId: string }) => row.sourceId)).toEqual([visible.id]);
+    expect(new Set(mixed.body.data.map((row: { sourceId: string }) => row.sourceId))).toEqual(
+      new Set([visible.id]),
+    );
     expect((await byFile(b1, visible.fileId)).status).toBe(404);
     expect((await byFile(outsider, visible.fileId)).status).toBe(403);
     const both = await request(app.getHttpServer())

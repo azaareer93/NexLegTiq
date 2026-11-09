@@ -94,7 +94,12 @@ export type AiSummary = z.infer<typeof AiSummarySchema>;
 
 /** An item of `GET /ai/summaries?fileId`: the summary plus the document it summarises. */
 export const AiSummaryListItemSchema = AiSummarySchema.extend({
-  source: z.object({ type: z.literal('DOCUMENT'), id: z.uuid(), name: z.string() }),
+  source: z.object({
+    type: z.literal('DOCUMENT'),
+    id: z.uuid(),
+    name: z.string(),
+    isConfidential: z.boolean(),
+  }),
 });
 export type AiSummaryListItem = z.infer<typeof AiSummaryListItemSchema>;
 

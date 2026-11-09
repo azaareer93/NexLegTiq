@@ -1,27 +1,30 @@
 import { casesApi } from '@nexlegtiq/shared-api-client';
-import type { AiSummaryListItem, AiUsageSummary, Document } from '@nexlegtiq/shared-contracts';
+import type { AiSummaryListItem, AiUsageSummary, Case } from '@nexlegtiq/shared-contracts';
 import { isErrorCode } from '@nexlegtiq/shared-types';
+import type { Role } from '@nexlegtiq/shared-types';
 import {
   AiDisclaimer,
   ApiErrorAlert,
-  Bdi,
   EmptyState,
   ErrorState,
   isApiError,
+  useFormat,
   LoadingSkeleton,
   useApiErrorHandler,
 } from '@nexlegtiq/shared-ui';
 import { isolate } from '@nexlegtiq/shared-utils';
 import { useQueryClient } from '@tanstack/react-query';
-import { Alert, App, Button, Card, Flex, Form, Select, Tag } from 'antd';
+import { Alert, App, Button, Card, Flex, Tag } from 'antd';
 import type { TFunction } from 'i18next';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { GeneratePanel } from './GeneratePanel';
 import { SummaryCard } from './SummaryCard';
 import { aiKeys, useAiJob, useAiUsage, useFileSummaries, useRequestSummary } from './use-ai';
 import { apiClient } from '../auth';
 import { useDocuments } from '../cases/documents/use-documents';
+import { canWriteConfidentialNotes } from '../cases/file-page';
 import { noteKeys } from '../cases/notes/use-notes';
 
 const cases = casesApi(apiClient);
@@ -36,7 +39,13 @@ interface Pending {
 const codeOf = (error: unknown): string | undefined => (isApiError(error) ? error.code : undefined);
 
 /** A queued summary: followed by `ai.job.*` events and, as the fallback, by polling; a failure stays until dismissed. */
-function PendingCard({ job, onDone }: { readonly job: Pending; readonly onDone: () => void }) {
+function PendingCard({
+  job,
+  onDone,
+}: {
+  readonly job: Pending;
+  readonly onDone: (jobId: string) => void;
+}) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { data } = useAiJob(job.jobId);
@@ -45,15 +54,16 @@ function PendingCard({ job, onDone }: { readonly job: Pending; readonly onDone: 
     if (!succeeded) return;
     void queryClient.invalidateQueries({ queryKey: aiKeys.summariesAll });
     void queryClient.invalidateQueries({ queryKey: aiKeys.usage });
-    onDone();
-  }, [succeeded, queryClient, onDone]);
+    onDone(job.jobId);
+  }, [succeeded, queryClient, onDone, job.jobId]);
   const name = isolate(job.name);
   if (data?.status === 'FAILED') {
     return (
       <Flex vertical gap={8} data-testid={`ai-failed-${job.jobId}`}>
         <Alert type="error" showIcon title={t('aiSummary.failed.title', { name })} />
         <ApiErrorAlert error={{ code: data.errorCode ?? 'SYS-001' }} />
-        <Button onClick={onDone} data-testid={`ai-dismiss-${job.jobId}`}>
+        <AiDisclaimer />
+        <Button onClick={() => onDone(job.jobId)} data-testid={`ai-dismiss-${job.jobId}`}>
           {t('aiSummary.failed.dismiss')}
         </Button>
       </Flex>
@@ -61,61 +71,10 @@ function PendingCard({ job, onDone }: { readonly job: Pending; readonly onDone: 
   }
   return (
     <Card size="small" data-testid={`ai-pending-${job.jobId}`} aria-busy>
-      <span role="status">{t('aiSummary.pending', { name })}</span>
-    </Card>
-  );
-}
-
-/** Picks a ready document and a language, then asks for the summary. */
-function GeneratePanel({
-  documents,
-  loading,
-  onAsk,
-}: {
-  readonly documents: readonly Document[];
-  readonly loading: boolean;
-  readonly onAsk: (documentId: string, language: Language) => void;
-}) {
-  const { t } = useTranslation();
-  const [documentId, setDocumentId] = useState<string>();
-  const [language, setLanguage] = useState<Language>('AR');
-  return (
-    <Card size="small" title={t('aiSummary.generate.title')} style={{ flex: 1 }}>
-      <Form layout="inline" onFinish={() => documentId && onAsk(documentId, language)}>
-        <Form.Item label={t('aiSummary.generate.document')}>
-          <Select
-            style={{ minInlineSize: 240 }}
-            value={documentId}
-            onChange={setDocumentId}
-            notFoundContent={t('aiSummary.generate.noDocuments')}
-            options={documents.map((d) => ({ value: d.id, label: <Bdi>{d.name}</Bdi> }))}
-            aria-label={t('aiSummary.generate.document')}
-            data-testid="ai-document"
-          />
-        </Form.Item>
-        <Form.Item label={t('aiSummary.generate.language')}>
-          <Select
-            style={{ minInlineSize: 120 }}
-            value={language}
-            onChange={setLanguage}
-            options={(['AR', 'EN'] as const).map((value) => ({
-              value,
-              label: t(`aiSummary.language.${value}`),
-            }))}
-            aria-label={t('aiSummary.generate.language')}
-            data-testid="ai-language"
-          />
-        </Form.Item>
-        <Button
-          type="primary"
-          htmlType="submit"
-          disabled={!documentId}
-          loading={loading}
-          data-testid="ai-generate"
-        >
-          {t('aiSummary.generate.submit')}
-        </Button>
-      </Form>
+      <Flex vertical gap={8}>
+        <span role="status">{t('aiSummary.pending', { name })}</span>
+        <AiDisclaimer />
+      </Flex>
     </Card>
   );
 }
@@ -143,12 +102,20 @@ function noteBody(t: TFunction, item: AiSummaryListItem): string {
 
 function QuotaBadge({ usage }: { readonly usage: AiUsageSummary | undefined }) {
   const { t } = useTranslation();
+  const format = useFormat();
   if (!usage) return null;
   return (
     <Tag data-testid="ai-quota">
       {usage.quota === null
-        ? t('aiSummary.quota.unlimited', { used: usage.used })
-        : t('aiSummary.quota.badge', { used: usage.used, quota: usage.quota })}
+        ? t('aiSummary.quota.unlimited', {
+            count: usage.used,
+            formatted: format.number(usage.used),
+          })
+        : t('aiSummary.quota.badge', {
+            count: usage.used,
+            formatted: format.number(usage.used),
+            quota: format.number(usage.quota),
+          })}
     </Tag>
   );
 }
@@ -156,12 +123,13 @@ function QuotaBadge({ usage }: { readonly usage: AiUsageSummary | undefined }) {
 interface BodyProps {
   readonly fileId: string;
   readonly canWriteNotes: boolean;
+  readonly canConfidential: boolean;
   readonly items: readonly AiSummaryListItem[];
   readonly usage: AiUsageSummary | undefined;
   readonly onOff: () => void;
 }
 
-function AiBody({ fileId, canWriteNotes, items, usage, onOff }: BodyProps) {
+function AiBody({ fileId, canWriteNotes, canConfidential, items, usage, onOff }: BodyProps) {
   const { t } = useTranslation();
   const { message } = App.useApp();
   const { notify } = useApiErrorHandler();
@@ -170,6 +138,11 @@ function AiBody({ fileId, canWriteNotes, items, usage, onOff }: BodyProps) {
   const request = useRequestSummary(fileId);
   const [pending, setPending] = useState<Pending[]>([]);
   const [quotaHit, setQuotaHit] = useState(false);
+  const [copying, setCopying] = useState(false);
+  const drop = useCallback(
+    (jobId: string) => setPending((all) => all.filter((p) => p.jobId !== jobId)),
+    [],
+  );
 
   const names = new Map<string, string>([
     ...(documents.data?.items ?? []).map((d) => [d.id, d.name] as const),
@@ -186,7 +159,10 @@ function AiBody({ fileId, canWriteNotes, items, usage, onOff }: BodyProps) {
             setPending((all) =>
               all.some((p) => p.jobId === answer.jobId)
                 ? all
-                : [...all, { jobId: answer.jobId, name: names.get(id) ?? '' }],
+                : [
+                    ...all,
+                    { jobId: answer.jobId, name: names.get(id) ?? t('aiSummary.unnamedDocument') },
+                  ],
             );
           }
         },
@@ -199,14 +175,24 @@ function AiBody({ fileId, canWriteNotes, items, usage, onOff }: BodyProps) {
       },
     );
 
-  const copy = (item: AiSummaryListItem) =>
+  // A confidential document's summary becomes a confidential note, which only the office manager or the file's people may write (D-154).
+  const mayCopy = (item: AiSummaryListItem) =>
+    canWriteNotes && (canConfidential || !item.source.isConfidential);
+  const copy = (item: AiSummaryListItem) => {
+    setCopying(true);
     cases
-      .addNote(fileId, { body: noteBody(t, item), isConfidential: false, pinned: false })
+      .addNote(fileId, {
+        body: noteBody(t, item),
+        isConfidential: item.source.isConfidential,
+        pinned: false,
+      })
       .then(() => {
         void queryClient.invalidateQueries({ queryKey: noteKeys.file(fileId) });
         void message.success(t('aiSummary.copy.done'));
       })
-      .catch(notify);
+      .catch(notify)
+      .finally(() => setCopying(false));
+  };
 
   return (
     <Flex vertical gap={16} data-testid="ai-tab">
@@ -222,11 +208,7 @@ function AiBody({ fileId, canWriteNotes, items, usage, onOff }: BodyProps) {
         <Alert type="warning" showIcon title={t('aiSummary.quota.hint')} data-testid="ai-upgrade" />
       ) : null}
       {pending.map((job) => (
-        <PendingCard
-          key={job.jobId}
-          job={job}
-          onDone={() => setPending((all) => all.filter((p) => p.jobId !== job.jobId))}
-        />
+        <PendingCard key={job.jobId} job={job} onDone={drop} />
       ))}
       {items.length === 0 && pending.length === 0 ? (
         <>
@@ -243,7 +225,8 @@ function AiBody({ fileId, canWriteNotes, items, usage, onOff }: BodyProps) {
             item={item}
             busy={request.isPending}
             onRequest={(lang, force) => ask(item.source.id, lang, force)}
-            onCopyToNote={canWriteNotes ? () => void copy(item) : null}
+            onCopyToNote={mayCopy(item) ? () => copy(item) : null}
+            copying={copying}
           />
         ))
       )}
@@ -253,13 +236,17 @@ function AiBody({ fileId, canWriteNotes, items, usage, onOff }: BodyProps) {
 
 /** The file's AI tab (D-148): summaries of its documents, a picker to summarise another, quota and states. */
 export function AiTab({
-  fileId,
+  file,
+  user,
   canWriteNotes,
 }: {
-  readonly fileId: string;
+  readonly file: Case;
+  readonly user: { readonly id: string; readonly role: Role };
   /** Edit rights on a file that is not archived: copying a summary into a note writes one. */
   readonly canWriteNotes: boolean;
 }) {
+  const fileId = file.id;
+  const canConfidential = canWriteConfidentialNotes(file, user);
   const { t } = useTranslation();
   const usage = useAiUsage();
   const summaries = useFileSummaries(fileId);
@@ -283,6 +270,7 @@ export function AiTab({
     <AiBody
       fileId={fileId}
       canWriteNotes={canWriteNotes}
+      canConfidential={canConfidential}
       items={summaries.data}
       usage={usage.data}
       onOff={() => setOff(true)}

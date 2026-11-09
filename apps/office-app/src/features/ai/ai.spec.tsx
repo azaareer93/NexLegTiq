@@ -1,5 +1,6 @@
 import type { AiSummaryListItem, Case, Document } from '@nexlegtiq/shared-contracts';
 import { permissionsFor } from '@nexlegtiq/shared-types';
+import type { Role } from '@nexlegtiq/shared-types';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import axe from 'axe-core';
 import { HttpResponse } from 'msw';
@@ -112,7 +113,7 @@ const summary = (n: number, extra: Partial<AiSummaryListItem> = {}): AiSummaryLi
   promptVersion: 'document-summary.v1',
   chunks: 1,
   createdAt: '2026-11-09T09:00:00.000Z',
-  source: { type: 'DOCUMENT', id: DOC_ID, name: 'Lease.pdf' },
+  source: { type: 'DOCUMENT', id: DOC_ID, name: 'Lease.pdf', isConfidential: false },
   ...extra,
 });
 
@@ -165,19 +166,19 @@ function serve(state: { items: AiSummaryListItem[] }) {
   return { posted, notes, feedback };
 }
 
-function signIn(locale: 'en' | 'ar') {
+function signIn(locale: 'en' | 'ar', role: Role = 'OFFICE_MANAGER') {
   setViewport(1280);
   signedIn({
     id: USER.id,
-    role: 'OFFICE_MANAGER',
+    role,
     uiLanguage: locale === 'ar' ? 'AR' : 'EN',
-    permissions: [...permissionsFor('OFFICE_MANAGER')],
+    permissions: [...permissionsFor(role)],
   });
   renderApp(`/cases/${ID}?tab=ai`, locale);
 }
 
-async function openAi(locale: 'en' | 'ar' = 'en') {
-  signIn(locale);
+async function openAi(locale: 'en' | 'ar' = 'en', role: Role = 'OFFICE_MANAGER') {
+  signIn(locale, role);
   return screen.findByTestId('ai-tab', {}, { timeout: COLD });
 }
 
@@ -246,9 +247,12 @@ describe('AI tab (D-148)', () => {
       const tab = await openAi();
       await pickDocument(tab);
       fireEvent.click(within(tab).getByTestId('ai-generate'));
-      expect(
-        await within(tab).findByTestId(`ai-pending-${JOB}`, {}, { timeout: COLD }),
-      ).toBeTruthy();
+      const pendingCard = await within(tab).findByTestId(
+        `ai-pending-${JOB}`,
+        {},
+        { timeout: COLD },
+      );
+      expect(within(pendingCard).getByTestId('ai-disclaimer')).toBeTruthy();
       expect(calls.posted[0]).toMatchObject({ sourceId: DOC_ID, language: 'AR', force: false });
 
       done = true;
@@ -276,6 +280,7 @@ describe('AI tab (D-148)', () => {
       );
       const failed = await within(tab).findByTestId(`ai-failed-${JOB}`, {}, { timeout: COLD });
       expect(within(failed).getAllByRole('alert').length).toBeGreaterThan(0);
+      expect(within(failed).getByTestId('ai-disclaimer')).toBeTruthy();
       expect(calls.posted[0]).toMatchObject({ force: true, language: 'EN', sourceId: DOC_ID });
       fireEvent.click(within(failed).getByTestId(`ai-dismiss-${JOB}`));
       await waitFor(() => expect(within(tab).queryByTestId(`ai-failed-${JOB}`)).toBeNull());
@@ -344,6 +349,64 @@ describe('AI tab (D-148)', () => {
       await pickDocument(tab);
       fireEvent.click(within(tab).getByTestId('ai-generate'));
       expect(await within(tab).findByTestId('ai-upgrade', {}, { timeout: COLD })).toBeTruthy();
+    },
+    SLOW,
+  );
+
+  it(
+    'should copy the summary of a confidential document as a confidential note',
+    async () => {
+      const confidential = summary(1, {
+        source: { type: 'DOCUMENT', id: DOC_ID, name: 'Lease.pdf', isConfidential: true },
+      });
+      const calls = serve({ items: [confidential] });
+      const tab = await openAi();
+      fireEvent.click(
+        await within(tab).findByTestId(`ai-copy-${confidential.id}`, {}, { timeout: COLD }),
+      );
+      await waitFor(() => expect(calls.notes).toHaveLength(1));
+      expect(calls.notes[0]).toMatchObject({ isConfidential: true });
+    },
+    SLOW,
+  );
+
+  it(
+    'should hide copy-to-note for a confidential summary when the user may not write confidential notes',
+    async () => {
+      const confidential = summary(1, {
+        source: { type: 'DOCUMENT', id: DOC_ID, name: 'Lease.pdf', isConfidential: true },
+      });
+      const open = summary(2);
+      serve({ items: [confidential, open] });
+      const tab = await openAi('en', 'SENIOR_LAWYER');
+      await within(tab).findByTestId(`ai-report-${confidential.id}`, {}, { timeout: COLD });
+      expect(within(tab).queryByTestId(`ai-copy-${confidential.id}`)).toBeNull();
+      expect(within(tab).getByTestId(`ai-copy-${open.id}`)).toBeTruthy();
+    },
+    SLOW,
+  );
+
+  it(
+    'should offer no copy-to-note without edit rights on the file',
+    async () => {
+      serve({ items: [summary(1)] });
+      const tab = await openAi('en', 'LAWYER');
+      await within(tab).findByTestId(`ai-report-${summary(1).id}`, {}, { timeout: COLD });
+      expect(within(tab).queryByTestId(`ai-copy-${summary(1).id}`)).toBeNull();
+    },
+    SLOW,
+  );
+
+  it(
+    'should explain a missing feedback reason in the user language',
+    async () => {
+      serve({ items: [summary(1)] });
+      const tab = await openAi('ar');
+      fireEvent.click(
+        await within(tab).findByTestId(`ai-report-${summary(1).id}`, {}, { timeout: COLD }),
+      );
+      fireEvent.click(await screen.findByTestId('ai-feedback-submit'));
+      expect(await screen.findByText('هذا الحقل مطلوب.')).toBeTruthy();
     },
     SLOW,
   );
