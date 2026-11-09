@@ -81,7 +81,7 @@ describe('PortalSessions (D-157)', () => {
 
     const all = setup(null);
     await all.sessions.endAll('c1', NOW);
-    await all.sessions.endAll('c1', NOW, { clientSession: all.table });
+    await all.sessions.endAll('c1', NOW, { clientSession: all.table } as never);
     expect(all.table.updateMany).toHaveBeenCalledTimes(2);
 
     expect(await setup(live).sessions.live('f1', NOW)).toBe(true);
