@@ -35,6 +35,7 @@ import type { LifecycleDialog } from '../components/LifecycleDialogs';
 import { DocumentsTab } from '../documents/DocumentsTab';
 import { fileActions, readTab, visibleTabs } from '../file-page';
 import type { FileActions } from '../file-page';
+import { NotesTab } from '../notes/NotesTab';
 import { ConflictBanner } from '../parties/ConflictBanner';
 import { PartiesTab } from '../parties/PartiesTab';
 import { useHearingShortcut, useSessionRights } from '../sessions/session-rights';
@@ -195,6 +196,11 @@ function FileView({
     }
     if (key === 'timeline') {
       return <TimelineTab fileId={file.id} onOpenHearing={setHearing} onOpenTab={selectTab} />;
+    }
+    if (key === 'notes') {
+      return (
+        <NotesTab fileId={file.id} canWrite={actions.edit} readOnly={file.status === 'ARCHIVED'} />
+      );
     }
     return <ComingSoonTab />;
   };
