@@ -2931,3 +2931,26 @@ authenticator (admin-panel story, D-145). The unused `me()` was dropped from `ad
 the next tick (Firefox/Safari) and a missing clipboard API is reported as a failed copy. **Not done:** sign-out is not
 broadcast to other tabs (the server checks the session on every request, D-145); a reload restarts the client idle timer
 (the server's 30-minute limit still applies).
+
+**D-161 — AI tab: summaries of a file, regenerate, feedback and the quota badge** · Accepted (MVP-88, 2026-11-10) · Amends D-148
+MVP-88 needed a file-wide summary list, a "regenerate" that D-148's stored-summary shortcut prevented, and somewhere to keep
+"report issue" feedback. → **API** (`src/modules/ai-summaries`, `use:ai`): `GET /ai/summaries?fileId=` — the newest summary
+per document and language of the current version of every live document of the file the caller may see (D-126; an invisible
+file is 404), each with `source {type, id, name}`, newest first, at most 200; exactly one of the two query forms (`fileId`, or
+`sourceType` + `sourceId`), else 400 `validation.summaryQuery`. **Regenerate (amends D-148):** `POST /ai/summaries` takes
+`force: true` to skip the stored-summary shortcut and queue a new job — it counts against the quota (the first part is the
+counted call); a running job of the same key is still joined (dedupe). `ai_summaries` gains `regeneration` (default 0) in its
+unique key: a forced job inserts the next number and reads take the newest, so a regeneration never deletes the earlier row
+(feedback on it stays) and UPDATE stays revoked. A forced job does not read the cached part-notes of earlier jobs (its cache key
+carries the job id; its own retries share them). **Feedback:** tenant model `AiFeedback` (summary and user by composite FKs,
+`reason` = `AI_FEEDBACK_REASONS` INACCURATE | MISSING_INFO | WRONG_LANGUAGE | PII_LEAK | OTHER with AR/EN labels, optional
+comment ≤ 1000 plain text, append-only), `POST /ai/summaries/:id/feedback` → 201 `{id}` for a summary the caller may see (404
+otherwise); audited with `hasComment`, never the comment. Migration `ai_feedback_and_regeneration` (grants in `db-roles.sql`).
+**Office app** `?tab=ai` (`features/ai`, namespace `aiSummary` — `ai` would clash with the `common.ai` disclaimer keys): the
+file's summaries as cards (summary, key facts, legal issues, parties, dates, model and time, `<AiDisclaimer />` on every card and
+on the empty state), generate for a READY document in Arabic or English, the other language from a card, Regenerate, Report
+issue (reason + comment), Copy to note (a plain, non-confidential file note, D-154; only for those who may edit the file);
+pending and failed jobs (realtime `ai.job.*` / `document.summary.ready`, D-129, with a 5 s polling fallback); the quota badge
+from `GET /ai/usage` and an upgrade hint on AUTH-103; with the office's AI off (AI-005) the tab says so and offers nothing.
+**Known limits:** a pending card lives in the tab's state (leaving mid-job shows the result on the next visit, not the
+progress); session summaries come with their own story; Swagger describes both query forms with the list-item shape.

@@ -57,6 +57,7 @@
   "sessionNotHeld": "The outcome can be recorded once the hearing has started.",
   "sessionTooLong": "A hearing can last at most 24 hours.",
   "sort": "This sort order is not supported.",
+  "summaryQuery": "Give either a document or a case file, not both.",
   "taskColumn": "All the tasks must be in the chosen column.",
   "teamMember": "Choose an active colleague from your office.",
   "timeZone": "Choose a valid time zone.",

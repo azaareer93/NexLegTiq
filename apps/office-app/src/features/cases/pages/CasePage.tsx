@@ -22,6 +22,7 @@ import { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 
+import { AiTab } from '../../ai';
 import { useSession } from '../../auth';
 import { NotFoundPage } from '../../shell/components/status-pages';
 import { TasksView } from '../../tasks';
@@ -207,6 +208,7 @@ function FileView({
         />
       );
     }
+    if (key === 'ai') return <AiTab fileId={file.id} canWriteNotes={actions.edit} />;
     return <ComingSoonTab />;
   };
 

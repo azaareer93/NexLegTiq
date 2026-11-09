@@ -1,0 +1,53 @@
+{
+  "actions": {
+    "copyToNote": "Copy to note",
+    "regenerate": "Regenerate",
+    "reportIssue": "Report an issue",
+    "switchTo": "Generate in {{language}}"
+  },
+  "copy": {
+    "done": "Summary copied to the case notes",
+    "heading": "AI summary of {{name}} ({{language}})"
+  },
+  "disabled": "AI is turned off for this office.",
+  "empty": {
+    "description": "Pick a ready document above to summarise it.",
+    "title": "No summaries yet"
+  },
+  "failed": {
+    "dismiss": "Dismiss",
+    "title": "The summary of {{name}} could not be prepared"
+  },
+  "feedback": {
+    "comment": "Details (optional)",
+    "reason": "What was wrong?",
+    "sent": "Thank you, your report was sent",
+    "title": "Report an issue with this summary"
+  },
+  "generate": {
+    "document": "Document",
+    "language": "Summary language",
+    "noDocuments": "There are no ready documents to summarise yet.",
+    "submit": "Summarise",
+    "title": "Summarise a document"
+  },
+  "generatedAt": "Generated {{date}}",
+  "language": {
+    "AR": "Arabic",
+    "EN": "English"
+  },
+  "model": "Model: {{model}}",
+  "pending": "Preparing the summary of {{name}}…",
+  "quota": {
+    "badge": "{{used}} of {{quota}} AI operations used this month",
+    "hint": "Your office has used its AI allowance. Contact us to upgrade your plan.",
+    "unlimited": "{{used}} AI operations used this month"
+  },
+  "summary": {
+    "dates": "Dates",
+    "keyFacts": "Key facts",
+    "legalIssues": "Legal issues",
+    "parties": "Parties",
+    "title": "Summary"
+  }
+}
