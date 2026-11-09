@@ -21,6 +21,7 @@ export type {
   ClientSession,
   CourtListParams,
   FileSessionsParams,
+  SessionCalendarParams,
 } from './resources.js';
 export { documentsApi, foldersApi } from './documents.js';
 export type { DocumentListParams, UploadInput, VersionInput } from './documents.js';
