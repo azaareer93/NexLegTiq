@@ -69,7 +69,7 @@ GET `cases/:id/documents?folderId|root&documentType&status&search&sort&page&limi
 `{downloadUrl, expiresIn: 300}` · POST `documents/:id/versions` (multipart: changeNote?, file → 202, D-126) · GET `documents/:id/versions` (newest first, D-126) · GET `documents/:id/text` ·
 POST `documents/:id/share` / `unshare` · POST `documents/:id/ocr/retry` (FAILED only → 202, else 422 BIZ-016; D-132) · GET/POST `cases/:id/folders`,
 PATCH/DELETE `cases/:id/folders/:folderId` (system folders fixed → 422 BIZ-014; non-empty → 422 BIZ-013) — D-119
-**tasks**: CRUD `tasks` (`?fileId, assignee=me|<userId>, status, priority, dueFrom, dueBefore, overdue`, page/limit) · PATCH `tasks/:id/status` · PATCH `tasks/reorder` (204) · POST `tasks/bulk-assign` (200 `{updated}`) — D-098
+**tasks**: CRUD `tasks` (`?fileId, assignee=me|<userId>, status, priority, dueFrom, dueBefore, overdue`, page/limit) · PATCH `tasks/:id/status` · PATCH `tasks/reorder` (204) · CRUD `task-templates` (`manage:office`; applied to new files, D-156) · POST `tasks/bulk-assign` (200 `{updated}`) — D-098
 **billing**: CRUD `time-entries` · POST `time-entries/timer/start|stop` · POST `invoices` (from time entries, `fileId?` null=consolidated) ·
 GET `invoices` · GET/PATCH `invoices/:id` · POST `invoices/:id/send` · POST `invoices/:id/mark-paid` · POST `invoices/:id/void` · GET `invoices/:id/pdf`
 **search**: GET `search?q&type=all|cases|clients|documents|parties|tasks&limit` (grouped)
