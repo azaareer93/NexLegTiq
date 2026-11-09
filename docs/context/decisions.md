@@ -2661,3 +2661,27 @@ sentences are `timeline.event.<TYPE>` (nested for variants), not `timeline.<TYPE
 reader stay one global module (the worker gets idle read providers); a cursor naming another file's event only moves the page
 start within this file (nothing leaks); the four queries sit in the service (no repository layer yet); tasks and documents
 open their tab, not the item itself.
+
+**D-151 — Dashboard: what "my" means, the cards, no cache yet** · Accepted (MVP-96, 2026-11-09)
+MVP-96 left open whose numbers each card counts, what "documents needing review" means (no document has a review state)
+and asked for a 60 s Redis cache. → **`GET /dashboard`** (`src/modules/dashboard`, ANY of `view:all|assigned:cases`, every
+office role) answers for the caller; **"my files" are the files they are assigned to** (D-051: responsible lawyer,
+responsible paralegal, team member), also for roles that see every file — an office manager's "my cases" is their own
+work, the office view is the team card. Dates are the office's (D-092). Cards: **open cases** (OPEN or SUSPENDED, live) and
+how many opened in the last 7 days (opening date); **today's hearings** — not cancelled, ones the caller attends or that
+sit on their files, on files they can see — and `nextHearingId` for one starting within the hour; **overdue tasks**
+assigned to the caller (not DONE, due before today, personal or on a live file); **new documents** = documents others
+uploaded to the caller's files in the last 7 days that the caller may open (D-126) — "needing review" read as "new to me";
+**new clients this month** (office-wide, only with `manage:clients`, else null); **deadlines** = hearings and tasks of the
+next 7 days in date order (≤ 20); **recent activity** = the latest 20 timeline events of the caller's files with each
+event's file, read through `TimelineService.recent`, so the D-150 read-time filter (confidential documents) applies.
+**Office manager and senior lawyers** also get `team`: per active OM/SL/L the live open files they are responsible for and
+the overdue tasks assigned to them, and the office's hearings of the next 7 days — **counts only, confidential files
+included** (as client file counts, D-108). **Deviation — no cache:** the ticket's `o:{officeId}:dashboard:{userId}` 60 s
+cache with event invalidation is not built (D-096: nothing caches yet; the page is a dozen indexed counts and short lists,
+measured in the integration test's fixtures, not under load) — add it with the load test (MVP-117) if p95 asks for it.
+**Office app:** `/` replaces the placeholder — greeting with the office's date, KPI cards linking to cases (`scope=mine`),
+calendar, tasks, documents and clients, today's hearings (the one within the hour tagged), the 7-day list, recent activity
+in the timeline's sentences (`eventSentence`, D-150) and the team table; a new office (no open files, no activity) with
+`create:case` gets "start with your first case", which opens the quick-create modal. Phones stack the cards in one column.
+**Not done:** Hijri date (ticket: later), finance cards (their own story), a realtime refresh (the page refetches on focus).

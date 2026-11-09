@@ -4,6 +4,7 @@ import type { RouteObject } from 'react-router';
 import { authRoutes, RequireAuth } from '../features/auth';
 import { casesRoutes } from '../features/cases';
 import { clientsRoutes } from '../features/clients';
+import { dashboardRoutes } from '../features/dashboard';
 import { notificationsRoutes } from '../features/notifications';
 import { profileRoutes } from '../features/profile';
 import { settingsRoutes } from '../features/settings';
@@ -30,6 +31,7 @@ const placeholder = (navKey: NavKey): Pick<RouteObject, 'lazy'> => ({
 const FEATURE_ROUTES: Partial<Record<NavKey, RouteObject[]>> = {
   cases: casesRoutes,
   clients: clientsRoutes,
+  dashboard: dashboardRoutes,
   settings: settingsRoutes,
   tasks: tasksRoutes,
   team: teamRoutes,

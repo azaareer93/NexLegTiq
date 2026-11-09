@@ -1,0 +1,39 @@
+{
+  "greeting": "Welcome, {{name}}",
+  "kpi": {
+    "openFiles": "My open cases",
+    "openedThisWeek_one": "{{count}} opened this week",
+    "openedThisWeek_other": "{{count}} opened this week",
+    "todayHearings": "Hearings today",
+    "overdueTasks": "Overdue tasks",
+    "newDocuments": "New documents (7 days)",
+    "newClients": "New clients this month",
+    "hearingsThisWeek": "Office hearings (7 days)"
+  },
+  "today": {
+    "title": "Today's hearings",
+    "empty": "No hearings today.",
+    "soon": "Within the hour"
+  },
+  "deadlines": {
+    "title": "Next 7 days",
+    "empty": "Nothing due in the next 7 days.",
+    "task": "Task",
+    "personal": "Personal task"
+  },
+  "activity": {
+    "title": "Recent activity on my cases",
+    "empty": "No activity on your cases yet."
+  },
+  "team": {
+    "title": "Team workload",
+    "lawyer": "Lawyer",
+    "openFiles": "Open cases",
+    "overdueTasks": "Overdue tasks"
+  },
+  "start": {
+    "title": "Start with your first case",
+    "description": "Open a case to see its hearings, tasks and documents here.",
+    "action": "New case"
+  }
+}
