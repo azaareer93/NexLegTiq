@@ -2865,3 +2865,15 @@ reused. **Shortcut:** `forms.ts` (`zodRule`, `parseForm`) and the test `media.ts
 shared-ui when a third app needs them. **Not done:** a Cypress journey (E2E story), resetting an authenticator or changing an
 admin's password (admin-panel stories, D-145). Why: the founder can sign in to the admin realm with no secret kept anywhere
 but memory, and the recovery codes cannot be skipped by accident.
+Review additions (same PR): **keep-alive** — the server ends an admin session 30 minutes after its last refresh (D-145),
+while the client only refreshes when a request finds its 15-minute token expired, so an admin working on a page without
+requests was signed out mid-work: the idle timer now refreshes the session once the last refresh is 10 minutes old and the
+admin is active (a refusal ends it as "expired"). **Start-up errors keep their code:** a failure that is not a refusal
+(401/AUTH-006), e.g. 403 AUTH-100 from `ADMIN_IP_ALLOWLIST`, shows its own message and reference, not "unreachable".
+**Abandoned enrolment:** the sign-in page drops any pending password and token when it opens (back button, a link, a
+timeout), the secret query has `gcTime: 0`, and the enrolment and recovery-code screens run the idle timeout too. **Recovery
+codes** live only in that screen's state: a reload before "Continue" loses them, and the only remedy is resetting the
+authenticator (admin-panel story, D-145). The unused `me()` was dropped from `adminAuthApi`; the download link is revoked on
+the next tick (Firefox/Safari) and a missing clipboard API is reported as a failed copy. **Not done:** sign-out is not
+broadcast to other tabs (the server checks the session on every request, D-145); a reload restarts the client idle timer
+(the server's 30-minute limit still applies).

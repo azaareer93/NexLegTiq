@@ -4,7 +4,7 @@ import type { AdminLoginRequest } from '@nexlegtiq/shared-contracts';
 import { ApiErrorAlert, useApiErrorHandler } from '@nexlegtiq/shared-ui';
 import { useMutation } from '@tanstack/react-query';
 import { Alert, Button, Flex, Form, Input } from 'antd';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router';
 
@@ -39,6 +39,11 @@ export function LoginPage(): React.JSX.Element {
   const [useRecovery, setUseRecovery] = useState(false);
   const reason = params.get('reason');
 
+  // Back here from an abandoned enrolment (back button, a link, a timeout): drop its password and any token it left.
+  useEffect(() => {
+    useAdminSession.setState({ pendingEnrollment: null, accessToken: null });
+  }, []);
+
   const login = useMutation({
     gcTime: 0,
     mutationFn: (body: AdminLoginRequest) => adminAuth.login(body),
@@ -50,6 +55,7 @@ export function LoginPage(): React.JSX.Element {
       if (needsEnrollment(error)) {
         useAdminSession.setState({
           pendingEnrollment: { email: body.email, password: body.password },
+          signOutReason: null,
         });
         void navigate('/enroll');
         return;

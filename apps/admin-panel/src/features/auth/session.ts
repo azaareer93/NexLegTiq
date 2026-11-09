@@ -21,6 +21,8 @@ export interface AdminSessionState {
    * here in memory, never in the URL or `history.state` (which browsers keep in their session history).
    */
   readonly pendingEnrollment: { readonly email: string; readonly password: string } | null;
+  /** Why the start-up restore failed when it was not a refusal (`status: 'error'`): shown with its code and reference. */
+  readonly startupError: ApiError | null;
 }
 
 const INITIAL: AdminSessionState = {
@@ -29,6 +31,7 @@ const INITIAL: AdminSessionState = {
   accessToken: null,
   signOutReason: null,
   pendingEnrollment: null,
+  startupError: null,
 };
 
 export const useAdminSession = create<AdminSessionState>()(() => INITIAL);
@@ -52,13 +55,34 @@ export const apiClient = createApiClient({
 });
 export const adminAuth = adminAuthApi(apiClient);
 
+/**
+ * The server ends a session 30 minutes after its last refresh (D-145), while the client refreshes only when a request
+ * finds its 15-minute token expired: an admin reading a page without making requests would be signed out mid-work. The
+ * idle timer therefore keeps the session alive while the admin is active (`keepAlive`).
+ */
+export const KEEPALIVE_MS = 10 * 60_000;
+let lastRefreshAt = 0;
+
 export function startSession(session: AdminClientSession): void {
+  lastRefreshAt = Date.now();
   useAdminSession.setState({
     status: 'authenticated',
     admin: session.admin,
     signOutReason: null,
     pendingEnrollment: null,
+    startupError: null,
   });
+}
+
+/** Refreshes once the last refresh is `KEEPALIVE_MS` old; a refusal ends the session, a network error waits for the next try. */
+export async function keepAlive(): Promise<void> {
+  if (Date.now() - lastRefreshAt < KEEPALIVE_MS) return;
+  lastRefreshAt = Date.now();
+  try {
+    startSession(await adminAuth.refresh());
+  } catch (error) {
+    if (isRefusal(error)) endSession('expired');
+  }
 }
 
 /** Clears token, admin, pending credentials and every cached query. */
@@ -78,7 +102,12 @@ export async function restoreSession(): Promise<void> {
     startSession(await adminAuth.refresh());
   } catch (error) {
     if (isRefusal(error)) endSession(null);
-    else useAdminSession.setState({ status: 'error' });
+    else {
+      useAdminSession.setState({
+        status: 'error',
+        startupError: error instanceof ApiError ? error : null,
+      });
+    }
   }
 }
 

@@ -1,14 +1,9 @@
-import {
-  AdminEnrollmentSchema,
-  AdminProfileSchema,
-  AdminSessionSchema,
-} from '@nexlegtiq/shared-contracts';
+import { AdminEnrollmentSchema, AdminSessionSchema } from '@nexlegtiq/shared-contracts';
 import type {
   AdminConfirmEnrollmentRequest,
   AdminEnrollRequest,
   AdminEnrollment,
   AdminLoginRequest,
-  AdminProfile,
   AdminSession,
 } from '@nexlegtiq/shared-contracts';
 
@@ -57,7 +52,5 @@ export function adminAuthApi(client: ApiClient) {
         client.setToken(null);
       }
     },
-    me: (signal?: AbortSignal): Promise<AdminProfile> =>
-      client.request({ method: 'GET', path: 'admin/auth/me', signal }, AdminProfileSchema),
   };
 }

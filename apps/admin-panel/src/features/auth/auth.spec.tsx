@@ -30,6 +30,14 @@ const SESSION = { accessToken: 'admin-access', expiresIn: 900, admin: ADMIN };
 const CODES = Array.from({ length: 10 }, (_, i) => `ABCD${'EFGHIJKLMN'[i]}-QRSTU`);
 const MINUTE = 60_000;
 
+/** Polls with the real `setTimeout`: `waitFor` polls with `setInterval`, which the idle tests fake. */
+async function until(condition: () => boolean): Promise<void> {
+  for (let i = 0; i < 100 && !condition(); i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  expect(condition()).toBe(true);
+}
+
 const server = setupServer(http.post(api('admin/auth/refresh'), () => fail(401, 'AUTH-003')));
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
 afterEach(() => {
@@ -245,5 +253,69 @@ describe('idle timeout', () => {
     await waitFor(() => expect(router.state.location.search).toBe('?reason=idle'));
     expect(loggedOut).toBe(true);
     expect(screen.getByTestId('login-notice').textContent).toContain('inactivity');
+  });
+});
+
+describe('review cases', () => {
+  it('should ask for the code on a plain AUTH-008 instead of enrolling', async () => {
+    server.use(http.post(api('admin/auth/login'), () => fail(401, 'AUTH-008')));
+    const router = await renderApp('/login');
+    await fillCredentials();
+    click('login-submit');
+    expect((await screen.findByTestId('login-error')).textContent).toContain(
+      'Enter your verification code to continue.',
+    );
+    expect(router.state.location.pathname).toBe('/login');
+  });
+
+  it('should drop the pending password when enrolment is abandoned', async () => {
+    server.use(
+      http.post(api('admin/auth/login'), () =>
+        fail(401, 'AUTH-008', [{ field: 'code', message: 'validation.mfaEnrollment' }]),
+      ),
+      http.post(api('admin/auth/enroll'), () => fail(410, 'RES-004')),
+    );
+    await renderApp('/login');
+    await fillCredentials();
+    click('login-submit');
+    await screen.findByTestId('enroll-back');
+    expect(useAdminSession.getState().pendingEnrollment).not.toBeNull();
+    click('enroll-back');
+    await screen.findByTestId('login-email');
+    expect(useAdminSession.getState().pendingEnrollment).toBeNull();
+  });
+
+  it('should show why the start-up restore failed, not "unreachable"', async () => {
+    server.use(http.post(api('admin/auth/refresh'), () => fail(403, 'AUTH-100')));
+    await renderApp('/');
+    expect((await screen.findByRole('alert')).textContent).toContain('req-12345678');
+    expect(useAdminSession.getState().startupError?.code).toBe('AUTH-100');
+  });
+
+  it('should keep an active session alive and stay signed in from the warning', async () => {
+    let refreshes = 0;
+    server.use(
+      http.post(api('admin/auth/refresh'), () => {
+        refreshes += 1;
+        return ok(SESSION);
+      }),
+    );
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
+    await renderApp('/');
+    await screen.findByTestId('home-page');
+    expect(refreshes).toBe(1);
+
+    // Working (activity) for 11 minutes without a single request: the timer refreshes the server session once.
+    act(() => void vi.advanceTimersByTime(5 * MINUTE));
+    fireEvent.keyDown(window);
+    act(() => void vi.advanceTimersByTime(6 * MINUTE));
+    await until(() => refreshes === 2);
+
+    // Idle until the warning, then "stay signed in".
+    act(() => void vi.advanceTimersByTime(29 * MINUTE + 1000));
+    await screen.findByTestId('idle-stay');
+    click('idle-stay');
+    act(() => void vi.advanceTimersByTime(2 * MINUTE));
+    expect(useAdminSession.getState().status).toBe('authenticated');
   });
 });

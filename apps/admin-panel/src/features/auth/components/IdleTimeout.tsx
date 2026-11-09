@@ -2,7 +2,7 @@ import { Button, Modal } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { IDLE_MINUTES, signOut } from '../session';
+import { IDLE_MINUTES, keepAlive, signOut, useAdminSession } from '../session';
 
 /** The warning shows during the last minute. */
 export const IDLE_WARNING_MS = 60_000;
@@ -33,6 +33,10 @@ export function IdleTimeout(): React.JSX.Element {
         window.clearInterval(tick);
         void signOut('idle');
       } else {
+        // Active in the last few minutes: keep the server-side session alive too.
+        if (useAdminSession.getState().status === 'authenticated' && left > IDLE_WARNING_MS) {
+          void keepAlive();
+        }
         warning.current = left <= IDLE_WARNING_MS;
         setSecondsLeft(warning.current ? Math.ceil(left / 1000) : null);
       }

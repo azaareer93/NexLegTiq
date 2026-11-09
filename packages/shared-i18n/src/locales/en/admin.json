@@ -14,6 +14,7 @@
   },
   "home": {
     "empty": "Offices, plans and platform usage will appear here.",
+    "signOut": "Sign out",
     "title": "Platform administration"
   },
   "login": {
@@ -23,7 +24,7 @@
     "subtitle": "For NexLegTiq platform administrators only.",
     "title": "Admin sign-in",
     "useCode": "Use the authenticator code",
-    "useRecovery": "Lost your phone? Use a recovery code"
+    "useRecovery": "Lost access to your phone? Use a recovery code"
   },
   "recovery": {
     "continue": "Continue to the admin panel",

@@ -3,7 +3,7 @@ import { Button, Flex, Layout, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
 
 import { APP_NAME } from '../../app/app-name';
-import { signOut, useAdminSession } from '../auth/session';
+import { signOut, useAdminSession } from '../auth';
 
 /** Signed-in landing page until the offices, plans and usage screens (their own stories) arrive. */
 export function HomePage(): React.JSX.Element {
@@ -19,7 +19,7 @@ export function HomePage(): React.JSX.Element {
           <Flex gap={12} align="center">
             <Typography.Text data-testid="admin-name">{admin?.fullName}</Typography.Text>
             <Button onClick={() => void signOut()} data-testid="sign-out">
-              {t('auth.idle.signOut')}
+              {t('admin.home.signOut')}
             </Button>
           </Flex>
         </Flex>

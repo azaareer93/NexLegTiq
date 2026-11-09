@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { Navigate, useNavigate } from 'react-router';
 
 import { AuthLayout } from '../components/AuthLayout';
+import { IdleTimeout } from '../components/IdleTimeout';
 import { parseForm, zodRule } from '../forms';
 import { adminAuth, queryClient, startSession, useAdminSession } from '../session';
 
@@ -19,8 +20,18 @@ const FIELDS = ['code'];
  */
 export function EnrollPage(): React.JSX.Element {
   const pending = useAdminSession((state) => state.pendingEnrollment);
+  const reason = useAdminSession((state) => state.signOutReason);
   const [session, setSession] = useState<AdminClientSession | null>(null);
-  if (session) return <RecoveryCodes session={session} />;
+  // Timed out (IdleTimeout below) or the session ended: nothing of the enrolment may stay on screen.
+  if (reason) return <Navigate to={`/login?reason=${reason}`} replace />;
+  if (session) {
+    return (
+      <>
+        <IdleTimeout />
+        <RecoveryCodes session={session} />
+      </>
+    );
+  }
   // Reached without the sign-in page's credentials (a reload, a typed URL): start from sign-in again.
   if (!pending) return <Navigate to="/login" replace />;
   const confirmed = (next: AdminClientSession) => {
@@ -29,7 +40,12 @@ export function EnrollPage(): React.JSX.Element {
     useAdminSession.setState({ pendingEnrollment: null });
     queryClient.removeQueries({ queryKey: ['admin', 'enrollment'] });
   };
-  return <ScanAndConfirm credentials={pending} onConfirmed={confirmed} />;
+  return (
+    <>
+      <IdleTimeout />
+      <ScanAndConfirm credentials={pending} onConfirmed={confirmed} />
+    </>
+  );
 }
 
 function ScanAndConfirm({
@@ -49,6 +65,8 @@ function ScanAndConfirm({
     queryKey: ['admin', 'enrollment', credentials.email],
     queryFn: () => adminAuth.enroll(credentials),
     staleTime: Infinity,
+    // The secret leaves the cache as soon as the page does (an abandoned enrolment included).
+    gcTime: 0,
     retry: false,
   });
 
@@ -101,7 +119,12 @@ function ScanAndConfirm({
           </Flex>
           <Typography.Text type="secondary">{t('admin.enroll.manual')}</Typography.Text>
           <Ltr>
-            <Typography.Text code copyable data-testid="enroll-secret">
+            <Typography.Text
+              code
+              copyable
+              style={{ overflowWrap: 'anywhere' }}
+              data-testid="enroll-secret"
+            >
               {secret.data.secret}
             </Typography.Text>
           </Ltr>
@@ -153,7 +176,8 @@ function RecoveryCodes({ session }: { readonly session: AdminClientSession }): R
   const text = codes.join('\n');
 
   const copy = () => {
-    navigator.clipboard.writeText(text).then(
+    // No clipboard API outside a secure context: report it like any failed copy.
+    (navigator.clipboard?.writeText(text) ?? Promise.reject(new Error('no clipboard'))).then(
       () => void message.success(t('admin.recovery.copied')),
       () => void message.error(t('admin.recovery.copyFailed')),
     );
@@ -164,7 +188,8 @@ function RecoveryCodes({ session }: { readonly session: AdminClientSession }): R
     link.href = url;
     link.download = 'nexlegtiq-admin-recovery-codes.txt';
     link.click();
-    URL.revokeObjectURL(url);
+    // Revoked on the next tick: revoking at once can cancel the download in Firefox and Safari.
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
   };
   const finish = () => {
     startSession(session);
@@ -180,7 +205,7 @@ function RecoveryCodes({ session }: { readonly session: AdminClientSession }): R
             style={{ margin: 0, paddingInlineStart: 24, columns: 2 }}
           >
             {codes.map((code) => (
-              <li key={code}>
+              <li key={code} style={{ breakInside: 'avoid' }}>
                 <Typography.Text code>{code}</Typography.Text>
               </li>
             ))}
