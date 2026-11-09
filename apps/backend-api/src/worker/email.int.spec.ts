@@ -25,6 +25,10 @@ import {
 import { InvitationLinks, SEND_INVITATION_JOB } from '../modules/auth/invitation-links';
 import { PasswordResetLinks } from '../modules/auth/password-reset-links';
 import { VerificationLinks } from '../modules/auth/verification-links';
+import {
+  PortalInvitationLinks,
+  PortalPasswordResetLinks,
+} from '../modules/portal-auth/portal-links';
 
 const MAILPIT = process.env['MAILPIT_URL'] ?? 'http://127.0.0.1:8025';
 
@@ -53,7 +57,14 @@ async function receivedBy(to: string): Promise<MailpitMessage> {
 /** Like WorkerModule: the email processor with real Redis, PostgreSQL and SMTP (Mailpit). */
 @Module({
   imports: [CoreModule, DatabaseModule, QueueModule, MailModule],
-  providers: [EmailProcessor, VerificationLinks, PasswordResetLinks, InvitationLinks],
+  providers: [
+    EmailProcessor,
+    VerificationLinks,
+    PasswordResetLinks,
+    InvitationLinks,
+    PortalInvitationLinks,
+    PortalPasswordResetLinks,
+  ],
 })
 class EmailTestModule {}
 
