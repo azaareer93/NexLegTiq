@@ -1,5 +1,16 @@
 import type { RouteObject } from 'react-router';
 
-import { HomePage } from './home-page';
+import { authRoutes, RequireAdmin } from '../features/auth';
 
-export const routes: RouteObject[] = [{ path: '/', element: <HomePage /> }];
+export const routes: RouteObject[] = [
+  ...authRoutes,
+  {
+    element: <RequireAdmin />,
+    children: [
+      {
+        path: '/',
+        lazy: async () => ({ Component: (await import('../features/home/HomePage')).HomePage }),
+      },
+    ],
+  },
+];

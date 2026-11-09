@@ -23,6 +23,7 @@ export const I18N_NAMESPACES = [
   'calendar',
   'team',
   'profile',
+  'admin',
 ] as const;
 
 export type I18nNamespace = (typeof I18N_NAMESPACES)[number];
