@@ -69,6 +69,26 @@ describe('applyTaskTemplates (D-156)', () => {
     ).toBe(0);
   });
 
+  it("should give a paralegal template's task to the file's paralegal, and start an empty column at 0", async () => {
+    const tx = {
+      taskTemplate: {
+        findMany: jest.fn().mockResolvedValue([template(2, { defaultAssigneeRole: 'PARALEGAL' })]),
+      },
+      task: {
+        aggregate: jest.fn().mockResolvedValue({ _max: { sortOrder: null } }),
+        createMany: jest.fn(),
+      },
+    };
+    await applyTaskTemplates(tx as never, { ...FILE, responsibleParalegalId: ID(9) });
+    expect(tx.task.createMany.mock.calls[0]?.[0].data).toEqual([
+      expect.objectContaining({ assignedToId: ID(9), sortOrder: 0 }),
+    ]);
+    // Every template is a paralegal one and the file has none: nothing is written.
+    tx.task.createMany.mockClear();
+    expect(await applyTaskTemplates(tx as never, FILE)).toBe(0);
+    expect(tx.task.createMany).not.toHaveBeenCalled();
+  });
+
   it('should seed starter templates in the office language', () => {
     expect(starterTemplates('o1', 'EN')[0]).toMatchObject({
       defaultTitle: 'Prepare the statement of claim',
