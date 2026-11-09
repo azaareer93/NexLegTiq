@@ -2,6 +2,7 @@ import { LoadingSkeleton } from '@nexlegtiq/shared-ui';
 import type { RouteObject } from 'react-router';
 
 import { authRoutes, RequireAuth } from '../features/auth';
+import { calendarRoutes } from '../features/calendar';
 import { casesRoutes } from '../features/cases';
 import { clientsRoutes } from '../features/clients';
 import { dashboardRoutes } from '../features/dashboard';
@@ -29,6 +30,7 @@ const placeholder = (navKey: NavKey): Pick<RouteObject, 'lazy'> => ({
 
 /** Menu items whose feature is built: their pages replace the placeholder. */
 const FEATURE_ROUTES: Partial<Record<NavKey, RouteObject[]>> = {
+  calendar: calendarRoutes,
   cases: casesRoutes,
   clients: clientsRoutes,
   dashboard: dashboardRoutes,

@@ -204,6 +204,19 @@ describe('TasksService', () => {
       );
     });
 
+    it('should take a due range for the calendar (D-155)', async () => {
+      const { service, tasks } = setup();
+      await service.list(TaskQuerySchema.parse({ dueFrom: '2026-11-01', dueBefore: '2026-11-30' }));
+      await service.list(TaskQuerySchema.parse({ dueFrom: '2026-11-01' }));
+      const filters = (tasks.list as jest.Mock).mock.calls.map(
+        ([, where]) => (where as { dueDate: unknown }).dueDate,
+      );
+      expect(filters).toEqual([
+        { gte: new Date('2026-11-01T00:00:00Z'), lte: new Date('2026-11-30T00:00:00Z') },
+        { gte: new Date('2026-11-01T00:00:00Z') },
+      ]);
+    });
+
     it("should judge overdue against today in the office's time zone, and negate it for overdue=false", async () => {
       const { service, tasks } = setup();
       await service.list(TaskQuerySchema.parse({ overdue: 'true', assignee: OTHER }));
