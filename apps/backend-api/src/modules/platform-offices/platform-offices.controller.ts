@@ -70,8 +70,8 @@ export class PlatformOfficesController {
   @Get(':id')
   @ApiOperation({ summary: 'One office with subscriptions and suspension' })
   @ApiZodResponse(HttpStatus.OK, AdminOfficeDetailSchema)
-  get(@Param('id', uuid()) id: string): Promise<AdminOfficeDetail> {
-    return this.offices.get(id);
+  get(@Param('id', uuid()) id: string, @Req() req: AdminRequest): Promise<AdminOfficeDetail> {
+    return this.offices.view(id, this.adminId(req), this.client(req));
   }
 
   @Post(':id/suspend')

@@ -5,10 +5,13 @@ import type {
   AdminOfficeQuery,
 } from '@nexlegtiq/shared-contracts';
 import type { OfficeId } from '@nexlegtiq/shared-types';
+import { PinoLogger } from 'nestjs-pino';
 
 import { ResourceNotFoundException } from '../../common/errors/app.exception';
 import { PaginatedResult } from '../../common/http/paginated-result';
+import { RealtimePublisher } from '../../common/realtime/realtime.publisher';
 import { PrismaService } from '../../database/prisma.service';
+import { Prisma } from '../../generated/prisma/client';
 import type { ClientInfo } from '../auth/client-info';
 import { PlatformAuditService } from '../platform-auth/platform-audit.service';
 import { EntitlementsService } from '../subscriptions/entitlements.service';
@@ -24,7 +27,6 @@ interface BaseRow {
   plan_code: string | null;
   plan_name: string | null;
   sub_status: AdminOfficeListItem['subscriptionStatus'];
-  total: bigint;
 }
 
 const escapeLike = (value: string): string => value.replace(/[\\%_]/g, (c) => `\\${c}`);
@@ -36,6 +38,8 @@ export class PlatformOfficesService {
     private readonly prisma: PrismaService,
     private readonly audit: PlatformAuditService,
     private readonly entitlements: EntitlementsService,
+    private readonly realtime: RealtimePublisher,
+    private readonly logger: PinoLogger,
   ) {}
 
   async list(query: AdminOfficeQuery): Promise<PaginatedResult<AdminOfficeListItem>> {
@@ -43,6 +47,16 @@ export class PlatformOfficesService {
     const { rows, total } = await this.base(query, null, query.limit, offset);
     const items = await this.withUsage(rows);
     return PaginatedResult.of(items, { page: query.page, limit: query.limit, total });
+  }
+
+  /** The detail screen: reading an office's data is itself audited. */
+  async view(id: string, adminId: string, client: ClientInfo): Promise<AdminOfficeDetail> {
+    const detail = await this.get(id);
+    await this.audit.log(
+      { adminId, action: 'OFFICE_VIEWED', entityType: 'Office', entityId: id, targetOfficeId: id },
+      client,
+    );
+    return detail;
   }
 
   async get(id: string): Promise<AdminOfficeDetail> {
@@ -64,6 +78,10 @@ export class PlatformOfficesService {
           orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         });
     const reason = (suspended?.newValues as { reason?: unknown } | null)?.reason;
+    const suspension =
+      suspended && typeof reason === 'string'
+        ? { at: suspended.createdAt.toISOString(), reason }
+        : null;
     return {
       ...item,
       accountType: office.accountType,
@@ -76,17 +94,11 @@ export class PlatformOfficesService {
         plan: s.plan,
         status: s.status,
         currentPeriodStart: s.currentPeriodStart.toISOString(),
-        // The contract wants a date; an open-ended period falls back to its start.
         currentPeriodEnd: s.currentPeriodEnd?.toISOString() ?? null,
         trialEndsAt: s.trialEndsAt?.toISOString() ?? null,
         createdAt: s.createdAt.toISOString(),
       })),
-      suspension: suspended
-        ? {
-            at: suspended.createdAt.toISOString(),
-            reason: typeof reason === 'string' ? reason : '',
-          }
-        : null,
+      suspension,
     };
   }
 
@@ -149,6 +161,7 @@ export class PlatformOfficesService {
     });
     if (changed) {
       this.entitlements.invalidate(id as OfficeId);
+      if (!active) await this.closeSockets(id);
       return;
     }
     // unscoped: see above.
@@ -156,7 +169,21 @@ export class PlatformOfficesService {
     if (!exists) throw new ResourceNotFoundException();
   }
 
-  /** Offices of one page, with their current subscription (live, else newest: D-122). */
+  /** Best effort after the commit: a suspended office's open sockets close now, not when their token expires. */
+  private async closeSockets(officeId: string): Promise<void> {
+    try {
+      // unscoped: platform admin code reads any office's users (D-080).
+      const users = await this.prisma.unscoped().user.findMany({
+        where: { officeId },
+        select: { id: true },
+      });
+      for (const user of users) this.realtime.disconnectUser(user.id);
+    } catch (error) {
+      this.logger.warn({ err: error }, 'Suspended office sockets not closed');
+    }
+  }
+
+  /** Offices of one page, with their current subscription (live, else newest: D-122), and the total of all pages. */
   private async base(
     q: Partial<AdminOfficeQuery>,
     id: string | null,
@@ -169,27 +196,35 @@ export class PlatformOfficesService {
     const jurisdiction = q.jurisdiction ?? null;
     const from = q.createdFrom ?? null;
     const to = q.createdTo ?? null;
-    // unscoped: platform admin code reads every office; every value is a bound parameter (D-080).
-    const rows = await this.prisma.unscoped().$queryRaw<BaseRow[]>`
-      WITH cur AS (
-        SELECT DISTINCT ON (s.office_id) s.office_id, p.code, p.name, s.status::text AS status
+    // Every value is a bound parameter (D-080); the same FROM/WHERE serves the page and the count.
+    const source = Prisma.sql`
+      FROM offices o
+      LEFT JOIN LATERAL (
+        SELECT p.code, p.name, s.status::text AS status
         FROM subscriptions s JOIN plans p ON p.id = s.plan_id
-        ORDER BY s.office_id, (s.status IN ('TRIALING', 'ACTIVE')) DESC, s.current_period_start DESC, s.id DESC
-      )
-      SELECT o.id::text AS id, o.name, o.jurisdiction::text AS jurisdiction, o.is_active, o.created_at,
-             cur.code AS plan_code, cur.name AS plan_name, cur.status AS sub_status, count(*) OVER () AS total
-      FROM offices o LEFT JOIN cur ON cur.office_id = o.id
-      WHERE (${id}::text IS NULL OR o.id::text = ${id}::text)
+        WHERE s.office_id = o.id
+        ORDER BY (s.status IN ('TRIALING', 'ACTIVE')) DESC, s.current_period_start DESC, s.id DESC
+        LIMIT 1
+      ) cur ON true
+      WHERE (${id}::uuid IS NULL OR o.id = ${id}::uuid)
         AND (${search}::text IS NULL OR o.name ILIKE '%' || ${search}::text || '%')
         AND (${plan}::text IS NULL OR cur.code = ${plan}::text)
         AND (${status}::text IS NULL OR o.is_active = (${status}::text = 'ACTIVE'))
         AND (${jurisdiction}::text IS NULL OR o.jurisdiction::text = ${jurisdiction}::text)
         AND (${from}::text IS NULL OR o.created_at >= (${from}::text::date)::timestamp AT TIME ZONE 'UTC')
-        AND (${to}::text IS NULL OR o.created_at < ((${to}::text::date) + 1)::timestamp AT TIME ZONE 'UTC')
-      ORDER BY o.created_at DESC, o.id DESC
-      LIMIT ${limit} OFFSET ${offset}`;
-    const total = rows[0] ? Number(rows[0].total) : 0;
-    return { rows, total };
+        AND (${to}::text IS NULL OR o.created_at < ((${to}::text::date) + 1)::timestamp AT TIME ZONE 'UTC')`;
+    // unscoped: platform admin code reads every office (D-080).
+    const raw = this.prisma.unscoped();
+    const [rows, counted] = await Promise.all([
+      raw.$queryRaw<BaseRow[]>`
+        SELECT o.id::text AS id, o.name, o.jurisdiction::text AS jurisdiction, o.is_active, o.created_at,
+               cur.code AS plan_code, cur.name AS plan_name, cur.status AS sub_status
+        ${source}
+        ORDER BY o.created_at DESC, o.id DESC
+        LIMIT ${limit} OFFSET ${offset}`,
+      raw.$queryRaw<{ total: bigint }[]>`SELECT count(*) AS total ${source}`,
+    ]);
+    return { rows, total: Number(counted[0]?.total ?? 0) };
   }
 
   /** Usage for the page's offices in a few grouped queries (no per-row lookups). */

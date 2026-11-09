@@ -30,7 +30,7 @@ export function OfficeActionModal({ officeId, kind, onClose }: Props): React.JSX
     );
     if (!parsed) return;
     try {
-      await action.mutateAsync(parsed.reason);
+      await action.mutateAsync(parsed.reason ?? '');
       void message.success(t(`admin.offices.modal.${kind}.success`));
       onClose();
     } catch (error) {

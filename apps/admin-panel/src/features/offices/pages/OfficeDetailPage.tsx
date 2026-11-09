@@ -92,12 +92,15 @@ function Detail({ office }: { readonly office: AdminOfficeDetail }): React.JSX.E
           showIcon
           style={{ marginBlockEnd: 16 }}
           data-testid="office-suspension"
-          message={t('admin.offices.suspension.title', {
-            date: format.dateTime(office.suspension.at),
-          })}
+          message={
+            <>
+              {t('admin.offices.suspension.title')}{' '}
+              <Bdi>{format.dateTime(office.suspension.at)}</Bdi>
+            </>
+          }
           description={
             <>
-              {t('admin.offices.suspension.reason')}: <Bdi>{office.suspension.reason}</Bdi>
+              {t('admin.offices.suspension.reason')} <Bdi>{office.suspension.reason}</Bdi>
             </>
           }
         />

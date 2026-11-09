@@ -10,6 +10,7 @@ function build(updated: number, exists: boolean) {
   };
   const raw = {
     $transaction: jest.fn((work: (t: typeof tx) => unknown) => work(tx)),
+    user: { findMany: jest.fn().mockResolvedValue([{ id: 'u1' }]) },
     office: { findUnique: jest.fn().mockResolvedValue(exists ? { id: 'x' } : null) },
   };
   const audit = { log: jest.fn() };
@@ -18,6 +19,8 @@ function build(updated: number, exists: boolean) {
     { unscoped: () => raw } as never,
     audit as never,
     entitlements as never,
+    { disconnectUser: jest.fn() } as never,
+    { warn: jest.fn() } as never,
   );
   const detail = jest.spyOn(service, 'get').mockResolvedValue({} as never);
   return { service, audit, entitlements, detail };

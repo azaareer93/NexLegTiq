@@ -18,12 +18,14 @@ describe('admin offices contracts', () => {
     ).toMatchObject({ page: 1, limit: 20, status: 'SUSPENDED' });
   });
 
-  it.each([{ status: 'PAUSED' }, { createdFrom: '01/10/2026' }, { limit: '500' }])(
-    'should refuse %o',
-    (query) => {
-      expect(AdminOfficeQuerySchema.safeParse(query).success).toBe(false);
-    },
-  );
+  it.each([
+    { status: 'PAUSED' },
+    { createdFrom: '01/10/2026' },
+    { limit: '500' },
+    { createdFrom: '2026-10-31', createdTo: '2026-10-01' },
+  ])('should refuse %o', (query) => {
+    expect(AdminOfficeQuerySchema.safeParse(query).success).toBe(false);
+  });
 
   it('should require a real reason to suspend', () => {
     expect(SuspendOfficeSchema.safeParse({ reason: '  ab ' }).success).toBe(false);

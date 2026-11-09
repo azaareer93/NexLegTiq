@@ -35,7 +35,7 @@
       "created": "تاريخ الإنشاء",
       "files": "الملفات",
       "jurisdiction": "الاختصاص القضائي",
-      "lastActivity": "آخر نشاط",
+      "lastActivity": "آخر تسجيل دخول",
       "name": "المكتب",
       "plan": "الخطة",
       "status": "الحالة",
@@ -95,8 +95,8 @@
       "trialEnds": "نهاية التجربة"
     },
     "suspension": {
-      "reason": "السبب",
-      "title": "معلّق منذ {{date}}"
+      "reason": "السبب:",
+      "title": "معلّق منذ"
     },
     "title": "المكاتب"
   },

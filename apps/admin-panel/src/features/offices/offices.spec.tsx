@@ -157,6 +157,51 @@ describe('offices list', () => {
   });
 });
 
+describe('offices list review cases', () => {
+  it('should move a page past the end to the last page', async () => {
+    const seen: string[] = [];
+    server.use(
+      http.get(api('admin/offices'), ({ request }) => {
+        const search = new URL(request.url).search;
+        seen.push(search);
+        if (search.includes('page=2')) {
+          return HttpResponse.json({
+            success: true,
+            data: [ITEM],
+            meta: {
+              ...meta,
+              pagination: { page: 2, limit: 20, total: 21, totalPages: 2, hasMore: false },
+            },
+          });
+        }
+        return HttpResponse.json({
+          success: true,
+          data: [],
+          meta: {
+            ...meta,
+            pagination: { page: 5, limit: 20, total: 21, totalPages: 2, hasMore: false },
+          },
+        });
+      }),
+    );
+    const router = renderAt('/offices?page=5');
+    await screen.findByTestId(`office-link-${ID}`);
+    expect(router.state.location.search).toBe('?page=2');
+  });
+
+  it('should write the status filter into the URL', async () => {
+    server.use(http.get(api('admin/offices'), () => page([ITEM])));
+    const router = renderAt('/offices');
+    await screen.findByTestId(`office-link-${ID}`);
+    const plan = within(screen.getByTestId('offices-plan').parentElement as HTMLElement).getByRole(
+      'textbox',
+    );
+    fireEvent.change(plan, { target: { value: 'PS_FREE' } });
+    fireEvent.keyDown(plan, { key: 'Enter', code: 'Enter', keyCode: 13 });
+    await waitFor(() => expect(router.state.location.search).toBe('?plan=PS_FREE'));
+  });
+});
+
 describe('office detail', () => {
   const detailServer = (initial: unknown) => {
     const posts: { path: string; body: unknown }[] = [];
@@ -208,6 +253,20 @@ describe('office detail', () => {
       expect(screen.getByTestId('office-action').textContent).toBe('Reactivate');
     },
   );
+
+  it('should keep the modal open and show the error when suspending fails', async () => {
+    detailServer(DETAIL);
+    server.use(http.post(api(`admin/offices/${ID}/suspend`), () => fail(500, 'SYS-001')));
+    renderAt(`/offices/${ID}`);
+    fireEvent.click(await screen.findByTestId('office-action'));
+    fireEvent.change(await screen.findByTestId('office-action-reason'), {
+      target: { value: 'Unpaid invoices' },
+    });
+    fireEvent.click(screen.getByTestId('office-action-confirm'));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('req-12345678'));
+    expect(screen.getByTestId('office-action-reason')).toBeTruthy();
+    expect(screen.queryByTestId('office-suspension')).toBeNull();
+  });
 
   it('should reactivate a suspended office without a reason', async () => {
     const posts = detailServer(SUSPENDED);

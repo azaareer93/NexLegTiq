@@ -18,7 +18,7 @@ import type { TableColumnsType } from 'antd';
 import dayjs from 'dayjs';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useSearchParams } from 'react-router';
+import { Link, Navigate, useSearchParams } from 'react-router';
 
 import { useOfficesList } from '../hooks';
 import { readQuery, withChanges } from '../list-params';
@@ -60,9 +60,9 @@ function useColumns(): TableColumnsType<AdminOfficeListItem> {
         row.plan ? (
           <>
             <Bdi>{row.plan.name}</Bdi>
-            {row.subscriptionStatus
-              ? ` · ${t(`enums.subscriptionStatus.${row.subscriptionStatus}`)}`
-              : ''}
+            {row.subscriptionStatus ? (
+              <div>{t(`enums.subscriptionStatus.${row.subscriptionStatus}`)}</div>
+            ) : null}
           </>
         ) : (
           none
@@ -239,6 +239,7 @@ function Filters({
         key={`plan-${query.plan ?? ''}`}
         defaultValue={query.plan}
         allowClear
+        dir="ltr"
         maxLength={64}
         placeholder={t('admin.offices.filters.plan')}
         aria-label={t('admin.offices.filters.plan')}
@@ -248,6 +249,7 @@ function Filters({
       />
       <DatePicker.RangePicker
         allowEmpty={[true, true]}
+        format="DD/MM/YYYY"
         value={range}
         placeholder={[t('admin.offices.filters.createdFrom'), t('admin.offices.filters.createdTo')]}
         onChange={(values) =>
@@ -267,6 +269,13 @@ export function OfficesListPage(): React.JSX.Element {
   const list = useOfficesList(query);
   const change: Change = (changes) => setParams((prev) => withChanges(prev, changes));
   const filtered = Object.keys(query).some((key) => key !== 'page' && key !== 'limit');
+
+  const pagination = list.data?.pagination;
+  // A page past the end (bookmark, offices removed meanwhile): go to the last page there is.
+  if (list.data?.items.length === 0 && pagination && pagination.total > 0) {
+    const last = withChanges(params, { page: String(pagination.totalPages) });
+    return <Navigate to={`?${last.toString()}`} replace />;
+  }
 
   return (
     <section data-testid="page-offices">

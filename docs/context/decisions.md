@@ -2900,7 +2900,15 @@ suspended office's users with 403 AUTH-006 (D-082), so access tokens stop at onc
 cached entitlements. Unknown or malformed id → 404 RES-001. **Admin panel:** the signed-in shell (name, sign-out) with
 `/offices` (filters in the URL under the API's names, D-113; table with status, plan and subscription status, usage, last
 activity, created) and `/offices/:id` (profile, usage, subscription history, suspension banner, Suspend / Reactivate with a
-reason dialog); `/` opens `/offices`. **Known limits:** open realtime sockets of a suspended office are not closed — they are
-refused at their next token refresh (≤ 15 min, D-129); a page past the end reports a total of 0; plans, subscription actions
-and payments are their own story. Why: the founder can find any office, see what it uses and stop it at once, with the reason
-on record.
+reason dialog); `/` opens `/offices`. Plans, subscription actions and payments are their own story. Why: the founder can
+find any office, see what it uses and stop it at once, with the reason on record.
+Review additions (same PR): **opening an office's detail is audited** (`OFFICE_VIEWED` platform audit row, GET only: an
+admin reading another office's contacts and usage is a cross-tenant read and must be accountable; list views are not
+audited). **Suspension also closes the office users' realtime sockets** after the commit (best effort,
+`RealtimePublisher.disconnectUser`, as deactivation does, D-129); a revoked refresh cookie answers 401 (the session ended)
+and a new sign-in 403 AUTH-006. The total is counted apart from the page, so a page past the end keeps the real total and the
+panel moves to the last page (D-113); the current subscription is a `LATERAL` lookup per office and the id is compared as a
+uuid (index). `createdFrom` after `createdTo` is 400 `validation.dateRange`; `plan` is plain text. The column reads "Last
+sign-in" (it is the latest `lastLoginAt`); dates in the panel read dd/MM/yyyy (D-092). **Not changed:** the queries stay in the
+service (no repository layer, as D-146/D-149); the office's own audit log gets no row for a suspension (the platform log holds
+it); the admin panel's tests run with a 30 s timeout (AntD + axe in jsdom).

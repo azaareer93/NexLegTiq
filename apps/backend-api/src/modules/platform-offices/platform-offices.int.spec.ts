@@ -98,9 +98,19 @@ describe('platform admin offices (HTTP + PostgreSQL)', () => {
     process.env = savedEnv;
   });
 
-  async function seedOffice(name: string, jurisdiction: 'PALESTINE' | 'JORDAN', users: number) {
+  async function seedOffice(
+    name: string,
+    jurisdiction: 'PALESTINE' | 'JORDAN',
+    users: number,
+    createdAt?: Date,
+  ) {
     const office = await raw.office.create({
-      data: { name: `${tag} ${name}`, jurisdiction, subscriptions: liveSubscription() },
+      data: {
+        name: `${tag} ${name}`,
+        jurisdiction,
+        subscriptions: liveSubscription(),
+        ...(createdAt ? { createdAt } : {}),
+      },
     });
     officeIds.push(office.id);
     const hash = await new PasswordHasher().hash(PASSWORD);
@@ -128,8 +138,8 @@ describe('platform admin offices (HTTP + PostgreSQL)', () => {
     http().post('/api/v1/auth/login').send({ email, password: PASSWORD, rememberMe: false });
 
   it('should list offices with filters and usage, newest first', async () => {
-    const a = await seedOffice('Alpha', 'PALESTINE', 2);
-    const b = await seedOffice('Beta_%', 'JORDAN', 1);
+    const a = await seedOffice('Alpha', 'PALESTINE', 2, new Date('2024-03-10T12:00:00Z'));
+    const b = await seedOffice('Beta_%', 'JORDAN', 1, new Date('2024-03-12T23:30:00Z'));
     await raw.aiUsage.createMany({
       data: [
         { succeeded: true },
@@ -179,12 +189,95 @@ describe('platform admin offices (HTTP + PostgreSQL)', () => {
     expect((await only({ plan: 'GLOBAL_ENTERPRISE' })).body.data).toHaveLength(2);
     expect((await only({ plan: 'NOPE' })).body.data).toHaveLength(0);
     expect((await only({ status: 'SUSPENDED' })).body.data).toHaveLength(0);
-    const day = new Date().toISOString().slice(0, 10);
-    expect((await only({ createdFrom: day, createdTo: day })).body.data).toHaveLength(2);
-    expect((await only({ createdTo: '2020-01-01' })).body.data).toHaveLength(0);
+    const ids = async (query: object) =>
+      (await only(query)).body.data.map((o: { id: string }) => o.id);
+    expect(await ids({ createdFrom: '2024-03-11' })).toEqual([b.office.id]);
+    expect(await ids({ createdTo: '2024-03-10' })).toEqual([a.office.id]); // the end day is inclusive
+    expect(await ids({ createdFrom: '2024-03-10', createdTo: '2024-03-12' })).toHaveLength(2);
+    expect(await ids({ createdTo: '2020-01-01' })).toHaveLength(0);
+    const past = await only({ limit: 1, page: 9 });
+    expect(past.body.data).toEqual([]);
+    expect(past.body.meta.pagination.total).toBe(2);
+    for (const bad of [
+      { limit: 500 },
+      { status: 'BAD' },
+      { createdFrom: '2024-03-12', createdTo: '2024-03-10' },
+    ]) {
+      const res = await http().get('/api/v1/admin/offices').query(bad).set(auth).expect(400);
+      expect(res.body.error.code).toBe('VAL-001');
+    }
     expect((await only({ limit: 1, page: 2 })).body.data.map((o: { id: string }) => o.id)).toEqual([
       a.office.id,
     ]);
+  });
+
+  it('should show the detail with real usage (inactive users, deleted files not counted) and audit the view', async () => {
+    const { office, users } = await seedOffice('Detail', 'PALESTINE', 1);
+    const manager = users[0];
+    if (!manager) throw new Error('no user');
+    await raw.user.create({
+      data: {
+        officeId: office.id,
+        fullName: 'Gone',
+        email: `po-${randomUUID()}@example.test`,
+        passwordHash: 'x',
+        role: 'LAWYER',
+        isActive: false,
+      },
+    });
+    const file = (deletedAt: Date | null) =>
+      raw.legalFile.create({
+        data: {
+          officeId: office.id,
+          fileNumber: `PO-${randomUUID()}`,
+          title: 'File',
+          fileType: 'LITIGATION',
+          responsibleLawyerId: manager.id,
+          jurisdiction: 'PALESTINE',
+          currency: 'ILS',
+          deletedAt,
+        },
+      });
+    const live = await file(null);
+    await file(new Date());
+    const stored = {
+      originalFilename: 'a.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 1_572_864n, // 1.5 MiB, rounded up to 2
+      checksumSha256: 'a'.repeat(64),
+      storageKey: `${office.id}/${live.id}/${randomUUID()}.pdf`,
+    };
+    const document = await raw.document.create({
+      data: {
+        officeId: office.id,
+        fileId: live.id,
+        name: 'Doc',
+        ...stored,
+        uploadedById: manager.id,
+      },
+    });
+    await raw.documentVersion.create({
+      data: {
+        officeId: office.id,
+        documentId: document.id,
+        versionNumber: 1,
+        createdById: manager.id,
+        ...stored,
+      },
+    });
+    const res = await http().get(`/api/v1/admin/offices/${office.id}`).set(auth).expect(200);
+    expect(res.body.data).toMatchObject({
+      id: office.id,
+      usage: { activeUsers: 1, liveFiles: 1, storageMb: 2, aiThisMonth: 0 },
+      suspension: null,
+    });
+    expect(res.body.data.subscriptions).toHaveLength(1);
+    await expect(
+      raw.platformAuditLog.count({ where: { targetOfficeId: office.id, action: 'OFFICE_VIEWED' } }),
+    ).resolves.toBe(1);
+    await raw.documentVersion.deleteMany({ where: { officeId: office.id } });
+    await raw.document.deleteMany({ where: { officeId: office.id } });
+    await raw.legalFile.deleteMany({ where: { officeId: office.id } });
   });
 
   it('should answer 404 RES-001 for an unknown or malformed office id and refuse office tokens', async () => {
@@ -202,12 +295,23 @@ describe('platform admin offices (HTTP + PostgreSQL)', () => {
     const token = office.body.data.accessToken as string;
     await http().get('/api/v1/admin/offices').set('Authorization', `Bearer ${token}`).expect(401);
     await http().get('/api/v1/admin/offices').expect(401);
+    for (const route of ['suspend', 'reactivate']) {
+      await http()
+        .post(`/api/v1/admin/offices/${randomUUID()}/${route}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ reason: 'abuse' })
+        .expect(401);
+    }
   });
 
   it('should suspend (sessions ended, sign-in refused), stay a no-op the second time and reactivate', async () => {
     const { office, users } = await seedOffice('Suspend', 'PALESTINE', 1);
     const email = users[0]?.email ?? '';
     const session = await officeLogin(email).expect(200);
+    const cookie = ([] as string[])
+      .concat(session.headers['set-cookie'] ?? [])
+      .map((c) => c.split(';')[0] ?? '')
+      .find((c) => c.startsWith('nlq_rt='));
     const bearer = { Authorization: `Bearer ${session.body.data.accessToken as string}` };
     await http().get('/api/v1/offices/me/subscription').set(bearer).expect(200);
 
@@ -233,6 +337,12 @@ describe('platform admin offices (HTTP + PostgreSQL)', () => {
       (await http().get('/api/v1/offices/me/subscription').set(bearer).expect(403)).body.error.code,
     ).toBe('AUTH-006');
 
+    const refreshed = await http()
+      .post('/api/v1/auth/refresh')
+      .set('Cookie', cookie ?? '')
+      .set({ Origin: ORIGIN, 'X-Requested-With': 'XMLHttpRequest' })
+      .expect(401);
+    expect(['AUTH-004', 'AUTH-005']).toContain(refreshed.body.error.code); // revoked by the suspension
     await http()
       .post(`/api/v1/admin/offices/${office.id}/suspend`)
       .set(auth)
@@ -260,7 +370,7 @@ describe('platform admin offices (HTTP + PostgreSQL)', () => {
       where: { targetOfficeId: office.id },
       orderBy: { createdAt: 'asc' },
     });
-    expect(rows.map((r) => r.action)).toEqual(['OFFICE_SUSPENDED', 'OFFICE_REACTIVATED']);
+    expect(rows.map((r) => r.action)).toEqual(['OFFICE_SUSPENDED', 'OFFICE_REACTIVATED']); // no OFFICE_VIEWED
     expect(rows[0]).toMatchObject({ adminId, entityType: 'Office', entityId: office.id });
     expect(rows[0]?.newValues).toEqual({ reason: 'Unpaid invoice' });
   });

@@ -35,7 +35,7 @@
       "created": "Created",
       "files": "Cases",
       "jurisdiction": "Jurisdiction",
-      "lastActivity": "Last activity",
+      "lastActivity": "Last sign-in",
       "name": "Office",
       "plan": "Plan",
       "status": "Status",
@@ -95,8 +95,8 @@
       "trialEnds": "Trial ends"
     },
     "suspension": {
-      "reason": "Reason",
-      "title": "Suspended since {{date}}"
+      "reason": "Reason:",
+      "title": "Suspended since"
     },
     "title": "Offices"
   },

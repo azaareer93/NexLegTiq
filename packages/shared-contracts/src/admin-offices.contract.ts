@@ -1,7 +1,7 @@
 import { ACCOUNT_TYPES, JURISDICTIONS, SUBSCRIPTION_STATUSES } from '@nexlegtiq/shared-types';
 import { z } from 'zod';
 
-import { longText, searchText } from './fields.js';
+import { longText, plainText, searchText } from './fields.js';
 
 /** Office status as the platform admin sees it: `isActive` on the office (suspension blocks every login, D-082). */
 export const OFFICE_ADMIN_STATUSES = ['ACTIVE', 'SUSPENDED'] as const;
@@ -9,20 +9,25 @@ export const OFFICE_ADMIN_STATUSES = ['ACTIVE', 'SUSPENDED'] as const;
 const IsoDate = z.iso.date();
 
 /** `GET /admin/offices` (platform realm, D-145): every office, newest first. */
-export const AdminOfficeQuerySchema = z.object({
-  /** Part of the office name (case-insensitive). */
-  search: searchText(100).optional(),
-  /** Plan code of the office's current subscription (live, else newest). */
-  plan: z.string().trim().min(1).max(64).optional(),
-  status: z.enum(OFFICE_ADMIN_STATUSES).optional(),
-  jurisdiction: z.enum(JURISDICTIONS).optional(),
-  /** Created on or after this UTC date. */
-  createdFrom: IsoDate.optional(),
-  /** Created on or before this UTC date. */
-  createdTo: IsoDate.optional(),
-  page: z.coerce.number().int().min(1).max(10_000).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
-});
+export const AdminOfficeQuerySchema = z
+  .object({
+    /** Part of the office name (case-insensitive). */
+    search: searchText(100).optional(),
+    /** Plan code of the office's current subscription (live, else newest). */
+    plan: plainText(64).optional(),
+    status: z.enum(OFFICE_ADMIN_STATUSES).optional(),
+    jurisdiction: z.enum(JURISDICTIONS).optional(),
+    /** Created on or after this UTC date. */
+    createdFrom: IsoDate.optional(),
+    /** Created on or before this UTC date. */
+    createdTo: IsoDate.optional(),
+    page: z.coerce.number().int().min(1).max(10_000).default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+  })
+  .refine((q) => !q.createdFrom || !q.createdTo || q.createdFrom <= q.createdTo, {
+    message: 'validation.dateRange',
+    path: ['createdTo'],
+  });
 export type AdminOfficeQuery = z.infer<typeof AdminOfficeQuerySchema>;
 
 /** Usage of one office; storage in MiB rounded up, AI = counted provider calls this UTC month (D-130, D-144). */

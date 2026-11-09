@@ -28,9 +28,9 @@ export const useOffice = (id: string) =>
 export function useOfficeAction(id: string, kind: 'suspend' | 'reactivate') {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (reason: string | undefined): Promise<AdminOfficeDetail> =>
+    mutationFn: (reason: string): Promise<AdminOfficeDetail> =>
       kind === 'suspend'
-        ? offices.suspend(id, { reason: reason ?? '' })
+        ? offices.suspend(id, { reason })
         : offices.reactivate(id, reason ? { reason } : {}),
     gcTime: 0,
     onSuccess: (office) => {
