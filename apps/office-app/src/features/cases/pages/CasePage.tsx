@@ -16,7 +16,7 @@ import {
   useCan,
 } from '@nexlegtiq/shared-ui';
 import { useQueryClient } from '@tanstack/react-query';
-import { Alert, App, Button, Dropdown, Flex, Modal, Tabs, Tag, Typography } from 'antd';
+import { Alert, App, Button, Dropdown, Flex, Tabs, Tag, Typography } from 'antd';
 import type { MenuProps } from 'antd';
 import { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
@@ -30,6 +30,8 @@ import { FileStatusTag } from '../components/case-cells';
 import { CaseDetailsTab } from '../components/CaseDetailsTab';
 import { ComingSoonTab } from '../components/ComingSoonTab';
 import { EditCaseDrawer } from '../components/EditCaseDrawer';
+import { LifecycleDialogs } from '../components/LifecycleDialogs';
+import type { LifecycleDialog } from '../components/LifecycleDialogs';
 import { DocumentsTab } from '../documents/DocumentsTab';
 import { fileActions, readTab, visibleTabs } from '../file-page';
 import type { FileActions } from '../file-page';
@@ -40,16 +42,8 @@ import { SessionDrawer } from '../sessions/SessionDrawer';
 import { SessionsTab } from '../sessions/SessionsTab';
 import { TimelineTab } from '../timeline/TimelineTab';
 
-type Dialog = 'edit' | 'delete' | 'comingSoon' | null;
-type MenuKey = 'edit' | 'reassign' | 'status' | 'archive' | 'delete';
-// Reassign, status and archive arrive with the file lifecycle story.
-const DIALOG_OF: Record<MenuKey, Dialog> = {
-  edit: 'edit',
-  reassign: 'comingSoon',
-  status: 'comingSoon',
-  archive: 'comingSoon',
-  delete: 'delete',
-};
+type MenuKey = 'edit' | LifecycleDialog | 'delete';
+type Dialog = MenuKey | null;
 
 /** The ⋮ menu: only the actions the user may take (UI only; the API re-checks, D-051). */
 function ActionsMenu({
@@ -67,17 +61,15 @@ function ActionsMenu({
   const items: MenuProps['items'] = [
     actions.edit && item('edit', t('common.actions.edit')),
     actions.reassign && item('reassign', t('cases.file.actions.reassign')),
-    actions.changeStatus && item('status', t('cases.file.actions.changeStatus')),
+    actions.close && item('close', t('cases.file.actions.close')),
+    actions.reopen && item('reopen', t('cases.file.actions.reopen')),
     actions.archive && item('archive', t('cases.file.actions.archive')),
     actions.delete && { type: 'divider' as const },
     actions.delete && { ...item('delete', t('common.actions.delete')), danger: true },
   ].filter((entry) => entry !== false);
   if (items.length === 0) return null;
   return (
-    <Dropdown
-      trigger={['click']}
-      menu={{ items, onClick: ({ key }) => onPick(DIALOG_OF[key as MenuKey]) }}
-    >
+    <Dropdown trigger={['click']} menu={{ items, onClick: ({ key }) => onPick(key as MenuKey) }}>
       <Button
         icon={<MoreOutlined />}
         aria-label={t('cases.file.actions.more')}
@@ -273,15 +265,11 @@ function FileView({
           components={{ number: <bdi dir="ltr" /> }}
         />
       </ConfirmModal>
-      <Modal
-        open={dialog === 'comingSoon'}
-        onCancel={() => setDialog(null)}
-        footer={null}
-        title={t('shell.comingSoon.title')}
-        data-testid="case-coming-soon"
-      >
-        {t('shell.comingSoon.body')}
-      </Modal>
+      <LifecycleDialogs
+        file={file}
+        dialog={dialog === 'edit' || dialog === 'delete' ? null : dialog}
+        onClose={() => setDialog(null)}
+      />
     </section>
   );
 }
