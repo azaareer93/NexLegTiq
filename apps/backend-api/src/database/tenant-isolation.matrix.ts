@@ -14,6 +14,8 @@ import {
   reminderIn,
   sessionIn,
   soon,
+  timeEntryIn,
+  timerIn,
   versionIn,
 } from './tenant-isolation.fixtures';
 import type { TenantModel } from './tenant-models';
@@ -262,6 +264,13 @@ export const TENANT_ISOLATION_MATRIX: readonly TenantResource[] = [
     update: { title: 'Renamed' },
     http: { list: 'tasks', item: (id) => `tasks/${id}` },
   },
+  {
+    model: 'TimeEntry',
+    create: timeEntryIn,
+    update: { description: 'Renamed' },
+    http: { list: 'time-entries', item: (id) => `time-entries/${id}` },
+  },
+  { model: 'TimeTimer', create: timerIn, update: { description: 'Changed' } },
   {
     model: 'PublicProsecutor',
     create: (db, { officeId }) =>

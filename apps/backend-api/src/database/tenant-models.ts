@@ -30,6 +30,8 @@ export const TENANT_MODELS = [
   'FileNote',
   'TaskTemplate',
   'Task',
+  'TimeEntry',
+  'TimeTimer',
   'PublicProsecutor',
   'Session',
   'SessionReminder',

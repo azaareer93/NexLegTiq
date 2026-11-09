@@ -15,6 +15,7 @@
   "folderDepth": "Folders can be nested at most 5 levels deep.",
   "folderLimit": "A case can have at most 200 folders.",
   "folderMove": "A folder cannot be moved into itself or one of its subfolders.",
+  "hours": "Enter hours between 0.01 and 24, with at most two decimals.",
   "idempotencyKey": "The request key must be 8 to 128 letters, digits, - or _.",
   "idleMinutes": "Choose between 15 and 120 minutes.",
   "invalidCharacters": "This contains characters that are not allowed.",
