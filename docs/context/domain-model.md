@@ -93,7 +93,7 @@
 
 ## Billing
 - **TimeEntry** 🔒 — userId, fileId, date, durationHours Decimal(6,2), description, isBillable, hourlyRate, currency,
-  invoiceId? (locks entry once invoiced).
+  invoiceId? (locks entry once invoiced). Built in D-152 with `TimeTimer` (one running timer per user).
 - **Invoice** 🔒 — clientId, fileId? (null = consolidated), invoiceNumber (`@@unique([officeId, invoiceNumber])`,
   `INV-{YEAR}-{SEQ:4}`), issueDate, dueDate, currency, subtotal, taxRatePercent, taxAmount, total,
   `status: DRAFT|SENT|PAID|OVERDUE|VOID`, sentAt, paidAt, notes, pdfStorageKey, sharedWithClient.

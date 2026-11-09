@@ -70,7 +70,7 @@ GET `cases/:id/documents?folderId|root&documentType&status&search&sort&page&limi
 POST `documents/:id/share` / `unshare` · POST `documents/:id/ocr/retry` (FAILED only → 202, else 422 BIZ-016; D-132) · GET/POST `cases/:id/folders`,
 PATCH/DELETE `cases/:id/folders/:folderId` (system folders fixed → 422 BIZ-014; non-empty → 422 BIZ-013) — D-119
 **tasks**: CRUD `tasks` (`?fileId, assignee=me|<userId>, status, priority, dueFrom, dueBefore, overdue`, page/limit) · PATCH `tasks/:id/status` · PATCH `tasks/reorder` (204) · POST `tasks/bulk-assign` (200 `{updated}`) — D-098
-**billing**: CRUD `time-entries` · POST `time-entries/timer/start|stop` · POST `invoices` (from time entries, `fileId?` null=consolidated) ·
+**billing**: CRUD `time-entries` (`?fileId,userId,from,to,billable,invoiced`; own entries unless OM/SL) · GET `time-entries/timer` · POST `time-entries/timer/start|stop` · GET `cases/:id/time-totals` (D-152) · POST `invoices` (from time entries, `fileId?` null=consolidated) ·
 GET `invoices` · GET/PATCH `invoices/:id` · POST `invoices/:id/send` · POST `invoices/:id/mark-paid` · POST `invoices/:id/void` · GET `invoices/:id/pdf`
 **search**: GET `search?q&type=all|cases|clients|documents|parties|tasks&limit` (grouped)
 **ai**: POST `ai/summaries` `{sourceType, sourceId, language}` → 200 with the stored summary of the current version, else 202 (the same request while queued joins its job; 422 BIZ-015 not ready, STO-004 quarantined, BIZ-020 no text; 403 AI-005; 20/min; D-148) · GET `ai/summaries?sourceType&sourceId` (newest per language of the current version) · GET `jobs/:id` · GET `ai/usage` `{used, quota, remaining, resetsAt}` (`use:ai`, D-144)

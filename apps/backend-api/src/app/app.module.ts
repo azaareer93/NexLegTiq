@@ -33,6 +33,7 @@ import { SessionsModule } from '../modules/sessions/sessions.module';
 import { SubscriptionGuard } from '../modules/subscriptions/subscription.guard';
 import { SubscriptionsModule } from '../modules/subscriptions/subscriptions.module';
 import { TasksModule } from '../modules/tasks/tasks.module';
+import { TimeEntriesModule } from '../modules/time-entries/time-entries.module';
 import { TimelineModule } from '../modules/timeline/timeline.module';
 import { UsersModule } from '../modules/users/users.module';
 
@@ -55,6 +56,7 @@ import { UsersModule } from '../modules/users/users.module';
     NotificationsModule,
     TimelineModule,
     DashboardModule,
+    TimeEntriesModule,
     NotesModule,
     AiModule,
     AiSummariesModule,
