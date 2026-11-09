@@ -34,5 +34,7 @@ export type { CaseListParams } from './cases.js';
 export { notificationsApi } from './notifications.js';
 export type { NotificationListParams } from './notifications.js';
 export { profileApi } from './profile.js';
+export { adminOfficesApi } from './admin-offices.js';
+export type { AdminOfficeListParams } from './admin-offices.js';
 export { adminAuthApi } from './admin-auth.js';
 export type { AdminClientSession } from './admin-auth.js';
