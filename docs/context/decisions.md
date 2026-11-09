@@ -2820,6 +2820,60 @@ first 100"); a hearing whose file cannot be loaded says why instead of doing not
 (it is true after paging too). **Known limit:** the month grid highlights "today" by the device's clock, not the office's
 zone (D-127); the ranges and entries themselves use the office's zone.
 
+**D-158 — Client portal auth realm** · Accepted (owner chose option A, one portal account per person with access per office, on 2026-11-09; MVP-97) · Amends D-003, D-079
+→ **Models:** `ClientUser` (email unique globally, name, Argon2id hash, `isActive`, `emailVerifiedAt`, `lastLoginAt`) is **platform-level**
+like `PlatformAdmin` — no `officeId`, read and written only through `unscoped()`. What it may see is `ClientPortalAccess`
+(tenant: office, client, optional contact person, `grantedById`, `revokedAt`; composite FKs; one **live** grant per office and
+account by partial unique index) and `ClientInvitation` (tenant: client, contact person, email, SHA-256 token, `InvitationStatus`,
+7 days, one PENDING per office + email). `ClientSession` (refresh families) and `ClientPasswordResetToken` are platform tables;
+`AuditLog.clientUserId` is new. Revoked grants are kept. The read-only role cannot read sessions, reset tokens, invitations or
+`client_users.password_hash`. **Tokens:** access JWT HS256 with the new `JWT_PORTAL_SECRET` (≥ 32, must differ from `JWT_SECRET`
+and `ADMIN_JWT_SECRET`; unset = the portal routes answer 404), `iss=nexlegtiq`, `aud=portal`, 15 min, claims `{sub, sid}`; signed and
+checked by the realm's own `JwtService` (`PORTAL_JWT`), so an office or admin token never passes and a portal token fails the
+office guard (both directions tested). `PortalAuthGuard` reloads the account on every request: session family live (a logout or
+revocation stops the access token at once), account active, at least one live grant in an active office for a live, active client
+(else 401 AUTH-004 / 403 AUTH-006). **Refresh:** opaque 32-byte token, SHA-256 at rest, cookie `nlq_prt` (httpOnly, Secure,
+SameSite=Lax, path `/api/v1/portal/auth`), token life 7 days, no session beyond 30 days from sign-in; rotation locks the account
+row (`FOR UPDATE`), a reused or raced token ends the family (AUTH-005, logged — no audit row: audit rows need an office);
+refresh and logout need `Origin` = `CLIENT_PORTAL_URL`'s origin and `X-Requested-With` (D-055). **Routes** (`/api/v1/portal/auth`,
+public, throttled like office auth): `invites/preview`, `accept-invite`, `login`, `refresh`, `logout`, `forgot-password` (always 200),
+`reset-password`, and `me` (the first guarded route). Lockout is D-053 on `LoginAttempt` rows keyed `portal:<email>`, so portal
+failures never lock the same address out of the office app (5 failures per email + IP → 423 AUTH-007). **Accepting:** a new address
+creates the account with the chosen password; an address that **already has an account** must give that account's existing
+password (wrong → 401 AUTH-001, counted towards the lockout) and the office is added to it — the preview says `accountExists`. The
+acceptance is audited in the office (`ClientPortalAccess` CREATE with the Terms/Privacy versions); `LegalAcceptance` rows for
+portal users wait for the portal UI story (its `userId` is required, D-079). A suspended office → AUTH-006, a read-only one →
+AUTH-104 (D-122). **Office routes** (`manage:portal-access` = OM, SL, L, plus `@RequireFeature('clientPortal')`): `POST
+clients/:id/portal-invitations {email, contactPersonId?}` (client live and active; an address with a live grant here → 409 RES-002;
+an account elsewhere is fine; a pending one → 409), `DELETE clients/:id/portal-invitations/:invitationId`, `GET
+clients/:id/portal-users` (grants + pending invitations), `DELETE clients/:id/portal-users/:accessId` (revokes the grant and ends
+**all** the account's sessions after the commit — it signs in again where it still has access; its login is refused if none is
+left). Another office's client or grant, or a malformed id, is 404. **Emails (D-085 pattern):** the invitation row holds a hash of a
+never-sent token; after the commit `email/send-client-invitation {invitationId}` is queued and the worker stores the hash of a fresh
+token and mails `{CLIENT_PORTAL_URL}/accept-invite?token=…` (template `client-invite`, AR/EN, the office's language). Forgot-password
+queues `email/send-client-password-reset {clientUserId}` **in the context of one of the account's offices** (jobs need one) without
+awaiting; the worker issues a 1-hour link (limits of D-086: 1 a minute, 5 an hour) and mails the `password-reset` template to
+`{CLIENT_PORTAL_URL}/reset-password`; a reset sets the password, verifies the email, ends every link and **every session**. The
+email worker accepts links into the office app or the portal. **Audit:** sign-in, sign-out and password reset write one row **per
+office with a live grant** (`clientUserId` set, `userId` null). **Config:** `JWT_PORTAL_SECRET`, `CLIENT_PORTAL_URL` (default
+`http://localhost:4202`; https required in production once the secret is set). **Not done:** the portal app's pages (portal UI story),
+a resend route for portal invitations (revoke and invite again), MFA, portal-specific rate limits per account across IPs,
+`LegalAcceptance` rows for portal users, portal Redis rooms for the WebSocket gateway (D-129), and the portal's data routes (cases,
+documents, invoices), which will use `PortalAuthGuard` and check the grant of the office they read. Why: one login for a person
+who is a client of several offices, with access that each office can grant and revoke on its own.
+
+**Review additions to D-158 (same PR):** **revoking never depends on the plan** — `DELETE` of a grant or an invitation is `@AllowWhenReadOnly()` and
+not behind `@RequireFeature('clientPortal')` (the gate stays on invite and list), so a lapsed plan cannot freeze access; an office whose
+plan lacks the `clientPortal` flag grants nothing (`PortalAccounts.offices()` drops it, so login, refresh and the guard refuse it) and
+accepting checks the flag too (AUTH-102); a read-only office still grants. **Confidential files (D-140):** inviting a client linked to a live
+confidential file is 403 AUTH-100 unless the caller is the office manager or that file's responsible lawyer, since the portal user would
+see the file. **Reuse of a refresh token** writes a `SECURITY` audit row (`REFRESH_TOKEN_REUSED`, family id) in every office of the account.
+`GET clients/:id/portal-users` no longer returns `lastLoginAt` (it was the account's global time and leaked activity in other offices).
+Portal emails render with `CLIENT_PORTAL_URL` for links and the legal footer. Forgot-password does one query for every email (the worker
+checks the account again), so known and unknown addresses take the same path. Accepting into an **existing** account only requires a
+non-empty password (an older password still works); the policy is applied to new accounts by the service (VAL-001 on `password`).
+**Accepted:** the preview's `accountExists` tells whoever holds the link that the address has an account; revoking in one office ends
+the account's sessions in every office (it signs in again).
 **D-156 — Task templates: matching, assignees, due dates, starter set** · Accepted (MVP-78, 2026-11-09) · Amends D-098
 MVP-78 left open how a template's assignee is found, what "skip if role missing" covers, where the starter set lives and
 how a task records its origin. → **Schema (amends D-098):** `Task.sourceType` (`TaskSource` MANUAL|TEMPLATE|AI_NEXT_STEP,

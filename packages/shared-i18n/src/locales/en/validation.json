@@ -65,6 +65,7 @@
   "tooShort": "This is too short.",
   "totpCode": "Enter the 6-digit code from your authenticator app.",
   "unknownClient": "One of the selected clients does not exist or is inactive.",
+  "unknownContact": "The selected contact person does not exist for this client.",
   "unknownCourt": "The selected court does not exist.",
   "unknownFolder": "The selected folder does not exist in this case.",
   "unknownJudge": "The selected judge does not exist or does not sit at the selected court.",

@@ -369,6 +369,8 @@ model Office {
   tasks               Task[]
   timeEntries         TimeEntry[]
   timeTimers          TimeTimer[]
+  clientPortalAccesses ClientPortalAccess[]
+  clientInvitations    ClientInvitation[]
   courts              Court[]
   judges              Judge[]
   publicProsecutors   PublicProsecutor[]
@@ -440,6 +442,8 @@ model User {
 
   office              Office                   @relation(fields: [officeId], references: [id])
   sentInvitations     OfficeInvitation[]
+  grantedPortalAccesses ClientPortalAccess[] @relation("PortalAccessGrantedBy")
+  sentClientInvitations ClientInvitation[] @relation("ClientInvitedBy")
   refreshTokens       RefreshToken[]
   passwordResetTokens PasswordResetToken[]
   emailVerifications  EmailVerificationToken[]
@@ -763,6 +767,8 @@ model Client {
   files         FileClient[]
   notes         FileNote[]
   contacts      ContactPerson[]
+  portalAccesses    ClientPortalAccess[]
+  portalInvitations ClientInvitation[]
 
   @@unique([id, officeId])
   @@index([officeId, displayName])
@@ -792,6 +798,10 @@ model ContactPerson {
   office Office @relation(fields: [officeId], references: [id])
   client Client @relation(fields: [clientId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
 
+  portalAccesses    ClientPortalAccess[]
+  portalInvitations ClientInvitation[]
+
+  @@unique([id, officeId])
   @@index([officeId, clientId])
   @@map("contact_persons")
 }
@@ -1497,6 +1507,8 @@ model AuditLog {
   officeId        String      @map("office_id") @db.Uuid
   userId          String?     @map("user_id") @db.Uuid
   platformAdminId String?     @map("platform_admin_id") @db.Uuid
+  /// A client-portal user's sign-in or sign-out (D-158); one row per office they have access to.
+  clientUserId    String?     @map("client_user_id") @db.Uuid
   entityType      String      @map("entity_type")
   entityId        String?     @map("entity_id") @db.Uuid
   action          AuditAction
@@ -1513,6 +1525,7 @@ model AuditLog {
   // append-only log by deleting or re-keying a user (users are deactivated, never deleted).
   user          User?          @relation(fields: [userId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
   platformAdmin PlatformAdmin? @relation(fields: [platformAdminId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  clientUser    ClientUser?    @relation(fields: [clientUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([officeId, occurredAt(sort: Desc)])
   @@index([officeId, entityType, entityId])
@@ -1640,4 +1653,107 @@ model AiUsage {
   // Monthly quota: successful provider calls of the office since the start of its month (office time zone, D-144).
   @@index([officeId, createdAt])
   @@map("ai_usages")
+}
+
+/// A client-portal account (D-158): one person, one login, access per office through ClientPortalAccess. Platform-level
+/// (no office), like PlatformAdmin: read and written only through the raw client.
+model ClientUser {
+  id              String    @id @default(uuid(7)) @db.Uuid
+  email           String    @unique @db.Citext
+  fullName        String    @map("full_name")
+  passwordHash    String    @map("password_hash")
+  isActive        Boolean   @default(true) @map("is_active")
+  emailVerifiedAt DateTime? @map("email_verified_at") @db.Timestamptz(3)
+  lastLoginAt     DateTime? @map("last_login_at") @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  accesses    ClientPortalAccess[]
+  sessions    ClientSession[]
+  resetTokens ClientPasswordResetToken[]
+  auditLogs   AuditLog[]
+
+  @@map("client_users")
+}
+
+/// What a portal account may see in one office: the client (and contact person) it was invited as (D-158).
+/// Revoked, never deleted; one live grant per office and account (partial unique index in the migration).
+model ClientPortalAccess {
+  id              String    @id @default(uuid(7)) @db.Uuid
+  officeId        String    @map("office_id") @db.Uuid
+  clientUserId    String    @map("client_user_id") @db.Uuid
+  clientId        String    @map("client_id") @db.Uuid
+  contactPersonId String?   @map("contact_person_id") @db.Uuid
+  grantedById     String    @map("granted_by_id") @db.Uuid
+  revokedAt       DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office        Office         @relation(fields: [officeId], references: [id])
+  clientUser    ClientUser     @relation(fields: [clientUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  client        Client         @relation(fields: [clientId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
+  contactPerson ContactPerson? @relation(fields: [contactPersonId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
+  grantedBy     User           @relation("PortalAccessGrantedBy", fields: [grantedById, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([officeId, clientId])
+  @@index([clientUserId])
+  @@map("client_portal_accesses")
+}
+
+/// An invitation to the client portal (D-158): 7 days, SHA-256 of the emailed token only, one PENDING per office + email.
+model ClientInvitation {
+  id              String           @id @default(uuid(7)) @db.Uuid
+  officeId        String           @map("office_id") @db.Uuid
+  clientId        String           @map("client_id") @db.Uuid
+  contactPersonId String?          @map("contact_person_id") @db.Uuid
+  email           String           @db.Citext
+  tokenHash       String           @unique @map("token_hash")
+  status          InvitationStatus @default(PENDING)
+  expiresAt       DateTime         @map("expires_at") @db.Timestamptz(3)
+  invitedById     String           @map("invited_by_id") @db.Uuid
+  acceptedAt      DateTime?        @map("accepted_at") @db.Timestamptz(3)
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office        Office         @relation(fields: [officeId], references: [id])
+  client        Client         @relation(fields: [clientId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  contactPerson ContactPerson? @relation(fields: [contactPersonId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
+  invitedBy     User           @relation("ClientInvitedBy", fields: [invitedById, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([officeId, clientId, status])
+  @@map("client_invitations")
+}
+
+/// A portal account's refresh token (D-158): rotated on every refresh, a reused token ends its whole family.
+model ClientSession {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  clientUserId String    @map("client_user_id") @db.Uuid
+  tokenHash    String    @unique @map("token_hash")
+  familyId     String    @map("family_id") @db.Uuid
+  startedAt    DateTime  @map("started_at") @db.Timestamptz(3)
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(3)
+  replacedById String?   @map("replaced_by_id") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  clientUser ClientUser @relation(fields: [clientUserId], references: [id], onDelete: Cascade)
+
+  @@index([familyId])
+  @@index([clientUserId])
+  @@map("client_sessions")
+}
+
+/// Portal password-reset link (D-158, the D-086 pattern): 1 hour, single use, SHA-256 only.
+model ClientPasswordResetToken {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  clientUserId String    @map("client_user_id") @db.Uuid
+  tokenHash    String    @unique @map("token_hash")
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(3)
+  usedAt       DateTime? @map("used_at") @db.Timestamptz(3)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  clientUser ClientUser @relation(fields: [clientUserId], references: [id], onDelete: Cascade)
+
+  @@index([clientUserId, createdAt])
+  @@map("client_password_reset_tokens")
 }

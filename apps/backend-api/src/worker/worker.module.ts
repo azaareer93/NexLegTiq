@@ -20,6 +20,10 @@ import { ClamavScanner } from '../modules/documents/upload/clamav-scanner';
 import { OcrProcessor } from '../modules/documents/workers/ocr.processor';
 import { NotificationsModule } from '../modules/notifications/notifications.module';
 import { NotificationProcessor } from '../modules/notifications/workers/notification.processor';
+import {
+  PortalInvitationLinks,
+  PortalPasswordResetLinks,
+} from '../modules/portal-auth/portal-links';
 import { ReminderDelivery } from '../modules/sessions/reminder-delivery';
 import { ReminderScheduler } from '../modules/sessions/reminder-scheduler';
 import { ReminderProcessor } from '../modules/sessions/workers/reminder.processor';
@@ -49,6 +53,8 @@ import { TimelineModule } from '../modules/timeline/timeline.module';
     VerificationLinks,
     PasswordResetLinks,
     InvitationLinks,
+    PortalInvitationLinks,
+    PortalPasswordResetLinks,
     NotificationProcessor,
     ReminderProcessor,
     ReminderDelivery,

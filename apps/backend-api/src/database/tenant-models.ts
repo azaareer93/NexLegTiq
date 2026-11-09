@@ -19,6 +19,8 @@ export const TENANT_MODELS = [
   // Parents before children: tests clean up in reverse order.
   'Client',
   'ContactPerson',
+  'ClientPortalAccess',
+  'ClientInvitation',
   'LegalFile',
   'FileClient',
   'FileTeamMember',

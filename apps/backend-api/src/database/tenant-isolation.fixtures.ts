@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import type { SeededOffice } from './tenant-isolation.matrix';
+import type { SeededOffice, TenantResource } from './tenant-isolation.matrix';
 import type { PrismaClient } from '../generated/prisma/client';
 
 /** Rows the isolation matrix creates in one office (raw client), and the parents other rows reference. */
@@ -155,5 +155,50 @@ export const timerIn = async (db: PrismaClient, office: SeededOffice) =>
       officeId: office.officeId,
       fileId: (await fileIn(db, office)).id,
       userId: office.userId,
+    },
+  });
+
+export const portalAccessIn = async (db: PrismaClient, office: SeededOffice) => {
+  const clientUser = await db.clientUser.create({
+    data: {
+      email: `iso-portal-${randomUUID()}@example.test`,
+      fullName: 'Isolation',
+      passwordHash: '!',
+    },
+  });
+  return db.clientPortalAccess.create({
+    data: {
+      officeId: office.officeId,
+      clientUserId: clientUser.id,
+      clientId: (await clientIn(db, office)).id,
+      grantedById: office.userId,
+    },
+  });
+};
+
+export const clientInvitationIn = async (db: PrismaClient, office: SeededOffice) =>
+  db.clientInvitation.create({
+    data: {
+      officeId: office.officeId,
+      clientId: (await clientIn(db, office)).id,
+      email: `iso-invite-${randomUUID()}@example.test`,
+      tokenHash: randomUUID(),
+      expiresAt: soon(),
+      invitedById: office.userId,
+    },
+  });
+
+/** Client-portal tenant models (D-158), listed here to keep the matrix file short. */
+export const PORTAL_RESOURCES: readonly TenantResource[] = [
+  { model: 'ClientPortalAccess', create: portalAccessIn, update: { revokedAt: new Date() } },
+  { model: 'ClientInvitation', create: clientInvitationIn, update: { status: 'REVOKED' } },
+];
+
+export const attendanceIn = async (db: PrismaClient, office: SeededOffice) =>
+  db.sessionPartyAttendance.create({
+    data: {
+      officeId: office.officeId,
+      sessionId: (await sessionIn(db, office)).id,
+      partyId: (await partyIn(db, office)).id,
     },
   });

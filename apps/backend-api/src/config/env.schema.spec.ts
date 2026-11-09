@@ -348,6 +348,7 @@ describe('AppConfig', () => {
       from: 'no-reply@nexlegtiq.test',
       provider: 'smtp',
       officeAppUrl: 'https://app.nexlegtiq.test',
+      clientPortalUrl: 'http://localhost:4202',
     });
     expect(authenticated.mail.auth).toEqual({ user: 'mailer', pass: 'pw' });
   });
@@ -381,5 +382,28 @@ describe('AppConfig', () => {
 
     expect(parseEnv(example).NODE_ENV).toBe('development');
     expect(documented.sort()).toEqual([...ENV_KEYS].sort());
+  });
+});
+
+describe('client portal realm (D-158)', () => {
+  const SECRET = 'portal-only-secret-portal-only-secret-1234';
+
+  it('should leave the realm off without JWT_PORTAL_SECRET and expose its origin with one', () => {
+    expect(new AppConfig(parseEnv(testEnv())).portal).toBeNull();
+    const config = new AppConfig(
+      parseEnv(testEnv({ JWT_PORTAL_SECRET: SECRET, CLIENT_PORTAL_URL: 'https://p.test/app/' })),
+    );
+    expect(config.portal).toEqual({ jwtSecret: SECRET, origin: 'https://p.test' });
+    expect(config.mail.clientPortalUrl).toBe('https://p.test/app');
+  });
+
+  it('should refuse a portal secret equal to the office or admin one', () => {
+    expect(() => parseEnv(testEnv({ JWT_PORTAL_SECRET: testEnv().JWT_SECRET }))).toThrow(
+      'JWT_PORTAL_SECRET',
+    );
+    const admin = 'admin-only-secret-admin-only-secret-1234567';
+    expect(() => parseEnv(testEnv({ ADMIN_JWT_SECRET: admin, JWT_PORTAL_SECRET: admin }))).toThrow(
+      'JWT_PORTAL_SECRET',
+    );
   });
 });
