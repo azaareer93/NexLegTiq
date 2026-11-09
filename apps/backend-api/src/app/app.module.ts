@@ -24,6 +24,7 @@ import { DashboardModule } from '../modules/dashboard/dashboard.module';
 import { DocumentsModule } from '../modules/documents/documents.module';
 import { FileParticipantsModule } from '../modules/file-participants/file-participants.module';
 import { LegalFilesModule } from '../modules/legal-files/legal-files.module';
+import { NotesModule } from '../modules/notes/notes.module';
 import { NotificationsModule } from '../modules/notifications/notifications.module';
 import { OfficesModule } from '../modules/offices/offices.module';
 import { PartiesModule } from '../modules/parties/parties.module';
@@ -54,6 +55,7 @@ import { UsersModule } from '../modules/users/users.module';
     NotificationsModule,
     TimelineModule,
     DashboardModule,
+    NotesModule,
     AiModule,
     AiSummariesModule,
     ClientsModule,
