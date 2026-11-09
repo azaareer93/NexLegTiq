@@ -16,7 +16,6 @@
     "hearing": "Hearing",
     "task": "Task due"
   },
-  "empty_one": "Nothing scheduled in the next {{count}} day.",
-  "empty_other": "Nothing scheduled in the next {{count}} days.",
-  "truncated": "Only the first 100 tasks of this range are shown."
+  "truncated": "Some tasks of this period are not shown (more than 100).",
+  "empty": "Nothing scheduled in this period."
 }

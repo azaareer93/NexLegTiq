@@ -33,12 +33,11 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 
+import { HearingDrawer } from './HearingDrawer';
 import { addDays, useCalendar } from './use-calendar';
 import type { CalendarEntry, CalendarRange } from './use-calendar';
 import { useSession } from '../auth';
-import { useCase, useDirectory } from '../cases/api/use-cases';
-import { useSessionRights } from '../cases/sessions/session-rights';
-import { SessionDrawer } from '../cases/sessions/SessionDrawer';
+import { useDirectory } from '../cases/api/use-cases';
 import { openTaskDrawer } from '../tasks';
 
 type View = 'month' | 'week' | 'agenda';
@@ -55,7 +54,8 @@ export function rangeOf(view: View, anchor: Dayjs): CalendarRange {
   if (view === 'month') {
     return {
       first: day(anchor.startOf('month').startOf('week')),
-      last: day(anchor.endOf('month').endOf('week')),
+      // AntD draws six weeks whatever the month: ask for all 42 days it shows.
+      last: addDays(day(anchor.startOf('month').startOf('week')), 41),
     };
   }
   if (view === 'week')
@@ -123,44 +123,6 @@ function DayEntries({
       ))}
     </Flex>
   );
-}
-
-/** A hearing's drawer needs its file (rights, court defaults): loaded on open. */
-function HearingDrawer({
-  fileId,
-  sessionId,
-  onClose,
-}: {
-  readonly fileId: string;
-  readonly sessionId: string;
-  readonly onClose: () => void;
-}) {
-  const user = useSession((state) => state.user);
-  const file = useCase(fileId);
-  if (!file.data || !user) return null;
-  return (
-    <LoadedHearingDrawer
-      file={file.data}
-      userId={user.id}
-      sessionId={sessionId}
-      onClose={onClose}
-    />
-  );
-}
-
-function LoadedHearingDrawer({
-  file,
-  userId,
-  sessionId,
-  onClose,
-}: {
-  readonly file: NonNullable<ReturnType<typeof useCase>['data']>;
-  readonly userId: string;
-  readonly sessionId: string;
-  readonly onClose: () => void;
-}) {
-  const rights = useSessionRights(file, userId);
-  return <SessionDrawer file={file} sessionId={sessionId} open rights={rights} onClose={onClose} />;
 }
 
 /** `/calendar` (MVP-70, D-155): month, week and agenda of hearings and due tasks, in the office's time zone. */
@@ -276,7 +238,7 @@ export function CalendarPage() {
         ? Array.from({ length: 7 }, (_, i) => addDays(range.first, i))
         : [...new Set(calendar.entries.map((entry) => entry.day))];
     if (days.length === 0 && !calendar.isPending) {
-      return <EmptyState title={t('calendar.empty', { count: AGENDA_DAYS })} />;
+      return <EmptyState title={t('calendar.empty')} />;
     }
     return (
       <Row gutter={[8, 8]}>
@@ -295,7 +257,7 @@ export function CalendarPage() {
   return (
     <Flex vertical gap={16} component="section" data-testid="page-calendar">
       <PageHeader title={t('calendar.title')} extra={toolbar} />
-      <Flex gap={8} wrap aria-label={t('calendar.legend.title')}>
+      <Flex gap={8} wrap role="group" aria-label={t('calendar.legend.title')}>
         <Tag icon={<CalendarOutlined aria-hidden />}>{t('calendar.legend.hearing')}</Tag>
         <Tag icon={<CheckSquareOutlined aria-hidden />}>{t('calendar.legend.task')}</Tag>
       </Flex>

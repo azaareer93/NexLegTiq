@@ -113,7 +113,8 @@ describe('calendar ranges (D-155)', () => {
     const day = dayjs('2026-11-11');
     expect(rangeOf('week', day.locale('ar'))).toEqual({ first: '2026-11-07', last: '2026-11-13' });
     expect(rangeOf('week', day.locale('en'))).toEqual({ first: '2026-11-08', last: '2026-11-14' });
-    expect(rangeOf('month', day.locale('en'))).toEqual({ first: '2026-11-01', last: '2026-12-05' });
+    // Six weeks, as the month grid shows them (November 2026 needs only five).
+    expect(rangeOf('month', day.locale('en'))).toEqual({ first: '2026-11-01', last: '2026-12-12' });
     expect(rangeOf('agenda', day)).toEqual({ first: '2026-11-11', last: '2026-12-10' });
   });
 });

@@ -68,7 +68,10 @@ export function useCalendar(range: CalendarRange, filters: CalendarFilters, time
         session,
       })),
     ...(due.data?.items ?? []).flatMap((task) =>
-      task.dueDate ? [{ kind: 'task' as const, day: task.dueDate, task }] : [],
+      // A done task is no longer due: left off the calendar.
+      task.dueDate && task.status !== 'DONE'
+        ? [{ kind: 'task' as const, day: task.dueDate, task }]
+        : [],
     ),
   ].sort((a, b) => a.day.localeCompare(b.day) || sortKey(a).localeCompare(sortKey(b)));
   return {

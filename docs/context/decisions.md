@@ -2771,3 +2771,9 @@ drawer (its file is loaded first: the drawer needs the file's rights and court d
 **Deviation:** "create a hearing from an empty slot" is not built — a hearing belongs to a file and the page has no file
 picker yet; hearings are scheduled from the file's Hearings tab (or Ctrl+Alt+H there). **Not done:** an office setting for
 the week start, a time grid with hour slots, drag to reschedule, external calendar sync (Phase 2).
+Review additions (same PR): the **month range is the 42 days** AntD's grid always draws (six weeks), not the month's own
+weeks — otherwise a sixth row showed nothing; **done tasks are left off** (they are no longer due); more than 100 tasks in a
+range shows "some tasks are not shown" (the list is ordered by board position, not by due date, so the cut is not "the
+first 100"); a hearing whose file cannot be loaded says why instead of doing nothing; the empty state says "in this period"
+(it is true after paging too). **Known limit:** the month grid highlights "today" by the device's clock, not the office's
+zone (D-127); the ranges and entries themselves use the office's zone.
