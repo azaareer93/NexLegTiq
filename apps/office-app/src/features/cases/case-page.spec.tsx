@@ -104,7 +104,8 @@ describe('file page rules', () => {
   const none: FileActions = {
     edit: false,
     reassign: false,
-    changeStatus: false,
+    close: false,
+    reopen: false,
     archive: false,
     delete: false,
     confidentiality: false,
@@ -115,8 +116,10 @@ describe('file page rules', () => {
     expect(fileActions(FILE, userAs('OFFICE_MANAGER'))).toEqual({
       edit: true,
       reassign: true,
-      changeStatus: true,
-      archive: true,
+      close: true,
+      reopen: false,
+      // Only a closed file can be archived.
+      archive: false,
       delete: true,
       confidentiality: true,
       billing: true,
@@ -124,11 +127,11 @@ describe('file page rules', () => {
     // A lawyer: edits assigned files only; close/reopen only as the responsible lawyer (D-052).
     expect(fileActions(FILE, userAs('LAWYER', LAWYER_ID))).toMatchObject({
       edit: true,
-      changeStatus: true,
+      close: true,
       confidentiality: true,
       delete: false,
     });
-    expect(fileActions(FILE, userAs('LAWYER'))).toMatchObject({ edit: false, changeStatus: false });
+    expect(fileActions(FILE, userAs('LAWYER'))).toMatchObject({ edit: false, close: false });
     // The paralegal on the team edits, but cannot touch confidentiality or billing (D-096).
     expect(fileActions(FILE, userAs('PARALEGAL', PARALEGAL_ID))).toMatchObject({
       edit: true,
@@ -233,14 +236,102 @@ describe('file page', () => {
       renderApp(`/cases/${ID}`);
       await page();
       fireEvent.click(screen.getByTestId('case-actions'));
-      expect(await screen.findByTestId('case-action-status')).toBeTruthy();
-      expect(screen.getByTestId('case-action-archive')).toBeTruthy();
+      expect(await screen.findByTestId('case-action-close')).toBeTruthy();
+      // An open file is not archived, and only OM/SL archive (D-153).
+      expect(screen.queryByTestId('case-action-archive')).toBeNull();
       expect(screen.getByTestId('case-action-edit')).toBeTruthy();
       expect(screen.queryByTestId('case-action-reassign')).toBeNull();
       expect(screen.queryByTestId('case-action-delete')).toBeNull();
-      // Lifecycle routes arrive with their own story.
-      fireEvent.click(screen.getByTestId('case-action-status'));
-      expect(await screen.findByTestId('case-coming-soon')).toBeTruthy();
+      // Open tasks: the first close is refused with their count, the second is forced with a reason.
+      const bodies: unknown[] = [];
+      server.use(
+        http.post(api(`cases/${ID}/close`), async ({ request }) => {
+          const body = (await request.json()) as { force: boolean };
+          bodies.push(body);
+          return body.force
+            ? new HttpResponse(null, { status: 204 })
+            : HttpResponse.json(
+                {
+                  success: false,
+                  error: {
+                    code: 'BIZ-003',
+                    message: 'open tasks',
+                    details: [
+                      {
+                        field: 'force',
+                        message: 'validation.openTasks',
+                        params: { openTasks: '2' },
+                      },
+                    ],
+                  },
+                  meta: { timestamp: '2026-11-09T10:00:00.000Z', requestId: 'req-12345678' },
+                },
+                { status: 422 },
+              );
+        }),
+      );
+      fireEvent.click(screen.getByTestId('case-action-close'));
+      fireEvent.change(await screen.findByTestId('close-reason'), { target: { value: 'Settled' } });
+      fireEvent.click(screen.getByTestId('close-confirm'));
+      fireEvent.change(await screen.findByTestId('close-force-reason'), {
+        target: { value: 'Client withdrew' },
+      });
+      expect(screen.getByText(/still has open tasks/)).toBeTruthy();
+      fireEvent.click(screen.getByTestId('close-confirm'));
+      await waitFor(() => expect(screen.queryByTestId('close-case-dialog')).toBeNull());
+      expect(bodies).toEqual([
+        { reason: 'Settled', force: false },
+        { reason: 'Settled', force: true, forceReason: 'Client withdrew' },
+      ]);
+    },
+    SLOW,
+  );
+
+  it(
+    'should let the office manager reopen or archive a closed file, and reassign it',
+    async () => {
+      setViewport(1280);
+      asRole('OFFICE_MANAGER');
+      serveFile({ ...FILE, status: 'CLOSED', closingDate: '2026-11-01' });
+      const calls: string[] = [];
+      server.use(
+        http.post(api(`cases/${ID}/archive`), () => {
+          calls.push('archive');
+          return new HttpResponse(null, { status: 204 });
+        }),
+        http.get(api('users/directory'), () =>
+          ok([
+            {
+              id: '01920000-0000-7000-8000-0000000000a9',
+              fullName: 'Hana Senior',
+              role: 'SENIOR_LAWYER',
+            },
+          ]),
+        ),
+        http.post(api(`cases/${ID}/reassign`), async ({ request }) => {
+          calls.push(JSON.stringify(await request.json()));
+          return ok([]);
+        }),
+      );
+      renderApp(`/cases/${ID}`);
+      await page();
+      fireEvent.click(screen.getByTestId('case-actions'));
+      expect(await screen.findByTestId('case-action-reopen')).toBeTruthy();
+      expect(screen.queryByTestId('case-action-close')).toBeNull();
+      fireEvent.click(screen.getByTestId('case-action-archive'));
+      fireEvent.click(await screen.findByRole('button', { name: 'Archive' }));
+      await waitFor(() => expect(calls).toEqual(['archive']));
+      fireEvent.click(screen.getByTestId('case-actions'));
+      fireEvent.click(await screen.findByTestId('case-action-reassign'));
+      const select = await screen.findByTestId('reassign-lawyer');
+      fireEvent.mouseDown(select.querySelector('input') ?? select);
+      fireEvent.click(await screen.findByTitle('Hana Senior'));
+      fireEvent.click(screen.getByTestId('reassign-confirm'));
+      await waitFor(() =>
+        expect(calls[1]).toBe(
+          JSON.stringify({ newResponsibleLawyerId: '01920000-0000-7000-8000-0000000000a9' }),
+        ),
+      );
     },
     SLOW,
   );

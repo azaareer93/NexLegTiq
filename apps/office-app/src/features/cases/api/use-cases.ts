@@ -1,6 +1,8 @@
 import { ApiError, casesApi, courtsApi, usersApi } from '@nexlegtiq/shared-api-client';
 import type { CaseListParams } from '@nexlegtiq/shared-api-client';
 import type {
+  CloseCaseRequest,
+  ReassignCaseRequest,
   AddFileClientRequest,
   AddTeamMemberRequest,
   Case,
@@ -73,6 +75,31 @@ export function useDeleteCase(id: string) {
     mutationFn: () => cases.remove(id),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: caseKeys.lists() }),
   });
+}
+
+/**
+ * Close, reopen, archive and reassign (D-153): the file, its lists, its hearings (reminders changed), its timeline and
+ * the dashboard refetch, so the new status shows everywhere.
+ */
+export function useFileLifecycle(id: string) {
+  const queryClient = useQueryClient();
+  const onSuccess = () => {
+    for (const queryKey of [caseKeys.detail(id), caseKeys.lists(), ['sessions'], ['dashboard']]) {
+      void queryClient.invalidateQueries({ queryKey });
+    }
+  };
+  return {
+    close: useMutation({
+      mutationFn: (body: CloseCaseRequest) => cases.close(id, body),
+      onSuccess,
+    }),
+    reopen: useMutation({ mutationFn: () => cases.reopen(id), onSuccess }),
+    archive: useMutation({ mutationFn: () => cases.archive(id), onSuccess }),
+    reassign: useMutation({
+      mutationFn: (body: ReassignCaseRequest) => cases.reassign(id, body),
+      onSuccess,
+    }),
+  };
 }
 
 /** `POST /cases`: lists refetch; the new file is cached for "Create & open". */

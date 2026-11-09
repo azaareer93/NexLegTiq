@@ -53,8 +53,9 @@
     "actions": {
       "more": "More actions",
       "reassign": "Reassign",
-      "changeStatus": "Change status",
-      "archive": "Archive"
+      "archive": "Archive",
+      "close": "Close case",
+      "reopen": "Reopen"
     },
     "tabs": {
       "details": "Details",
@@ -134,6 +135,24 @@
       "removeMember": "Remove {{name}} from the team",
       "removeMemberTitle": "Remove this member from the team?",
       "removeMemberBody": "{{name}} will no longer be assigned to this case and may lose access to it."
+    },
+    "lifecycle": {
+      "closeTitle": "Close this case",
+      "reason": "Reason (optional)",
+      "openTasks": "This case still has open tasks: {{count}}. Close it anyway?",
+      "forceReason": "Why close it with open tasks?",
+      "closeAnyway": "Close anyway",
+      "closed": "Case closed",
+      "reopenTitle": "Reopen this case?",
+      "reopenBody": "It becomes open again and its upcoming hearings get their reminders back.",
+      "reopened": "Case reopened",
+      "archiveTitle": "Archive this case?",
+      "archiveBody": "An archived case is read-only for everyone and cannot be reopened. It stays listed and searchable.",
+      "archivedDone": "Case archived",
+      "reassignTitle": "Reassign the case",
+      "newLawyer": "New responsible lawyer",
+      "note": "Note (optional)",
+      "reassigned": "Case reassigned"
     }
   },
   "create": {

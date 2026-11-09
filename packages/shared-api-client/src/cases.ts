@@ -6,6 +6,8 @@ import {
   TimelinePageSchema,
 } from '@nexlegtiq/shared-contracts';
 import type {
+  CloseCaseRequest,
+  ReassignCaseRequest,
   AddFileClientRequest,
   AddTeamMemberRequest,
   Case,
@@ -54,6 +56,18 @@ export function casesApi(client: ApiClient) {
     update: (id: string, body: UpdateCaseRequest): Promise<Case> =>
       client.request({ method: 'PATCH', path: path(id), body }, CaseSchema),
     remove: (id: string): Promise<void> => client.request({ method: 'DELETE', path: path(id) }),
+    /** The file's lifecycle (D-153): 204 each; the caller refetches the file. */
+    close: (id: string, body: CloseCaseRequest): Promise<void> =>
+      client.request({ method: 'POST', path: `${path(id)}/close`, body }),
+    reopen: (id: string): Promise<void> =>
+      client.request({ method: 'POST', path: `${path(id)}/reopen` }),
+    archive: (id: string): Promise<void> =>
+      client.request({ method: 'POST', path: `${path(id)}/archive` }),
+    reassign: (id: string, body: ReassignCaseRequest): Promise<FileTeamMember[]> =>
+      client.request(
+        { method: 'POST', path: `${path(id)}/reassign`, body },
+        FileTeamMemberSchema.array(),
+      ),
     /** A file's clients and team (D-140); each change answers with the new list. */
     addClient: (id: string, body: AddFileClientRequest): Promise<FileClient[]> =>
       client.request(
