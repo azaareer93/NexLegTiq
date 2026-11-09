@@ -3,7 +3,15 @@ import { setupServer } from 'msw/node';
 
 import { createApiClient } from './api-client.js';
 import { casesApi } from './cases.js';
-import { authApi, clientsApi, courtsApi, officesApi, sessionsApi, usersApi } from './resources.js';
+import {
+  authApi,
+  clientsApi,
+  courtsApi,
+  dashboardApi,
+  officesApi,
+  sessionsApi,
+  usersApi,
+} from './resources.js';
 
 const ORIGIN = 'http://api.test';
 const url = (path: string) => `${ORIGIN}/api/v1/${path}`;
@@ -55,6 +63,7 @@ function setup(token: string | null = null) {
     clients: clientsApi(client),
     courts: courtsApi(client),
     offices: officesApi(client),
+    dashboard: dashboardApi(client),
     sessions: sessionsApi(client),
     store,
     onAuthFailure,
@@ -793,5 +802,24 @@ describe('sessionsApi', () => {
       `POST /api/v1/sessions/${sessionId}/cancel`,
       `POST /api/v1/sessions/${sessionId}/outcome`,
     ]);
+  });
+});
+
+describe('dashboardApi', () => {
+  it('should read the dashboard and check it against the contract', async () => {
+    const data = {
+      today: '2026-11-09',
+      openFiles: { count: 2, openedThisWeek: 1 },
+      todayHearings: [],
+      nextHearingId: null,
+      overdueTasks: 0,
+      newDocuments: 0,
+      newClientsThisMonth: null,
+      deadlines: [],
+      activity: { items: [], names: {} },
+      team: null,
+    };
+    server.use(http.get(url('dashboard'), () => ok(data)));
+    await expect(setup().dashboard.get()).resolves.toEqual(data);
   });
 });

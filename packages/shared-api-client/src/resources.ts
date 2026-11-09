@@ -1,4 +1,5 @@
 import {
+  DashboardSchema,
   AuthSessionSchema,
   InvitationSchema,
   InvitePreviewSchema,
@@ -17,6 +18,7 @@ import {
   OfficeSubscriptionSchema,
 } from '@nexlegtiq/shared-contracts';
 import type {
+  Dashboard,
   AcceptInviteRequestSchema,
   Invitation,
   InvitePreview,
@@ -255,6 +257,14 @@ export function officesApi(client: ApiClient) {
         { method: 'GET', path: 'offices/me/subscription', signal },
         OfficeSubscriptionSchema,
       ),
+  };
+}
+
+/** `GET /dashboard` (D-151): the signed-in user's day. */
+export function dashboardApi(client: ApiClient) {
+  return {
+    get: (signal?: AbortSignal): Promise<Dashboard> =>
+      client.request({ method: 'GET', path: 'dashboard', signal }, DashboardSchema),
   };
 }
 

@@ -36,7 +36,7 @@ function setup(
       findMany: jest.fn().mockResolvedValue([{ id: ID(20), displayName: 'Nour Trading' }]),
     },
   };
-  const access = { assertFileAccess: jest.fn() };
+  const access = { assertFileAccess: jest.fn(), visibleWhere: () => ({ live: true }) };
   const service = new TimelineService(
     { get: (key: keyof RequestContext) => context[key] } as unknown as ClsService<RequestContext>,
     { db } as unknown as PrismaService,
@@ -189,5 +189,25 @@ describe('TimelineService (D-150)', () => {
       [ID(101), { name: 'doc-1.pdf', versionNumber: 1 }],
       [null, { versionNumber: 1 }],
     ]);
+  });
+
+  it("should read the latest events of the caller's files with each event's file", async () => {
+    const { service, db } = setup();
+    const file = { id: FILE, fileNumber: 'F-1', title: 'Rent' };
+    db.caseTimelineEvent.findMany.mockResolvedValueOnce([
+      {
+        id: ID(1),
+        eventType: 'FILE_OPENED',
+        sourceType: null,
+        sourceId: null,
+        occurredAt: new Date(),
+        payload: {},
+        actor: null,
+        file,
+      },
+    ]);
+    const recent = await service.recent(ID(10), 20);
+    expect(db.caseTimelineEvent.findMany.mock.calls[0]?.[0]).toMatchObject({ take: 20 });
+    expect(recent.items).toEqual([expect.objectContaining({ id: ID(1), file })]);
   });
 });

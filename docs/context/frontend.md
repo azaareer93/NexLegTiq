@@ -37,7 +37,8 @@ Implementation, menu permissions and placeholder/403/404 pages: D-091 (`apps/off
 - **Onboarding** (8 steps, skippable, "Step n of 8"): account → office setup (jurisdiction default PALESTINE, language, currency) →
   invite team → welcome tour → first case → first hearing → first document → done checklist.
 - **Dashboard** (role-aware): KPI cards — my open cases (Δ week), today's hearings, overdue tasks, unpaid invoices (sum, overdue),
-  new documents, new clients; upcoming deadlines (7 days); recent activity; OM: team workload, revenue this month.
+  new documents, new clients; upcoming deadlines (7 days); recent activity; OM: team workload, revenue this month. Built in D-151
+  without the finance cards (unpaid invoices, revenue: their own story).
 - **Cases list**: search, filters, chips [All][Mine][Litigation][Contracts][Archived][Urgent]; columns fileNumber, title, status,
   priority, type/subtype, client, next hearing, responsible, docs count; server pagination; saved view in URL.
 - **Legal file page** (heart): header (back, `number • title`, status/priority tags, responsible, ⋮ reassign/change status/archive/delete)

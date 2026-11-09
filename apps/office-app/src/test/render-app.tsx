@@ -44,13 +44,28 @@ export const USER: AuthUser = {
 };
 export const SESSION = { accessToken: 'access-1', expiresIn: 900, user: USER };
 
+/** A dashboard with nothing on it (an office with no files yet). */
+export const EMPTY_DASHBOARD = {
+  today: '2026-11-09',
+  openFiles: { count: 0, openedThisWeek: 0 },
+  todayHearings: [],
+  nextHearingId: null,
+  overdueTasks: 0,
+  newDocuments: 0,
+  newClientsThisMonth: null,
+  deadlines: [],
+  activity: { items: [], names: {} },
+  team: null,
+};
+
 /**
- * Calls the shell makes on every page (the bell, D-149) answer "nothing" unless a test says otherwise; `resetHandlers`
+ * Calls the shell makes on every page (the bell, D-149) and the home page (D-151) answer "nothing" unless a test says otherwise; `resetHandlers`
  * keeps these.
  */
 const SHELL_DEFAULTS = [
   http.get(api('notifications/unread-count'), () => ok({ count: 0 })),
   http.get(api('notifications'), () => ok({ items: [], nextCursor: null })),
+  http.get(api('dashboard'), () => ok(EMPTY_DASHBOARD)),
 ];
 
 export const server = setupServer(...SHELL_DEFAULTS);

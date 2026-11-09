@@ -1,0 +1,43 @@
+{
+  "greeting": "مرحبًا، {{name}}",
+  "kpi": {
+    "openFiles": "ملفاتي المفتوحة",
+    "openedThisWeek_zero": "لم يُفتح ملف هذا الأسبوع",
+    "openedThisWeek_one": "ملف واحد فُتح هذا الأسبوع",
+    "openedThisWeek_two": "ملفان فُتحا هذا الأسبوع",
+    "openedThisWeek_few": "{{count}} ملفات فُتحت هذا الأسبوع",
+    "openedThisWeek_many": "{{count}} ملفًا فُتح هذا الأسبوع",
+    "openedThisWeek_other": "{{count}} ملف فُتح هذا الأسبوع",
+    "todayHearings": "جلسات اليوم",
+    "overdueTasks": "مهام متأخرة",
+    "newDocuments": "مستندات جديدة خلال 7 أيام",
+    "newClients": "موكلون جدد هذا الشهر",
+    "hearingsThisWeek": "جلسات المكتب خلال 7 أيام"
+  },
+  "today": {
+    "title": "جلسات اليوم",
+    "empty": "لا توجد جلسات اليوم.",
+    "soon": "خلال ساعة"
+  },
+  "deadlines": {
+    "title": "الأيام السبعة القادمة",
+    "empty": "لا توجد استحقاقات خلال الأيام السبعة القادمة.",
+    "task": "مهمة",
+    "personal": "مهمة شخصية"
+  },
+  "activity": {
+    "title": "أحدث النشاط على ملفاتي",
+    "empty": "لا يوجد نشاط على ملفاتك بعد."
+  },
+  "team": {
+    "title": "عبء العمل على الفريق",
+    "lawyer": "المحامي",
+    "openFiles": "الملفات المفتوحة",
+    "overdueTasks": "المهام المتأخرة"
+  },
+  "start": {
+    "title": "ابدأ بفتح أول ملف",
+    "description": "افتح ملفًا لتظهر هنا جلساته ومهامه ومستنداته.",
+    "action": "ملف جديد"
+  }
+}

@@ -19,6 +19,7 @@ export const I18N_NAMESPACES = [
   'tasks',
   'parties',
   'timeline',
+  'dashboard',
   'team',
   'profile',
 ] as const;
