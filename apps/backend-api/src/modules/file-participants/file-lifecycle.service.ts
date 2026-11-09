@@ -68,11 +68,7 @@ export class FileLifecycleService {
   private async locked(tx: ScopedTransaction, fileId: string, transition: Transition) {
     const file = await lockFile(tx, this.officeId(), fileId);
     this.assertMay(transition, file.responsibleLawyerId);
-    const { status } = await tx.legalFile.findUniqueOrThrow({
-      where: { id: fileId },
-      select: { status: true },
-    });
-    return { ...file, status };
+    return file;
   }
 
   private async record(
@@ -107,24 +103,23 @@ export class FileLifecycleService {
         throw new BusinessRuleException('BIZ-002', 'The file is already closed');
       }
       const { openTasks, reason, forceReason } = await this.closing(tx, fileId, input);
+      const closingDate = todayIn(timezone, new Date());
       await tx.legalFile.update({
         where: { id: fileId },
-        data: { status: 'CLOSED', closingDate: toDbDate(todayIn(timezone, new Date())) },
+        data: { status: 'CLOSED', closingDate: toDbDate(closingDate) },
       });
       await this.reminders.cancelForFile(tx, afterCommit, fileId);
       await this.timeline.record(tx, {
         fileId,
         eventType: 'FILE_CLOSED',
-        payload: {
-          ...(reason ? { reason } : {}),
-          ...(forceReason ? { forceReason, openTasks } : {}),
-        },
+        // FILE_CLOSED is shown on the client portal (D-150): staff reasons stay in the audit row only.
+        payload: forceReason ? { openTasks } : {},
       });
       await this.record(
         tx,
         fileId,
         file.status,
-        { status: 'CLOSED', reason, forceReason, openTasks },
+        { status: 'CLOSED', closingDate, reason, forceReason, openTasks },
         client,
       );
     });
@@ -178,16 +173,18 @@ export class FileLifecycleService {
       });
       await this.reminders.resetForFile(tx, afterCommit, fileId);
       await this.timeline.record(tx, { fileId, eventType: 'FILE_REOPENED' });
-      await this.record(tx, fileId, file.status, { status: 'OPEN' }, client);
+      await this.record(tx, fileId, file.status, { status: 'OPEN', closingDate: null }, client);
     });
   }
 
   /** A closed file becomes read-only for everyone, still listed and searchable (D-052). */
   async archive(fileId: string, client: AuditClient): Promise<void> {
     await this.access.assertFileAccess(fileId, 'read');
-    await this.uow.run(async (tx) => {
+    await this.uow.run(async (tx, afterCommit: AfterCommit) => {
       const file = await this.locked(tx, fileId, 'archive');
       if (file.status !== 'CLOSED') throw new ResourceConflictException('RES-003');
+      // A closed file can still get hearings (only archived ones refuse them, D-116): their reminders end here.
+      await this.reminders.cancelForFile(tx, afterCommit, fileId);
       await tx.legalFile.update({ where: { id: fileId }, data: { status: 'ARCHIVED' } });
       await this.record(tx, fileId, file.status, { status: 'ARCHIVED' }, client);
     });

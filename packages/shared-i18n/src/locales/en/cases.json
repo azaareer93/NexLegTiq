@@ -139,7 +139,6 @@
     "lifecycle": {
       "closeTitle": "Close this case",
       "reason": "Reason (optional)",
-      "openTasks": "This case still has open tasks: {{count}}. Close it anyway?",
       "forceReason": "Why close it with open tasks?",
       "closeAnyway": "Close anyway",
       "closed": "Case closed",
@@ -152,7 +151,9 @@
       "reassignTitle": "Reassign the case",
       "newLawyer": "New responsible lawyer",
       "note": "Note (optional)",
-      "reassigned": "Case reassigned"
+      "reassigned": "Case reassigned",
+      "openTasks_one": "This case still has {{formatted}} open task. Close it anyway?",
+      "openTasks_other": "This case still has {{formatted}} open tasks. Close it anyway?"
     }
   },
   "create": {

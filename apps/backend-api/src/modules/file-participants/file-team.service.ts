@@ -214,12 +214,11 @@ export class FileTeamService {
     });
     await this.reminders.resetForFile(tx, afterCommit, fileId);
     // "Notify both lawyers" (workflows.md#reassign): the previous one learns the file has moved on (D-153).
-    for (const [to, key] of [
-      [userId, 'fileReassigned'],
-      [file.responsibleLawyerId, 'fileReassignedAway'],
-    ] as const) {
-      const note = { titleKey: `shell.notifications.${key}`, fileId, fileNumber: file.fileNumber };
-      await this.notify(tx, afterCommit, to, { type: 'FILE_REASSIGNED', ...note });
+    const base = { type: 'FILE_REASSIGNED' as const, fileId, fileNumber: file.fileNumber };
+    const notices = [userId, 'fileReassigned', file.responsibleLawyerId, 'fileReassignedAway'];
+    for (let i = 0; i < notices.length; i += 2) {
+      const titleKey = `shell.notifications.${notices[i + 1]}`;
+      await this.notify(tx, afterCommit, notices[i] as string, { ...base, titleKey });
     }
   }
 

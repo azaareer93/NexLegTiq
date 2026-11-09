@@ -5,6 +5,7 @@ import {
 import type { ScopedTransaction } from '../../database/unit-of-work';
 
 export interface LockedFile {
+  readonly status: string;
   readonly fileNumber: string;
   readonly isConfidential: boolean;
   readonly responsibleLawyerId: string;
@@ -39,7 +40,7 @@ export async function lockFile(
   if (file.status === 'ARCHIVED') {
     throw new BusinessRuleException('BIZ-007', 'The file is archived and read-only');
   }
-  const { status: _status, deleted: _deleted, ...locked } = file;
+  const { deleted: _deleted, ...locked } = file;
   return locked;
 }
 

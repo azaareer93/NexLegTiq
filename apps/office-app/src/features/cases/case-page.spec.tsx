@@ -276,7 +276,7 @@ describe('file page', () => {
       fireEvent.change(await screen.findByTestId('close-force-reason'), {
         target: { value: 'Client withdrew' },
       });
-      expect(screen.getByText(/still has open tasks/)).toBeTruthy();
+      expect(screen.getByText(/still has .*open tasks/)).toBeTruthy();
       fireEvent.click(screen.getByTestId('close-confirm'));
       await waitFor(() => expect(screen.queryByTestId('close-case-dialog')).toBeNull());
       expect(bodies).toEqual([

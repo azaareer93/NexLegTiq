@@ -67,16 +67,13 @@ describe('FileLifecycleService (D-153)', () => {
     await service.close(FILE, { force: true, forceReason: ' Withdrawn ', reason: '' }, CLIENT);
     expect(tx.legalFile.update.mock.calls[0]?.[0].data.status).toBe('CLOSED');
     expect(reminders.cancelForFile).toHaveBeenCalled();
-    expect(timeline.record.mock.calls[0]?.[1].payload).toEqual({
-      forceReason: 'Withdrawn',
-      openTasks: 2,
-    });
+    expect(timeline.record.mock.calls[0]?.[1].payload).toEqual({ openTasks: 2 });
   });
 
   it('should record a plain close with its reason, and need an office in the context', async () => {
     const { service, timeline } = setup('OFFICE_MANAGER', 'om');
     await service.close(FILE, { force: false, reason: ' Settled ' }, CLIENT);
-    expect(timeline.record.mock.calls[0]?.[1].payload).toEqual({ reason: 'Settled' });
+    expect(timeline.record.mock.calls[0]?.[1].payload).toEqual({});
     await service.close(FILE, { force: false }, CLIENT);
     expect(timeline.record.mock.calls[1]?.[1].payload).toEqual({});
     const { service: noOffice, tx } = setup('OFFICE_MANAGER', 'om');

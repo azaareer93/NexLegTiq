@@ -152,6 +152,12 @@ describe('file lifecycle (HTTP + PostgreSQL)', () => {
     // A lawyer off the file does not see it (D-051): 404, not 403.
     expect((await post(colleague, fileId, 'close')).status).toBe(404);
     expect((await post(paralegal, fileId, 'close')).status).toBe(403);
+    // On the team but not the responsible lawyer: a LAWYER may not close (D-052).
+    await raw.fileTeamMember.create({
+      data: { officeId: manager.officeId, fileId, userId: colleague.userId, role: 'MEMBER' },
+    });
+    expect((await post(colleague, fileId, 'close')).status).toBe(403);
+    await raw.fileTeamMember.deleteMany({ where: { fileId, userId: colleague.userId } });
     expect((await post(other, fileId, 'close')).status).toBe(404);
     const blocked = await post(lawyer, fileId, 'close', { reason: 'Settled' });
     expect(blocked.status).toBe(422);
@@ -172,7 +178,8 @@ describe('file lifecycle (HTTP + PostgreSQL)', () => {
     const event = await raw.caseTimelineEvent.findFirst({
       where: { fileId, eventType: 'FILE_CLOSED' },
     });
-    expect(event?.payload).toMatchObject({ forceReason: 'Client withdrew', openTasks: 1 });
+    // The reasons are staff notes: audited, never on the portal-visible timeline (D-150).
+    expect(event?.payload).toEqual({ openTasks: 1 });
     expect((await post(lawyer, fileId, 'close')).body.error.code).toBe('BIZ-002');
     // Archiving: the office manager and senior lawyers, and only a closed file; afterwards read-only.
     expect((await post(lawyer, fileId, 'archive')).status).toBe(403);

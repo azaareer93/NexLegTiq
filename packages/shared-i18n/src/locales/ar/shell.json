@@ -52,7 +52,7 @@
     "openWithCount_many": "الإشعارات، {{count}} إشعارًا غير مقروء",
     "openWithCount_other": "الإشعارات، {{count}} إشعار غير مقروء",
     "markReadOf": "تعليم «⁨{{title}}⁩» كمقروء",
-    "fileReassignedAway": "نُقل الملف ⁨{{fileNumber}}⁩ إلى زميل"
+    "fileReassignedAway": "أُعيد تكليف الملف ⁨{{fileNumber}}⁩ إلى محامٍ آخر"
   },
   "profile": {
     "menu": "قائمة الحساب",

@@ -48,7 +48,7 @@
     "openWithCount_one": "Notifications, {{count}} unread",
     "openWithCount_other": "Notifications, {{count}} unread",
     "markReadOf": "Mark “⁨{{title}}⁩” as read",
-    "fileReassignedAway": "File ⁨{{fileNumber}}⁩ was reassigned to a colleague"
+    "fileReassignedAway": "File ⁨{{fileNumber}}⁩ was reassigned to another lawyer"
   },
   "profile": {
     "menu": "Account menu",

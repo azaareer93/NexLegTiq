@@ -2722,3 +2722,10 @@ offers Close (open or suspended files), Reopen (closed files), Archive (closed f
 closed anyway; reopen and archive confirm first (archive in red, "cannot be reopened"); reassign picks from the people
 directory's OM/SL/L. Each refreshes the file, the lists, the hearings and the dashboard. **Not done:** the optional
 "auto-archive N days after close" office setting and its daily job (the ticket marks it optional), an unarchive.
+Review additions (same PR): **`FILE_CLOSED` carries no staff text** — it is portal-visible (D-150), so the reason and the
+forced-close reason live only in the audit row; the timeline payload holds `{openTasks}` for a forced close. **Archiving also
+cancels pending reminders** (a closed file can still get hearings; only archived files refuse them, D-116). `lockFile` now
+returns the status it read under the lock (one query less); close and reopen audit the closing date. The reassign note is
+on `FILE_REASSIGNED`, which the portal never shows. Arabic wording: إعادة تكليف الملف / أرشفة الملف / إعادة فتح الملف; the
+open-task count follows the user's digits with Arabic plural forms. **Known limit:** reassign decides add-vs-promote before its
+transaction, so a team change at that instant fails with 409/404 instead of retrying.

@@ -1,5 +1,5 @@
 import type { Case } from '@nexlegtiq/shared-contracts';
-import { ApiErrorAlert, ConfirmModal, useApiErrorHandler } from '@nexlegtiq/shared-ui';
+import { ApiErrorAlert, ConfirmModal, useApiErrorHandler, useFormat } from '@nexlegtiq/shared-ui';
 import { isolate } from '@nexlegtiq/shared-utils';
 import { Alert, App, Form, Input, Modal, Select } from 'antd';
 import { useState } from 'react';
@@ -25,6 +25,7 @@ function openTasksOf(error: unknown): string | null {
 function CloseDialog({ file, onClose }: { readonly file: Case; readonly onClose: () => void }) {
   const { t } = useTranslation();
   const { message } = App.useApp();
+  const format = useFormat();
   const { close } = useFileLifecycle(file.id);
   const [openTasks, setOpenTasks] = useState<string | null>(null);
   const [form] = Form.useForm<{ reason?: string; forceReason?: string }>();
@@ -36,7 +37,11 @@ function CloseDialog({ file, onClose }: { readonly file: Case; readonly onClose:
           void message.success(t('cases.file.lifecycle.closed'));
           onClose();
         },
-        onError: (error) => setOpenTasks(openTasksOf(error)),
+        onError: (error) => {
+          // Only a BIZ-003 answer asks for the forced close; any other failure keeps the step on screen.
+          const count = openTasksOf(error);
+          if (count !== null) setOpenTasks(count);
+        },
       },
     );
   const otherError = close.error && openTasksOf(close.error) === null ? close.error : null;
@@ -66,14 +71,22 @@ function CloseDialog({ file, onClose }: { readonly file: Case; readonly onClose:
             <Alert
               type="warning"
               showIcon
-              message={t('cases.file.lifecycle.openTasks', { count: isolate(openTasks) })}
+              message={t('cases.file.lifecycle.openTasks', {
+                count: Number(openTasks),
+                formatted: isolate(format.number(openTasks)),
+              })}
             />
             <Form.Item
               name="forceReason"
               label={t('cases.file.lifecycle.forceReason')}
               rules={[{ required: true, whitespace: true, message: t('validation.required') }]}
             >
-              <Input.TextArea rows={2} maxLength={1000} data-testid="close-force-reason" />
+              <Input.TextArea
+                rows={2}
+                maxLength={1000}
+                autoFocus
+                data-testid="close-force-reason"
+              />
             </Form.Item>
           </>
         ) : null}
