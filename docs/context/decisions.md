@@ -2842,3 +2842,26 @@ Review additions (same PR): template tasks are **audited** like hand-made ones (
 `sourceType` and `sourceId`, written in the file's transaction); a deleted template's audit row keeps its name and task
 title; the Settings card shows an error with a retry when the list cannot load and lists the template name; the Arabic
 starter names use the glossary's «تقاضٍ».
+
+**D-157 — Admin panel sign-in, enrolment and recovery codes** · Accepted (MVP-162, 2026-11-09)
+MVP-162 left open where enrolment keeps the password it must send again, how much of the office app's session plumbing the
+admin panel needs, and how recovery codes are kept. → `adminAuthApi` (shared-api-client) wraps `admin/auth/login|enroll|
+enroll/confirm|refresh|logout|me`; tokens stay in the client (D-050) and refreshes use the `admin` realm's cross-tab lock
+(D-089). **Admin panel** (`apps/admin-panel/src/features/auth`): a Zustand store in memory only, restored once per page load
+by `admin/auth/refresh`; 401 or AUTH-006 → signed out, anything else → `ErrorState` with retry. **Sign-in:** email, password
+and the 6-digit code, or (a toggle) a recovery code; only the chosen code is sent; errors through `ApiErrorAlert` (D-093).
+**AUTH-008 with `validation.mfaEnrollment`** opens `/enroll`, carrying email and password **in the store, never in the URL
+or `history.state`** (browsers keep session history on disk); `/enroll` without them goes back to sign-in. **Enrolment:**
+one `enroll` call per visit (a query that never refetches by itself: each call replaces the unconfirmed secret), the QR
+code drawn in the browser from `otpauthUri` with AntD's `QRCode` (the secret never reaches a QR service) and the base32
+secret to type in; the first code confirms. Password and secret are dropped from memory as soon as the authenticator is
+confirmed; the ten recovery codes are shown once with copy and download (`.txt`), and "Continue" stays disabled until "I
+have saved these codes" is ticked. A failed `enroll` (wrong password, the 24-hour window of D-145 passed → RES-004) shows
+the error and a way back. **Idle timeout:** 30 minutes in the tab with a one-minute warning (D-053); no cross-tab activity
+or "idle since last visit" as in the office app (D-090): the founder works in one tab and the server ends the session 30
+minutes after the last refresh anyway (D-145). The signed-in page is a placeholder with the admin's name and sign-out until
+the offices story (MVP-102). Texts in a new `admin` namespace; the office app's `auth.*` field, notice and idle texts are
+reused. **Shortcut:** `forms.ts` (`zodRule`, `parseForm`) and the test `media.ts` are copied from office-app, to move to
+shared-ui when a third app needs them. **Not done:** a Cypress journey (E2E story), resetting an authenticator or changing an
+admin's password (admin-panel stories, D-145). Why: the founder can sign in to the admin realm with no secret kept anywhere
+but memory, and the recovery codes cannot be skipped by accident.

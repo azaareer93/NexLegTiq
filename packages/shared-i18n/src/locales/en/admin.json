@@ -1,0 +1,38 @@
+{
+  "enroll": {
+    "back": "Back to sign-in",
+    "manual": "Can't scan? Enter this key in the app instead:",
+    "qrLabel": "QR code for your authenticator app",
+    "scan": "Scan this QR code with an authenticator app such as Google Authenticator, Microsoft Authenticator or 1Password, then enter the 6-digit code it shows.",
+    "submit": "Confirm and continue",
+    "subtitle": "Platform administration requires two-step verification.",
+    "title": "Set up your authenticator"
+  },
+  "fields": {
+    "code": "Verification code",
+    "recoveryCode": "Recovery code"
+  },
+  "home": {
+    "empty": "Offices, plans and platform usage will appear here.",
+    "title": "Platform administration"
+  },
+  "login": {
+    "codeHint": "The 6-digit code from your authenticator app.",
+    "recoveryHint": "One of the codes you saved when you set up the authenticator. Each code works once.",
+    "submit": "Sign in",
+    "subtitle": "For NexLegTiq platform administrators only.",
+    "title": "Admin sign-in",
+    "useCode": "Use the authenticator code",
+    "useRecovery": "Lost your phone? Use a recovery code"
+  },
+  "recovery": {
+    "continue": "Continue to the admin panel",
+    "copied": "Recovery codes copied.",
+    "copy": "Copy codes",
+    "copyFailed": "Could not copy the codes. Download them instead.",
+    "download": "Download",
+    "saved": "I have saved these codes somewhere safe",
+    "subtitle": "Each code signs you in once if you lose access to your authenticator. They will not be shown again.",
+    "title": "Save your recovery codes"
+  }
+}
