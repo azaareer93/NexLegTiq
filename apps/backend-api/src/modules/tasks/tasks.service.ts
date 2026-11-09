@@ -43,6 +43,17 @@ const EDITABLE = {
 
 type TaskRef = { readonly id: string; readonly fileId: string | null };
 
+/** `dueFrom`/`dueBefore` as a calendar-date range, both days included (D-155). */
+function dueRange({ dueFrom, dueBefore }: TaskQuery): Prisma.TaskWhereInput {
+  if (!dueFrom && !dueBefore) return {};
+  return {
+    dueDate: {
+      ...(dueFrom && { gte: toDbDate(dueFrom) }),
+      ...(dueBefore && { lte: toDbDate(dueBefore) }),
+    },
+  };
+}
+
 /** Tasks API (MVP-76, D-098). Access rules live in TaskAccessService. */
 @Injectable()
 export class TasksService {
@@ -110,7 +121,7 @@ export class TasksService {
       }),
       ...(query.status && { status: query.status }),
       ...(query.priority && { priority: query.priority }),
-      ...(query.dueBefore && { dueDate: { lte: toDbDate(query.dueBefore) } }),
+      ...dueRange(query),
     };
     if (query.overdue !== undefined) {
       const office = await this.prisma.db.office.findFirstOrThrow({ select: { timezone: true } });

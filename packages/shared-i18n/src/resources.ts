@@ -1,6 +1,7 @@
 import type { Locale } from '@nexlegtiq/shared-types';
 
 import arAuth from './locales/ar/auth.json' with { type: 'json' };
+import arCalendar from './locales/ar/calendar.json' with { type: 'json' };
 import arCases from './locales/ar/cases.json' with { type: 'json' };
 import arClients from './locales/ar/clients.json' with { type: 'json' };
 import arCommon from './locales/ar/common.json' with { type: 'json' };
@@ -19,6 +20,7 @@ import arTeam from './locales/ar/team.json' with { type: 'json' };
 import arTimeline from './locales/ar/timeline.json' with { type: 'json' };
 import arValidation from './locales/ar/validation.json' with { type: 'json' };
 import enAuth from './locales/en/auth.json' with { type: 'json' };
+import enCalendar from './locales/en/calendar.json' with { type: 'json' };
 import enCases from './locales/en/cases.json' with { type: 'json' };
 import enClients from './locales/en/clients.json' with { type: 'json' };
 import enCommon from './locales/en/common.json' with { type: 'json' };
@@ -54,6 +56,7 @@ const en = {
   parties: enParties,
   timeline: enTimeline,
   dashboard: enDashboard,
+  calendar: enCalendar,
   settings: enSettings,
   team: enTeam,
   profile: enProfile,
@@ -74,6 +77,7 @@ const ar = {
   parties: arParties,
   timeline: arTimeline,
   dashboard: arDashboard,
+  calendar: arCalendar,
   settings: arSettings,
   team: arTeam,
   profile: arProfile,

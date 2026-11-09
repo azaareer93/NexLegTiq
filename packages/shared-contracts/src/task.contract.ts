@@ -69,6 +69,8 @@ export const TaskQuerySchema = z.object({
   assignee: z.union([z.literal('me'), z.uuid()]).optional(),
   status: z.enum(TASK_STATUSES).optional(),
   priority: z.enum(PRIORITIES).optional(),
+  /** Due on or after this day (the calendar, D-155). */
+  dueFrom: DateOnlySchema.optional(),
   dueBefore: DateOnlySchema.optional(),
   overdue: z
     .enum(['true', 'false'])

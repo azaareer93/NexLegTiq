@@ -1,0 +1,22 @@
+{
+  "title": "Calendar",
+  "views": {
+    "month": "Month",
+    "week": "Week",
+    "agenda": "Agenda"
+  },
+  "today": "Today",
+  "previous": "Previous",
+  "next": "Next",
+  "lawyer": "Lawyer",
+  "allLawyers": "All lawyers",
+  "oneCase": "One case only",
+  "legend": {
+    "title": "Legend",
+    "hearing": "Hearing",
+    "task": "Task due"
+  },
+  "empty_one": "Nothing scheduled in the next {{count}} day.",
+  "empty_other": "Nothing scheduled in the next {{count}} days.",
+  "truncated": "Only the first 100 tasks of this range are shown."
+}

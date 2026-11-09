@@ -275,6 +275,14 @@ export type FileSessionsParams = {
   readonly limit?: number;
 };
 
+/** The calendar's range (instants with an offset) and filters. */
+export interface SessionCalendarParams {
+  readonly from: string;
+  readonly to: string;
+  readonly lawyerId?: string;
+  readonly fileId?: string;
+}
+
 /** Hearings (D-116, D-117). Instants are sent with an offset and come back in UTC. */
 export function sessionsApi(client: ApiClient) {
   const path = (id: string) => `sessions/${encodeURIComponent(id)}`;
@@ -287,6 +295,12 @@ export function sessionsApi(client: ApiClient) {
       client.requestPage(
         { method: 'GET', path: `cases/${encodeURIComponent(fileId)}/sessions`, query, signal },
         SessionListItemSchema,
+      ),
+    /** `GET /sessions?from&to&lawyerId&fileId` (D-116): every hearing of the range, not paginated. */
+    calendar: (query: SessionCalendarParams, signal?: AbortSignal): Promise<SessionListItem[]> =>
+      client.request(
+        { method: 'GET', path: 'sessions', query: { ...query }, signal },
+        SessionListItemSchema.array(),
       ),
     get: (id: string, signal?: AbortSignal): Promise<Session> =>
       client.request({ method: 'GET', path: path(id), signal }, SessionSchema),

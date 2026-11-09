@@ -2754,3 +2754,20 @@ changes nothing writes and audits nothing; the CREATE audit row names the author
 (D-096) counts confidential notes too — a number, like client file counts (D-108); a reader off the file may see more notes
 counted than listed. Office app: the confidential checkbox is offered only to the office manager and the file people, the
 editor starts from the note's current text, an empty body cannot be saved, pin/unpin shows its progress.
+
+**D-155 — Calendar page: views, the week start, data and what waits** · Accepted (MVP-70, 2026-11-09)
+MVP-70 left the week start "configurable", the task range query, the file filter and creating a hearing from an empty slot
+open. → `/calendar` (`apps/office-app/src/features/calendar`, `calendar` namespace) replaces the placeholder: **month**
+(AntD Calendar, entries in each day cell), **week** (seven day columns; one per row on phones) and **agenda** (the next 30
+days, days with entries only) — phones start on the agenda until a view is picked. **Week start** follows the language's
+dayjs locale: Saturday in Arabic, Sunday in English (not an office setting yet). **Dates** are the office's (D-127): the
+range is turned into instants with the office's offset, and a hearing belongs to its office-time day. **Data:** hearings from
+`GET /sessions?from&to&lawyerId&fileId` (D-116; cancelled ones are left out), due tasks from `GET /tasks?dueFrom&dueBefore`
+— **`dueFrom` is new** on the tasks query (on or after that day; `dueBefore` already included its day) — at most 100 tasks a
+range, with a notice when there are more. Hearings and tasks differ by icon and words (a legend), never colour alone.
+**Filters:** a lawyer picker for `view:all:cases` holders (hearings by attending lawyer, tasks by assignee); a case filter
+through `?fileId=` (a removable tag) — there is no case picker on the page yet. **Clicks:** a hearing opens the hearing
+drawer (its file is loaded first: the drawer needs the file's rights and court defaults), a task the task drawer.
+**Deviation:** "create a hearing from an empty slot" is not built — a hearing belongs to a file and the page has no file
+picker yet; hearings are scheduled from the file's Hearings tab (or Ctrl+Alt+H there). **Not done:** an office setting for
+the week start, a time grid with hour slots, drag to reschedule, external calendar sync (Phase 2).
