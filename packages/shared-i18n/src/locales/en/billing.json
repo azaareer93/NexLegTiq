@@ -1,0 +1,67 @@
+{
+  "title": "Time and billing",
+  "addEntry": "Log time",
+  "empty": "No time logged on this case yet",
+  "billable": "Billable",
+  "nonBillable": "Non-billable",
+  "invoiced": "Invoiced",
+  "invoicedLocked": "Invoiced entries can no longer be changed.",
+  "noRate": "No rate",
+  "hoursValue": "{{value}} h",
+  "columns": {
+    "actions": "Actions",
+    "amount": "Amount",
+    "billable": "Billable",
+    "date": "Date",
+    "description": "Description",
+    "duration": "Duration",
+    "invoiced": "Invoiced",
+    "rate": "Rate",
+    "user": "By"
+  },
+  "form": {
+    "addTitle": "Log time",
+    "editTitle": "Edit time entry",
+    "date": "Date",
+    "dateHint": "Leave empty for today.",
+    "hours": "Hours",
+    "hoursHint": "For example 1.5",
+    "description": "Description",
+    "billable": "Billable"
+  },
+  "row": {
+    "edit": "Edit time entry of {{date}}",
+    "delete": "Delete time entry of {{date}}"
+  },
+  "delete": {
+    "title": "Delete this time entry?",
+    "body": "The logged time will be removed from the case."
+  },
+  "totals": {
+    "title": "Totals",
+    "billableHours": "Billable hours",
+    "nonBillableHours": "Non-billable hours",
+    "unbilledHours": "Unbilled hours",
+    "billableAmount": "Billable amount",
+    "unbilledAmount": "Unbilled amount"
+  },
+  "timer": {
+    "label": "Timer",
+    "running": "Timer running on case {{file}}",
+    "start": "Start timer",
+    "startOnFile": "Start timer on this case",
+    "stop": "Stop",
+    "stopTitle": "Stop the timer and log the time",
+    "stopHint": "The time is rounded up to the office increment.",
+    "save": "Log time",
+    "discard": "Discard",
+    "discardTitle": "Discard the timer?",
+    "discardBody": "No time will be logged.",
+    "description": "What did you work on?",
+    "billable": "Billable",
+    "discardRunning": "Discard the running timer",
+    "staleTitle": "A timer is already running",
+    "staleBody": "A timer is running on a case you can no longer open. Discard it to start a new one; no time will be logged.",
+    "discarded": "The timer was discarded. You can start again."
+  }
+}

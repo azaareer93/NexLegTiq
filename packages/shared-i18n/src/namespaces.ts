@@ -24,6 +24,7 @@ export const I18N_NAMESPACES = [
   'team',
   'profile',
   'admin',
+  'billing',
 ] as const;
 
 export type I18nNamespace = (typeof I18N_NAMESPACES)[number];

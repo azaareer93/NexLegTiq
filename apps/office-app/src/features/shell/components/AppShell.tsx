@@ -14,6 +14,7 @@ import { SearchOverlay } from './SearchOverlay';
 import { VerifyBanner } from './VerifyBanner';
 import { APP_NAME } from '../../../app/app-name';
 import { useSession } from '../../auth';
+import { TimerWidget } from '../../billing';
 import { QuickCreateCaseHost } from '../../cases';
 import { NotificationsBell } from '../../notifications';
 import { RealtimeBridge } from '../../realtime';
@@ -150,6 +151,7 @@ export function AppShell(): React.JSX.Element {
               )}
             </Flex>
             <Flex align="center" gap={token.paddingXS}>
+              <TimerWidget compact={!wide} />
               <SearchOverlay compact={!wide} />
               <QuickActions compact={phone} />
               <NotificationsBell />

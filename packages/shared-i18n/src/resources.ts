@@ -2,6 +2,7 @@ import type { Locale } from '@nexlegtiq/shared-types';
 
 import arAdmin from './locales/ar/admin.json' with { type: 'json' };
 import arAuth from './locales/ar/auth.json' with { type: 'json' };
+import arBilling from './locales/ar/billing.json' with { type: 'json' };
 import arCalendar from './locales/ar/calendar.json' with { type: 'json' };
 import arCases from './locales/ar/cases.json' with { type: 'json' };
 import arClients from './locales/ar/clients.json' with { type: 'json' };
@@ -22,6 +23,7 @@ import arTimeline from './locales/ar/timeline.json' with { type: 'json' };
 import arValidation from './locales/ar/validation.json' with { type: 'json' };
 import enAdmin from './locales/en/admin.json' with { type: 'json' };
 import enAuth from './locales/en/auth.json' with { type: 'json' };
+import enBilling from './locales/en/billing.json' with { type: 'json' };
 import enCalendar from './locales/en/calendar.json' with { type: 'json' };
 import enCases from './locales/en/cases.json' with { type: 'json' };
 import enClients from './locales/en/clients.json' with { type: 'json' };
@@ -63,6 +65,7 @@ const en = {
   team: enTeam,
   profile: enProfile,
   admin: enAdmin,
+  billing: enBilling,
 };
 const ar = {
   common: arCommon,
@@ -85,6 +88,7 @@ const ar = {
   team: arTeam,
   profile: arProfile,
   admin: arAdmin,
+  billing: arBilling,
 };
 
 /** Nested string tree of one namespace file. */

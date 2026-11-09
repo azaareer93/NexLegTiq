@@ -23,6 +23,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 
 import { useSession } from '../../auth';
+import { BillingTab } from '../../billing';
 import { NotFoundPage } from '../../shell/components/status-pages';
 import { TasksView } from '../../tasks';
 import { caseKeys, useCase, useDeleteCase } from '../api/use-cases';
@@ -197,6 +198,8 @@ function FileView({
     if (key === 'timeline') {
       return <TimelineTab fileId={file.id} onOpenHearing={setHearing} onOpenTab={selectTab} />;
     }
+    if (key === 'billing')
+      return <BillingTab fileId={file.id} archived={file.status === 'ARCHIVED'} />;
     if (key === 'notes') {
       return (
         <NotesTab

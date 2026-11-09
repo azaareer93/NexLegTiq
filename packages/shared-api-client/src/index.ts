@@ -36,3 +36,5 @@ export type { NotificationListParams } from './notifications.js';
 export { profileApi } from './profile.js';
 export { adminAuthApi } from './admin-auth.js';
 export type { AdminClientSession } from './admin-auth.js';
+export { timeEntriesApi } from './time-entries.js';
+export type { TimeEntryListParams } from './time-entries.js';
