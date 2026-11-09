@@ -88,6 +88,27 @@ describe('time entries (D-152)', () => {
     expect(roundedHours(30 * 3_600_000, 6).toFixed(2)).toBe('24.00');
   });
 
+  it('should filter by an end date alone, and by non-billable, invoiced entries', async () => {
+    const { entries, db } = setup();
+    await entries.list({ page: 2, limit: 10, to: '2026-11-30', billable: false, invoiced: true });
+    expect(db.timeEntry.findMany.mock.calls[0]?.[0]).toMatchObject({
+      skip: 10,
+      take: 10,
+      where: {
+        AND: [
+          expect.anything(),
+          {
+            workDate: { lte: new Date('2026-11-30T00:00:00Z') },
+            isBillable: false,
+            invoiceId: { not: null },
+          },
+        ],
+      },
+    });
+    await entries.list({ page: 1, limit: 20 });
+    expect(db.timeEntry.findMany.mock.calls[1]?.[0].where.AND[1]).toEqual({});
+  });
+
   it('should hide rates from readers without invoice rights and narrow others to their own entries', async () => {
     const { entries, db } = setup();
     const page = await entries.list({
