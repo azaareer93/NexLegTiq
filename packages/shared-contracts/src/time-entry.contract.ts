@@ -38,16 +38,21 @@ export const UpdateTimeEntrySchema = z
   .partial();
 export type UpdateTimeEntryRequest = z.infer<typeof UpdateTimeEntrySchema>;
 
-export const TimeEntryQuerySchema = z.object({
-  fileId: z.uuid().optional(),
-  userId: z.uuid().optional(),
-  from: DateOnlySchema.optional(),
-  to: DateOnlySchema.optional(),
-  billable: BooleanQuery,
-  invoiced: BooleanQuery,
-  page: z.coerce.number().int().min(1).max(10_000).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
-});
+export const TimeEntryQuerySchema = z
+  .object({
+    fileId: z.uuid().optional(),
+    userId: z.uuid().optional(),
+    from: DateOnlySchema.optional(),
+    to: DateOnlySchema.optional(),
+    billable: BooleanQuery,
+    invoiced: BooleanQuery,
+    page: z.coerce.number().int().min(1).max(10_000).default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+  })
+  .refine((q) => !q.from || !q.to || q.from <= q.to, {
+    path: ['to'],
+    message: 'validation.dateRange',
+  });
 export type TimeEntryQuery = z.infer<typeof TimeEntryQuerySchema>;
 
 /**

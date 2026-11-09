@@ -6,7 +6,7 @@ import type {
   TimeTotals,
   UpdateTimeEntryRequest,
 } from '@nexlegtiq/shared-contracts';
-import { wallClock } from '@nexlegtiq/shared-utils';
+import { roundMoney, wallClock } from '@nexlegtiq/shared-utils';
 import { ClsService } from 'nestjs-cls';
 
 import { AuditService } from '../../common/audit/audit.service';
@@ -22,6 +22,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { ScopedTransaction } from '../../database/unit-of-work';
 import { Prisma } from '../../generated/prisma/client';
+import { lockFile } from '../file-participants/file-lock';
 import { CaseAccessService } from '../legal-files/case-access.service';
 import { toDbDate } from '../tasks/tasks.repository';
 
@@ -45,6 +46,10 @@ const ENTRY = {
 type EntryRow = Prisma.TimeEntryGetPayload<{ select: typeof ENTRY }>;
 
 export const day = (value: Date) => value.toISOString().slice(0, 10);
+
+/** Hours × rate as money: rounded once, half-even to the column's 2 digits (D-017, D-092). */
+export const amountOf = (hours: Prisma.Decimal, rate: Prisma.Decimal): string =>
+  roundMoney(hours.mul(rate).toString(), 2);
 
 /** Time entries (MVP-90, D-152); the timer is TimerService. */
 @Injectable()
@@ -83,7 +88,7 @@ export class TimeEntriesService {
       description: row.description,
       isBillable: row.isBillable,
       hourlyRate: rate?.toFixed(2) ?? null,
-      amount: rate ? row.durationHours.mul(rate).toFixed(2) : null,
+      amount: rate ? amountOf(row.durationHours, rate) : null,
       currency: row.currency,
       invoiced: row.invoiceId !== null,
       createdAt: row.createdAt.toISOString(),
@@ -160,6 +165,13 @@ export class TimeEntriesService {
     };
   }
 
+  /** Time is logged for work done: a date after today (in the office's zone) is refused. */
+  private async assertNotFuture(workDate: string): Promise<void> {
+    if (workDate > (await this.today())) {
+      throw new ValidationException([{ field: 'workDate', message: 'validation.futureDate' }]);
+    }
+  }
+
   private async today(): Promise<string> {
     const { timezone } = await this.prisma.db.office.findFirstOrThrow({
       select: { timezone: true },
@@ -172,7 +184,9 @@ export class TimeEntriesService {
     await this.files.assertFileAccess(input.fileId, 'contribute');
     const { hourlyRate, currency } = await this.terms(input.fileId);
     const workDate = input.workDate ?? (await this.today());
+    await this.assertNotFuture(workDate);
     const id = await this.uow.run(async (tx) => {
+      await lockFile(tx, this.cls.get('officeId') as string, input.fileId);
       const row = await tx.timeEntry.create({
         data: {
           officeId: this.cls.get('officeId') as string,
@@ -192,6 +206,8 @@ export class TimeEntriesService {
         entityId: row.id,
         action: 'CREATE',
         newValues: {
+          hourlyRate: hourlyRate?.toFixed(2) ?? null,
+          currency,
           fileId: input.fileId,
           workDate,
           durationHours: input.durationHours,
@@ -213,6 +229,7 @@ export class TimeEntriesService {
     });
     if (!row) throw new ResourceNotFoundException();
     await this.files.assertFileAccess(row.fileId, 'contribute');
+    await lockFile(tx, this.cls.get('officeId') as string, row.fileId);
     if (row.invoiceId) {
       throw new BusinessRuleException('BIZ-006', 'The time entry is invoiced and cannot change');
     }
@@ -223,6 +240,7 @@ export class TimeEntriesService {
     if (Object.values(input).every((value) => value === undefined)) {
       throw new ValidationException([{ field: 'body', message: 'validation.required' }]);
     }
+    if (input.workDate) await this.assertNotFuture(input.workDate);
     await this.uow.run(async (tx) => {
       const row = await this.changeable(tx, id);
       const before = { ...row, workDate: day(row.workDate) };
@@ -283,8 +301,9 @@ export class TimeEntriesService {
       list.reduce((total, row) => total.add(value(row)), zero);
     const billable = rows.filter((row) => row.isBillable);
     const unbilled = billable.filter((row) => row.invoiceId === null);
+    // The sum of the amounts each entry shows, so the rows add up to the total.
     const amount = (row: (typeof rows)[number]) =>
-      row.hourlyRate ? row.durationHours.mul(row.hourlyRate) : zero;
+      row.hourlyRate ? new Prisma.Decimal(amountOf(row.durationHours, row.hourlyRate)) : zero;
     return {
       currency: file.currency,
       billableHours: sum(billable, (row) => row.durationHours).toFixed(2),

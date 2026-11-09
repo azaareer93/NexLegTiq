@@ -19,6 +19,7 @@ describe('time entries controllers', () => {
       timer: jest.fn().mockResolvedValue(null),
       start: jest.fn().mockResolvedValue('started'),
       stop: jest.fn().mockResolvedValue('stopped'),
+      discard: jest.fn().mockResolvedValue(undefined),
     };
     const entries = new TimeEntriesController(
       time as unknown as TimeEntriesService,
@@ -35,6 +36,8 @@ describe('time entries controllers', () => {
     await expect(entries.timer()).resolves.toBeNull();
     await expect(entries.start({ fileId: ID })).resolves.toBe('started');
     await expect(entries.stop({})).resolves.toBe('stopped');
+    await entries.discard();
+    expect(timers.discard).toHaveBeenCalled();
     await expect(
       new CaseTimeTotalsController(time as unknown as TimeEntriesService).totals(ID),
     ).resolves.toBe('totals');

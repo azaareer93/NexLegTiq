@@ -102,6 +102,14 @@ export class TimeEntriesController {
     return this.timers.stop(body);
   }
 
+  @Delete('timer')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: "Discard the caller's timer without logging time" })
+  @ApiNoContentResponse()
+  discard(): Promise<void> {
+    return this.timers.discard();
+  }
+
   @Get(':id')
   @ApiZodResponse(HttpStatus.OK, TimeEntrySchema)
   get(@Param('id', entryId) id: string): Promise<TimeEntry> {

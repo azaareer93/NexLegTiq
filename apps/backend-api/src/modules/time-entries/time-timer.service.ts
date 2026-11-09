@@ -20,6 +20,7 @@ import { isPrismaError } from '../../common/errors/prisma-error';
 import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
 import { Prisma } from '../../generated/prisma/client';
+import { lockFile } from '../file-participants/file-lock';
 import { CaseAccessService } from '../legal-files/case-access.service';
 import { toDbDate } from '../tasks/tasks.repository';
 
@@ -46,29 +47,18 @@ export class TimerService {
     private readonly entries: TimeEntriesService,
   ) {}
 
-  private caller() {
-    return this.entries.caller();
-  }
-
-  private get terms() {
-    return this.entries.terms.bind(this.entries);
-  }
-
-  private get(id: string): Promise<TimeEntry> {
-    return this.entries.get(id);
-  }
-
+  /** The caller's timer, while its file is still theirs to see (the number and title are the file's, D-096). */
   async timer(): Promise<Timer | null> {
-    const { userId } = this.caller();
+    const { userId } = this.entries.caller();
     const row = await this.prisma.db.timeTimer.findFirst({
-      where: { userId },
+      where: { userId, file: this.files.visibleWhere() },
       select: { id: true, description: true, startedAt: true, file: FILE },
     });
     return row ? { ...row, startedAt: row.startedAt.toISOString() } : null;
   }
 
   async start(input: StartTimerRequest): Promise<Timer> {
-    const { userId } = this.caller();
+    const { userId } = this.entries.caller();
     await this.files.assertFileAccess(input.fileId, 'contribute');
     try {
       await this.prisma.db.timeTimer.create({
@@ -91,21 +81,27 @@ export class TimerService {
 
   /** Stops the caller's timer and records its time, rounded up to the office's increment (D-152). */
   async stop(input: StopTimerRequest, now = new Date()): Promise<TimeEntry> {
-    const { userId } = this.caller();
+    const { userId } = this.entries.caller();
     const timer = await this.prisma.db.timeTimer.findFirst({ where: { userId } });
     if (!timer) throw new ResourceNotFoundException();
     const description = input.description ?? timer.description;
     if (!description) {
       throw new ValidationException([{ field: 'description', message: 'validation.required' }]);
     }
+    const elapsedMs = now.getTime() - timer.startedAt.getTime();
+    // A timer forgotten over a weekend is not a day of billable work: discard it and log the time by hand.
+    if (elapsedMs > MAX_MINUTES * 60_000) {
+      throw new ValidationException([{ field: 'timer', message: 'validation.timerTooLong' }]);
+    }
     await this.files.assertFileAccess(timer.fileId, 'contribute');
-    const { hourlyRate, currency, increment } = await this.terms(timer.fileId);
+    const { hourlyRate, currency, increment } = await this.entries.terms(timer.fileId);
     const { timezone } = await this.prisma.db.office.findFirstOrThrow({
       select: { timezone: true },
     });
-    const durationHours = roundedHours(now.getTime() - timer.startedAt.getTime(), increment);
+    const durationHours = roundedHours(elapsedMs, increment);
     const workDate = wallClock(timer.startedAt, timezone).date;
     const id = await this.uow.run(async (tx) => {
+      await lockFile(tx, timer.officeId, timer.fileId);
       // Conditional: a second stop racing this one finds nothing to delete.
       const { count } = await tx.timeTimer.deleteMany({ where: { id: timer.id } });
       if (count === 0) throw new ResourceNotFoundException();
@@ -131,11 +127,20 @@ export class TimerService {
           fileId: timer.fileId,
           workDate,
           durationHours: durationHours.toFixed(2),
+          hourlyRate: hourlyRate?.toFixed(2) ?? null,
+          currency,
           timer: true,
         },
       });
       return row.id;
     });
-    return this.get(id);
+    return this.entries.get(id);
+  }
+
+  /** Throws the caller's timer away without logging time (a timer on a file since archived or hidden, or forgotten). */
+  async discard(): Promise<void> {
+    const { userId } = this.entries.caller();
+    const { count } = await this.prisma.db.timeTimer.deleteMany({ where: { userId } });
+    if (count === 0) throw new ResourceNotFoundException();
   }
 }

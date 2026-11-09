@@ -52,7 +52,7 @@ function setup(
     },
     officeSettings: { findFirst: jest.fn().mockResolvedValue(null) },
     office: { findFirstOrThrow: jest.fn().mockResolvedValue({ timezone: 'Asia/Hebron' }) },
-    $queryRaw: jest.fn(),
+    $queryRaw: jest.fn().mockResolvedValue([{ status: 'OPEN', deleted: false }]),
   };
   const audit = { log: jest.fn() };
   const uow = { run: (work: (tx: typeof db) => unknown) => work(db) };
@@ -133,7 +133,7 @@ describe('time entries (D-152)', () => {
     await expect(entries.update(ID(10), {})).rejects.toMatchObject({ code: 'VAL-001' });
     await entries.update(ID(10), { description: 'Work', workDate: '2026-11-09' });
     expect(db.timeEntry.update).not.toHaveBeenCalled();
-    await entries.update(ID(10), { durationHours: '2', workDate: '2026-11-10' });
+    await entries.update(ID(10), { durationHours: '2', workDate: '2026-11-08' });
     expect(audit.log).toHaveBeenCalledWith(
       db,
       expect.objectContaining({ oldValues: { durationHours: '1.25', workDate: '2026-11-09' } }),
@@ -280,7 +280,32 @@ describe('time entries (D-152)', () => {
       isBillable: false,
       hourlyRate: null,
     });
-    expect(db.office.findFirstOrThrow).not.toHaveBeenCalled();
+    await expect(
+      entries.create({
+        fileId: FILE.id,
+        workDate: '2999-01-01',
+        durationHours: '1',
+        description: 'x',
+      }),
+    ).rejects.toMatchObject({ code: 'VAL-001' });
+  });
+
+  it("should refuse to stop a timer that ran more than a day, and discard the caller's timer", async () => {
+    const { timers, db } = setup();
+    const startedAt = new Date('2026-11-06T08:00:00Z');
+    db.timeTimer.findFirst.mockResolvedValueOnce({
+      id: ID(5),
+      officeId: 'o1',
+      fileId: FILE.id,
+      description: 'Prep',
+      startedAt,
+    });
+    await expect(timers.stop({}, new Date('2026-11-09T08:00:00Z'))).rejects.toMatchObject({
+      code: 'VAL-001',
+    });
+    db.timeTimer.deleteMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+    await timers.discard();
+    await expect(timers.discard()).rejects.toMatchObject({ code: 'RES-001' });
   });
 
   it('should refuse to run without a caller', async () => {

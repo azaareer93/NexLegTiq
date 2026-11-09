@@ -2725,3 +2725,18 @@ file), billable and unbilled amounts for invoice-right holders, in the file's cu
 has an audit row. **Not done here:** the Billing tab and timer widget (their own story), invoicing entries, a user hourly rate,
 the increment in the settings page, discarding a timer without logging (stop and delete the entry), a timeline event for
 logged time.
+Review additions (same PR): **a timer can always be cleared** — `DELETE /time-entries/timer` (204; 404 without one) discards
+it without logging time, for a timer whose file was archived, deleted or hidden since it started (stop is refused then:
+BIZ-007 / 404) or that ran **more than 24 hours** (stop refuses it with 400 VAL-001 `validation.timerTooLong` instead of
+billing a forgotten weekend as a day; the user logs the time by hand); `GET …/timer` shows a timer only while its file is
+still visible to the caller (number and title are the file's, D-096). **Money:** each entry's `amount` is hours × rate rounded
+**once, half-even, to 2 digits** (`roundMoney`, D-092) and the totals add those rounded amounts, so a file's rows add up to
+its total. **Writes lock the file** inside the transaction (`lockFile`, `FOR NO KEY UPDATE`, re-checked: deleted → 404,
+archived → BIZ-007), for logging, editing, deleting and stopping, as party and folder writes do. **Dates:** a work date after
+today in the office's zone is refused (`validation.futureDate`) and a list query needs `from ≤ to`. CREATE audit rows carry
+the rate and currency snapshot. **Read scope is the owner's to confirm:** only OM/SL see colleagues' entries, while the
+file's totals include everyone's hours — the alternative is "read all on visible files, edit own" (one condition in
+`visibleWhere`). **For later stories:** the invoices story adds the `invoice_id` FK and index and a test where a real invoice
+claims an entry (the BIZ-006 test sets `invoiceId` by hand); the audit viewer must hide `TimeEntry` rows of files the reader
+cannot see (as D-096/D-126); the settings page should expose `timeIncrementMinutes` (an increment that does not divide 60,
+e.g. 7, gives hours like 0.12). Hours are capped at 24 per entry, not per day.

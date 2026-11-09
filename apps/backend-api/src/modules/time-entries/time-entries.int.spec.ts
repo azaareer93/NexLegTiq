@@ -26,6 +26,8 @@ describe('time entries (HTTP + PostgreSQL)', () => {
   let lawyer: Person;
   let paralegal: Person;
   let trainee: Person;
+  let senior: Person;
+  let collaborator: Person;
   let other: Person;
   let ratedFile: string;
   let plainFile: string;
@@ -73,6 +75,8 @@ describe('time entries (HTTP + PostgreSQL)', () => {
     lawyer = await inA('LAWYER');
     paralegal = await inA('PARALEGAL');
     trainee = await inA('TRAINEE');
+    senior = await inA('SENIOR_LAWYER');
+    collaborator = await inA('EXTERNAL_COLLABORATOR');
     other = await (await office('Time office B', null))('OFFICE_MANAGER');
     const file = async (hourlyRate: string | null) => {
       const row = await raw.legalFile.create({
@@ -177,6 +181,25 @@ describe('time entries (HTTP + PostgreSQL)', () => {
     expect(theirs.body.data).toMatchObject({ billableHours: '2.30', billableAmount: null });
   });
 
+  it('should refuse roles without log:time, future dates, and another office on the totals', async () => {
+    expect(
+      (await log(collaborator, { fileId: ratedFile, durationHours: '1', description: 'x' })).status,
+    ).toBe(403);
+    const future = await log(lawyer, {
+      fileId: ratedFile,
+      workDate: '2999-01-01',
+      durationHours: '1',
+      description: 'x',
+    });
+    expect(future.body.error.details).toEqual([
+      expect.objectContaining({ field: 'workDate', message: 'validation.futureDate' }),
+    ]);
+    const totals = await http()
+      .get(`/api/v1/cases/${ratedFile}/time-totals`)
+      .set(bearerFor(jwt, other));
+    expect(totals.status).toBe(404);
+  });
+
   it('should refuse hours outside (0, 24] and files of another office', async () => {
     for (const durationHours of ['0', '24.01', '1.234', 'abc']) {
       const res = await log(lawyer, { fileId: ratedFile, durationHours, description: 'x' });
@@ -195,14 +218,17 @@ describe('time entries (HTTP + PostgreSQL)', () => {
       http().patch(`/api/v1/time-entries/${entry.id}`).set(bearerFor(jwt, person)).send(body);
     expect((await patch(paralegal, { description: 'Not yours' })).status).toBe(404);
     const listed = await http().get('/api/v1/time-entries').set(bearerFor(jwt, paralegal));
-    expect(listed.body.data.map((e: { user: { id: string } }) => e.user.id)).not.toContain(
-      lawyer.userId,
-    );
+    const authors = listed.body.data.map((e: { user: { id: string } }) => e.user.id);
+    expect(authors).toContain(paralegal.userId);
+    expect(authors).not.toContain(lawyer.userId);
     expect((await patch(manager, { durationHours: '1.5' })).body.data).toMatchObject({
       durationHours: '1.50',
       amount: '225.00',
     });
+    expect((await patch(senior, { description: 'Corrected by SL' })).status).toBe(200);
+    // Simulated: the invoices story sets invoiceId when it bills an entry (its FK arrives with that table).
     await raw.timeEntry.update({ where: { id: entry.id }, data: { invoiceId: randomUUID() } });
+    const before = await raw.timeEntry.findUnique({ where: { id: entry.id } });
     const locked = await patch(lawyer, { description: 'Too late' });
     expect(locked.status).toBe(422);
     expect(locked.body.error.code).toBe('BIZ-006');
@@ -210,6 +236,7 @@ describe('time entries (HTTP + PostgreSQL)', () => {
       .delete(`/api/v1/time-entries/${entry.id}`)
       .set(bearerFor(jwt, manager));
     expect(remove.body.error.code).toBe('BIZ-006');
+    expect(await raw.timeEntry.findUnique({ where: { id: entry.id } })).toEqual(before);
     const invoiced = await http()
       .get(`/api/v1/time-entries?fileId=${ratedFile}&invoiced=true`)
       .set(bearerFor(jwt, manager));
@@ -248,5 +275,16 @@ describe('time entries (HTTP + PostgreSQL)', () => {
     expect((await http().post('/api/v1/time-entries/timer/stop').set(auth).send({})).status).toBe(
       404,
     );
+    // A timer on a file archived meanwhile cannot be stopped into an entry, but can be discarded.
+    await http().post('/api/v1/time-entries/timer/start').set(auth).send({ fileId: plainFile });
+    await raw.legalFile.update({ where: { id: plainFile }, data: { status: 'ARCHIVED' } });
+    const archived = await http()
+      .post('/api/v1/time-entries/timer/stop')
+      .set(auth)
+      .send({ description: 'x' });
+    expect(archived.body.error.code).toBe('BIZ-007');
+    expect((await http().delete('/api/v1/time-entries/timer').set(auth)).status).toBe(204);
+    expect((await http().get('/api/v1/time-entries/timer').set(auth)).body.data).toBeNull();
+    await raw.legalFile.update({ where: { id: plainFile }, data: { status: 'OPEN' } });
   });
 });
