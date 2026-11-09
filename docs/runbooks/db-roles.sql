@@ -111,12 +111,12 @@ DECLARE
   readable text;
 BEGIN
   FOREACH secret_table IN ARRAY ARRAY['refresh_tokens', 'password_reset_tokens', 'email_verification_tokens', 'office_invitations',
-    'platform_sessions', 'platform_recovery_codes'] LOOP
+    'platform_sessions', 'platform_recovery_codes', 'client_sessions', 'client_password_reset_tokens', 'client_invitations'] LOOP
     IF to_regclass('public.' || secret_table) IS NOT NULL THEN
       EXECUTE format('REVOKE ALL ON public.%I FROM nexlegtiq_readonly', secret_table);
     END IF;
   END LOOP;
-  FOREACH people_table IN ARRAY ARRAY['users', 'platform_admins'] LOOP
+  FOREACH people_table IN ARRAY ARRAY['users', 'platform_admins', 'client_users'] LOOP
     IF to_regclass('public.' || people_table) IS NOT NULL THEN
       SELECT string_agg(quote_ident(column_name), ', ' ORDER BY ordinal_position) INTO readable
         FROM information_schema.columns

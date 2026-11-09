@@ -10,7 +10,7 @@
 | Refresh (opaque random 32B, stored SHA-256 in `refresh_token`) | 7 days (30 with "remember me") | httpOnly Secure SameSite=Lax cookie `nlq_rt`, path `/api/v1/auth` | – |
 Rotation on every refresh; reuse of a revoked token ⇒ revoke the whole family (`sid`) + audit `SECURITY` event.
 Permissions are **not** in the JWT; resolved server-side from role (cached) so role changes apply within one request.
-Client portal uses a separate realm: audience `portal`, secret `JWT_PORTAL_SECRET`, cookie `nlq_prt`. Platform admins too
+Client portal uses a separate realm: audience `portal`, secret `JWT_PORTAL_SECRET`, cookie `nlq_prt` (path `/api/v1/portal/auth`, SameSite=Lax). One portal account per person, access per office through `ClientPortalAccess` grants (D-158). Platform admins too
 (D-145): audience `admin`, secret `ADMIN_JWT_SECRET`, cookie `nlq_admin_rt`, accepted only from `ADMIN_ORIGINS`.
 
 ## Flows

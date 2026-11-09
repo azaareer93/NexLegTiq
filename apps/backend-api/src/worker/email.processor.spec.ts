@@ -15,10 +15,15 @@ import type { PrismaService } from '../database/prisma.service';
 import type { InvitationLinks } from '../modules/auth/invitation-links';
 import type { PasswordResetLinks } from '../modules/auth/password-reset-links';
 import type { VerificationLinks } from '../modules/auth/verification-links';
+import type {
+  PortalInvitationLinks,
+  PortalPasswordResetLinks,
+} from '../modules/portal-auth/portal-links';
 
 const OFFICE = '01920000-0000-7000-8000-00000000000a';
 const USER = '01920000-0000-7000-8000-0000000000aa';
 const APP = 'https://app.test';
+const PORTAL = 'https://portal.test';
 
 function setup(
   issued: object | null = {
@@ -45,6 +50,22 @@ function setup(
       message: 'أهلًا بك',
     },
   });
+  const issueClientInvite = jest.fn().mockResolvedValue({
+    to: 'client@b.test',
+    locale: 'EN',
+    vars: {
+      officeName: 'Office',
+      clientName: 'Client',
+      inviterName: 'Sara',
+      link: `${PORTAL}/accept-invite?token=t`,
+      days: 7,
+    },
+  });
+  const issueClientReset = jest.fn().mockResolvedValue({
+    to: 'cr@b.test',
+    locale: 'EN',
+    vars: { name: 'Omar', link: `${PORTAL}/reset-password?token=t`, minutes: 60 },
+  });
   const prisma = {
     db: { office: { findFirst: jest.fn().mockResolvedValue({ isActive: true }) } },
   } as unknown as PrismaService;
@@ -54,7 +75,9 @@ function setup(
     error: jest.fn(),
   } as unknown as PinoLogger;
   const config = new AppConfig(
-    parseEnv(testEnv({ NODE_ENV: 'development', OFFICE_APP_URL: `${APP}/` })),
+    parseEnv(
+      testEnv({ NODE_ENV: 'development', OFFICE_APP_URL: `${APP}/`, CLIENT_PORTAL_URL: PORTAL }),
+    ),
   );
   const processor = new EmailProcessor(
     new TenantRunner(ClsServiceManager.getClsService<RequestContext>()),
@@ -64,6 +87,8 @@ function setup(
     { issue } as unknown as VerificationLinks,
     { issue: issueReset } as unknown as PasswordResetLinks,
     { issue: issueInvite } as unknown as InvitationLinks,
+    { issue: issueClientInvite } as unknown as PortalInvitationLinks,
+    { issue: issueClientReset } as unknown as PortalPasswordResetLinks,
     config,
   );
   const job = (name: string, data: object, attemptsMade = 0) =>
@@ -74,7 +99,16 @@ function setup(
       attemptsMade,
       data: { officeId: OFFICE, requestId: null, ...data },
     }) as Job<never>;
-  return { processor, send, issue, issueReset, issueInvite, job };
+  return {
+    processor,
+    send,
+    issue,
+    issueReset,
+    issueInvite,
+    issueClientInvite,
+    issueClientReset,
+    job,
+  };
 }
 
 const reset = {
@@ -85,6 +119,26 @@ const reset = {
 };
 
 describe('EmailProcessor', () => {
+  it('should issue a portal invitation link in the worker and email it with the client-invite template', async () => {
+    const { processor, send, issueClientInvite, job } = setup();
+    await expect(
+      processor.process(job('send-client-invitation', { invitationId: USER })),
+    ).resolves.toEqual({ sent: 'client-invite' });
+    expect(issueClientInvite).toHaveBeenCalledWith(USER, expect.any(Date));
+    expect(send.mock.calls[0]?.[0]).toBe('client@b.test');
+  });
+
+  it('should issue a portal reset link in the worker and email it with the reset template', async () => {
+    const { processor, send, issueClientReset, job } = setup();
+    await expect(
+      processor.process(job('send-client-password-reset', { clientUserId: USER }, 1)),
+    ).resolves.toEqual({ sent: 'password-reset' });
+    expect(issueClientReset).toHaveBeenCalledWith(USER, expect.any(Date), { retry: true });
+    expect(send.mock.calls[0]?.[0]).toBe('cr@b.test');
+    // Links and the legal footer of a portal email point into the portal, not the office app.
+    expect(send.mock.calls[0]?.[1].html).toContain(`${PORTAL}/legal/terms`);
+  });
+
   it('should issue a verification link in the worker and send it in the user language, one message per attempt', async () => {
     const { processor, send, issue, job } = setup();
     await expect(
