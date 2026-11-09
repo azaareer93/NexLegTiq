@@ -2729,3 +2729,28 @@ returns the status it read under the lock (one query less); close and reopen aud
 on `FILE_REASSIGNED`, which the portal never shows. Arabic wording: إعادة تكليف الملف / أرشفة الملف / إعادة فتح الملف; the
 open-task count follows the user's digits with Arabic plural forms. **Known limit:** reassign decides add-vs-promote before its
 transaction, so a team change at that instant fails with 409/404 instead of retrying.
+
+**D-154 — File notes: who reads confidential notes, who changes notes, plain text** · Accepted (MVP-65, 2026-11-09)
+MVP-65 left open who may write notes, how "visible to assigned + OM only" applies to roles that see every file, and what
+"markdown sanitized" means. → **Routes** (`src/modules/notes`): `GET/POST /cases/:id/notes`, `PATCH/DELETE
+/cases/:id/notes/:noteId`. **Read** with ANY of `view:all|assigned:cases` and the file visible (D-096); a file's notes come
+pinned first, then newest, at most 500. **Confidential notes** are seen only by the **office manager and the people assigned
+to the file** (D-051) — a senior lawyer or admin who sees every file does not see its confidential notes unless on it (their
+PATCH/DELETE of one is 404); only those people may create or mark a note confidential (403 otherwise). Bodies of confidential
+notes are AES-GCM ciphertext (`FieldCipher`, D-108), bound to `file_notes.body:<officeId>:<noteId>` (the id is made first so
+it can be sealed); toggling confidentiality re-seals or opens the body. **Write** with ANY of `edit:any|assigned:case` on a
+file open to work (`contribute` + `lockFile`: archived → BIZ-007); the **author changes their own notes, OM/SL any note they
+can see** (`canEdit` in the answer says which); hard delete. **Audit** rows carry the flags (`isConfidential`, `pinned`,
+`bodyChanged`) and the author, **never the text**. **Plain text:** a body is up to 10,000 characters (control and bidi
+characters refused, `longText`), stored and returned as written and shown by React as text with its line breaks (`pre-wrap`,
+each paragraph in its own direction) — no markdown or HTML rendering, so nothing needs sanitising and an XSS payload is
+inert. Notes have no portal route (D-003). **Office app:** `?tab=notes` — a new-note form (confidential, pin), each note with
+its tags, author and time, and for those who may: edit, pin/unpin, delete after a confirm; nothing writable on an archived
+file. The notes query is not kept in memory after use (`gcTime: 0`: confidential bodies come back decrypted). **Not done:**
+client-profile notes (`FileNote.clientId`, with the client profile story), markdown formatting, note search.
+Review additions (same PR): **marking a note confidential by PATCH** needs the same right as creating one (OM or the file
+people, 403 otherwise) — else an unassigned senior lawyer could hide a colleague's note from themselves; a change that
+changes nothing writes and audits nothing; the CREATE audit row names the author. **Accepted:** the file's `counts.notes`
+(D-096) counts confidential notes too — a number, like client file counts (D-108); a reader off the file may see more notes
+counted than listed. Office app: the confidential checkbox is offered only to the office manager and the file people, the
+editor starts from the note's current text, an empty body cannot be saved, pin/unpin shows its progress.

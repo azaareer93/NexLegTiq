@@ -1,4 +1,5 @@
 import {
+  NoteSchema,
   CaseListItemSchema,
   CaseSchema,
   FileClientSchema,
@@ -6,6 +7,9 @@ import {
   TimelinePageSchema,
 } from '@nexlegtiq/shared-contracts';
 import type {
+  CreateNoteRequest,
+  Note,
+  UpdateNoteRequest,
   CloseCaseRequest,
   ReassignCaseRequest,
   AddFileClientRequest,
@@ -56,6 +60,15 @@ export function casesApi(client: ApiClient) {
     update: (id: string, body: UpdateCaseRequest): Promise<Case> =>
       client.request({ method: 'PATCH', path: path(id), body }, CaseSchema),
     remove: (id: string): Promise<void> => client.request({ method: 'DELETE', path: path(id) }),
+    /** A file's internal notes (D-154). */
+    notes: (id: string, signal?: AbortSignal): Promise<Note[]> =>
+      client.request({ method: 'GET', path: `${path(id)}/notes`, signal }, NoteSchema.array()),
+    addNote: (id: string, body: CreateNoteRequest): Promise<Note> =>
+      client.request({ method: 'POST', path: `${path(id)}/notes`, body }, NoteSchema),
+    updateNote: (id: string, noteId: string, body: UpdateNoteRequest): Promise<Note> =>
+      client.request({ method: 'PATCH', path: `${path(id)}/notes/${noteId}`, body }, NoteSchema),
+    removeNote: (id: string, noteId: string): Promise<void> =>
+      client.request({ method: 'DELETE', path: `${path(id)}/notes/${noteId}` }),
     /** The file's lifecycle (D-153): 204 each; the caller refetches the file. */
     close: (id: string, body: CloseCaseRequest): Promise<void> =>
       client.request({ method: 'POST', path: `${path(id)}/close`, body }),
