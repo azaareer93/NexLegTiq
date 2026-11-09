@@ -100,6 +100,9 @@ describe('NotesService (D-154)', () => {
     ).rejects.toMatchObject({
       code: 'AUTH-100',
     });
+    await expect(
+      setup('SENIOR_LAWYER', 'sl', 0).service.update(FILE, NOTE, { isConfidential: true }),
+    ).rejects.toMatchObject({ code: 'AUTH-100' });
     await setup('SENIOR_LAWYER', 'sl').service.remove(FILE, NOTE);
     const missing = setup('LAWYER');
     missing.db.fileNote.findFirst.mockResolvedValueOnce(null);

@@ -127,6 +127,8 @@ describe('file notes (HTTP + PostgreSQL)', () => {
     const seen = (await notes(senior)).body.data;
     expect(seen.map((n: { id: string }) => n.id)).toEqual([plain.body.data.id]);
     expect((await add(senior, { body: 'x', isConfidential: true })).status).toBe(403);
+    // Nor may they turn a colleague's plain note into one they could no longer see.
+    expect((await patch(senior, plain.body.data.id, { isConfidential: true })).status).toBe(403);
     expect((await patch(senior, secret.body.data.id, { pinned: true })).status).toBe(404);
     expect((await notes(other)).status).toBe(404);
   });

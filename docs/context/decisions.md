@@ -2748,3 +2748,9 @@ inert. Notes have no portal route (D-003). **Office app:** `?tab=notes` — a ne
 its tags, author and time, and for those who may: edit, pin/unpin, delete after a confirm; nothing writable on an archived
 file. The notes query is not kept in memory after use (`gcTime: 0`: confidential bodies come back decrypted). **Not done:**
 client-profile notes (`FileNote.clientId`, with the client profile story), markdown formatting, note search.
+Review additions (same PR): **marking a note confidential by PATCH** needs the same right as creating one (OM or the file
+people, 403 otherwise) — else an unassigned senior lawyer could hide a colleague's note from themselves; a change that
+changes nothing writes and audits nothing; the CREATE audit row names the author. **Accepted:** the file's `counts.notes`
+(D-096) counts confidential notes too — a number, like client file counts (D-108); a reader off the file may see more notes
+counted than listed. Office app: the confidential checkbox is offered only to the office manager and the file people, the
+editor starts from the note's current text, an empty body cannot be saved, pin/unpin shows its progress.

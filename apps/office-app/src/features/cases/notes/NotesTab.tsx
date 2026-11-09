@@ -25,7 +25,13 @@ interface Draft {
 }
 
 /** The new-note form: plain text, optionally confidential (encrypted, D-154) or pinned. */
-function NewNote({ fileId }: { readonly fileId: string }) {
+function NewNote({
+  fileId,
+  canConfidential,
+}: {
+  readonly fileId: string;
+  readonly canConfidential: boolean;
+}) {
   const { t } = useTranslation();
   const { add } = useNoteMutations(fileId);
   const [form] = Form.useForm<Draft>();
@@ -46,9 +52,11 @@ function NewNote({ fileId }: { readonly fileId: string }) {
           <Input.TextArea rows={3} maxLength={10_000} data-testid="note-body" />
         </Form.Item>
         <Flex gap={16} wrap align="center">
-          <Form.Item name="isConfidential" valuePropName="checked" noStyle>
-            <Checkbox data-testid="note-confidential">{t('cases.notes.confidential')}</Checkbox>
-          </Form.Item>
+          {canConfidential ? (
+            <Form.Item name="isConfidential" valuePropName="checked" noStyle>
+              <Checkbox data-testid="note-confidential">{t('cases.notes.confidential')}</Checkbox>
+            </Form.Item>
+          ) : null}
           <Form.Item name="pinned" valuePropName="checked" noStyle>
             <Checkbox data-testid="note-pinned">{t('cases.notes.pin')}</Checkbox>
           </Form.Item>
@@ -124,6 +132,7 @@ function NoteCard({
                   size="small"
                   type="primary"
                   loading={update.isPending}
+                  disabled={!body.trim()}
                   onClick={() => save({ body })}
                 >
                   {t('common.actions.save')}
@@ -136,12 +145,20 @@ function NoteCard({
               <>
                 <Button
                   size="small"
-                  onClick={() => setEditing(true)}
+                  onClick={() => {
+                    // Start from the note as it is now, not an abandoned draft.
+                    setBody(note.body);
+                    setEditing(true);
+                  }}
                   data-testid={`note-edit-button-${note.id}`}
                 >
                   {t('common.actions.edit')}
                 </Button>
-                <Button size="small" onClick={() => save({ pinned: !note.pinned })}>
+                <Button
+                  size="small"
+                  loading={update.isPending}
+                  onClick={() => save({ pinned: !note.pinned })}
+                >
                   {note.pinned ? t('cases.notes.unpin') : t('cases.notes.pin')}
                 </Button>
                 <Button
@@ -178,10 +195,13 @@ function NoteCard({
 export function NotesTab({
   fileId,
   canWrite,
+  canConfidential,
   readOnly,
 }: {
   readonly fileId: string;
   readonly canWrite: boolean;
+  /** The office manager and the file people read and write confidential notes (D-154). */
+  readonly canConfidential: boolean;
   readonly readOnly: boolean;
 }) {
   const { t } = useTranslation();
@@ -201,7 +221,7 @@ export function NotesTab({
   if (!notes.data) return <LoadingSkeleton rows={4} />;
   return (
     <Flex vertical gap={16} data-testid="notes-tab">
-      {canWrite && !readOnly ? <NewNote fileId={fileId} /> : null}
+      {canWrite && !readOnly ? <NewNote fileId={fileId} canConfidential={canConfidential} /> : null}
       {notes.data.length === 0 ? (
         <EmptyState title={t('cases.notes.empty')} />
       ) : (

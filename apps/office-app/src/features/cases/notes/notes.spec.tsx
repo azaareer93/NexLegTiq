@@ -151,7 +151,7 @@ describe('Notes tab (D-154)', () => {
     async (locale) => {
       serve([note(1, { pinned: true })]);
       const tab = await openNotes(locale);
-      if (locale === 'ar') expect(within(tab).getByText('مثبتة')).toBeTruthy();
+      if (locale === 'ar') expect(within(tab).getByText('مثبَّتة')).toBeTruthy();
       const results = await axe.run(tab, {
         rules: { 'color-contrast': { enabled: false }, region: { enabled: false } },
       });

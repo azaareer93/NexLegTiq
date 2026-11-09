@@ -188,7 +188,7 @@
     "unpin": "Unpin",
     "pinned": "Pinned",
     "by": "By {{name}}",
-    "edit": "Edit the note",
+    "edit": "Edit note",
     "empty": "No notes on this case yet.",
     "deleteTitle": "Delete this note?",
     "deleteBody": "The note is deleted for everyone. This cannot be undone."

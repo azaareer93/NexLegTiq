@@ -133,7 +133,7 @@ export class NotesService {
         entityId: id,
         action: 'CREATE',
         // The text is never audited: it may be confidential, and the note itself is the record.
-        newValues: { fileId, isConfidential, pinned: created.pinned },
+        newValues: { fileId, authorId: userId, isConfidential, pinned: created.pinned },
       });
       return created;
     });
@@ -160,6 +160,12 @@ export class NotesService {
     return row;
   }
 
+  /** Only those who read confidential notes may make one (else the caller would hide it from themselves, D-154). */
+  private async assertMayMakeConfidential(fileId: string, was: boolean, wanted?: boolean) {
+    if (wanted && !was && !(await this.seesConfidential(fileId)))
+      throw new PermissionDeniedException();
+  }
+
   async update(fileId: string, noteId: string, input: UpdateNoteRequest): Promise<Note> {
     if (Object.values(input).every((value) => value === undefined)) {
       throw new ValidationException([{ field: 'body', message: 'validation.required' }]);
@@ -167,14 +173,21 @@ export class NotesService {
     await this.access.assertFileAccess(fileId, 'contribute');
     const row = await this.uow.run(async (tx) => {
       const before = this.toNote(await this.changeable(tx, fileId, noteId));
+      await this.assertMayMakeConfidential(fileId, before.isConfidential, input.isConfidential);
       const isConfidential = input.isConfidential ?? before.isConfidential;
       const body = input.body ?? before.body;
+      const pinned = input.pinned ?? before.pinned;
+      // A change that changes nothing writes nothing (D-096, D-125).
+      const bodyChanged = body !== before.body;
+      if (!bodyChanged && isConfidential === before.isConfidential && pinned === before.pinned) {
+        return before;
+      }
       const updated = await tx.fileNote.update({
         where: { id: noteId },
         data: {
           body: isConfidential ? this.cipher.encrypt(body, this.context(noteId)) : body,
           isConfidential,
-          pinned: input.pinned ?? before.pinned,
+          pinned,
         },
         select: SELECT,
       });
@@ -186,12 +199,12 @@ export class NotesService {
         newValues: {
           isConfidential,
           pinned: updated.pinned,
-          ...(input.body !== undefined && input.body !== before.body ? { bodyChanged: true } : {}),
+          ...(bodyChanged ? { bodyChanged: true } : {}),
         },
       });
-      return updated;
+      return this.toNote(updated);
     });
-    return this.toNote(row);
+    return row;
   }
 
   async remove(fileId: string, noteId: string): Promise<void> {
