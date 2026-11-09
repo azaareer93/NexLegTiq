@@ -9,13 +9,18 @@ import { useInvalidateOn } from './use-realtime';
  */
 export function RealtimeBridge(): null {
   useEffect(() => startRealtime(), []);
-  useInvalidateOn('task.assigned', () => [['tasks']]);
-  useInvalidateOn('task.updated', () => [['tasks']]);
-  useInvalidateOn('session.scheduled', ({ fileId }) => [['sessions'], ['cases', 'detail', fileId]]);
+  useInvalidateOn('task.assigned', () => [['tasks'], ['dashboard']]);
+  useInvalidateOn('task.updated', () => [['tasks'], ['dashboard']]);
+  useInvalidateOn('session.scheduled', ({ fileId }) => [
+    ['sessions'],
+    ['cases', 'detail', fileId],
+    ['dashboard'],
+  ]);
   useInvalidateOn('session.reminder', ({ sessionId }) => [['sessions', 'detail', sessionId]]);
   useInvalidateOn('document.processed', ({ fileId }) => [
     ['documents'],
     ['cases', 'detail', fileId],
+    ['dashboard'],
   ]);
   useInvalidateOn('document.summary.ready', ({ documentId }) => [
     ['documents', 'detail', documentId],

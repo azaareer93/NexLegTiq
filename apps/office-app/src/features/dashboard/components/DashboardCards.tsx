@@ -1,11 +1,21 @@
 import type { Dashboard, DashboardDeadline, DashboardHearing } from '@nexlegtiq/shared-contracts';
-import { Ltr, useFormat } from '@nexlegtiq/shared-ui';
+import { Ltr, StatusTag, useFormat } from '@nexlegtiq/shared-ui';
 import { isolate } from '@nexlegtiq/shared-utils';
-import { Card, Col, Flex, List, Row, Statistic, Table, Tag, Typography } from 'antd';
+import { Card, Col, Flex, List, Row, Statistic, Table, Tag, theme, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 
 import { eventSentence } from '../../cases/timeline/timeline-text';
+
+/** A card heading: an h2 at the size of the theme's large text. */
+function CardTitle({ children }: { readonly children: React.ReactNode }) {
+  const { token } = theme.useToken();
+  return (
+    <Typography.Title level={2} style={{ fontSize: token.fontSizeLG, margin: 0 }}>
+      {children}
+    </Typography.Title>
+  );
+}
 
 /** One KPI: a number that links to the page where it can be acted on. */
 function Kpi({
@@ -21,11 +31,12 @@ function Kpi({
   readonly footer?: string;
   readonly testId: string;
 }) {
+  const format = useFormat();
   return (
     <Col xs={24} sm={12} lg={8} xl={4}>
       <Link to={to} data-testid={testId}>
         <Card hoverable size="small">
-          <Statistic title={title} value={value} />
+          <Statistic title={title} value={value} formatter={(v) => format.number(Number(v))} />
           {footer ? <Typography.Text type="secondary">{footer}</Typography.Text> : null}
         </Card>
       </Link>
@@ -43,14 +54,7 @@ export function Hearings({ data }: { readonly data: Dashboard }) {
   const { t } = useTranslation();
   const format = useFormat();
   return (
-    <Card
-      title={
-        <Typography.Title level={2} style={{ fontSize: 16, margin: 0 }}>
-          {t('dashboard.today.title')}
-        </Typography.Title>
-      }
-      data-testid="dashboard-today"
-    >
+    <Card title={<CardTitle>{t('dashboard.today.title')}</CardTitle>} data-testid="dashboard-today">
       {data.todayHearings.length === 0 ? (
         <Typography.Text type="secondary">{t('dashboard.today.empty')}</Typography.Text>
       ) : (
@@ -64,7 +68,7 @@ export function Hearings({ data }: { readonly data: Dashboard }) {
                 {fileLink(h.file, 'sessions')}
                 <Typography.Text>{isolate(h.file.title)}</Typography.Text>
                 {h.id === data.nextHearingId ? (
-                  <Tag color="orange">{t('dashboard.today.soon')}</Tag>
+                  <StatusTag tone="warning">{t('dashboard.today.soon')}</StatusTag>
                 ) : null}
               </Flex>
             </List.Item>
@@ -80,11 +84,7 @@ export function Deadlines({ items }: { readonly items: readonly DashboardDeadlin
   const format = useFormat();
   return (
     <Card
-      title={
-        <Typography.Title level={2} style={{ fontSize: 16, margin: 0 }}>
-          {t('dashboard.deadlines.title')}
-        </Typography.Title>
-      }
+      title={<CardTitle>{t('dashboard.deadlines.title')}</CardTitle>}
       data-testid="dashboard-deadlines"
     >
       {items.length === 0 ? (
@@ -129,11 +129,7 @@ export function Activity({ activity }: { readonly activity: Dashboard['activity'
   const format = useFormat();
   return (
     <Card
-      title={
-        <Typography.Title level={2} style={{ fontSize: 16, margin: 0 }}>
-          {t('dashboard.activity.title')}
-        </Typography.Title>
-      }
+      title={<CardTitle>{t('dashboard.activity.title')}</CardTitle>}
       data-testid="dashboard-activity"
     >
       {activity.items.length === 0 ? (
@@ -159,15 +155,9 @@ export function Activity({ activity }: { readonly activity: Dashboard['activity'
 
 export function Team({ team }: { readonly team: NonNullable<Dashboard['team']> }) {
   const { t } = useTranslation();
+  const format = useFormat();
   return (
-    <Card
-      title={
-        <Typography.Title level={2} style={{ fontSize: 16, margin: 0 }}>
-          {t('dashboard.team.title')}
-        </Typography.Title>
-      }
-      data-testid="dashboard-team"
-    >
+    <Card title={<CardTitle>{t('dashboard.team.title')}</CardTitle>} data-testid="dashboard-team">
       <Table
         size="small"
         pagination={false}
@@ -180,8 +170,16 @@ export function Team({ team }: { readonly team: NonNullable<Dashboard['team']> }
             title: t('dashboard.team.lawyer'),
             render: (_, row) => isolate(row.fullName),
           },
-          { key: 'files', title: t('dashboard.team.openFiles'), dataIndex: 'openFiles' },
-          { key: 'tasks', title: t('dashboard.team.overdueTasks'), dataIndex: 'overdueTasks' },
+          {
+            key: 'files',
+            title: t('dashboard.team.openFiles'),
+            render: (_, row) => format.number(row.openFiles),
+          },
+          {
+            key: 'tasks',
+            title: t('dashboard.team.overdueTasks'),
+            render: (_, row) => format.number(row.overdueTasks),
+          },
         ]}
       />
     </Card>
@@ -197,7 +195,7 @@ export function KpiRow({ data }: { readonly data: Dashboard }) {
         testId="kpi-open-files"
         title={t('dashboard.kpi.openFiles')}
         value={data.openFiles.count}
-        to="/cases?scope=mine"
+        to="/cases?scope=mine&status=OPEN"
         footer={t('dashboard.kpi.openedThisWeek', { count: data.openFiles.openedThisWeek })}
       />
       <Kpi

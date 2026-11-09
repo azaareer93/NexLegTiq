@@ -124,7 +124,7 @@ describe('DashboardService (D-151)', () => {
         i === 0 ? null : new Date(`2026-11-${String(10 + (i % 5)).padStart(2, '0')}T00:00:00Z`),
       file: null,
     }));
-    const items = deadlines([], many);
+    const items = deadlines([], many, (d) => new Date(`${d}T00:00:00Z`));
     expect(items).toHaveLength(20);
     expect(items.some((d) => d.id === ID(0))).toBe(false);
     expect(addDays('2026-12-31', 1)).toBe('2027-01-01');

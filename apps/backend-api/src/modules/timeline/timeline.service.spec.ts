@@ -206,9 +206,8 @@ describe('TimelineService (D-150)', () => {
         file,
       },
     ]);
-    const recent = await service.recent(20);
+    const recent = await service.recent(ID(10), 20);
     expect(db.caseTimelineEvent.findMany.mock.calls[0]?.[0]).toMatchObject({ take: 20 });
     expect(recent.items).toEqual([expect.objectContaining({ id: ID(1), file })]);
-    await expect(setup({ officeId: 'o1' }).service.recent(20)).rejects.toThrow('No caller');
   });
 });

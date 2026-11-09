@@ -7,7 +7,8 @@
 - **W2 Invite** — OM invites (email, role, message) → email link (7d) → accept (name, password, phone) → user active → OM notified.
   Plan user limit enforced at invite and at the resend of an expired invite — a pending invite holds its seat (`BIZ-008`, D-134).
 - **W3/W7 OM dashboard & oversight** — office totals, revenue this month, top lawyers by billable hours, hearings this week, overdue tasks,
-  activity; OM/SL see all files; every action audited.
+  activity; OM/SL see all files; every action audited. The dashboard of D-151 has the team workload, hearings and overdue
+  tasks; revenue and billable hours come with the finance cards.
 - **W4 Settings** — reminder days, default billing rate/method, jurisdiction, enable AI/OCR, file-number format; new files/users inherit.
 - **W5 Subscription & deactivate** — upgrade/downgrade via admin (manual payments in MVP); deactivation requires reassigning open files.
 - **W6 Create file** — type/subtype, title, client (search or inline), responsible lawyer (default self) → number generated

@@ -15,7 +15,14 @@ import { TimelineService } from '../timeline/timeline.service';
 
 const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
+/** Open as BIZ-010 and the team wizard count it (D-108, D-124). */
 const OPEN = { in: ['OPEN', 'SUSPENDED'] as ('OPEN' | 'SUSPENDED')[] };
+/** A task's file it can still be worked on: live and not archived (archived files are read-only, D-098). */
+const WORKABLE: Prisma.TaskWhereInput = {
+  OR: [{ fileId: null }, { file: { deletedAt: null, status: { not: 'ARCHIVED' } } }],
+};
+/** The window of the deadlines: today and the 6 days after it. */
+const WEEK = 7;
 const FILE = { select: { id: true, fileNumber: true, title: true } } as const;
 const HEARING = { id: true, sessionType: true, startsAt: true, file: FILE } as const;
 const LIST = 20;
@@ -51,6 +58,7 @@ const hearing = (row: HearingRow): DashboardHearing => ({
 export function deadlines(
   hearings: readonly HearingRow[],
   tasks: readonly TaskRow[],
+  startOf: (date: string) => Date,
 ): DashboardDeadline[] {
   const items = [
     ...hearings.map((h) => ({
@@ -61,7 +69,8 @@ export function deadlines(
       t.dueDate
         ? [
             {
-              sort: t.dueDate.toISOString(),
+              // A task counts from the start of its day in the office's zone, not UTC midnight.
+              sort: startOf(t.dueDate.toISOString().slice(0, 10)).toISOString(),
               item: {
                 kind: 'TASK' as const,
                 id: t.id,
@@ -101,18 +110,17 @@ export class DashboardService {
     });
     const today = wallClock(now, timezone).date;
     const at = (date: string) => new Date(zonedDateTime(date, '00:00', timezone));
-    const weekEnd = at(addDays(today, 8)); // through the end of the 7th day after today
     const [mine, team, newClientsThisMonth, activity] = await Promise.all([
       this.mine(userId, today, now, at),
       role === 'OFFICE_MANAGER' || role === 'SENIOR_LAWYER'
-        ? this.team(today, at(today), weekEnd)
+        ? this.team(today, now, at(addDays(today, WEEK)))
         : null,
       permissions.includes('manage:clients')
         ? this.prisma.db.client.count({
             where: { deletedAt: null, createdAt: { gte: at(`${today.slice(0, 8)}01`) } },
           })
         : null,
-      this.timeline.recent(LIST),
+      this.timeline.recent(userId, LIST),
     ]);
     return { today, ...mine, newClientsThisMonth, activity, team };
   }
@@ -132,7 +140,12 @@ export class DashboardService {
     const myOpenTasks: Prisma.TaskWhereInput = {
       assignedToId: userId,
       status: { not: 'DONE' },
-      OR: [{ fileId: null }, { file: { deletedAt: null } }],
+      // A task on a file the caller can no longer see (made confidential, taken off the team) is not theirs to read
+      // (D-098), nor one on an archived file (read-only).
+      OR: [
+        { fileId: null },
+        { file: { AND: [this.files.visibleWhere(), { status: { not: 'ARCHIVED' } }] } },
+      ],
     };
     const [
       open,
@@ -143,9 +156,11 @@ export class DashboardService {
       hearingsAhead,
       tasksAhead,
     ] = await Promise.all([
-      db.legalFile.count({ where: { AND: [assigned, { status: OPEN }] } }),
+      db.legalFile.count({ where: { AND: [assigned, { status: 'OPEN' }] } }),
       db.legalFile.count({
-        where: { AND: [assigned, { openingDate: { gte: toDbDate(addDays(today, -6)) } }] },
+        where: {
+          AND: [assigned, { status: 'OPEN', openingDate: { gte: toDbDate(addDays(today, -6)) } }],
+        },
       }),
       db.session.findMany({
         where: { ...myHearings, startsAt: { gte: at(today), lt: at(addDays(today, 1)) } },
@@ -167,7 +182,7 @@ export class DashboardService {
         },
       }),
       db.session.findMany({
-        where: { ...myHearings, startsAt: { gte: now, lt: at(addDays(today, 8)) } },
+        where: { ...myHearings, startsAt: { gte: now, lt: at(addDays(today, WEEK)) } },
         orderBy: { startsAt: 'asc' },
         take: LIST,
         select: HEARING,
@@ -175,7 +190,7 @@ export class DashboardService {
       db.task.findMany({
         where: {
           ...myOpenTasks,
-          dueDate: { gte: toDbDate(today), lte: toDbDate(addDays(today, 7)) },
+          dueDate: { gte: toDbDate(today), lte: toDbDate(addDays(today, WEEK - 1)) },
         },
         orderBy: [{ dueDate: 'asc' }, { id: 'asc' }],
         take: LIST,
@@ -191,7 +206,7 @@ export class DashboardService {
       nextHearingId: soon?.id ?? null,
       overdueTasks,
       newDocuments,
-      deadlines: deadlines(hearingsAhead, tasksAhead),
+      deadlines: deadlines(hearingsAhead, tasksAhead, at),
     };
   }
 
@@ -214,7 +229,7 @@ export class DashboardService {
         where: {
           status: { not: 'DONE' },
           dueDate: { lt: toDbDate(today) },
-          OR: [{ fileId: null }, { file: { deletedAt: null } }],
+          ...WORKABLE,
         },
         _count: { _all: true },
       }),

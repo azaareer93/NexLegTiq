@@ -2685,3 +2685,15 @@ calendar, tasks, documents and clients, today's hearings (the one within the hou
 in the timeline's sentences (`eventSentence`, D-150) and the team table; a new office (no open files, no activity) with
 `create:case` gets "start with your first case", which opens the quick-create modal. Phones stack the cards in one column.
 **Not done:** Hijri date (ticket: later), finance cards (their own story), a realtime refresh (the page refetches on focus).
+Review additions (same PR): **tasks follow the file's visibility** — a task assigned to the caller on a file they can no
+longer see (made confidential, taken off the team, role lowered) leaves their overdue count and deadlines, as `/tasks` hides
+it (D-098); tasks on archived files are left out everywhere (read-only, they cannot be completed). **My open cases** count
+OPEN files only (the card links to `/cases?scope=mine&status=OPEN`, so the list matches); the team card keeps OPEN +
+SUSPENDED (BIZ-010, D-124). **One window**: "the next 7 days" is today and the 6 days after it for hearings, tasks and the
+office's hearing count, which starts from now (a hearing already over is not ahead); a task sorts from the start of its day
+in the office's zone. **The team card is gated by role** (OFFICE_MANAGER, SENIOR_LAWYER — the matrix has no permission for
+it): a senior lawyer learns how many open files and overdue tasks each lawyer has, confidential ones included (counts only,
+no titles). Lists are capped at 20 (today's hearings too, without a "more" hint). The dashboard **refreshes live** on
+`task.*`, `session.scheduled` and `document.processed` (the realtime bridge invalidates `['dashboard']`). `TimelineService`
+gains `recent(userId, limit)`; `list` and `recent` share the read-time filter (`readable`). Numbers follow the user's digit
+style. **Not changed:** no repository layer (the service holds its queries, like D-146/D-149); no load test (MVP-117).

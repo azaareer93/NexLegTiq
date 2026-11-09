@@ -105,12 +105,13 @@ export class TimelineService {
   }
 
   /** The latest events of the files the caller is assigned to (the dashboard, D-151), each with its file. */
-  async recent(limit: number): Promise<{
+  async recent(
+    userId: string,
+    limit: number,
+  ): Promise<{
     items: (TimelineEvent & { file: { id: string; fileNumber: string; title: string } })[];
     names: Record<string, string>;
   }> {
-    const userId = this.cls.get('userId');
-    if (!userId) throw new Error('No caller in the request context');
     const rows = await this.prisma.db.caseTimelineEvent.findMany({
       where: { file: { AND: [this.access.visibleWhere(), assignedFilesWhere(userId as UserId)] } },
       orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],

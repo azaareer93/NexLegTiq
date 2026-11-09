@@ -74,6 +74,28 @@ describe('dashboard (HTTP + PostgreSQL)', () => {
     lawyer = await inA('LAWYER', 'Omar Lawyer');
     trainee = await inA('TRAINEE', 'Tala Trainee');
     other = await (await office('Dashboard office B'))('OFFICE_MANAGER');
+    // Office B has its own file and overdue task: none of it may reach office A.
+    const bFile = await raw.legalFile.create({
+      data: {
+        officeId: other.officeId,
+        fileNumber: `DB-${randomUUID()}`,
+        title: 'Office B file',
+        fileType: 'LITIGATION',
+        responsibleLawyerId: other.userId,
+        jurisdiction: 'PALESTINE',
+        currency: 'ILS',
+      },
+    });
+    await raw.task.create({
+      data: {
+        officeId: other.officeId,
+        fileId: bFile.id,
+        title: 'B task',
+        assignedToId: other.userId,
+        createdById: other.userId,
+        dueDate: dateOnly(-2),
+      },
+    });
     const officeId = manager.officeId;
     const file = (title: string, openingDaysAgo: number) =>
       raw.legalFile.create({
@@ -90,6 +112,21 @@ describe('dashboard (HTTP + PostgreSQL)', () => {
       });
     const fresh = await file('Rent claim', 0);
     await file('Old land dispute', 30);
+    const closed = await file('Settled claim', 1);
+    await raw.legalFile.update({ where: { id: closed.id }, data: { status: 'CLOSED' } });
+    // Confidential, managed by the office manager: the lawyer is not on it.
+    const secret = await raw.legalFile.create({
+      data: {
+        officeId,
+        fileNumber: `DB-${randomUUID()}`,
+        title: 'Secret merger',
+        fileType: 'LITIGATION',
+        responsibleLawyerId: manager.userId,
+        jurisdiction: 'PALESTINE',
+        currency: 'ILS',
+        isConfidential: true,
+      },
+    });
     fileId = fresh.id;
     const session = (startsAt: Date, isCancelled = false) =>
       raw.session.create({
@@ -119,6 +156,22 @@ describe('dashboard (HTTP + PostgreSQL)', () => {
       });
     await task('Overdue reply', -3);
     await task('File the appeal', 2);
+    const done = await task('Done long ago', -5);
+    await raw.task.update({
+      where: { id: done.id },
+      data: { status: 'DONE', completedAt: new Date() },
+    });
+    // Assigned to the lawyer before the file was made confidential: no longer theirs to read.
+    await raw.task.create({
+      data: {
+        officeId,
+        fileId: secret.id,
+        title: 'Secret task',
+        assignedToId: lawyer.userId,
+        createdById: manager.userId,
+        dueDate: dateOnly(-1),
+      },
+    });
     await raw.document.create({
       data: {
         officeId,
@@ -204,12 +257,14 @@ describe('dashboard (HTTP + PostgreSQL)', () => {
 
   it("should show the office manager the team's workload but nothing of files they are not on", async () => {
     const data = await dashboard(manager);
-    expect(data).toMatchObject({ openFiles: { count: 0 }, newDocuments: 0, overdueTasks: 0 });
+    // The manager is responsible for the confidential file only.
+    expect(data).toMatchObject({ openFiles: { count: 1 }, newDocuments: 0, overdueTasks: 0 });
     expect(data.activity.items).toEqual([]);
     expect(data.team.hearingsThisWeek).toBe(2);
     expect(data.team.workload).toEqual([
-      { userId: manager.userId, fullName: 'Layla Manager', openFiles: 0, overdueTasks: 0 },
-      { userId: lawyer.userId, fullName: 'Omar Lawyer', openFiles: 2, overdueTasks: 1 },
+      { userId: manager.userId, fullName: 'Layla Manager', openFiles: 1, overdueTasks: 0 },
+      // Counts include the confidential file's task (D-151); closed files and done tasks are left out.
+      { userId: lawyer.userId, fullName: 'Omar Lawyer', openFiles: 2, overdueTasks: 2 },
     ]);
   });
 
@@ -221,6 +276,8 @@ describe('dashboard (HTTP + PostgreSQL)', () => {
     });
     const b = await dashboard(other);
     expect(b).toMatchObject({ newClientsThisMonth: 0, team: { hearingsThisWeek: 0 } });
-    expect(b.team.workload.map((w: { userId: string }) => w.userId)).toEqual([other.userId]);
+    expect(b.team.workload).toEqual([
+      { userId: other.userId, fullName: 'OFFICE_MANAGER', openFiles: 1, overdueTasks: 1 },
+    ]);
   });
 });
