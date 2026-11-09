@@ -1,10 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import type { PortalOfficeAccess } from '@nexlegtiq/shared-contracts';
+import type { OfficeId } from '@nexlegtiq/shared-types';
 
 import { PrismaService } from '../../database/prisma.service';
 import type { AuditAction, Prisma } from '../../generated/prisma/client';
 import { truncateUserAgent } from '../auth/client-info';
 import type { ClientInfo } from '../auth/client-info';
+import { EntitlementsService } from '../subscriptions/entitlements.service';
 
 type AuditWriter = Pick<Prisma.TransactionClient, 'auditLog' | 'clientPortalAccess'>;
 
@@ -14,7 +16,10 @@ type AuditWriter = Pick<Prisma.TransactionClient, 'auditLog' | 'clientPortalAcce
  */
 @Injectable()
 export class PortalAccounts {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly entitlements: EntitlementsService,
+  ) {}
 
   async offices(clientUserId: string): Promise<PortalOfficeAccess[]> {
     // unscoped: a portal account spans offices; the grants are the access rule.
@@ -33,12 +38,21 @@ export class PortalAccounts {
         client: { select: { displayName: true } },
       },
     });
-    return grants.map((grant) => ({
-      officeId: grant.officeId,
-      officeName: grant.office.name,
-      clientId: grant.clientId,
-      clientName: grant.client.displayName,
-    }));
+    // An office whose plan no longer includes the portal grants nothing (D-122); a read-only office still does.
+    const included = await Promise.all(
+      grants.map(
+        async (grant) =>
+          (await this.entitlements.forOffice(grant.officeId as OfficeId)).features.clientPortal,
+      ),
+    );
+    return grants
+      .filter((_, index) => included[index])
+      .map((grant) => ({
+        officeId: grant.officeId,
+        officeName: grant.office.name,
+        clientId: grant.clientId,
+        clientName: grant.client.displayName,
+      }));
   }
 
   /**

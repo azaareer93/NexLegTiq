@@ -20,7 +20,7 @@ import {
   SEND_CLIENT_PASSWORD_RESET_JOB,
 } from './portal-auth.constants';
 import type { PortalAccessClaims } from './portal-auth.constants';
-import { PortalSessions } from './portal-sessions';
+import { PortalSessions, PortalTokenReused } from './portal-sessions';
 import type { IssuedPortalSession } from './portal-sessions';
 import { hashOpaqueToken } from '../../common/auth/opaque-token';
 import {
@@ -124,10 +124,13 @@ export class PortalAuthService {
     return { issued, session: await this.sessionFor(user, offices, issued.familyId) };
   }
 
-  async refresh(token: string | undefined): Promise<PortalSignIn> {
+  async refresh(token: string | undefined, client: ClientInfo): Promise<PortalSignIn> {
     if (!token) throw new AppException('AUTH-005', 'No portal session');
     const now = new Date();
-    const issued = await this.sessions.rotate(token, now);
+    const issued = await this.sessions.rotate(token, now).catch(async (error: unknown) => {
+      if (error instanceof PortalTokenReused) await this.auditReuse(error, client);
+      throw error;
+    });
     const user = await this.findActive(issued.clientUserId);
     const offices = user ? await this.accounts.offices(user.id) : [];
     if (!user || offices.length === 0) {
@@ -135,6 +138,19 @@ export class PortalAuthService {
       throw new AppException('AUTH-006', 'Portal access is not active');
     }
     return { issued, session: await this.sessionFor(user, offices, issued.familyId) };
+  }
+
+  /** A used refresh token came back (a stolen copy): one SECURITY row per office of the account. Never turns the 401 into a 500. */
+  private async auditReuse(error: PortalTokenReused, client: ClientInfo): Promise<void> {
+    try {
+      // unscoped: the account's grants span offices.
+      await this.accounts.audit(this.prisma.unscoped(), error.clientUserId, 'SECURITY', client, {
+        event: 'REFRESH_TOKEN_REUSED',
+        familyId: error.familyId,
+      });
+    } catch (failure) {
+      this.logger.error({ err: failure }, 'Portal token reuse not audited');
+    }
   }
 
   /** Idempotent: an unknown or already ended token ends nothing and writes nothing. */
@@ -163,23 +179,26 @@ export class PortalAuthService {
    * same time.
    */
   async forgotPassword(body: ForgotPasswordRequest, client: ClientInfo): Promise<void> {
+    // One query for every email, so known and unknown addresses take the same path; the worker checks the account again.
     // unscoped: portal accounts belong to no office.
-    const user = await this.prisma.unscoped().clientUser.findUnique({
-      where: { email: body.email },
-      select: { id: true, isActive: true },
+    const grant = await this.prisma.unscoped().clientPortalAccess.findFirst({
+      where: {
+        revokedAt: null,
+        clientUser: { email: body.email, isActive: true },
+        office: { isActive: true },
+      },
+      select: { officeId: true, clientUserId: true },
     });
-    if (!user?.isActive) return;
-    const office = (await this.accounts.offices(user.id))[0];
-    if (!office) return;
+    if (!grant) return;
     void this.tenant
       .run(
         {
-          officeId: office.officeId as OfficeId,
+          officeId: grant.officeId as OfficeId,
           ...(client.requestId ? { requestId: client.requestId } : {}),
         },
         () =>
           this.queues.enqueue(QUEUE.EMAIL, SEND_CLIENT_PASSWORD_RESET_JOB, {
-            clientUserId: user.id,
+            clientUserId: grant.clientUserId,
           }),
       )
       .catch((error: unknown) => {

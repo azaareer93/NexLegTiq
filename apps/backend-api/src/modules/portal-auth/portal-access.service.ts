@@ -12,6 +12,7 @@ import { AuditService } from '../../common/audit/audit.service';
 import { hashOpaqueToken, newOpaqueToken } from '../../common/auth/opaque-token';
 import type { RequestContext } from '../../common/context/request-context';
 import {
+  PermissionDeniedException,
   ResourceConflictException,
   ResourceNotFoundException,
   ValidationException,
@@ -51,6 +52,7 @@ export class PortalAccessService {
     const { email } = input;
     return this.uow.run(async (tx, afterCommit) => {
       await this.liveClient(tx, clientId);
+      await this.assertMayExposeFiles(tx, clientId);
       if (input.contactPersonId) {
         const contact = await tx.contactPerson.findFirst({
           where: { id: input.contactPersonId, clientId },
@@ -137,10 +139,10 @@ export class PortalAccessService {
         take: MAX_ROWS,
       }),
     ]);
-    // unscoped: portal accounts belong to no office; names and sign-in times of this office's grants only.
+    // unscoped: portal accounts belong to no office; names of this office's grants only.
     const accounts = await this.prisma.unscoped().clientUser.findMany({
       where: { id: { in: grants.map((grant) => grant.clientUserId) } },
-      select: { id: true, email: true, fullName: true, lastLoginAt: true },
+      select: { id: true, email: true, fullName: true },
     });
     const byId = new Map(accounts.map((account) => [account.id, account]));
     return {
@@ -154,7 +156,6 @@ export class PortalAccessService {
                 fullName: account.fullName,
                 contactPersonId: grant.contactPersonId,
                 grantedAt: grant.createdAt.toISOString(),
-                lastLoginAt: account.lastLoginAt?.toISOString() ?? null,
               },
             ]
           : [];
@@ -216,6 +217,24 @@ export class PortalAccessService {
         client,
       );
     });
+  }
+
+  /**
+   * A portal user sees every file of the client, so a client linked to a live confidential file may be invited only by the
+   * people who may expose that file: the office manager or its responsible lawyer (D-140, D-096).
+   */
+  private async assertMayExposeFiles(tx: ScopedTransaction, clientId: string): Promise<void> {
+    if (this.cls.get('role') === 'OFFICE_MANAGER') return;
+    const hidden = await tx.legalFile.findFirst({
+      where: {
+        deletedAt: null,
+        isConfidential: true,
+        clients: { some: { clientId } },
+        NOT: { responsibleLawyerId: this.actor() },
+      },
+      select: { id: true },
+    });
+    if (hidden) throw new PermissionDeniedException();
   }
 
   /** A live, active client of this office, else 404 (another office's client is the same 404). */

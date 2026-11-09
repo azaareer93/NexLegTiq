@@ -80,9 +80,9 @@ describe('PortalAuthController (D-157)', () => {
     await expect(
       controller.refresh(req(csrf, { [PORTAL_REFRESH_COOKIE]: 'rt' }), res),
     ).resolves.toBe(signIn.session);
-    expect(auth.refresh).toHaveBeenCalledWith('rt');
+    expect(auth.refresh).toHaveBeenCalledWith('rt', expect.anything());
     await controller.refresh(req(csrf, { [PORTAL_REFRESH_COOKIE]: 42 }), res);
-    expect(auth.refresh).toHaveBeenLastCalledWith(undefined);
+    expect(auth.refresh).toHaveBeenLastCalledWith(undefined, expect.anything());
 
     auth.refresh.mockRejectedValueOnce(new AppException('AUTH-005', 'x'));
     await expect(controller.refresh(req(csrf), res)).rejects.toMatchObject({ code: 'AUTH-005' });

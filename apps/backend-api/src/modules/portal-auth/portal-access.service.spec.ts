@@ -20,10 +20,12 @@ interface Options {
   revoked?: number;
   user?: string | null;
   office?: string | null;
+  role?: string;
+  hidden?: object | null;
 }
 
 function setup(options: Options = {}) {
-  const { client, contact, account, grant, pending, revoked, user, office } = {
+  const { client, contact, account, grant, pending, revoked, user, office, role, hidden } = {
     client: { id: 'c1' },
     contact: { id: 'p1' },
     account: null,
@@ -32,10 +34,13 @@ function setup(options: Options = {}) {
     revoked: 1,
     user: 'm1',
     office: 'o1',
+    role: 'LAWYER',
+    hidden: null,
     ...options,
   };
   const tx = {
     client: { findFirst: jest.fn().mockResolvedValue(client) },
+    legalFile: { findFirst: jest.fn().mockResolvedValue(hidden) },
     contactPerson: { findFirst: jest.fn().mockResolvedValue(contact) },
     clientPortalAccess: {
       findFirst: jest.fn().mockResolvedValue(grant),
@@ -77,7 +82,8 @@ function setup(options: Options = {}) {
     queues as unknown as QueueProducer,
     sessions as unknown as PortalSessions,
     {
-      get: (key: string) => (key === 'userId' ? user : office),
+      get: (key: string) =>
+        (({ userId: user, role, officeId: office }) as Record<string, unknown>)[key] ?? undefined,
     } as unknown as ClsService<RequestContext>,
   );
   return { service, tx, raw, after, queues, sessions, audit };
@@ -120,6 +126,26 @@ describe('PortalAccessService (D-157)', () => {
     ).rejects.toMatchObject({ code: 'RES-002' });
   });
 
+  it('should refuse inviting a client with a confidential file the caller may not expose, except for the manager', async () => {
+    const input = { email: 'l@x.test' };
+    const file = { id: 'f1' };
+    const denied = setup({ hidden: file });
+    await expect(denied.service.invite('c1', input, CLIENT)).rejects.toMatchObject({
+      code: 'AUTH-100',
+    });
+    expect(denied.tx.legalFile.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          isConfidential: true,
+          NOT: { responsibleLawyerId: 'm1' },
+        }),
+      }),
+    );
+    const manager = setup({ hidden: file, role: 'OFFICE_MANAGER' });
+    await expect(manager.service.invite('c1', input, CLIENT)).resolves.toBeDefined();
+    expect(manager.tx.legalFile.findFirst).not.toHaveBeenCalled();
+  });
+
   it('should fail loudly without a caller or an office in the context', async () => {
     await expect(
       setup({ user: null }).service.invite('c1', { email: 'a@b.test' }, CLIENT),
@@ -144,17 +170,12 @@ describe('PortalAccessService (D-157)', () => {
         createdAt: new Date(NOW),
       },
     ]);
-    raw.clientUser.findMany.mockResolvedValue([
-      { id: 'u1', email: 'l@x.test', fullName: 'Layla', lastLoginAt: new Date(NOW) },
-    ]);
+    raw.clientUser.findMany.mockResolvedValue([{ id: 'u1', email: 'l@x.test', fullName: 'Layla' }]);
     const result = await service.list('c1');
     expect(result.users).toHaveLength(1);
     expect(result.users[0]).toMatchObject({ id: 'g1', fullName: 'Layla' });
     expect(result.invitations[0]?.status).toBe('EXPIRED');
-    raw.clientUser.findMany.mockResolvedValue([
-      { id: 'u1', email: 'l@x.test', fullName: 'Layla', lastLoginAt: null },
-    ]);
-    expect((await service.list('c1')).users[0]?.lastLoginAt).toBeNull();
+    expect(result.users[0]).not.toHaveProperty('lastLoginAt');
     await expect(setup({ client: null }).service.list('c1')).rejects.toMatchObject({
       code: 'RES-001',
     });

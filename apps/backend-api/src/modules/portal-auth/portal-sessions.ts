@@ -9,6 +9,16 @@ import { AppException } from '../../common/errors/app.exception';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
 
+/** A refresh token that was already used: the family ends (AUTH-005) and the caller records a SECURITY event. */
+export class PortalTokenReused extends AppException {
+  constructor(
+    readonly clientUserId: string,
+    readonly familyId: string,
+  ) {
+    super('AUTH-005', 'Portal refresh token invalid or reused');
+  }
+}
+
 export interface IssuedPortalSession {
   readonly refreshToken: string;
   readonly familyId: string;
@@ -25,7 +35,7 @@ type Rotation =
   | {
       readonly refused: 'AUTH-004' | 'AUTH-005';
       readonly familyId: string | null;
-      readonly reused?: boolean;
+      readonly reusedBy?: string;
     };
 
 /**
@@ -59,7 +69,7 @@ export class PortalSessions {
       // Serialise with a password reset (it updates this row before revoking), so no token slips past the revoke.
       await tx.$queryRaw`SELECT id FROM client_users WHERE id = ${session.clientUserId}::uuid FOR UPDATE`;
       if (session.revokedAt) {
-        return { refused: 'AUTH-005', familyId: session.familyId, reused: true };
+        return { refused: 'AUTH-005', familyId: session.familyId, reusedBy: session.clientUserId };
       }
       const cap = new Date(session.startedAt.getTime() + PORTAL_SESSION_MAX_MS);
       if (session.expiresAt <= now || cap <= now) {
@@ -70,7 +80,7 @@ export class PortalSessions {
         data: { revokedAt: now },
       });
       if (claimed.count !== 1) {
-        return { refused: 'AUTH-005', familyId: session.familyId, reused: true };
+        return { refused: 'AUTH-005', familyId: session.familyId, reusedBy: session.clientUserId };
       }
       const next = await this.issue(
         tx,
@@ -89,8 +99,9 @@ export class PortalSessions {
     if ('session' in outcome) return outcome.session;
     // Ended outside the transaction: a refusal must not roll the family's end back.
     if (outcome.familyId) await this.endFamily(raw, outcome.familyId, now);
-    if (outcome.reused) {
+    if (outcome.reusedBy && outcome.familyId) {
       this.logger.warn({ familyId: outcome.familyId }, 'Portal refresh token reused');
+      throw new PortalTokenReused(outcome.reusedBy, outcome.familyId);
     }
     throw new AppException(
       outcome.refused,

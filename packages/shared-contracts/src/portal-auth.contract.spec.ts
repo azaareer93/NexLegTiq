@@ -31,7 +31,11 @@ describe('client portal contracts (D-157)', () => {
     expect(PortalAcceptInviteRequestSchema.safeParse({ ...body, acceptTerms: false }).success).toBe(
       false,
     );
+    // The password policy is applied by the service for new accounts only; an existing account's password just has to be sent.
     expect(PortalAcceptInviteRequestSchema.safeParse({ ...body, password: 'short' }).success).toBe(
+      true,
+    );
+    expect(PortalAcceptInviteRequestSchema.safeParse({ ...body, password: '' }).success).toBe(
       false,
     );
     expect(PortalAcceptInviteRequestSchema.safeParse({ ...body, fullName: 'N' }).success).toBe(

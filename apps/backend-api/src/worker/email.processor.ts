@@ -209,6 +209,15 @@ export class EmailProcessor extends TenantProcessor<EmailJob> {
     // Every button in our emails leads into the office app or the client portal; anything else is a bug or an injected link.
     if (!vars.link.startsWith(`${officeAppUrl}/`) && !vars.link.startsWith(`${clientPortalUrl}/`))
       throw new UnrecoverableError('Email link does not point to our apps');
-    await this.transport.send(to, renderMail(template, locale, vars, officeAppUrl), options);
+    await this.transport.send(
+      to,
+      renderMail(
+        template,
+        locale,
+        vars,
+        vars.link.startsWith(`${clientPortalUrl}/`) ? clientPortalUrl : officeAppUrl,
+      ),
+      options,
+    );
   }
 }

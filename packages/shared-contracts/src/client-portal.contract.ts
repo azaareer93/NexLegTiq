@@ -30,7 +30,6 @@ export const PortalAccessSchema = z.object({
   fullName: z.string(),
   contactPersonId: z.uuid().nullable(),
   grantedAt: z.iso.datetime(),
-  lastLoginAt: z.iso.datetime().nullable(),
 });
 export type PortalAccess = z.infer<typeof PortalAccessSchema>;
 

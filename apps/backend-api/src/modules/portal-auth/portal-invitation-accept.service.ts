@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { passwordIsNotEmail } from '@nexlegtiq/shared-contracts';
+import { NewPasswordSchema, passwordIsNotEmail } from '@nexlegtiq/shared-contracts';
 import type { PortalAcceptInviteRequest, PortalInvitePreview } from '@nexlegtiq/shared-contracts';
 import type { OfficeId } from '@nexlegtiq/shared-types';
 
@@ -72,6 +72,13 @@ export class PortalInvitationAcceptService {
       async () => (await this.entitlements.current()).readOnly,
     );
     if (readOnly) throw new AppException('AUTH-104', 'Subscription ended: the office is read-only');
+    await this.tenant.run(
+      {
+        officeId: officeId as OfficeId,
+        ...(client.requestId ? { requestId: client.requestId } : {}),
+      },
+      () => this.entitlements.assertFeature('clientPortal'),
+    );
 
     // unscoped: portal accounts belong to no office.
     const raw = this.prisma.unscoped();
@@ -139,6 +146,13 @@ export class PortalInvitationAcceptService {
   }
 
   private async newAccountHash(body: PortalAcceptInviteRequest, email: string): Promise<string> {
+    // The policy applies to a new account's password only; an existing account's older password must still work.
+    const policy = NewPasswordSchema.safeParse(body.password);
+    if (!policy.success) {
+      throw new ValidationException(
+        policy.error.issues.map((issue) => ({ field: 'password', message: issue.message })),
+      );
+    }
     if (!passwordIsNotEmail(body.password, email)) {
       throw new ValidationException([
         { field: 'password', message: 'validation.password.sameAsEmail' },

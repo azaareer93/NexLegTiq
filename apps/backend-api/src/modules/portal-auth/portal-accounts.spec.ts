@@ -1,5 +1,6 @@
 import { PortalAccounts } from './portal-accounts';
 import type { PrismaService } from '../../database/prisma.service';
+import type { EntitlementsService } from '../subscriptions/entitlements.service';
 
 const CLIENT = { ip: '203.0.113.7', userAgent: 'x'.repeat(600), requestId: 'req-1' };
 
@@ -13,9 +14,11 @@ describe('PortalAccounts (D-157)', () => {
         client: { displayName: 'Layla' },
       },
     ]);
-    const accounts = new PortalAccounts({
-      unscoped: () => ({ clientPortalAccess: { findMany } }),
-    } as unknown as PrismaService);
+    const forOffice = jest.fn().mockResolvedValue({ features: { clientPortal: true } });
+    const accounts = new PortalAccounts(
+      { unscoped: () => ({ clientPortalAccess: { findMany } }) } as unknown as PrismaService,
+      { forOffice } as unknown as EntitlementsService,
+    );
     await expect(accounts.offices('u1')).resolves.toEqual([
       { officeId: 'o1', officeName: 'Office', clientId: 'c1', clientName: 'Layla' },
     ]);
@@ -26,6 +29,28 @@ describe('PortalAccounts (D-157)', () => {
     );
   });
 
+  it('should treat an office whose plan lacks the portal as no grant', async () => {
+    const grant = (officeId: string) => ({
+      officeId,
+      clientId: 'c1',
+      office: { name: officeId },
+      client: { displayName: 'L' },
+    });
+    const accounts = new PortalAccounts(
+      {
+        unscoped: () => ({
+          clientPortalAccess: { findMany: jest.fn().mockResolvedValue([grant('o1'), grant('o2')]) },
+        }),
+      } as unknown as PrismaService,
+      {
+        forOffice: jest.fn((id: string) =>
+          Promise.resolve({ features: { clientPortal: id === 'o2' } }),
+        ),
+      } as unknown as EntitlementsService,
+    );
+    expect((await accounts.offices('u1')).map((o) => o.officeId)).toEqual(['o2']);
+  });
+
   it('should write one audit row per office with a live grant, with the user agent capped, and none without', async () => {
     const createMany = jest.fn();
     const writer = (grants: object[]) =>
@@ -33,7 +58,7 @@ describe('PortalAccounts (D-157)', () => {
         clientPortalAccess: { findMany: jest.fn().mockResolvedValue(grants) },
         auditLog: { createMany },
       }) as never;
-    const accounts = new PortalAccounts({} as PrismaService);
+    const accounts = new PortalAccounts({} as PrismaService, {} as EntitlementsService);
     await accounts.audit(writer([]), 'u1', 'LOGIN', CLIENT);
     expect(createMany).not.toHaveBeenCalled();
     await accounts.audit(writer([{ officeId: 'o1' }, { officeId: 'o2' }]), 'u1', 'UPDATE', CLIENT, {

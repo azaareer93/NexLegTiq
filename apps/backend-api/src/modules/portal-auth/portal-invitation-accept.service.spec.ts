@@ -3,6 +3,7 @@ import { ClsServiceManager } from 'nestjs-cls';
 import type { PortalAccounts } from './portal-accounts';
 import type { PortalAuthService } from './portal-auth.service';
 import { PortalInvitationAcceptService } from './portal-invitation-accept.service';
+import { AppException } from '../../common/errors/app.exception';
 import { TenantRunner } from '../../common/tenancy/tenant-runner';
 import type { PrismaService } from '../../database/prisma.service';
 import type { LoginAttemptRepository } from '../auth/login-attempt.repository';
@@ -37,6 +38,7 @@ function setup({
   found = invitation() as object | null,
   existing = null as object | null,
   readOnly = false,
+  portalFeature = true,
   claimed = 1,
   valid = true,
   failures = [] as Date[],
@@ -78,7 +80,14 @@ function setup({
     auth as unknown as PortalAuthService,
     { offices: jest.fn().mockResolvedValue([]) } as unknown as PortalAccounts,
     new TenantRunner(ClsServiceManager.getClsService()),
-    { current: jest.fn().mockResolvedValue({ readOnly }) } as unknown as EntitlementsService,
+    {
+      current: jest.fn().mockResolvedValue({ readOnly }),
+      assertFeature: jest.fn(() =>
+        portalFeature
+          ? Promise.resolve()
+          : Promise.reject(new AppException('AUTH-102', 'no portal')),
+      ),
+    } as unknown as EntitlementsService,
   );
   return { service, tx, hasher, attempts, auth };
 }
@@ -135,6 +144,24 @@ describe('PortalInvitationAcceptService (D-157)', () => {
     );
     expect(tx.auditLog.create).toHaveBeenCalled();
     expect(auth.signedIn).toHaveBeenCalled();
+  });
+
+  it('should refuse an office whose plan lacks the portal', async () => {
+    await expect(
+      setup({ portalFeature: false }).service.accept(body, CLIENT),
+    ).rejects.toMatchObject({
+      code: 'AUTH-102',
+    });
+  });
+
+  it('should apply the password policy to a new account only', async () => {
+    await expect(
+      setup().service.accept({ ...body, password: 'short' }, CLIENT),
+    ).rejects.toMatchObject({ code: 'VAL-001' });
+    const older = setup({ existing: account });
+    await expect(
+      older.service.accept({ ...body, password: 'short' }, CLIENT),
+    ).resolves.toBeDefined();
   });
 
   it('should refuse the email as the password of a new account', async () => {

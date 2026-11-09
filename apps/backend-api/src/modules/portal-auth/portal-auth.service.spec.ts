@@ -4,8 +4,10 @@ import type { PinoLogger } from 'nestjs-pino';
 
 import type { PortalAccounts } from './portal-accounts';
 import { PortalAuthService } from './portal-auth.service';
+import { PortalTokenReused } from './portal-sessions';
 import type { PortalSessions } from './portal-sessions';
 import { hashOpaqueToken } from '../../common/auth/opaque-token';
+import { AppException } from '../../common/errors/app.exception';
 import type { QueueProducer } from '../../common/queue/queue-producer';
 import { TenantRunner } from '../../common/tenancy/tenant-runner';
 import type { AppConfig } from '../../config/app-config';
@@ -22,6 +24,11 @@ const office = {
   clientName: 'L',
 };
 const issued = { refreshToken: 'rt', familyId: 'f1', expiresAt: new Date('2026-11-16T00:00:00Z') };
+
+const grantOf = (found: object | null, offices: object[]) =>
+  found && (found as { isActive: boolean }).isActive && offices.length > 0
+    ? { officeId: office.officeId, clientUserId: 'u1' }
+    : null;
 
 function setup({
   found = user as object | null,
@@ -41,6 +48,9 @@ function setup({
       update: jest.fn(),
     },
     clientPasswordResetToken: { findUnique: jest.fn() },
+    clientPortalAccess: {
+      findFirst: jest.fn().mockResolvedValue(grantOf(found, offices)),
+    },
     $transaction: jest.fn((work: (t: unknown) => unknown) => work(tx)),
   };
   const sessions = {
@@ -123,14 +133,34 @@ describe('PortalAuthService (D-157)', () => {
   });
 
   it('should rotate on refresh and end the session when the account lost its access', async () => {
-    await expect(setup().service.refresh(undefined)).rejects.toMatchObject({ code: 'AUTH-005' });
-    const ok = await setup().service.refresh('rt');
+    await expect(setup().service.refresh(undefined, CLIENT)).rejects.toMatchObject({
+      code: 'AUTH-005',
+    });
+    const ok = await setup().service.refresh('rt', CLIENT);
     expect(ok.session.user.id).toBe('u1');
     for (const options of [{ found: null }, { offices: [] }]) {
       const lost = setup(options);
-      await expect(lost.service.refresh('rt')).rejects.toMatchObject({ code: 'AUTH-006' });
+      await expect(lost.service.refresh('rt', CLIENT)).rejects.toMatchObject({ code: 'AUTH-006' });
       expect(lost.sessions.end).toHaveBeenCalledWith('rt', expect.any(Date));
     }
+  });
+
+  it('should audit a reused refresh token as a SECURITY event and still answer AUTH-005', async () => {
+    const { service, sessions, accounts } = setup();
+    sessions.rotate.mockRejectedValueOnce(new PortalTokenReused('u1', 'f1'));
+    await expect(service.refresh('rt', CLIENT)).rejects.toMatchObject({ code: 'AUTH-005' });
+    expect(accounts.audit).toHaveBeenCalledWith(expect.anything(), 'u1', 'SECURITY', CLIENT, {
+      event: 'REFRESH_TOKEN_REUSED',
+      familyId: 'f1',
+    });
+    // A failing audit write never hides the 401; any other refusal writes nothing.
+    sessions.rotate.mockRejectedValueOnce(new PortalTokenReused('u1', 'f1'));
+    accounts.audit.mockRejectedValueOnce(new Error('db'));
+    await expect(service.refresh('rt', CLIENT)).rejects.toMatchObject({ code: 'AUTH-005' });
+    accounts.audit.mockClear();
+    sessions.rotate.mockRejectedValueOnce(new AppException('AUTH-004', 'x'));
+    await expect(service.refresh('rt', CLIENT)).rejects.toMatchObject({ code: 'AUTH-004' });
+    expect(accounts.audit).not.toHaveBeenCalled();
   });
 
   it('should log out idempotently and audit only a logout that ended something', async () => {

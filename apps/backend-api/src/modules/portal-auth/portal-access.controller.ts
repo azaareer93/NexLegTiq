@@ -32,7 +32,7 @@ import { ApiZodBody, ApiZodResponse } from '../../common/openapi/api-zod.decorat
 import { RequirePermissions } from '../../common/rbac/permissions.decorator';
 import { clientFromRequest } from '../auth/client-info';
 import type { ClientInfo } from '../auth/client-info';
-import { RequireFeature } from '../subscriptions/subscription.decorators';
+import { AllowWhenReadOnly, RequireFeature } from '../subscriptions/subscription.decorators';
 
 /** A malformed id is the same 404 as an unknown one (D-019). */
 const uuid = () => new ParseUUIDPipe({ exceptionFactory: () => new ResourceNotFoundException() });
@@ -41,7 +41,6 @@ const uuid = () => new ParseUUIDPipe({ exceptionFactory: () => new ResourceNotFo
 @ApiTags('clients')
 @ApiBearerAuth('JWT')
 @RequirePermissions('manage:portal-access')
-@RequireFeature('clientPortal')
 @Controller('clients/:clientId')
 export class PortalAccessController {
   constructor(
@@ -50,6 +49,7 @@ export class PortalAccessController {
   ) {}
 
   @Post('portal-invitations')
+  @RequireFeature('clientPortal')
   @ApiOperation({ summary: 'Invite a person of this client to the client portal' })
   @ApiZodBody(CreatePortalInvitationSchema)
   @ApiZodResponse(HttpStatus.CREATED, PortalInvitationSchema)
@@ -61,7 +61,9 @@ export class PortalAccessController {
     return this.access.invite(clientId, body, this.client(req));
   }
 
+  // Revoking stays possible after the plan lapsed or the office is read-only: access must always be removable.
   @Delete('portal-invitations/:invitationId')
+  @AllowWhenReadOnly()
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Withdraw a pending portal invitation' })
   @ApiNoContentResponse({ description: 'Withdrawn' })
@@ -74,6 +76,7 @@ export class PortalAccessController {
   }
 
   @Get('portal-users')
+  @RequireFeature('clientPortal')
   @ApiOperation({ summary: 'Portal accounts with access to this client, and pending invitations' })
   @ApiZodResponse(HttpStatus.OK, PortalUsersSchema)
   list(@Param('clientId', uuid()) clientId: string): Promise<PortalUsers> {
@@ -81,6 +84,7 @@ export class PortalAccessController {
   }
 
   @Delete('portal-users/:accessId')
+  @AllowWhenReadOnly()
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: "Revoke a portal account's access; its sessions end at once" })
   @ApiNoContentResponse({ description: 'Revoked' })

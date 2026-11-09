@@ -133,7 +133,7 @@ export class PortalAuthController {
   ): Promise<PortalSession> {
     this.assertOrigin(req);
     try {
-      return this.respond(await this.auth.refresh(this.cookie(req)), res);
+      return this.respond(await this.auth.refresh(this.cookie(req), this.client(req)), res);
     } catch (error) {
       if (error instanceof AppException && DEAD_COOKIE_CODES.has(error.code)) {
         res.clearCookie(PORTAL_REFRESH_COOKIE, portalCookieOptions());

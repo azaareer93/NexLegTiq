@@ -5,7 +5,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import type { PortalInvitation, PortalSession, PortalUsers } from '@nexlegtiq/shared-contracts';
-import type { Role } from '@nexlegtiq/shared-types';
+import type { OfficeId, Role } from '@nexlegtiq/shared-types';
 import request from 'supertest';
 
 import { PORTAL_REFRESH_COOKIE } from './portal-auth.constants';
@@ -18,6 +18,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { TENANT_MODELS } from '../../database/tenant-models';
 import type { PrismaClient } from '../../generated/prisma/client';
 import { bearerFor } from '../auth/auth.test-helper';
+import { EntitlementsService } from '../subscriptions/entitlements.service';
 import { liveSubscription } from '../subscriptions/subscription.test-helper';
 
 type Delegate = { deleteMany(args: unknown): Promise<unknown> };
@@ -210,6 +211,11 @@ describe('portal auth (HTTP + PostgreSQL)', () => {
       .set('Cookie', first)
       .expect(401);
     expect(codeOf(reused)).toBe('AUTH-005');
+    const security = await raw.auditLog.findMany({
+      where: { officeId: o.officeId, action: 'SECURITY', clientUser: { email } },
+    });
+    expect(security).toHaveLength(1);
+    expect(security[0]?.newValues).toMatchObject({ event: 'REFRESH_TOKEN_REUSED' });
     await http().post(`${portalApi}/refresh`).set(csrf).set('Cookie', second).expect(401);
 
     const again = await login(email).expect(200);
@@ -312,6 +318,61 @@ describe('portal auth (HTTP + PostgreSQL)', () => {
     expect(codeOf(denied)).toBe('AUTH-100');
     await invite(a, { email: 'not-an-email' }).expect(400);
     await invite(a, { email: newEmail(), contactPersonId: randomUUID() }).expect(400);
+  });
+
+  it('should keep access revocable after the subscription ended, while inviting and listing are refused', async () => {
+    const o = await office();
+    const { accessId } = await joined(o, newEmail());
+    const pending = await invite(o, { email: newEmail() }).expect(201);
+    await raw.subscription.updateMany({
+      where: { officeId: o.officeId },
+      data: { status: 'CANCELLED' },
+    });
+    app.get(EntitlementsService).invalidate(o.officeId as OfficeId);
+    expect(codeOf(await invite(o, { email: newEmail() }).expect(403))).toBe('AUTH-104');
+    await http()
+      .delete(
+        `/api/v1/clients/${o.clientId}/portal-invitations/${(pending.body as { data: PortalInvitation }).data.id}`,
+      )
+      .set(bearerFor(jwt, o))
+      .expect(204);
+    await http()
+      .delete(`/api/v1/clients/${o.clientId}/portal-users/${accessId}`)
+      .set(bearerFor(jwt, o))
+      .expect(204);
+  });
+
+  it('should refuse a portal invitation for a client with a confidential file the caller may not expose', async () => {
+    const o = await office('LAWYER');
+    const other = await raw.user.create({
+      data: {
+        officeId: o.officeId,
+        fullName: 'Boss',
+        email: `boss-${randomUUID()}@example.test`,
+        passwordHash: '!',
+        role: 'SENIOR_LAWYER',
+      },
+    });
+    const file = await raw.legalFile.create({
+      data: {
+        officeId: o.officeId,
+        fileNumber: `PC-${randomUUID()}`,
+        title: 'Secret',
+        fileType: 'LITIGATION',
+        responsibleLawyerId: other.id,
+        jurisdiction: 'PALESTINE',
+        currency: 'ILS',
+        isConfidential: true,
+      },
+    });
+    await raw.fileClient.create({
+      data: { officeId: o.officeId, fileId: file.id, clientId: o.clientId, isPrimary: true },
+    });
+    expect(codeOf(await invite(o, { email: newEmail() }).expect(403))).toBe('AUTH-100');
+    // Its responsible lawyer may.
+    await invite({ ...o, userId: other.id, role: 'SENIOR_LAWYER' }, { email: newEmail() }).expect(
+      201,
+    );
   });
 
   it('should withdraw a pending invitation so its link stops working', async () => {

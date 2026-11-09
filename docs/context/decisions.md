@@ -2861,3 +2861,16 @@ a resend route for portal invitations (revoke and invite again), MFA, portal-spe
 `LegalAcceptance` rows for portal users, portal Redis rooms for the WebSocket gateway (D-129), and the portal's data routes (cases,
 documents, invoices), which will use `PortalAuthGuard` and check the grant of the office they read. Why: one login for a person
 who is a client of several offices, with access that each office can grant and revoke on its own.
+
+**Review additions to D-157 (same PR):** **revoking never depends on the plan** — `DELETE` of a grant or an invitation is `@AllowWhenReadOnly()` and
+not behind `@RequireFeature('clientPortal')` (the gate stays on invite and list), so a lapsed plan cannot freeze access; an office whose
+plan lacks the `clientPortal` flag grants nothing (`PortalAccounts.offices()` drops it, so login, refresh and the guard refuse it) and
+accepting checks the flag too (AUTH-102); a read-only office still grants. **Confidential files (D-140):** inviting a client linked to a live
+confidential file is 403 AUTH-100 unless the caller is the office manager or that file's responsible lawyer, since the portal user would
+see the file. **Reuse of a refresh token** writes a `SECURITY` audit row (`REFRESH_TOKEN_REUSED`, family id) in every office of the account.
+`GET clients/:id/portal-users` no longer returns `lastLoginAt` (it was the account's global time and leaked activity in other offices).
+Portal emails render with `CLIENT_PORTAL_URL` for links and the legal footer. Forgot-password does one query for every email (the worker
+checks the account again), so known and unknown addresses take the same path. Accepting into an **existing** account only requires a
+non-empty password (an older password still works); the policy is applied to new accounts by the service (VAL-001 on `password`).
+**Accepted:** the preview's `accountExists` tells whoever holds the link that the address has an account; revoking in one office ends
+the account's sessions in every office (it signs in again).

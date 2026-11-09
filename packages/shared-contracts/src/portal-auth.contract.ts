@@ -2,7 +2,6 @@ import { z } from 'zod';
 
 import { InviteTokenSchema } from './auth.contract.js';
 import { EmailSchema, plainText } from './fields.js';
-import { NewPasswordSchema } from './password.contract.js';
 
 /**
  * The client-portal realm (D-157). One portal account per person; what it may see is granted per office (one grant per
@@ -63,7 +62,8 @@ export type PortalInvitePreview = z.infer<typeof PortalInvitePreviewSchema>;
 export const PortalAcceptInviteRequestSchema = z.object({
   token: InviteTokenSchema,
   fullName: plainText(120).pipe(z.string().min(2, 'validation.tooShort')),
-  password: NewPasswordSchema,
+  /** Only checked for length here: a new account's password gets the policy in the service, an existing one just has to match. */
+  password: z.string().min(1, 'validation.required').max(256, 'validation.tooLong'),
   acceptTerms: z.literal(true, 'validation.mustAcceptTerms'),
   acceptPrivacy: z.literal(true, 'validation.mustAcceptPrivacy'),
 });

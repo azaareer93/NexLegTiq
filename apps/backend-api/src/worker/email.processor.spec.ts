@@ -135,6 +135,8 @@ describe('EmailProcessor', () => {
     ).resolves.toEqual({ sent: 'password-reset' });
     expect(issueClientReset).toHaveBeenCalledWith(USER, expect.any(Date), { retry: true });
     expect(send.mock.calls[0]?.[0]).toBe('cr@b.test');
+    // Links and the legal footer of a portal email point into the portal, not the office app.
+    expect(send.mock.calls[0]?.[1].html).toContain(`${PORTAL}/legal/terms`);
   });
 
   it('should issue a verification link in the worker and send it in the user language, one message per attempt', async () => {
