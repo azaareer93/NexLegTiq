@@ -26,6 +26,7 @@
   "nextSessionBefore": "The next hearing must start after this one.",
   "nextSessionExists": "The next hearing has already been scheduled.",
   "oneCode": "Enter either the app code or a recovery code, not both.",
+  "openTasks": "The case still has open tasks.",
   "partyChoice": "Choose an existing party or enter a new one, not both.",
   "password": {
     "common": "This password is too common. Choose another one.",

@@ -47,7 +47,8 @@
     "generic": "You have a new notification",
     "openWithCount_one": "Notifications, {{count}} unread",
     "openWithCount_other": "Notifications, {{count}} unread",
-    "markReadOf": "Mark “⁨{{title}}⁩” as read"
+    "markReadOf": "Mark “⁨{{title}}⁩” as read",
+    "fileReassignedAway": "File ⁨{{fileNumber}}⁩ was reassigned to a colleague"
   },
   "profile": {
     "menu": "Account menu",

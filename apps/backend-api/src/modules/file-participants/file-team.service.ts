@@ -26,12 +26,14 @@ import { TimelineService } from '../timeline/timeline.service';
 
 const ROLE_ORDER: Record<FileTeamRole, number> = { RESPONSIBLE_LAWYER: 0, PARALEGAL: 1, MEMBER: 2 };
 
-interface Change {
+export interface Change {
   readonly tx: ScopedTransaction;
   readonly afterCommit: AfterCommit;
   readonly fileId: string;
   readonly file: LockedFile;
   readonly client: AuditClient;
+  /** Set by `POST /cases/:id/reassign` (D-153): the timeline says why, with the note. */
+  readonly reassignment?: { readonly note?: string };
 }
 
 /**
@@ -63,6 +65,7 @@ export class FileTeamService {
     fileId: string,
     input: AddTeamMemberRequest,
     client: AuditClient,
+    reassignment?: Change['reassignment'],
   ): Promise<FileTeamMember[]> {
     const role = input.role ?? 'MEMBER';
     await this.access.assertFileAccess(fileId, 'write');
@@ -75,7 +78,7 @@ export class FileTeamService {
       if (await tx.fileTeamMember.count({ where: { fileId, userId: input.userId } })) {
         throw new ResourceConflictException('RES-002');
       }
-      const change = { tx, afterCommit, fileId, file, client };
+      const change = { tx, afterCommit, fileId, file, client, reassignment };
       if (role !== 'MEMBER') await this.takeOver(change, input.userId, role);
       await tx.fileTeamMember.create({
         data: { officeId: this.officeId(), fileId, userId: input.userId, role },
@@ -105,6 +108,7 @@ export class FileTeamService {
     userId: string,
     role: FileTeamRole,
     client: AuditClient,
+    reassignment?: Change['reassignment'],
   ): Promise<FileTeamMember[]> {
     await this.access.assertFileAccess(fileId, 'write');
     await this.uow.run(async (tx, afterCommit) => {
@@ -115,7 +119,7 @@ export class FileTeamService {
       const member = await this.member(tx, fileId, userId);
       if (member.role === role) return;
       if (member.role === 'RESPONSIBLE_LAWYER') throw this.needsLawyer();
-      const change = { tx, afterCommit, fileId, file, client };
+      const change = { tx, afterCommit, fileId, file, client, reassignment };
       if (member.role === 'PARALEGAL') await this.clearParalegal(change, userId);
       if (role !== 'MEMBER') await this.takeOver(change, userId, role);
       await tx.fileTeamMember.updateMany({ where: { fileId, userId }, data: { role } });
@@ -192,20 +196,31 @@ export class FileTeamService {
     if (role === 'RESPONSIBLE_LAWYER') await this.reassigned(change, userId);
   }
 
-  private async reassigned({ tx, afterCommit, fileId, file }: Change, userId: string) {
+  private async reassigned(
+    { tx, afterCommit, fileId, file, reassignment }: Change,
+    userId: string,
+  ) {
+    const note = reassignment?.note?.trim();
     await this.timeline.record(tx, {
       fileId,
       eventType: 'FILE_REASSIGNED',
       actorId: this.actorId(),
-      payload: { fromUserId: file.responsibleLawyerId, toUserId: userId, reason: 'TEAM' },
+      payload: {
+        fromUserId: file.responsibleLawyerId,
+        toUserId: userId,
+        reason: reassignment ? 'REASSIGN' : 'TEAM',
+        ...(note ? { note } : {}),
+      },
     });
     await this.reminders.resetForFile(tx, afterCommit, fileId);
-    await this.notify(tx, afterCommit, userId, {
-      type: 'FILE_REASSIGNED',
-      titleKey: 'shell.notifications.fileReassigned',
-      fileId,
-      fileNumber: file.fileNumber,
-    });
+    // "Notify both lawyers" (workflows.md#reassign): the previous one learns the file has moved on (D-153).
+    for (const [to, key] of [
+      [userId, 'fileReassigned'],
+      [file.responsibleLawyerId, 'fileReassignedAway'],
+    ] as const) {
+      const note = { titleKey: `shell.notifications.${key}`, fileId, fileNumber: file.fileNumber };
+      await this.notify(tx, afterCommit, to, { type: 'FILE_REASSIGNED', ...note });
+    }
   }
 
   /**
