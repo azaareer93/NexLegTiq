@@ -39,6 +39,8 @@ const EVENT_SELECT = {
   actor: { select: { id: true, fullName: true } },
 } as const;
 
+type EventFile = { id: string; fileNumber: string; title: string };
+
 interface EventRow {
   readonly id: string;
   readonly eventType: TimelineEventType;
@@ -118,10 +120,8 @@ export class TimelineService {
     const items = await this.readable(rows);
     const files = new Map(rows.map((row) => [row.id, row.file]));
     return {
-      items: items.flatMap((item) => {
-        const file = files.get(item.id);
-        return file ? [{ ...item, file }] : [];
-      }),
+      // Every readable item comes from one of `rows`, so its file is always there.
+      items: items.map((item) => ({ ...item, file: files.get(item.id) as EventFile })),
       names: await this.names(rows.map((row) => row.payload)),
     };
   }

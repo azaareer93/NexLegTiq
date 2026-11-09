@@ -106,6 +106,12 @@ describe('DashboardService (D-151)', () => {
     });
   });
 
+  it('should treat a caller without permissions as having none', async () => {
+    const { service, db } = setup({ userId: ID(7), role: 'TRAINEE' } as never);
+    expect((await service.get(NOW)).newClientsThisMonth).toBeNull();
+    expect(db.client.count).not.toHaveBeenCalled();
+  });
+
   it('should refuse to run without a caller', async () => {
     await expect(setup({}).service.get(NOW)).rejects.toThrow('No office caller');
   });
