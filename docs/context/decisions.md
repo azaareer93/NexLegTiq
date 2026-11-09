@@ -2697,3 +2697,31 @@ no titles). Lists are capped at 20 (today's hearings too, without a "more" hint)
 `task.*`, `session.scheduled` and `document.processed` (the realtime bridge invalidates `['dashboard']`). `TimelineService`
 gains `recent(userId, limit)`; `list` and `recent` share the read-time filter (`readable`). Numbers follow the user's digit
 style. **Not changed:** no repository layer (the service holds its queries, like D-146/D-149); no load test (MVP-117).
+
+**D-152 — Time entries, the running timer and file totals** · Accepted (MVP-90, 2026-11-09)
+MVP-90 left the timer's storage, the rate and currency source, who sees whose entries and money, and the lock before an
+invoices table exists open. → **Schema** (tenant models, composite `(…, office_id)` FKs): `TimeEntry` as domain-model.md
+(`workDate` a calendar date, `durationHours` `Decimal(6,2)` with CHECK `> 0` and `≤ 24`, `hourlyRate` `Decimal(14,2)` ≥ 0 or
+null, `currency` ISO-4217 by CHECK, `invoiceId` a plain UUID — **its FK to `invoices` arrives with the invoices story**,
+which sets it when an entry is billed); `TimeTimer` — at most one per user (unique `(user_id, office_id)`), deleted with its
+user; `OfficeSettings.timeIncrementMinutes` (default 6, CHECK 1–60; not yet in the settings API or page). Entries cascade
+with a purged file and are hard-deleted. **Rate and currency are a snapshot** taken when the entry is made: the file's
+`hourlyRate`, else the office's `defaultBillingRate`, else null ("user rate" waits for a user rate column); the currency is
+the **file's** (the office's at the file's creation, D-096), so a file's entries and invoice share one currency even if the
+office changes its own later. Neither is in the request (billing corrections belong to the invoices story). **Access**
+(`log:time` = OM, SL, L, P, T on every `/time-entries` route): entries on files the caller can see (D-096); the office manager
+and senior lawyers see and change everyone's, everyone else **only their own** (others' entries are 404, a `userId` filter
+cannot widen it); logging, changing and deleting need the file open to work (`contribute`: visible, not archived — BIZ-007);
+an entry with an `invoiceId` cannot change or be deleted (**422 BIZ-006**); each change locks the entry row (`FOR UPDATE`) so
+an invoice claiming it and an edit queue. **Money is shown only to holders of `view:all|assigned:invoices`** (D-096: TRAINEE
+gets `hourlyRate`/`amount` null and hours only). `amount` = hours × rate in Decimal, as a string. **Timer:** `GET
+time-entries/timer` (mine or null), `POST …/timer/start {fileId, description?}` (a second while one runs → 409 RES-002),
+`POST …/timer/stop {description?, isBillable?}` — the elapsed time rounded **up** to the office increment, at least one
+increment, at most 24 h, hours at two decimals (6 min → 0.1 h exactly; a 10-minute increment gives 0.17); the work date is
+the day the timer started in the office's zone; a description is required by then (VAL-001); the stop deletes the timer
+conditionally, so a double stop logs once (404 the second time). **Totals** `GET /cases/:id/time-totals` (readers of the
+file): billable, non-billable and unbilled hours of every entry on the file (also colleagues' — hours are facts about the
+file), billable and unbilled amounts for invoice-right holders, in the file's currency, summed with decimal.js. Every write
+has an audit row. **Not done here:** the Billing tab and timer widget (their own story), invoicing entries, a user hourly rate,
+the increment in the settings page, discarding a timer without logging (stop and delete the entry), a timeline event for
+logged time.
