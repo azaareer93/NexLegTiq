@@ -58,7 +58,8 @@ function setup(
   const uow = { run: (work: (tx: typeof db) => unknown) => work(db) };
   const files = { visibleWhere: () => ({ visible: true }), assertFileAccess: jest.fn() };
   const cls = {
-    get: (key: keyof RequestContext) => ({ officeId: 'o1', ...context })[key],
+    get: (key: keyof RequestContext) =>
+      (({ officeId: 'o1', ...context }) as Partial<RequestContext>)[key],
   } as unknown as ClsService<RequestContext>;
   const entries = new TimeEntriesService(
     cls,
@@ -206,6 +207,80 @@ describe('time entries (D-152)', () => {
       billableAmount: null,
       unbilledAmount: null,
     });
+  });
+
+  it('should start a timer and stop it into an entry on the day it started', async () => {
+    const { timers, db } = setup();
+    const startedAt = new Date('2026-11-08T21:50:00Z'); // 23:50 in Hebron
+    const timer = { id: ID(5), officeId: 'o1', fileId: FILE.id, description: 'Prep', startedAt };
+    db.timeTimer.findFirst.mockResolvedValueOnce({
+      id: ID(5),
+      description: 'Prep',
+      startedAt,
+      file: FILE,
+    });
+    expect(await timers.start({ fileId: FILE.id, description: '' })).toMatchObject({ file: FILE });
+    expect(db.timeTimer.create.mock.calls[0]?.[0].data.description).toBeNull();
+    db.timeTimer.findFirst.mockResolvedValueOnce(timer);
+    db.officeSettings.findFirst.mockResolvedValueOnce({
+      defaultBillingRate: null,
+      timeIncrementMinutes: 15,
+    });
+    await timers.stop({ isBillable: false }, new Date('2026-11-08T22:01:00Z'));
+    expect(db.timeEntry.create.mock.calls[0]?.[0].data).toMatchObject({
+      workDate: new Date('2026-11-08T00:00:00Z'),
+      durationHours: new Prisma.Decimal('0.25'),
+      description: 'Prep',
+      isBillable: false,
+      hourlyRate: null,
+    });
+  });
+
+  it('should show invoice holders amounts in totals, a null rate as null, and 404 an unseen entry', async () => {
+    const { entries, db } = setup({
+      userId: ID(7),
+      role: 'SENIOR_LAWYER',
+      permissions: ['view:assigned:invoices'],
+    } as never);
+    db.legalFile.findFirstOrThrow.mockResolvedValueOnce({ currency: 'JOD' });
+    db.timeEntry.findMany.mockResolvedValueOnce([
+      {
+        durationHours: new Prisma.Decimal('1.5'),
+        hourlyRate: new Prisma.Decimal('100'),
+        isBillable: true,
+        invoiceId: ID(9),
+      },
+      {
+        durationHours: new Prisma.Decimal('0.5'),
+        hourlyRate: null,
+        isBillable: true,
+        invoiceId: null,
+      },
+    ]);
+    expect(await entries.totals(FILE.id)).toMatchObject({
+      currency: 'JOD',
+      billableHours: '2.00',
+      unbilledHours: '0.50',
+      billableAmount: '150.00',
+      unbilledAmount: '0.00',
+    });
+    db.timeEntry.findFirst.mockResolvedValueOnce(row({ hourlyRate: null }));
+    expect(await entries.get(ID(10))).toMatchObject({ hourlyRate: null, amount: null });
+    db.timeEntry.findFirst.mockResolvedValueOnce(null);
+    await expect(entries.get(ID(10))).rejects.toMatchObject({ code: 'RES-001' });
+    await entries.create({
+      fileId: FILE.id,
+      workDate: '2026-11-01',
+      durationHours: '1',
+      description: 'Call',
+      isBillable: false,
+    });
+    expect(db.timeEntry.create.mock.calls[0]?.[0].data).toMatchObject({
+      workDate: new Date('2026-11-01T00:00:00Z'),
+      isBillable: false,
+      hourlyRate: null,
+    });
+    expect(db.office.findFirstOrThrow).not.toHaveBeenCalled();
   });
 
   it('should refuse to run without a caller', async () => {
