@@ -7,6 +7,7 @@ import { auditRow } from '../../common/audit/audit.service';
 import { AppException } from '../../common/errors/app.exception';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
+import { starterTemplates } from '../tasks/task-templates';
 
 const DAY_MS = 86_400_000;
 
@@ -99,6 +100,10 @@ export class SignupRepository {
       const officeId = office.id;
       // Schema defaults: reminders 7/3/1 days, file numbers {YEAR}-{TYPE}-{SEQ:5}, 30-minute idle timeout.
       await tx.officeSettings.create({ data: { officeId } });
+      // Starter task templates (litigation, lease) in the office's language; the manager edits them in Settings (D-156).
+      await tx.taskTemplate.createMany({
+        data: starterTemplates(officeId, office.defaultLanguage),
+      });
       const user = await tx.user.create({
         data: {
           officeId,

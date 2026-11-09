@@ -1396,6 +1396,12 @@ model TaskTemplate {
  * exactly while DONE (CHECK). Hard-deleted (audited); recurrence, reminders and template/AI sources join with their
  * stories (D-098).
  */
+enum TaskSource {
+  MANUAL
+  TEMPLATE
+  AI_NEXT_STEP
+}
+
 model Task {
   id           String     @id @default(uuid(7)) @db.Uuid
   officeId     String     @map("office_id") @db.Uuid
@@ -1411,6 +1417,9 @@ model Task {
   completedAt  DateTime?  @map("completed_at") @db.Timestamptz(3)
   /// Position in its Kanban column, ascending (PATCH /tasks/reorder).
   sortOrder    Int        @default(0) @map("sort_order")
+  /// Where the task came from (D-156): typed by hand, a task template on file open, or an AI next step.
+  sourceType   TaskSource @default(MANUAL) @map("source_type")
+  sourceId     String?    @map("source_id") @db.Uuid
   createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
 

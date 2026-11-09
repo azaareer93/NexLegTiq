@@ -260,6 +260,7 @@ describe('SignupRepository', () => {
         update: jest.fn(),
       },
       officeSettings: { create: jest.fn() },
+      taskTemplate: { createMany: jest.fn() },
       user: {
         create: jest.fn().mockResolvedValue({ id: USER, officeId: OFFICE }),
         updateMany: jest.fn().mockResolvedValue({ count: options.updated ?? 1 }),

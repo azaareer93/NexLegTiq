@@ -27,6 +27,7 @@ import type { ScopedTransaction } from '../../database/unit-of-work';
 import { Prisma } from '../../generated/prisma/client';
 import type { ClientInfo } from '../auth/client-info';
 import { assertCourtRefs, nextCourtRefs } from '../courts/court-refs';
+import { applyTaskTemplates } from '../tasks/task-templates';
 import { TimelineService } from '../timeline/timeline.service';
 
 /** The office's calendar date in its time zone (D-092): a file opened at 01:00 in Hebron is opened that day. */
@@ -85,6 +86,15 @@ export class CasesService {
         select: { id: true },
       });
       await this.addParticipants(tx, file.id, input);
+      await applyTaskTemplates(tx, {
+        officeId: this.officeId(),
+        fileId: file.id,
+        fileType: input.fileType,
+        openingDate,
+        responsibleLawyerId: input.responsibleLawyerId,
+        responsibleParalegalId: input.responsibleParalegalId ?? null,
+        createdById: actorId,
+      });
       await this.timeline.record(tx, {
         fileId: file.id,
         eventType: 'FILE_OPENED',
