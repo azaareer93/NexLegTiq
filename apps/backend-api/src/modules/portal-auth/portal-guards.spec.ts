@@ -48,7 +48,7 @@ function setup({ live = true, active = true, offices = 1, portal = true } = {}) 
   return { guard, req, cls, context };
 }
 
-describe('PortalRealmGuard (D-157)', () => {
+describe('PortalRealmGuard (D-158)', () => {
   it('should answer 404 while the realm is off and let requests in when it is on', () => {
     const off = new PortalRealmGuard({ portal: null } as unknown as AppConfig);
     expect(() => off.canActivate()).toThrow(expect.objectContaining({ code: 'RES-001' }));
@@ -57,7 +57,7 @@ describe('PortalRealmGuard (D-157)', () => {
   });
 });
 
-describe('PortalAuthGuard (D-157)', () => {
+describe('PortalAuthGuard (D-158)', () => {
   it('should accept a portal token of a live session and set the PORTAL realm', async () => {
     const { guard, req, cls, context } = setup();
     req.auth = `Bearer ${await sign({ sub: 'c1', sid: 'f1' })}`;

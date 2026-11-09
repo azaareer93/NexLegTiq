@@ -61,7 +61,7 @@ const MINUTE_MS = 60_000;
 const DEAD_COOKIE_CODES = new Set(['AUTH-004', 'AUTH-005', 'AUTH-006']);
 
 /**
- * `/api/v1/portal/auth` — the client-portal realm's sign-in, invitations, refresh, logout and password reset (D-157).
+ * `/api/v1/portal/auth` — the client-portal realm's sign-in, invitations, refresh, logout and password reset (D-158).
  * `@Public()` takes these routes out of the office JWT guard; the realm guard answers 404 while `JWT_PORTAL_SECRET` is
  * unset. Only `me` needs a portal access token.
  */
@@ -195,7 +195,7 @@ export class PortalAuthController {
     return this.auth.profile(req.clientUserId);
   }
 
-  /** Only the portal may use the portal cookie (D-055, D-157). */
+  /** Only the portal may use the portal cookie (D-055, D-158). */
   private assertOrigin(req: Request): void {
     const origin = this.config.portal?.origin;
     assertCookieRequestOrigin(req.headers, origin ? [origin] : []);

@@ -136,7 +136,7 @@ export class AppConfig {
       : null;
   }
 
-  /** The client portal realm (D-157); null when `JWT_PORTAL_SECRET` is unset (its routes answer 404). */
+  /** The client portal realm (D-158); null when `JWT_PORTAL_SECRET` is unset (its routes answer 404). */
   get portal(): { readonly jwtSecret: string; readonly origin: string } | null {
     const { JWT_PORTAL_SECRET: jwtSecret, CLIENT_PORTAL_URL: url } = this.#env;
     return jwtSecret ? { jwtSecret, origin: new URL(url).origin } : null;

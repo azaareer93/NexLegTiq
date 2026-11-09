@@ -22,7 +22,7 @@ export interface RequestContext extends ClsStore {
   realm?: AuthRealm;
   /** The signed-in platform admin (realm PLATFORM, D-145); never set with an office. */
   platformAdminId?: string;
-  /** The signed-in client-portal account (realm PORTAL, D-157); never set with an office. */
+  /** The signed-in client-portal account (realm PORTAL, D-158); never set with an office. */
   clientUserId?: string;
   /** Client address (behind TRUST_PROXY_HOPS) and user agent, set when the request starts; for audit rows (D-136). */
   ip?: string;

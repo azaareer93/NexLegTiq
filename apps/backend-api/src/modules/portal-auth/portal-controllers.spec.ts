@@ -47,7 +47,7 @@ function setup(portal: AppConfig['portal'] = { jwtSecret: 's', origin: ORIGIN },
   return { controller, auth, invitations, res: res as unknown as Response & typeof res };
 }
 
-describe('PortalAuthController (D-157)', () => {
+describe('PortalAuthController (D-158)', () => {
   it('should set the portal cookie on sign-in and accept, and answer the session', async () => {
     const { controller, res } = setup();
     await expect(controller.login({ email: 'l@x.test', password: 'pw' }, req(), res)).resolves.toBe(
@@ -116,7 +116,7 @@ describe('PortalAuthController (D-157)', () => {
   });
 });
 
-describe('PortalAccessController (D-157)', () => {
+describe('PortalAccessController (D-158)', () => {
   it('should hand the client id, body and request facts to the service', async () => {
     const access = {
       invite: jest.fn().mockResolvedValue({ id: 'i' }),

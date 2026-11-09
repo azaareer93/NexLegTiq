@@ -14,7 +14,7 @@ import { AppConfig } from '../../config/app-config';
 import { PrismaService } from '../../database/prisma.service';
 import { JWT_ISSUER } from '../auth/auth.constants';
 
-/** Every portal route: the realm is off (404, as if it did not exist) without `JWT_PORTAL_SECRET` (D-157). */
+/** Every portal route: the realm is off (404, as if it did not exist) without `JWT_PORTAL_SECRET` (D-158). */
 @Injectable()
 export class PortalRealmGuard implements CanActivate {
   constructor(private readonly config: AppConfig) {}
@@ -26,7 +26,7 @@ export class PortalRealmGuard implements CanActivate {
 }
 
 /**
- * A signed-in portal account (D-157): an access token of the portal audience signed with `JWT_PORTAL_SECRET` (an office
+ * A signed-in portal account (D-158): an access token of the portal audience signed with `JWT_PORTAL_SECRET` (an office
  * or admin token never passes), a session that is still live (signed out or revoked → refused at once), an active account
  * with at least one live grant in an active office. Sets the PORTAL realm.
  * Expired → 401 AUTH-002, anything else → AUTH-003, session ended → AUTH-004, no longer active → 403 AUTH-006.

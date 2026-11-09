@@ -11,7 +11,7 @@ import { EntitlementsService } from '../subscriptions/entitlements.service';
 type AuditWriter = Pick<Prisma.TransactionClient, 'auditLog' | 'clientPortalAccess'>;
 
 /**
- * What a portal account may enter (D-157): its live grants in active offices, for live and active clients. Platform
+ * What a portal account may enter (D-158): its live grants in active offices, for live and active clients. Platform
  * code reading tenant rows across offices, so every query is on the raw client with a reason (D-080).
  */
 @Injectable()

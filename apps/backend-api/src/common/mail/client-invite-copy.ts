@@ -7,7 +7,7 @@ interface Copy {
   readonly text: string;
 }
 
-/** Client-portal invitation copy (D-157), apart from templates.ts to keep that file short. */
+/** Client-portal invitation copy (D-158), apart from templates.ts to keep that file short. */
 export const CLIENT_INVITE_COPY: Readonly<Record<'AR' | 'EN', Copy>> = {
   AR: {
     subject: `دعوة إلى بوابة الموكلين في ${iso('officeName')}`,

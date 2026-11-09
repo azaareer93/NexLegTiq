@@ -39,7 +39,7 @@ type Rotation =
     };
 
 /**
- * Portal sessions (D-157, the D-145 pattern): an opaque refresh token (SHA-256 at rest) per rotation, all of one sign-in
+ * Portal sessions (D-158, the D-145 pattern): an opaque refresh token (SHA-256 at rest) per rotation, all of one sign-in
  * sharing a family. A token lasts 7 days and no session outlives 30; a token used twice ends its whole family. Platform
  * code: the raw client with a reason (D-080).
  */

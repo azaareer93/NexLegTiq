@@ -94,7 +94,7 @@ function setup({
 
 const locked = Array.from({ length: 5 }, (_, i) => new Date(Date.now() - i * 1000));
 
-describe('PortalInvitationAcceptService (D-157)', () => {
+describe('PortalInvitationAcceptService (D-158)', () => {
   it('should preview an invitation and tell whether the address already has an account', async () => {
     await expect(setup().service.preview(body.token)).resolves.toMatchObject({
       officeName: 'Office',

@@ -1507,7 +1507,7 @@ model AuditLog {
   officeId        String      @map("office_id") @db.Uuid
   userId          String?     @map("user_id") @db.Uuid
   platformAdminId String?     @map("platform_admin_id") @db.Uuid
-  /// A client-portal user's sign-in or sign-out (D-157); one row per office they have access to.
+  /// A client-portal user's sign-in or sign-out (D-158); one row per office they have access to.
   clientUserId    String?     @map("client_user_id") @db.Uuid
   entityType      String      @map("entity_type")
   entityId        String?     @map("entity_id") @db.Uuid
@@ -1655,7 +1655,7 @@ model AiUsage {
   @@map("ai_usages")
 }
 
-/// A client-portal account (D-157): one person, one login, access per office through ClientPortalAccess. Platform-level
+/// A client-portal account (D-158): one person, one login, access per office through ClientPortalAccess. Platform-level
 /// (no office), like PlatformAdmin: read and written only through the raw client.
 model ClientUser {
   id              String    @id @default(uuid(7)) @db.Uuid
@@ -1676,7 +1676,7 @@ model ClientUser {
   @@map("client_users")
 }
 
-/// What a portal account may see in one office: the client (and contact person) it was invited as (D-157).
+/// What a portal account may see in one office: the client (and contact person) it was invited as (D-158).
 /// Revoked, never deleted; one live grant per office and account (partial unique index in the migration).
 model ClientPortalAccess {
   id              String    @id @default(uuid(7)) @db.Uuid
@@ -1700,7 +1700,7 @@ model ClientPortalAccess {
   @@map("client_portal_accesses")
 }
 
-/// An invitation to the client portal (D-157): 7 days, SHA-256 of the emailed token only, one PENDING per office + email.
+/// An invitation to the client portal (D-158): 7 days, SHA-256 of the emailed token only, one PENDING per office + email.
 model ClientInvitation {
   id              String           @id @default(uuid(7)) @db.Uuid
   officeId        String           @map("office_id") @db.Uuid
@@ -1724,7 +1724,7 @@ model ClientInvitation {
   @@map("client_invitations")
 }
 
-/// A portal account's refresh token (D-157): rotated on every refresh, a reused token ends its whole family.
+/// A portal account's refresh token (D-158): rotated on every refresh, a reused token ends its whole family.
 model ClientSession {
   id           String    @id @default(uuid(7)) @db.Uuid
   clientUserId String    @map("client_user_id") @db.Uuid
@@ -1743,7 +1743,7 @@ model ClientSession {
   @@map("client_sessions")
 }
 
-/// Portal password-reset link (D-157, the D-086 pattern): 1 hour, single use, SHA-256 only.
+/// Portal password-reset link (D-158, the D-086 pattern): 1 hour, single use, SHA-256 only.
 model ClientPasswordResetToken {
   id           String    @id @default(uuid(7)) @db.Uuid
   clientUserId String    @map("client_user_id") @db.Uuid

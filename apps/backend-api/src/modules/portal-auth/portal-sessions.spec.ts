@@ -37,7 +37,7 @@ const live = {
   revokedAt: null,
 };
 
-describe('PortalSessions (D-157)', () => {
+describe('PortalSessions (D-158)', () => {
   it('should start a session whose token lasts 7 days', async () => {
     const { sessions, table } = setup(null);
     const issued = await sessions.start({ clientSession: table } as never, 'c1', NOW);

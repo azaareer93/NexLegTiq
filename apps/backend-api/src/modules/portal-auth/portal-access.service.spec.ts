@@ -89,7 +89,7 @@ function setup(options: Options = {}) {
   return { service, tx, raw, after, queues, sessions, audit };
 }
 
-describe('PortalAccessService (D-157)', () => {
+describe('PortalAccessService (D-158)', () => {
   it('should create a pending invitation, audit it and queue the email after the commit', async () => {
     const { service, tx, after, queues, audit } = setup();
     const row = await service.invite('c1', { email: 'l@x.test', contactPersonId: 'p1' }, CLIENT);

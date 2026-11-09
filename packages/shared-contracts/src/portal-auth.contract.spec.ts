@@ -7,7 +7,7 @@ import {
 
 const TOKEN = 'a'.repeat(43);
 
-describe('client portal contracts (D-157)', () => {
+describe('client portal contracts (D-158)', () => {
   it('should take an invitation by email with an optional contact person', () => {
     expect(CreatePortalInvitationSchema.parse({ email: 'Nour@Example.test' }).email).toBe(
       'nour@example.test',

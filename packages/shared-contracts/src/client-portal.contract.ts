@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { EmailSchema } from './fields.js';
 
-/** Office side of the client portal (D-157): who a client has invited, and what they may see. */
+/** Office side of the client portal (D-158): who a client has invited, and what they may see. */
 
 /** `POST /clients/:id/portal-invitations` */
 export const CreatePortalInvitationSchema = z.object({

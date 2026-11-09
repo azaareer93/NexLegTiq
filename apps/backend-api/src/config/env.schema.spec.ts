@@ -385,7 +385,7 @@ describe('AppConfig', () => {
   });
 });
 
-describe('client portal realm (D-157)', () => {
+describe('client portal realm (D-158)', () => {
   const SECRET = 'portal-only-secret-portal-only-secret-1234';
 
   it('should leave the realm off without JWT_PORTAL_SECRET and expose its origin with one', () => {

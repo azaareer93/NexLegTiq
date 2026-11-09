@@ -13,7 +13,7 @@ import { PortalSessions } from './portal-sessions';
 import { AuthModule } from '../auth/auth.module';
 
 /**
- * The client-portal realm (D-157): sign-in, invitations, sessions and password reset for portal accounts, plus the
+ * The client-portal realm (D-158): sign-in, invitations, sessions and password reset for portal accounts, plus the
  * office-side routes that invite and revoke them. The JWT service (`PORTAL_JWT`) has no default secret: every portal token
  * is signed and checked with `JWT_PORTAL_SECRET` explicitly, so an office or admin token can never pass. Portal feature
  * modules import this one for `PortalRealmGuard` and `PortalAuthGuard`. The worker provides the link creators itself.

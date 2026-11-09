@@ -37,7 +37,7 @@ import { AllowWhenReadOnly, RequireFeature } from '../subscriptions/subscription
 /** A malformed id is the same 404 as an unknown one (D-019). */
 const uuid = () => new ParseUUIDPipe({ exceptionFactory: () => new ResourceNotFoundException() });
 
-/** A client's portal users and invitations (D-157), for staff holding `manage:portal-access`, on plans with the portal. */
+/** A client's portal users and invitations (D-158), for staff holding `manage:portal-access`, on plans with the portal. */
 @ApiTags('clients')
 @ApiBearerAuth('JWT')
 @RequirePermissions('manage:portal-access')

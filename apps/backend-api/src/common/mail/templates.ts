@@ -23,7 +23,7 @@ export const MAIL_TEMPLATE_SCHEMAS = {
     /** The manager's note (D-134); empty for none. */
     message: shortText(500).default(''),
   }),
-  /** Client-portal invitation (D-157). */
+  /** Client-portal invitation (D-158). */
   'client-invite': z.object({
     officeName: name,
     clientName: name,

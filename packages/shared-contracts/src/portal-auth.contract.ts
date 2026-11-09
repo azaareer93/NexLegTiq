@@ -4,7 +4,7 @@ import { InviteTokenSchema } from './auth.contract.js';
 import { EmailSchema, plainText } from './fields.js';
 
 /**
- * The client-portal realm (D-157). One portal account per person; what it may see is granted per office (one grant per
+ * The client-portal realm (D-158). One portal account per person; what it may see is granted per office (one grant per
  * invited client). Forgot and reset password reuse the office contracts (`ForgotPasswordRequestSchema`,
  * `ResetPasswordRequestSchema`).
  */

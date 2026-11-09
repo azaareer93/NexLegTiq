@@ -48,7 +48,7 @@ export interface PortalSignIn {
 const INVALID_LINK = 'Reset link is invalid or has expired';
 
 /**
- * The client-portal realm (D-157): sign-in with the D-053 lockout (keyed `portal:<email>`), refresh with rotation and
+ * The client-portal realm (D-158): sign-in with the D-053 lockout (keyed `portal:<email>`), refresh with rotation and
  * reuse detection, logout, password reset by emailed link (D-086 pattern) and the signed-in profile. A sign-in needs at
  * least one live grant in an active office; without one the account is refused like an inactive one (AUTH-006).
  */
@@ -75,7 +75,7 @@ export class PortalAuthService {
     if (isLocked(await this.attempts.recentFailures(key, client.ip, now), now)) {
       throw new AppException('AUTH-007', 'Too many failed attempts');
     }
-    // unscoped: portal accounts belong to no office (D-157).
+    // unscoped: portal accounts belong to no office (D-158).
     const user = await this.prisma
       .unscoped()
       .clientUser.findUnique({ where: { email: body.email } });

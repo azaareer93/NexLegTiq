@@ -87,7 +87,7 @@ function setup({
 
 const lockedFailures = Array.from({ length: 5 }, (_, i) => new Date(Date.now() - i * 1000));
 
-describe('PortalAuthService (D-157)', () => {
+describe('PortalAuthService (D-158)', () => {
   it('should sign in with a signed portal token, record the success and audit the LOGIN', async () => {
     const { service, attempts, accounts, tx } = setup();
     const result = await service.login({ email: 'l@x.test', password: 'pw' }, CLIENT);

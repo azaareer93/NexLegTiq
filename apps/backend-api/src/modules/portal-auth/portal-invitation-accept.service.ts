@@ -26,7 +26,7 @@ import { EntitlementsService } from '../subscriptions/entitlements.service';
 const INVALID_LINK = 'Invitation link is invalid or has expired';
 
 /**
- * The invitee's side of a portal invitation (D-157): preview it from its link, then accept it. A new address gets an
+ * The invitee's side of a portal invitation (D-158): preview it from its link, then accept it. A new address gets an
  * account with the chosen password; an address that already has one must give that account's password (the office is
  * added to it — one login per person). Unknown, used, revoked and expired links are all 410 RES-004; a suspended office
  * is 403 AUTH-006 and a read-only one 403 AUTH-104, as for office invitations (D-134).

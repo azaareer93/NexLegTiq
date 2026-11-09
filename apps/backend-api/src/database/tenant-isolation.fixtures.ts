@@ -188,7 +188,7 @@ export const clientInvitationIn = async (db: PrismaClient, office: SeededOffice)
     },
   });
 
-/** Client-portal tenant models (D-157), listed here to keep the matrix file short. */
+/** Client-portal tenant models (D-158), listed here to keep the matrix file short. */
 export const PORTAL_RESOURCES: readonly TenantResource[] = [
   { model: 'ClientPortalAccess', create: portalAccessIn, update: { revokedAt: new Date() } },
   { model: 'ClientInvitation', create: clientInvitationIn, update: { status: 'REVOKED' } },

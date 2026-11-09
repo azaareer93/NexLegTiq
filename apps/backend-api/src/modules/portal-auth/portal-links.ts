@@ -30,7 +30,7 @@ export interface ClientResetEmail {
 }
 
 /**
- * Creates portal invitation links in the worker (D-157, the D-134 pattern), in the invitation's office: a new token
+ * Creates portal invitation links in the worker (D-158, the D-134 pattern), in the invitation's office: a new token
  * replaces the stored hash, so only the newest email's link works, and the raw token goes straight into the email — it
  * never sits in Redis. Nothing is sent for an invitation that was accepted, revoked or has expired.
  */
@@ -79,7 +79,7 @@ export class PortalInvitationLinks {
 }
 
 /**
- * Creates portal password-reset links in the worker (D-157, the D-086 pattern): earlier unused links stop working, a new
+ * Creates portal password-reset links in the worker (D-158, the D-086 pattern): earlier unused links stop working, a new
  * one-hour link is stored as SHA-256 only and the raw token goes straight into the email. The job runs in the context
  * of one of the account's offices (jobs need one) and its language is that office's. Nothing is sent to a deactivated
  * account, nor beyond the per-account limits.

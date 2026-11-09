@@ -37,7 +37,7 @@ const cookieOf = (res: request.Response): string => {
 const sessionOf = (res: request.Response) => (res.body as { data: PortalSession }).data;
 const codeOf = (res: request.Response) => (res.body as ErrorBody).error.code;
 
-/** The client-portal realm (D-157) on real PostgreSQL: invitations, sessions, revocation, realm boundaries, lockout. */
+/** The client-portal realm (D-158) on real PostgreSQL: invitations, sessions, revocation, realm boundaries, lockout. */
 describe('portal auth (HTTP + PostgreSQL)', () => {
   let app: NestExpressApplication;
   let raw: PrismaClient;

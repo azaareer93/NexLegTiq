@@ -29,7 +29,7 @@ import { DAY_MS } from '../auth/link-limits';
 const MAX_ROWS = 200;
 
 /**
- * The office's side of the client portal (D-157): invite a client's person, see who has access, revoke it. The link and
+ * The office's side of the client portal (D-158): invite a client's person, see who has access, revoke it. The link and
  * its email are made by the worker after the commit (PortalInvitationLinks). Every change has an audit row.
  */
 @Injectable()

@@ -79,7 +79,7 @@ const EnvObject = z.object({
   OFFICE_APP_URL: z.url({ protocol: /^https?$/ }).default('http://localhost:4200'),
 
   // Base URL of the client portal, for links in its emails (invitations, password reset); the portal is its only origin
-  // allowed to use the portal refresh cookie (D-157).
+  // allowed to use the portal refresh cookie (D-158).
   CLIENT_PORTAL_URL: z.url({ protocol: /^https?$/ }).default('http://localhost:4202'),
 
   CLAMAV_HOST: required,
@@ -87,7 +87,7 @@ const EnvObject = z.object({
 
   // HS256 key of the office access JWT (auth-rbac.md, Tokens); at least 32 characters of randomness.
   JWT_SECRET: z.string().min(32),
-  // Client portal realm (D-157): its own signing secret; unset = the portal routes answer 404.
+  // Client portal realm (D-158): its own signing secret; unset = the portal routes answer 404.
   JWT_PORTAL_SECRET: z.string().min(32).optional(),
   // Platform admin realm (D-145): its own signing secret; unset = the admin routes answer 404.
   ADMIN_JWT_SECRET: z.string().min(32).optional(),

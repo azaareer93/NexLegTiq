@@ -1,6 +1,6 @@
 import type { CookieOptions } from 'express';
 
-/** The client-portal realm (D-157): its own token audience, secret, cookie and session limits. */
+/** The client-portal realm (D-158): its own token audience, secret, cookie and session limits. */
 export const PORTAL_AUDIENCE = 'portal';
 /** The realm's own JwtService (no default secret): an office or admin token never verifies with it. */
 export const PORTAL_JWT = Symbol('PORTAL_JWT');
@@ -20,7 +20,7 @@ export const SEND_CLIENT_PASSWORD_RESET_JOB = 'send-client-password-reset';
 export const PORTAL_REFRESH_COOKIE = 'nlq_prt';
 const PORTAL_REFRESH_COOKIE_PATH = '/api/v1/portal/auth';
 
-/** httpOnly Secure SameSite=Lax, path /api/v1/portal/auth (D-050, D-157). */
+/** httpOnly Secure SameSite=Lax, path /api/v1/portal/auth (D-050, D-158). */
 export function portalCookieOptions(expiresAt?: Date): CookieOptions {
   return {
     httpOnly: true,

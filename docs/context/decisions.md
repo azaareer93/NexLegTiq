@@ -2820,7 +2820,7 @@ first 100"); a hearing whose file cannot be loaded says why instead of doing not
 (it is true after paging too). **Known limit:** the month grid highlights "today" by the device's clock, not the office's
 zone (D-127); the ranges and entries themselves use the office's zone.
 
-**D-157 — Client portal auth realm** · Accepted (owner chose option A, one portal account per person with access per office, on 2026-11-09; MVP-97) · Amends D-003, D-079
+**D-158 — Client portal auth realm** · Accepted (owner chose option A, one portal account per person with access per office, on 2026-11-09; MVP-97) · Amends D-003, D-079
 → **Models:** `ClientUser` (email unique globally, name, Argon2id hash, `isActive`, `emailVerifiedAt`, `lastLoginAt`) is **platform-level**
 like `PlatformAdmin` — no `officeId`, read and written only through `unscoped()`. What it may see is `ClientPortalAccess`
 (tenant: office, client, optional contact person, `grantedById`, `revokedAt`; composite FKs; one **live** grant per office and
@@ -2862,7 +2862,7 @@ a resend route for portal invitations (revoke and invite again), MFA, portal-spe
 documents, invoices), which will use `PortalAuthGuard` and check the grant of the office they read. Why: one login for a person
 who is a client of several offices, with access that each office can grant and revoke on its own.
 
-**Review additions to D-157 (same PR):** **revoking never depends on the plan** — `DELETE` of a grant or an invitation is `@AllowWhenReadOnly()` and
+**Review additions to D-158 (same PR):** **revoking never depends on the plan** — `DELETE` of a grant or an invitation is `@AllowWhenReadOnly()` and
 not behind `@RequireFeature('clientPortal')` (the gate stays on invite and list), so a lapsed plan cannot freeze access; an office whose
 plan lacks the `clientPortal` flag grants nothing (`PortalAccounts.offices()` drops it, so login, refresh and the guard refuse it) and
 accepting checks the flag too (AUTH-102); a read-only office still grants. **Confidential files (D-140):** inviting a client linked to a live
