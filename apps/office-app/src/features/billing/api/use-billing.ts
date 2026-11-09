@@ -33,12 +33,12 @@ export const useTimeTotals = (fileId: string) =>
     queryFn: ({ signal }) => entries.totals(fileId, signal),
   });
 
-export const useTimer = (enabled: boolean) =>
-  useQuery({
-    queryKey: timeKeys.timer(),
-    queryFn: ({ signal }) => entries.timer(signal),
-    enabled,
-  });
+export const timerQuery = () => ({
+  queryKey: timeKeys.timer(),
+  queryFn: ({ signal }: { signal: AbortSignal }) => entries.timer(signal),
+});
+
+export const useTimer = (enabled: boolean) => useQuery({ ...timerQuery(), enabled });
 
 /** Every write refreshes lists, totals and the timer together (an entry changes all three). */
 export function useTimeMutations() {

@@ -1,12 +1,10 @@
 {
-  "title": "Time and billing",
   "addEntry": "Log time",
   "empty": "No time logged on this case yet",
   "billable": "Billable",
   "nonBillable": "Non-billable",
   "invoiced": "Invoiced",
   "invoicedLocked": "Invoiced entries can no longer be changed.",
-  "noRate": "No rate",
   "hoursValue": "{{value}} h",
   "columns": {
     "actions": "Actions",
@@ -43,10 +41,10 @@
     "nonBillableHours": "Non-billable hours",
     "unbilledHours": "Unbilled hours",
     "billableAmount": "Billable amount",
-    "unbilledAmount": "Unbilled amount"
+    "unbilledAmount": "Unbilled amount",
+    "hint": "Totals include everyone's hours on this case; the list may show only your own entries."
   },
   "timer": {
-    "label": "Timer",
     "running": "Timer running on case {{file}}",
     "start": "Start timer",
     "startOnFile": "Start timer on this case",
@@ -57,11 +55,12 @@
     "discard": "Discard",
     "discardTitle": "Discard the timer?",
     "discardBody": "No time will be logged.",
-    "description": "What did you work on?",
+    "description": "Work description",
     "billable": "Billable",
     "discardRunning": "Discard the running timer",
     "staleTitle": "A timer is already running",
     "staleBody": "A timer is running on a case you can no longer open. Discard it to start a new one; no time will be logged.",
     "discarded": "The timer was discarded. You can start again."
-  }
+  },
+  "noLogAccess": "Time entries are listed for people who log time. The totals above cover the whole case."
 }

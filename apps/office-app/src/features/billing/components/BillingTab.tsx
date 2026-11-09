@@ -9,14 +9,20 @@ import {
   useApiErrorHandler,
   useCan,
 } from '@nexlegtiq/shared-ui';
-import { Button, Flex } from 'antd';
-import { useState } from 'react';
+import { Button, Flex, Typography } from 'antd';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { EntriesTable, Totals } from './EntriesTable';
 import { EntryModal } from './EntryModal';
 import { StartTimerButton } from './StartTimerButton';
-import { useTimeEntries, useTimeMutations, useTimeTotals, useTimer } from '../api/use-billing';
+import {
+  PAGE_SIZE,
+  useTimeEntries,
+  useTimeMutations,
+  useTimeTotals,
+  useTimer,
+} from '../api/use-billing';
 
 /** Log time by hand, or start the timer on this case when none runs. */
 function Toolbar({ fileId, onAdd }: { readonly fileId: string; readonly onAdd: () => void }) {
@@ -76,43 +82,53 @@ function DeleteEntry({
   );
 }
 
-/** `?tab=billing` (MVP-93, D-152): time entries of the file with their totals; add, edit and delete while it is open. */
-export function BillingTab({
+/** A delete emptied the last page: go back to the last one with rows (as the tasks list, D-138). */
+function useLastPageWhenPast(
+  empty: boolean,
+  page: number,
+  total: number,
+  setPage: (page: number) => void,
+) {
+  const pastEnd = empty && page > 1;
+  useEffect(() => {
+    if (pastEnd) setPage(Math.ceil(total / PAGE_SIZE));
+  }, [pastEnd, total, setPage]);
+}
+
+/** The list with its writes: only for people who may log time, because the API's list needs `log:time`. */
+function EntriesSection({
   fileId,
-  archived,
+  canLog,
+  showMoney,
 }: {
   readonly fileId: string;
-  readonly archived: boolean;
+  readonly canLog: boolean;
+  readonly showMoney: boolean;
 }) {
   const { t } = useTranslation();
-  const mayLog = useCan('log:time');
-  const canLog = mayLog && !archived;
-  const allInvoices = useCan('view:all:invoices');
-  const assignedInvoices = useCan('view:assigned:invoices');
   const [page, setPage] = useState(1);
   const entries = useTimeEntries(fileId, page);
-  const totals = useTimeTotals(fileId);
   // null = a new entry; undefined = closed.
   const [editing, setEditing] = useState<TimeEntry | null | undefined>(undefined);
   const [deleting, setDeleting] = useState<TimeEntry | null>(null);
+  const total = entries.data?.pagination.total ?? 0;
+  useLastPageWhenPast(entries.data?.items.length === 0 && total > 0, page, total, setPage);
 
   if (entries.isError)
     return <LoadError error={entries.error} onRetry={() => void entries.refetch()} />;
   if (!entries.data) return <LoadingSkeleton rows={4} />;
-
   return (
-    <Flex vertical gap={16} data-testid="billing-tab">
-      {totals.data ? <Totals totals={totals.data} /> : null}
+    <>
       {canLog ? <Toolbar fileId={fileId} onAdd={() => setEditing(null)} /> : null}
       {entries.data.items.length === 0 ? (
         <EmptyState title={t('billing.empty')} />
       ) : (
         <EntriesTable
           entries={entries.data.items}
-          total={entries.data.pagination.total}
+          total={total}
           page={page}
           onPage={setPage}
-          showMoney={allInvoices || assignedInvoices}
+          showMoney={showMoney}
           canLog={canLog}
           onEdit={setEditing}
           onDelete={setDeleting}
@@ -122,6 +138,43 @@ export function BillingTab({
         <EntryModal fileId={fileId} entry={editing} onClose={() => setEditing(undefined)} />
       ) : null}
       <DeleteEntry entry={deleting} onClose={() => setDeleting(null)} />
+    </>
+  );
+}
+
+/** `?tab=billing` (MVP-93, D-152): the file's totals, and the time entries for those who may log time. */
+export function BillingTab({
+  fileId,
+  archived,
+}: {
+  readonly fileId: string;
+  readonly archived: boolean;
+}) {
+  const { t } = useTranslation();
+  const mayLog = useCan('log:time');
+  const allInvoices = useCan('view:all:invoices');
+  const assignedInvoices = useCan('view:assigned:invoices');
+  const readsAll = useCan('view:all:cases');
+  const totals = useTimeTotals(fileId);
+  return (
+    <Flex vertical gap={16} data-testid="billing-tab">
+      {totals.data ? <Totals totals={totals.data} /> : null}
+      {totals.data && !readsAll ? (
+        <Typography.Text type="secondary" data-testid="totals-hint">
+          {t('billing.totals.hint')}
+        </Typography.Text>
+      ) : null}
+      {mayLog ? (
+        <EntriesSection
+          fileId={fileId}
+          canLog={!archived}
+          showMoney={allInvoices || assignedInvoices}
+        />
+      ) : (
+        <Typography.Text type="secondary" data-testid="entries-note">
+          {t('billing.noLogAccess')}
+        </Typography.Text>
+      )}
     </Flex>
   );
 }

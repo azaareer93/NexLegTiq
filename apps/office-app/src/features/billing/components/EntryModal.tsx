@@ -112,7 +112,13 @@ export function EntryModal({
           label={t('billing.form.date')}
           extra={entry ? undefined : t('billing.form.dateHint')}
         >
-          <DatePicker format="DD/MM/YYYY" style={{ inlineSize: '100%' }} data-testid="entry-date" />
+          <DatePicker
+            format="DD/MM/YYYY"
+            allowClear={!entry}
+            disabledDate={(day) => day.isAfter(dayjs(), 'day')}
+            style={{ inlineSize: '100%' }}
+            data-testid="entry-date"
+          />
         </Form.Item>
         <Form.Item
           name="durationHours"

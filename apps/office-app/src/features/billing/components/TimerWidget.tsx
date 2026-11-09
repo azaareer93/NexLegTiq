@@ -1,6 +1,6 @@
 import { ClockCircleOutlined, PauseCircleOutlined } from '@ant-design/icons';
 import { StopTimerSchema } from '@nexlegtiq/shared-contracts';
-import type { Timer } from '@nexlegtiq/shared-contracts';
+import type { Case, Timer } from '@nexlegtiq/shared-contracts';
 import {
   ApiErrorAlert,
   ConfirmModal,
@@ -10,13 +10,15 @@ import {
   useFormat,
 } from '@nexlegtiq/shared-ui';
 import { isolateLtr } from '@nexlegtiq/shared-utils';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button, Checkbox, Flex, Form, Input, Modal } from 'antd';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMatch } from 'react-router';
 
 import { StartTimerButton } from './StartTimerButton';
 import { zodRule } from '../../auth/forms';
+import { caseKeys } from '../../cases/api/use-cases';
 import { useTimeMutations, useTimer } from '../api/use-billing';
 
 const TICK_MS = 1000;
@@ -161,9 +163,15 @@ export function TimerWidget({ compact = false }: { readonly compact?: boolean })
   const can = useCan('log:time');
   const onFile = useMatch('/cases/:id')?.params.id;
   const timer = useTimer(can);
+  // The file page's cached case, only read (never fetched here): an archived case takes no timer (D-052).
+  const queryClient = useQueryClient();
+  const caseStatus = useSyncExternalStore(
+    (notify) => queryClient.getQueryCache().subscribe(notify),
+    () => queryClient.getQueryData<Case>(caseKeys.detail(onFile ?? ''))?.status,
+  );
   if (!can) return null;
   if (timer.data) return <RunningTimer timer={timer.data} compact={compact} />;
-  if (!onFile) return null;
+  if (!onFile || caseStatus === 'ARCHIVED') return null;
   return (
     <StartTimerButton
       fileId={onFile}
