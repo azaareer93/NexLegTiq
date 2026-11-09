@@ -56,7 +56,7 @@ export const AdminSubscriptionRowSchema = z.object({
   plan: PlanRefSchema,
   status: z.enum(SUBSCRIPTION_STATUSES),
   currentPeriodStart: z.iso.datetime(),
-  currentPeriodEnd: z.iso.datetime(),
+  currentPeriodEnd: z.iso.datetime().nullable(),
   trialEndsAt: z.iso.datetime().nullable(),
   createdAt: z.iso.datetime(),
 });

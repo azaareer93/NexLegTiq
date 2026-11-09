@@ -29,6 +29,7 @@ import { NotificationsModule } from '../modules/notifications/notifications.modu
 import { OfficesModule } from '../modules/offices/offices.module';
 import { PartiesModule } from '../modules/parties/parties.module';
 import { PlatformAuthModule } from '../modules/platform-auth/platform-auth.module';
+import { PlatformOfficesModule } from '../modules/platform-offices/platform-offices.module';
 import { SessionsModule } from '../modules/sessions/sessions.module';
 import { SubscriptionGuard } from '../modules/subscriptions/subscription.guard';
 import { SubscriptionsModule } from '../modules/subscriptions/subscriptions.module';
@@ -52,6 +53,7 @@ import { UsersModule } from '../modules/users/users.module';
     MetricsModule,
     AuthModule,
     PlatformAuthModule,
+    PlatformOfficesModule,
     SubscriptionsModule,
     NotificationsModule,
     TimelineModule,
