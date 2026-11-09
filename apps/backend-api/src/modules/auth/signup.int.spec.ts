@@ -132,6 +132,7 @@ describe('office signup (HTTP + PostgreSQL)', () => {
     await raw.emailVerificationToken.deleteMany({ where });
     await raw.legalAcceptance.deleteMany({ where });
     await raw.subscription.deleteMany({ where });
+    await raw.taskTemplate.deleteMany({ where });
     await raw.officeSettings.deleteMany({ where });
     await raw.user.deleteMany({ where });
     await raw.office.deleteMany({ where: { id: { in: where.officeId.in } } });

@@ -210,6 +210,59 @@ describe('Settings → office profile, preferences, defaults and security (D-125
   const input = (testId: string) => screen.getByTestId(testId) as HTMLInputElement;
 
   it(
+    'should list the task templates and add one (D-156)',
+    async () => {
+      const posted: unknown[] = [];
+      server.use(
+        http.get(api('task-templates'), () =>
+          ok([
+            {
+              id: '01920000-0000-7000-8000-0000000000f1',
+              name: 'Claim',
+              fileType: 'LITIGATION',
+              defaultTitle: 'Prepare the statement of claim',
+              defaultDescription: null,
+              dueDaysAfterOpen: 7,
+              defaultAssigneeRole: 'RESPONSIBLE_LAWYER',
+              isActive: true,
+              createdAt: '2026-11-01T09:00:00.000Z',
+              updatedAt: '2026-11-01T09:00:00.000Z',
+            },
+          ]),
+        ),
+        http.post(api('task-templates'), async ({ request }) => {
+          posted.push(await request.json());
+          return ok({}, 201);
+        }),
+      );
+      await openSettings();
+      const section = await screen.findByTestId('settings-templates');
+      expect(await within(section).findByText('Prepare the statement of claim')).toBeTruthy();
+      fireEvent.click(screen.getByTestId('template-add'));
+      fireEvent.change(await screen.findByTestId('template-name'), {
+        target: { value: 'Hearing prep' },
+      });
+      fireEvent.change(screen.getByTestId('template-title'), {
+        target: { value: 'Prepare the hearing' },
+      });
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save' }));
+      await waitFor(() =>
+        expect(posted).toEqual([
+          {
+            name: 'Hearing prep',
+            fileType: null,
+            defaultTitle: 'Prepare the hearing',
+            defaultDescription: null,
+            dueDaysAfterOpen: null,
+            defaultAssigneeRole: 'RESPONSIBLE_LAWYER',
+          },
+        ]),
+      );
+    },
+    SLOW,
+  );
+
+  it(
     'should save only the changed profile fields and show the new name in the header',
     async () => {
       let body: unknown;

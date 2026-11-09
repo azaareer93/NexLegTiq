@@ -15,6 +15,7 @@ import { useOfficeProfile, useOfficeSettings } from '../api/use-office';
 import { DefaultsSection, SecuritySection } from '../components/DefaultsSections';
 import { PreferencesSection, ProfileSection } from '../components/ProfileSections';
 import { SubscriptionSection } from '../components/SubscriptionSection';
+import { TaskTemplatesSection } from '../components/TaskTemplatesSection';
 
 type Section = 'profile' | 'preferences' | 'defaults' | 'security';
 
@@ -89,6 +90,7 @@ export function SettingsPage(): React.JSX.Element {
         <PreferencesSection profile={profile.data} onDirtyChange={reporters.preferences} />
         <DefaultsSection settings={settings.data} onDirtyChange={reporters.defaults} />
         <SecuritySection settings={settings.data} onDirtyChange={reporters.security} />
+        <TaskTemplatesSection />
       </>
     );
   };

@@ -8,6 +8,7 @@
   "currency": "Choose a valid currency.",
   "dateRange": "Choose an end after the start, at most 92 days later.",
   "dateTime": "Enter a valid date and time.",
+  "dueDays": "Enter a number of days between 0 and 365.",
   "duplicate": "Each item can be chosen only once.",
   "email": "Enter a valid email address.",
   "endsBeforeStart": "The end must be after the start.",
