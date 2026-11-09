@@ -86,15 +86,19 @@ export class CasesService {
         select: { id: true },
       });
       await this.addParticipants(tx, file.id, input);
-      await applyTaskTemplates(tx, {
-        officeId: this.officeId(),
-        fileId: file.id,
-        fileType: input.fileType,
-        openingDate,
-        responsibleLawyerId: input.responsibleLawyerId,
-        responsibleParalegalId: input.responsibleParalegalId ?? null,
-        createdById: actorId,
-      });
+      await applyTaskTemplates(
+        tx,
+        {
+          officeId: this.officeId(),
+          fileId: file.id,
+          fileType: input.fileType,
+          openingDate,
+          responsibleLawyerId: input.responsibleLawyerId,
+          responsibleParalegalId: input.responsibleParalegalId ?? null,
+          createdById: actorId,
+        },
+        client,
+      );
       await this.timeline.record(tx, {
         fileId: file.id,
         eventType: 'FILE_OPENED',

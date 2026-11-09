@@ -1,6 +1,8 @@
-import type { FileType } from '@nexlegtiq/shared-types';
+import type { FileType, OFFICE_LANGUAGES } from '@nexlegtiq/shared-types';
 
 import { toDbDate } from './tasks.repository';
+import { auditRow } from '../../common/audit/audit.service';
+import type { AuditClient } from '../../common/audit/audit.service';
 import type { ScopedTransaction } from '../../database/unit-of-work';
 
 const DAY_MS = 86_400_000;
@@ -23,8 +25,9 @@ export interface NewFile {
  * responsible lawyer or paralegal (skipped when the file has no paralegal), placed at the end of the TODO column.
  */
 export async function applyTaskTemplates(
-  tx: Pick<ScopedTransaction, 'taskTemplate' | 'task'>,
+  tx: Pick<ScopedTransaction, 'taskTemplate' | 'task' | 'auditLog'>,
   file: NewFile,
+  client: AuditClient,
 ): Promise<number> {
   const templates = await tx.taskTemplate.findMany({
     where: { isActive: true, OR: [{ fileType: null }, { fileType: file.fileType }] },
@@ -63,8 +66,35 @@ export async function applyTaskTemplates(
       },
     ];
   });
-  if (rows.length > 0) await tx.task.createMany({ data: rows });
-  return rows.length;
+  if (rows.length === 0) return 0;
+  const created = await tx.task.createManyAndReturn({
+    data: rows,
+    select: { id: true, title: true, assignedToId: true, dueDate: true, sourceId: true },
+  });
+  // Each task has its CREATE row, like a task made by hand (D-098).
+  await tx.auditLog.createMany({
+    data: created.map((task) =>
+      auditRow(
+        {
+          entityType: 'Task',
+          entityId: task.id,
+          action: 'CREATE',
+          officeId: file.officeId,
+          userId: file.createdById,
+          newValues: {
+            fileId: file.fileId,
+            title: task.title,
+            assignedToId: task.assignedToId,
+            dueDate: task.dueDate?.toISOString().slice(0, 10) ?? null,
+            sourceType: 'TEMPLATE',
+            sourceId: task.sourceId,
+          },
+        },
+        client,
+      ),
+    ),
+  });
+  return created.length;
 }
 
 interface Starter {
@@ -81,21 +111,21 @@ const STARTERS: readonly Starter[] = [
     fileType: 'LITIGATION',
     days: 7,
     role: 'RESPONSIBLE_LAWYER',
-    ar: { name: 'دعوى: لائحة الدعوى', title: 'إعداد لائحة الدعوى' },
+    ar: { name: 'تقاضٍ: لائحة الدعوى', title: 'إعداد لائحة الدعوى' },
     en: { name: 'Litigation: statement of claim', title: 'Prepare the statement of claim' },
   },
   {
     fileType: 'LITIGATION',
     days: 14,
     role: 'PARALEGAL',
-    ar: { name: 'دعوى: البيّنات', title: 'تقديم البيّنات' },
+    ar: { name: 'تقاضٍ: البيّنات', title: 'تقديم البيّنات' },
     en: { name: 'Litigation: evidence', title: 'File the evidence' },
   },
   {
     fileType: 'LITIGATION',
     days: 30,
     role: 'RESPONSIBLE_LAWYER',
-    ar: { name: 'دعوى: التبليغ', title: 'تبليغ المدعى عليه' },
+    ar: { name: 'تقاضٍ: التبليغ', title: 'تبليغ المدعى عليه' },
     en: { name: 'Litigation: service', title: 'Serve the defendant' },
   },
   {
@@ -115,7 +145,17 @@ const STARTERS: readonly Starter[] = [
 ];
 
 /** The starter templates as rows for a new office (signup, D-083), in the office's default language. */
-export function starterTemplates(officeId: string, language: string) {
+export function starterTemplates(
+  officeId: string,
+  language: (typeof OFFICE_LANGUAGES)[number],
+): {
+  officeId: string;
+  name: string;
+  fileType: FileType;
+  defaultTitle: string;
+  dueDaysAfterOpen: number;
+  defaultAssigneeRole: 'RESPONSIBLE_LAWYER' | 'PARALEGAL';
+}[] {
   return STARTERS.map((starter) => {
     const text = language === 'EN' ? starter.en : starter.ar;
     return {

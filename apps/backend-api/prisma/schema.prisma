@@ -1399,17 +1399,17 @@ model TaskTemplate {
   @@map("task_templates")
 }
 
-/**
- * A to-do on a file, or a personal one (fileId null: only its creator and assignee see it). `completedAt` is set
- * exactly while DONE (CHECK). Hard-deleted (audited); recurrence, reminders and template/AI sources join with their
- * stories (D-098).
- */
 enum TaskSource {
   MANUAL
   TEMPLATE
   AI_NEXT_STEP
 }
 
+/**
+ * A to-do on a file, or a personal one (fileId null: only its creator and assignee see it). `completedAt` is set
+ * exactly while DONE (CHECK). Hard-deleted (audited); recurrence, reminders and template/AI sources join with their
+ * stories (D-098).
+ */
 model Task {
   id           String     @id @default(uuid(7)) @db.Uuid
   officeId     String     @map("office_id") @db.Uuid

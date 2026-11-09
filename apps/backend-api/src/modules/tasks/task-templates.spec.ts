@@ -46,11 +46,14 @@ describe('applyTaskTemplates (D-156)', () => {
       },
       task: {
         aggregate: jest.fn().mockResolvedValue({ _max: { sortOrder: 4 } }),
-        createMany: jest.fn(),
+        createManyAndReturn: jest.fn(({ data }: { data: object[] }) =>
+          Promise.resolve(data.map((row, i) => ({ ...row, id: ID(50 + i) }))),
+        ),
       },
+      auditLog: { createMany: jest.fn() },
     };
-    expect(await applyTaskTemplates(tx as never, FILE)).toBe(2);
-    expect(tx.task.createMany.mock.calls[0]?.[0].data).toEqual([
+    expect(await applyTaskTemplates(tx as never, FILE, {})).toBe(2);
+    expect(tx.task.createManyAndReturn.mock.calls[0]?.[0].data).toEqual([
       expect.objectContaining({
         title: 'Title 1',
         dueDate: new Date('2027-01-04T00:00:00Z'),
@@ -61,10 +64,16 @@ describe('applyTaskTemplates (D-156)', () => {
       }),
       expect.objectContaining({ title: 'Title 3', dueDate: null, sortOrder: 6 }),
     ]);
+    const audit = (tx as unknown as { auditLog: { createMany: jest.Mock } }).auditLog.createMany;
+    expect(audit.mock.calls[0]?.[0].data).toEqual([
+      expect.objectContaining({ entityType: 'Task', action: 'CREATE', userId: ID(8) }),
+      expect.objectContaining({ entityType: 'Task', entityId: ID(51) }),
+    ]);
     expect(
       await applyTaskTemplates(
         { taskTemplate: { findMany: jest.fn().mockResolvedValue([]) }, task: tx.task } as never,
         FILE,
+        {},
       ),
     ).toBe(0);
   });
@@ -76,17 +85,20 @@ describe('applyTaskTemplates (D-156)', () => {
       },
       task: {
         aggregate: jest.fn().mockResolvedValue({ _max: { sortOrder: null } }),
-        createMany: jest.fn(),
+        createManyAndReturn: jest.fn(({ data }: { data: object[] }) =>
+          Promise.resolve(data.map((row, i) => ({ ...row, id: ID(50 + i) }))),
+        ),
       },
+      auditLog: { createMany: jest.fn() },
     };
-    await applyTaskTemplates(tx as never, { ...FILE, responsibleParalegalId: ID(9) });
-    expect(tx.task.createMany.mock.calls[0]?.[0].data).toEqual([
+    await applyTaskTemplates(tx as never, { ...FILE, responsibleParalegalId: ID(9) }, {});
+    expect(tx.task.createManyAndReturn.mock.calls[0]?.[0].data).toEqual([
       expect.objectContaining({ assignedToId: ID(9), sortOrder: 0 }),
     ]);
     // Every template is a paralegal one and the file has none: nothing is written.
-    tx.task.createMany.mockClear();
-    expect(await applyTaskTemplates(tx as never, FILE)).toBe(0);
-    expect(tx.task.createMany).not.toHaveBeenCalled();
+    tx.task.createManyAndReturn.mockClear();
+    expect(await applyTaskTemplates(tx as never, FILE, {})).toBe(0);
+    expect(tx.task.createManyAndReturn).not.toHaveBeenCalled();
   });
 
   it('should seed starter templates in the office language', () => {

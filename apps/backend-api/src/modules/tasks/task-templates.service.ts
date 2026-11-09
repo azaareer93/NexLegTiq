@@ -132,9 +132,18 @@ export class TaskTemplatesService {
   /** Hard delete: tasks it made keep their `sourceId` (no FK) as history. */
   async remove(id: string): Promise<void> {
     await this.uow.run(async (tx) => {
+      const before = await tx.taskTemplate.findFirst({
+        where: { id },
+        select: { name: true, defaultTitle: true },
+      });
       const { count } = await tx.taskTemplate.deleteMany({ where: { id } });
-      if (count === 0) throw new ResourceNotFoundException();
-      await this.audit.log(tx, { entityType: 'TaskTemplate', entityId: id, action: 'DELETE' });
+      if (count === 0 || !before) throw new ResourceNotFoundException();
+      await this.audit.log(tx, {
+        entityType: 'TaskTemplate',
+        entityId: id,
+        action: 'DELETE',
+        oldValues: before,
+      });
     });
   }
 }

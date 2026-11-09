@@ -2838,3 +2838,7 @@ the file's creator; `sourceType TEMPLATE`. No notification is sent for them (the
 existing offices get none (they add their own). **Office app:** Settings → Task templates (a card with the list, active
 switch, add/edit modal, delete after a confirm). **Not done:** templates applied when a file's type changes, per-template
 assignment to a named user, ordering by drag.
+Review additions (same PR): template tasks are **audited** like hand-made ones (one `Task` CREATE row each, with
+`sourceType` and `sourceId`, written in the file's transaction); a deleted template's audit row keeps its name and task
+title; the Settings card shows an error with a retry when the list cannot load and lists the template name; the Arabic
+starter names use the glossary's «تقاضٍ».

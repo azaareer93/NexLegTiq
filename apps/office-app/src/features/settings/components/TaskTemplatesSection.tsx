@@ -2,7 +2,15 @@ import { taskTemplatesApi } from '@nexlegtiq/shared-api-client';
 import { TEMPLATE_ASSIGNEE_ROLES } from '@nexlegtiq/shared-contracts';
 import type { CreateTaskTemplateRequest, TaskTemplate } from '@nexlegtiq/shared-contracts';
 import { FILE_TYPES } from '@nexlegtiq/shared-types';
-import { ApiErrorAlert, ConfirmModal, useApiErrorHandler } from '@nexlegtiq/shared-ui';
+import { isErrorCode } from '@nexlegtiq/shared-types';
+import {
+  ApiErrorAlert,
+  ConfirmModal,
+  ErrorState,
+  isApiError,
+  useApiErrorHandler,
+} from '@nexlegtiq/shared-ui';
+import { isolate } from '@nexlegtiq/shared-utils';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Button,
@@ -130,7 +138,7 @@ function TemplateModal({
  */
 export function TaskTemplatesSection() {
   const { t } = useTranslation();
-  const { notify } = useApiErrorHandler();
+  const { notify, referenceOf } = useApiErrorHandler();
   const queryClient = useQueryClient();
   const list = useQuery({ queryKey: KEY, queryFn: ({ signal }) => templates.list(signal) });
   const [editing, setEditing] = useState<TaskTemplate | 'new' | null>(null);
@@ -162,6 +170,15 @@ export function TaskTemplatesSection() {
       data-testid="settings-templates"
     >
       <Typography.Paragraph type="secondary">{t('settings.templates.hint')}</Typography.Paragraph>
+      {list.isError ? (
+        <ErrorState
+          code={
+            isApiError(list.error) && isErrorCode(list.error.code) ? list.error.code : undefined
+          }
+          requestId={referenceOf(list.error)}
+          onRetry={() => void list.refetch()}
+        />
+      ) : null}
       <Table<TaskTemplate>
         rowKey="id"
         size="small"
@@ -170,6 +187,11 @@ export function TaskTemplatesSection() {
         scroll={{ x: true }}
         dataSource={list.data ?? []}
         columns={[
+          {
+            key: 'name',
+            title: t('settings.templates.name'),
+            render: (_, row) => <bdi>{row.name}</bdi>,
+          },
           {
             key: 'type',
             title: t('settings.templates.fileType'),
@@ -197,7 +219,7 @@ export function TaskTemplatesSection() {
             render: (_, row) => (
               <Switch
                 checked={row.isActive}
-                aria-label={t('settings.templates.activeFor', { name: row.name })}
+                aria-label={t('settings.templates.activeFor', { name: isolate(row.name) })}
                 onChange={() => toggle.mutate(row)}
               />
             ),
