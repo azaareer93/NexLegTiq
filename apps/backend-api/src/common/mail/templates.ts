@@ -1,6 +1,8 @@
 import Handlebars from 'handlebars';
 import { z } from 'zod';
 
+import { CLIENT_INVITE_COPY } from './client-invite-copy';
+
 /** Email locales: the user's `uiLanguage` (D-016). Bilingual offices write to each user in that user's language. */
 export type MailLocale = 'AR' | 'EN';
 
@@ -20,6 +22,14 @@ export const MAIL_TEMPLATE_SCHEMAS = {
     days: count,
     /** The manager's note (D-134); empty for none. */
     message: shortText(500).default(''),
+  }),
+  /** Client-portal invitation (D-157). */
+  'client-invite': z.object({
+    officeName: name,
+    clientName: name,
+    inviterName: name,
+    link,
+    days: count,
   }),
   'password-reset': z.object({ name, link, minutes: count }),
   'hearing-reminder': z.object({
@@ -141,6 +151,7 @@ ${iso('message')}
 This invitation expires in {{period}}.`,
     },
   },
+  'client-invite': CLIENT_INVITE_COPY,
   'password-reset': {
     AR: {
       subject: 'إعادة تعيين كلمة المرور في NexLegTiq',
@@ -217,6 +228,7 @@ const PERIOD_OF: Readonly<
 > = {
   'verify-email': { key: 'days', unit: 'day' },
   invite: { key: 'days', unit: 'day' },
+  'client-invite': { key: 'days', unit: 'day' },
   'password-reset': { key: 'minutes', unit: 'minute' },
 };
 

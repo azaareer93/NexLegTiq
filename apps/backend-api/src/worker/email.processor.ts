@@ -25,6 +25,15 @@ import { PasswordResetLinks } from '../modules/auth/password-reset-links';
 import type { PasswordResetEmail } from '../modules/auth/password-reset-links';
 import { VerificationLinks } from '../modules/auth/verification-links';
 import type { VerificationEmail } from '../modules/auth/verification-links';
+import {
+  SEND_CLIENT_INVITATION_JOB,
+  SEND_CLIENT_PASSWORD_RESET_JOB,
+} from '../modules/portal-auth/portal-auth.constants';
+import {
+  PortalInvitationLinks,
+  PortalPasswordResetLinks,
+} from '../modules/portal-auth/portal-links';
+import type { ClientInvitationEmail } from '../modules/portal-auth/portal-links';
 
 const locale = z.enum(['AR', 'EN']);
 /** One variant per template, so each email's variables are checked before rendering (D-085). */
@@ -40,6 +49,12 @@ const SendEmailSchema = z.discriminatedUnion('template', [
     template: z.literal('invite'),
     locale,
     vars: MAIL_TEMPLATE_SCHEMAS.invite,
+  }),
+  z.object({
+    to: z.email(),
+    template: z.literal('client-invite'),
+    locale,
+    vars: MAIL_TEMPLATE_SCHEMAS['client-invite'],
   }),
   z.object({
     to: z.email(),
@@ -62,6 +77,7 @@ const EmailJobSchema = z.union([
   SendEmailSchema,
   z.object({ userId: z.uuid() }),
   z.object({ invitationId: z.uuid() }),
+  z.object({ clientUserId: z.uuid() }),
 ]);
 type EmailJob = z.infer<typeof EmailJobSchema>;
 
@@ -70,7 +86,8 @@ export const SKIPPED_NOTHING_TO_SEND = { skipped: 'NOTHING_TO_SEND' } as const;
 type LinkedEmail =
   | { template: 'verify-email'; email: VerificationEmail }
   | { template: 'password-reset'; email: PasswordResetEmail }
-  | { template: 'invite'; email: InvitationEmail };
+  | { template: 'invite'; email: InvitationEmail }
+  | { template: 'client-invite'; email: ClientInvitationEmail };
 
 /**
  * The single consumer of the `email` queue (one processor per queue: BullMQ hands every job of a queue to its workers).
@@ -91,6 +108,8 @@ export class EmailProcessor extends TenantProcessor<EmailJob> {
     private readonly links: VerificationLinks,
     private readonly resetLinks: PasswordResetLinks,
     private readonly invitationLinks: InvitationLinks,
+    private readonly clientInvitationLinks: PortalInvitationLinks,
+    private readonly clientResetLinks: PortalPasswordResetLinks,
     private readonly config: AppConfig,
   ) {
     super(tenant, prisma, logger);
@@ -136,6 +155,15 @@ export class EmailProcessor extends TenantProcessor<EmailJob> {
     data: EmailJob,
     retry: boolean,
   ): Promise<LinkedEmail | null | undefined> {
+    const staff = await this.issueStaffLink(name, data, retry);
+    return staff !== undefined ? staff : this.issueClientLink(name, data, retry);
+  }
+
+  private async issueStaffLink(
+    name: string,
+    data: EmailJob,
+    retry: boolean,
+  ): Promise<LinkedEmail | null | undefined> {
     const now = new Date();
     if (name === SEND_VERIFICATION_EMAIL_JOB && 'userId' in data) {
       const email = await this.links.issue(data.userId, now, { retry });
@@ -152,6 +180,24 @@ export class EmailProcessor extends TenantProcessor<EmailJob> {
     return undefined;
   }
 
+  /** The client portal's emails (D-157): same pattern, links into the portal. */
+  private async issueClientLink(
+    name: string,
+    data: EmailJob,
+    retry: boolean,
+  ): Promise<LinkedEmail | null | undefined> {
+    const now = new Date();
+    if (name === SEND_CLIENT_INVITATION_JOB && 'invitationId' in data) {
+      const email = await this.clientInvitationLinks.issue(data.invitationId, now);
+      return email && { template: 'client-invite', email };
+    }
+    if (name === SEND_CLIENT_PASSWORD_RESET_JOB && 'clientUserId' in data) {
+      const email = await this.clientResetLinks.issue(data.clientUserId, now, { retry });
+      return email && { template: 'password-reset', email };
+    }
+    return undefined;
+  }
+
   private async deliver<T extends MailTemplateName>(
     to: string,
     template: T,
@@ -159,10 +205,10 @@ export class EmailProcessor extends TenantProcessor<EmailJob> {
     vars: MailTemplates[T],
     options: { signal: AbortSignal; idempotencyKey: string },
   ) {
-    const { officeAppUrl } = this.config.mail;
-    // Every button in our emails leads into the office app; anything else is a bug or an injected link.
-    if (!vars.link.startsWith(`${officeAppUrl}/`))
-      throw new UnrecoverableError('Email link does not point to the office app');
+    const { officeAppUrl, clientPortalUrl } = this.config.mail;
+    // Every button in our emails leads into the office app or the client portal; anything else is a bug or an injected link.
+    if (!vars.link.startsWith(`${officeAppUrl}/`) && !vars.link.startsWith(`${clientPortalUrl}/`))
+      throw new UnrecoverableError('Email link does not point to our apps');
     await this.transport.send(to, renderMail(template, locale, vars, officeAppUrl), options);
   }
 }

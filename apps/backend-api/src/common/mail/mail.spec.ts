@@ -16,6 +16,7 @@ const VARS = {
   name: 'عمر',
   officeName: 'مكتب',
   inviterName: 'سارة',
+  clientName: 'شركة النور',
   link: `${APP}/x?token=abc`,
   days: 7,
   minutes: 60,
