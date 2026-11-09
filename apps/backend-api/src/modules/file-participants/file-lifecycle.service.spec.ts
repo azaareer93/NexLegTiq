@@ -73,6 +73,20 @@ describe('FileLifecycleService (D-153)', () => {
     });
   });
 
+  it('should record a plain close with its reason, and need an office in the context', async () => {
+    const { service, timeline } = setup('OFFICE_MANAGER', 'om');
+    await service.close(FILE, { force: false, reason: ' Settled ' }, CLIENT);
+    expect(timeline.record.mock.calls[0]?.[1].payload).toEqual({ reason: 'Settled' });
+    await service.close(FILE, { force: false }, CLIENT);
+    expect(timeline.record.mock.calls[1]?.[1].payload).toEqual({});
+    const { service: noOffice, tx } = setup('OFFICE_MANAGER', 'om');
+    tx.$queryRaw.mockImplementation(() => {
+      throw new Error('should not query');
+    });
+    Object.assign(noOffice, { cls: { get: () => undefined } });
+    await expect(noOffice.reopen(FILE, CLIENT)).rejects.toThrow('No office');
+  });
+
   it("should refuse another lawyer's close and a second close", async () => {
     await expect(
       setup('LAWYER', 'someone').service.close(FILE, { force: false }, CLIENT),
