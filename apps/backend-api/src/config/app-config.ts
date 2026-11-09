@@ -95,6 +95,7 @@ export class AppConfig {
     readonly provider: 'smtp' | 'resend';
     readonly resendApiKey?: string;
     readonly officeAppUrl: string;
+    readonly clientPortalUrl: string;
   } {
     const { SMTP_USER: user, SMTP_PASSWORD: pass } = this.#env;
     return {
@@ -108,6 +109,7 @@ export class AppConfig {
       ...(this.#env.RESEND_API_KEY ? { resendApiKey: this.#env.RESEND_API_KEY } : {}),
       // Without a trailing slash, so templates can append paths.
       officeAppUrl: this.#env.OFFICE_APP_URL.replace(/\/+$/, ''),
+      clientPortalUrl: this.#env.CLIENT_PORTAL_URL.replace(/\/+$/, ''),
     };
   }
 
@@ -132,6 +134,12 @@ export class AppConfig {
           origins: env.ADMIN_ORIGINS,
         }
       : null;
+  }
+
+  /** The client portal realm (D-158); null when `JWT_PORTAL_SECRET` is unset (its routes answer 404). */
+  get portal(): { readonly jwtSecret: string; readonly origin: string } | null {
+    const { JWT_PORTAL_SECRET: jwtSecret, CLIENT_PORTAL_URL: url } = this.#env;
+    return jwtSecret ? { jwtSecret, origin: new URL(url).origin } : null;
   }
 
   /** Key of the field cipher (D-056), 32 bytes as hex. */

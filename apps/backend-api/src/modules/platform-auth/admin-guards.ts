@@ -17,7 +17,7 @@ import {
   ResourceNotFoundException,
 } from '../../common/errors/app.exception';
 import { AppConfig } from '../../config/app-config';
-import { parseIpEntry } from '../../config/env.schema';
+import { parseIpEntry } from '../../config/ip-entry';
 import { PrismaService } from '../../database/prisma.service';
 import { JWT_ISSUER } from '../auth/auth.constants';
 
