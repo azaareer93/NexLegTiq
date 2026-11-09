@@ -1,6 +1,6 @@
-import { isIP } from 'node:net';
-
 import { z } from 'zod';
+
+import { parseIpEntry } from './ip-entry';
 
 const port = z.coerce.number().int().min(1).max(65_535);
 const csv = z.string().transform((value) =>
@@ -78,11 +78,17 @@ const EnvObject = z.object({
   // Base URL of the office app, for links in emails (verify email, invitations, password reset).
   OFFICE_APP_URL: z.url({ protocol: /^https?$/ }).default('http://localhost:4200'),
 
+  // Base URL of the client portal, for links in its emails (invitations, password reset); the portal is its only origin
+  // allowed to use the portal refresh cookie (D-157).
+  CLIENT_PORTAL_URL: z.url({ protocol: /^https?$/ }).default('http://localhost:4202'),
+
   CLAMAV_HOST: required,
   CLAMAV_PORT: port.default(3310),
 
   // HS256 key of the office access JWT (auth-rbac.md, Tokens); at least 32 characters of randomness.
   JWT_SECRET: z.string().min(32),
+  // Client portal realm (D-157): its own signing secret; unset = the portal routes answer 404.
+  JWT_PORTAL_SECRET: z.string().min(32).optional(),
   // Platform admin realm (D-145): its own signing secret; unset = the admin routes answer 404.
   ADMIN_JWT_SECRET: z.string().min(32).optional(),
   // The admin panel's origin(s): the only ones its cookie routes (refresh, logout) accept — an XSS on the office app or
@@ -166,20 +172,6 @@ const EnvObject = z.object({
 type RawEnv = z.output<typeof EnvObject>;
 
 /** Production-only checks: [variable, is it broken?, message]. In transit TLS 1.2+ everywhere (ops-security.md, D-078). */
-/** An allow-list entry: an IP address, or a CIDR whose prefix fits its family. */
-export function parseIpEntry(
-  entry: string,
-): { address: string; prefix?: number; family: 'ipv4' | 'ipv6' } | null {
-  const [address = '', prefixText, extra] = entry.split('/');
-  const version = isIP(address);
-  if (version === 0 || extra !== undefined) return null;
-  const family = version === 4 ? 'ipv4' : 'ipv6';
-  if (prefixText === undefined) return { address, family };
-  const prefix = Number(prefixText);
-  const max = version === 4 ? 32 : 128;
-  return /^\d{1,3}$/.test(prefixText) && prefix <= max ? { address, prefix, family } : null;
-}
-
 const PRODUCTION_RULES: readonly (readonly [keyof RawEnv, (env: RawEnv) => boolean, string])[] = [
   [
     'DATABASE_URL',
@@ -213,6 +205,11 @@ const PRODUCTION_RULES: readonly (readonly [keyof RawEnv, (env: RawEnv) => boole
     'OFFICE_APP_URL',
     (env) => !env.OFFICE_APP_URL.startsWith('https:'),
     'must use https:// in production (links in emails)',
+  ],
+  [
+    'CLIENT_PORTAL_URL',
+    (env) => env.JWT_PORTAL_SECRET !== undefined && !env.CLIENT_PORTAL_URL.startsWith('https:'),
+    'must use https:// in production (links in emails, the portal cookie origin)',
   ],
   [
     'ADMIN_ORIGINS',
@@ -264,6 +261,7 @@ const secretsOf = (env: RawEnv): Record<string, string> => ({
   S3_SECRET_ACCESS_KEY: env.S3_SECRET_ACCESS_KEY,
   JWT_SECRET: env.JWT_SECRET,
   ADMIN_JWT_SECRET: env.ADMIN_JWT_SECRET ?? '',
+  JWT_PORTAL_SECRET: env.JWT_PORTAL_SECRET ?? '',
   SMTP_PASSWORD: env.SMTP_PASSWORD ?? '',
   RESEND_API_KEY: env.RESEND_API_KEY ?? '',
   OPENAI_API_KEY: env.OPENAI_API_KEY ?? '',
@@ -322,6 +320,16 @@ export const EnvSchema = EnvObject.refine(
     message: 'must differ from JWT_SECRET (an office token must never pass as an admin one)',
     path: ['ADMIN_JWT_SECRET'],
   })
+  .refine(
+    (env) =>
+      env.JWT_PORTAL_SECRET === undefined ||
+      (env.JWT_PORTAL_SECRET !== env.JWT_SECRET && env.JWT_PORTAL_SECRET !== env.ADMIN_JWT_SECRET),
+    {
+      message:
+        'must differ from JWT_SECRET and ADMIN_JWT_SECRET (an office or admin token must never pass as a portal one)',
+      path: ['JWT_PORTAL_SECRET'],
+    },
+  )
   .refine((env) => (env.SMTP_USER === undefined) === (env.SMTP_PASSWORD === undefined), {
     message: 'SMTP_USER and SMTP_PASSWORD must be set together',
     path: ['SMTP_PASSWORD'],

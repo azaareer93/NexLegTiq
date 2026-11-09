@@ -348,6 +348,7 @@ describe('AppConfig', () => {
       from: 'no-reply@nexlegtiq.test',
       provider: 'smtp',
       officeAppUrl: 'https://app.nexlegtiq.test',
+      clientPortalUrl: 'http://localhost:4202',
     });
     expect(authenticated.mail.auth).toEqual({ user: 'mailer', pass: 'pw' });
   });

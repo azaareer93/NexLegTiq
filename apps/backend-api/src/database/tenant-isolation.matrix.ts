@@ -4,11 +4,13 @@ import {
   aiJobIn,
   aiSummaryIn,
   aiUsageIn,
+  attendanceIn,
   clientIn,
   documentIn,
   documentTextIn,
   fileIn,
   folderIn,
+  PORTAL_RESOURCES,
   notificationIn,
   partyIn,
   reminderIn,
@@ -43,6 +45,7 @@ export interface TenantResource {
 }
 
 export const TENANT_ISOLATION_MATRIX: readonly TenantResource[] = [
+  ...PORTAL_RESOURCES,
   {
     model: 'OfficeSettings',
     create: (db, { officeId }) => db.officeSettings.create({ data: { officeId } }),
@@ -292,14 +295,7 @@ export const TENANT_ISOLATION_MATRIX: readonly TenantResource[] = [
   },
   {
     model: 'SessionPartyAttendance',
-    create: async (db, office) =>
-      db.sessionPartyAttendance.create({
-        data: {
-          officeId: office.officeId,
-          sessionId: (await sessionIn(db, office)).id,
-          partyId: (await partyIn(db, office)).id,
-        },
-      }),
+    create: attendanceIn,
     update: { attended: true },
   },
   // Folders are nested under their file (`cases/:id/folders`); their HTTP isolation is in folders.int.spec.ts.
