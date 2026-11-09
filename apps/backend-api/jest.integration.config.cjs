@@ -14,4 +14,7 @@ module.exports = {
     '^.+\\.[tj]s$': ['@swc/jest', swcJestConfig],
   },
   moduleFileExtensions: ['ts', 'js', 'html'],
+  // A suite that fails before `app.close()` leaves Redis/BullMQ connections reconnecting, and Jest would wait for them
+  // forever after printing the results (MVP-164). A green run closes everything, so this only ends failed runs.
+  forceExit: true,
 };
