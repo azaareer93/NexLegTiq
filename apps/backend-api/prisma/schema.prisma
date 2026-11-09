@@ -367,6 +367,8 @@ model Office {
   fileNotes           FileNote[]
   taskTemplates       TaskTemplate[]
   tasks               Task[]
+  timeEntries         TimeEntry[]
+  timeTimers          TimeTimer[]
   courts              Court[]
   judges              Judge[]
   publicProsecutors   PublicProsecutor[]
@@ -396,6 +398,8 @@ model OfficeSettings {
   enableVisionOcr       Boolean       @default(false) @map("enable_vision_ocr")
   fileNumberFormat      String        @default("{YEAR}-{TYPE}-{SEQ:5}") @map("file_number_format")
   sessionIdleMinutes    Int           @default(30) @map("session_idle_minutes")
+  /// A stopped timer is rounded up to this many minutes (D-152).
+  timeIncrementMinutes  Int           @default(6) @map("time_increment_minutes")
   auditRetentionDays    Int           @default(365) @map("audit_retention_days")
   /// Highest retention ever set; kept by a trigger (never lowered) and used by the purge (D-136).
   maxAuditRetentionDays Int           @default(365) @map("max_audit_retention_days")
@@ -451,6 +455,8 @@ model User {
   timelineEvents      CaseTimelineEvent[]
   fileNotes           FileNote[]
   assignedTasks       Task[]                   @relation("TaskAssignee")
+  timeEntries         TimeEntry[]
+  timeTimer           TimeTimer?
   createdTasks        Task[]                   @relation("TaskCreator")
   attendedSessions    Session[]                @relation("SessionAttendingLawyer")
   createdSessions     Session[]                @relation("SessionCreator")
@@ -837,6 +843,8 @@ model LegalFile {
   aiSummaries          AiSummary[]
   notes                FileNote[]
   tasks                Task[]
+  timeEntries          TimeEntry[]
+  timeTimers           TimeTimer[]
   sessions             Session[]
   documentFolders      DocumentFolder[]
   documents            Document[]
@@ -1432,6 +1440,52 @@ model Task {
   @@index([officeId, assignedToId, status, dueDate])
   @@index([officeId, fileId])
   @@map("tasks")
+}
+
+/// Work logged on a file (MVP-90, D-152). Money as Decimal (D-017); the rate and currency are a snapshot taken when the
+/// entry is made. `invoiceId` locks the entry once invoiced (BIZ-006); its FK arrives with the invoices table.
+model TimeEntry {
+  id            String   @id @default(uuid(7)) @db.Uuid
+  officeId      String   @map("office_id") @db.Uuid
+  fileId        String   @map("file_id") @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  /// Calendar date the work was done (D-092).
+  workDate      DateTime @map("work_date") @db.Date
+  durationHours Decimal  @map("duration_hours") @db.Decimal(6, 2)
+  description   String
+  isBillable    Boolean  @default(true) @map("is_billable")
+  /// Per hour; null when neither the file nor the office has a rate.
+  hourlyRate    Decimal? @map("hourly_rate") @db.Decimal(14, 2)
+  currency      String   @db.Char(3)
+  invoiceId     String?  @map("invoice_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office Office    @relation(fields: [officeId], references: [id])
+  file   LegalFile @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  user   User      @relation(fields: [userId, officeId], references: [id, officeId], onUpdate: Restrict)
+
+  // The entries and totals of a file; the entries of a user.
+  @@index([officeId, fileId, workDate])
+  @@index([officeId, userId, workDate])
+  @@map("time_entries")
+}
+
+/// A running timer (MVP-90, D-152): at most one per user; stopping it creates a TimeEntry.
+model TimeTimer {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  officeId    String   @map("office_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  fileId      String   @map("file_id") @db.Uuid
+  description String?
+  startedAt   DateTime @default(now()) @map("started_at") @db.Timestamptz(3)
+
+  office Office    @relation(fields: [officeId], references: [id])
+  file   LegalFile @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  user   User      @relation(fields: [userId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+
+  @@unique([userId, officeId])
+  @@map("time_timers")
 }
 
 // ─── Cross-cutting ──────────────────────────────────────────────────────────────────────────────────────────────

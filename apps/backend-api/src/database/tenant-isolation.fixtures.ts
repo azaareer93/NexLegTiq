@@ -135,3 +135,25 @@ export const aiUsageIn = (db: PrismaClient, { officeId, userId }: SeededOffice) 
       durationMs: 1,
     },
   });
+
+export const timeEntryIn = async (db: PrismaClient, office: SeededOffice) =>
+  db.timeEntry.create({
+    data: {
+      officeId: office.officeId,
+      fileId: (await fileIn(db, office)).id,
+      userId: office.userId,
+      workDate: new Date('2026-11-09T00:00:00Z'),
+      durationHours: '1.50',
+      description: 'Isolation work',
+      currency: 'ILS',
+    },
+  });
+
+export const timerIn = async (db: PrismaClient, office: SeededOffice) =>
+  db.timeTimer.create({
+    data: {
+      officeId: office.officeId,
+      fileId: (await fileIn(db, office)).id,
+      userId: office.userId,
+    },
+  });

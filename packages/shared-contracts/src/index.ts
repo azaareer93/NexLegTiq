@@ -21,5 +21,6 @@ export * from './session.contract.js';
 export * from './subscription.contract.js';
 export * from './task-template.contract.js';
 export * from './task.contract.js';
+export * from './time-entry.contract.js';
 export * from './timeline.contract.js';
 export * from './user.contract.js';
