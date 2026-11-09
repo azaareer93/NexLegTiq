@@ -33,6 +33,7 @@ interface SummaryTarget {
   readonly fileId: string;
   readonly versionNumber: number;
   readonly language: 'AR' | 'EN';
+  readonly force?: boolean;
 }
 
 export const DOCUMENT_SUMMARY_FEATURE = 'document-summary';
@@ -44,6 +45,8 @@ export const SummarizeDocumentFieldsSchema = z.object({
   /** The version asked for: a newer one uploaded meanwhile ends the job as superseded, not as BIZ-020. */
   versionNumber: z.number().int().positive(),
   language: z.enum(['AR', 'EN']),
+  /** A regeneration: store a newer row even though one exists (the table is append-only, so reads take the newest). */
+  force: z.boolean().optional(),
 });
 export type SummarizeDocumentFields = z.infer<typeof SummarizeDocumentFieldsSchema>;
 
@@ -78,7 +81,8 @@ export class DocumentSummarizer extends BaseAiService implements OnModuleInit {
     data: Record<string, unknown>,
     context: AiJobContext,
   ): Promise<Record<string, unknown>> {
-    const { documentId, versionNumber, language } = SummarizeDocumentFieldsSchema.parse(data);
+    const { documentId, versionNumber, language, force } =
+      SummarizeDocumentFieldsSchema.parse(data);
     const document = await this.prisma.db.document.findFirst({
       where: { id: documentId, deletedAt: null },
       select: { id: true, fileId: true, currentVersion: true },
@@ -92,7 +96,10 @@ export class DocumentSummarizer extends BaseAiService implements OnModuleInit {
         versionNumber,
         language,
         promptVersion: DOCUMENT_SUMMARY_V1.version,
+        // A forced job only reuses its own result (a retry after the row was stored), never an older summary.
+        ...(force ? { aiJobId: context.aiJobId } : {}),
       },
+      orderBy: { createdAt: 'desc' },
       select: { id: true },
     });
     if (existing) return this.reused(existing.id, document, context.userId);
@@ -103,7 +110,7 @@ export class DocumentSummarizer extends BaseAiService implements OnModuleInit {
     const text = stored?.text.trim() ?? '';
     if (!text) throw new BusinessRuleException('BIZ-020', 'The document has no text to summarise');
     const parts = splitText(text).slice(0, MAX_PARTS);
-    const target = { ...document, versionNumber, language };
+    const target = { ...document, versionNumber, language, force: force === true };
     const result = await this.summarize(parts, target, context);
     return { summaryId: await this.store(target, parts.length, result, context) };
   }
@@ -120,8 +127,8 @@ export class DocumentSummarizer extends BaseAiService implements OnModuleInit {
 
   private async summarize(
     parts: readonly string[],
-    { id, fileId, versionNumber, language }: SummaryTarget,
-    { userId, signal }: AiJobContext,
+    { id, fileId, versionNumber, language, force }: SummaryTarget,
+    { userId, signal, aiJobId }: AiJobContext,
   ): Promise<AiResult<DocumentSummaryOutput>> {
     const lang = language === 'EN' ? 'en' : 'ar';
     const base = {
@@ -147,7 +154,14 @@ export class DocumentSummarizer extends BaseAiService implements OnModuleInit {
           ...base,
           // The first part is the request's counted call (it already passed the quota check above).
           partial: start + offset > 0,
-          cacheKey: [id, `v${versionNumber}`, language, `${start + offset}/${parts.length}`],
+          // A regeneration never reads notes cached by earlier jobs; its own retries still share its notes.
+          cacheKey: [
+            id,
+            `v${versionNumber}`,
+            language,
+            ...(force ? [`job-${aiJobId}`] : []),
+            `${start + offset}/${parts.length}`,
+          ],
           prompt: DOCUMENT_SUMMARY_V1.part(lang, part, start + offset, parts.length),
           schema: PartNotesSchema,
         }),
@@ -183,6 +197,7 @@ export class DocumentSummarizer extends BaseAiService implements OnModuleInit {
           language,
           promptVersion,
         },
+        orderBy: { createdAt: 'desc' },
         select: { id: true },
       });
       this.reused(stored.id, document, context.userId);
@@ -198,6 +213,20 @@ export class DocumentSummarizer extends BaseAiService implements OnModuleInit {
   ): Promise<string> {
     const { versionNumber, language } = document;
     return this.uow.run(async (tx, afterCommit) => {
+      const regeneration = document.force
+        ? ((
+            await tx.aiSummary.aggregate({
+              _max: { regeneration: true },
+              where: {
+                sourceType: 'DOCUMENT',
+                sourceId: document.id,
+                versionNumber,
+                language,
+                promptVersion,
+              },
+            })
+          )._max.regeneration ?? -1) + 1
+        : 0;
       const row = await tx.aiSummary.create({
         data: {
           officeId: this.officeId(),
@@ -211,6 +240,7 @@ export class DocumentSummarizer extends BaseAiService implements OnModuleInit {
           model,
           promptVersion,
           chunks,
+          regeneration,
           aiJobId,
           createdById: userId,
         },

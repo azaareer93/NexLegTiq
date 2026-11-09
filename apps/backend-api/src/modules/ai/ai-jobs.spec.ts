@@ -173,6 +173,9 @@ function jobsSetup(context: Record<string, unknown> = { officeId: OFFICE, userId
   return { jobs, aiJob, access, queues, realtime };
 }
 
+const p2002 = () =>
+  Object.assign(new Error('unique'), { name: 'PrismaClientKnownRequestError', code: 'P2002' });
+
 describe('AiJobs', () => {
   it('should check access, write the job and queue it after the commit', async () => {
     const { jobs, aiJob, queues } = jobsSetup();
@@ -201,6 +204,36 @@ describe('AiJobs', () => {
       { lang: 'ar', aiJobId: JOB },
       { jobId: JOB },
     );
+  });
+
+  it('should join a live job with the same dedupe key, also one a racing request created', async () => {
+    const live = { id: 'live1', status: 'RUNNING' };
+    const joined = jobsSetup();
+    joined.aiJob.findFirst.mockResolvedValueOnce(live);
+    await expect(joined.jobs.enqueue({ type: 'x', dedupeKey: 'k' })).resolves.toEqual({
+      jobId: 'live1',
+      status: 'RUNNING',
+    });
+    expect(joined.aiJob.create).not.toHaveBeenCalled();
+
+    const race = jobsSetup();
+    race.aiJob.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(live);
+    race.aiJob.create.mockRejectedValueOnce(p2002());
+    await expect(race.jobs.enqueue({ type: 'x', dedupeKey: 'k' })).resolves.toEqual({
+      jobId: 'live1',
+      status: 'RUNNING',
+    });
+
+    const lost = jobsSetup();
+    lost.aiJob.findFirst.mockResolvedValue(null);
+    lost.aiJob.create.mockRejectedValueOnce(p2002());
+    await expect(lost.jobs.enqueue({ type: 'x', dedupeKey: 'k' })).rejects.toMatchObject({
+      code: 'P2002',
+    });
+    const other = jobsSetup();
+    other.aiJob.findFirst.mockResolvedValue(null);
+    other.aiJob.create.mockRejectedValueOnce(new Error('db down'));
+    await expect(other.jobs.enqueue({ type: 'x', dedupeKey: 'k' })).rejects.toThrow('db down');
   });
 
   it('should refuse without a caller, and write nothing when AI is not available', async () => {

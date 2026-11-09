@@ -1,5 +1,7 @@
-import { AI_JOB_STATUSES, AI_SOURCE_TYPES } from '@nexlegtiq/shared-types';
+import { AI_FEEDBACK_REASONS, AI_JOB_STATUSES, AI_SOURCE_TYPES } from '@nexlegtiq/shared-types';
 import { z } from 'zod';
+
+import { longText } from './fields.js';
 
 /** Answer of AI endpoints that queue work: 202 `{ jobId, status }` (api-conventions.md). */
 export const AiJobAcceptedSchema = z.object({
@@ -44,14 +46,28 @@ export const CreateAiSummarySchema = z.object({
   sourceType: z.literal('DOCUMENT'),
   sourceId: z.uuid(),
   language: SummaryLanguageSchema,
+  /** Regenerate although a summary of this version, language and prompt is stored (counts against the quota). */
+  force: z.boolean().default(false),
 });
-export type CreateAiSummaryRequest = z.infer<typeof CreateAiSummarySchema>;
+export type CreateAiSummaryRequest = z.input<typeof CreateAiSummarySchema>;
 
-/** `GET /ai/summaries?sourceType&sourceId`: the latest summary per language of the document's current version. */
-export const AiSummaryQuerySchema = z.object({
-  sourceType: z.literal('DOCUMENT'),
-  sourceId: z.uuid(),
-});
+/**
+ * `GET /ai/summaries`: either `?sourceType=DOCUMENT&sourceId` (the latest summary per language of that document's
+ * current version) or `?fileId` (the same for every live document of the file the caller may see). Exactly one form.
+ */
+export const AiSummaryQuerySchema = z
+  .object({
+    sourceType: z.literal('DOCUMENT').optional(),
+    sourceId: z.uuid().optional(),
+    fileId: z.uuid().optional(),
+  })
+  .refine(
+    (q) =>
+      q.fileId
+        ? q.sourceType === undefined && q.sourceId === undefined
+        : q.sourceType !== undefined && q.sourceId !== undefined,
+    { message: 'validation.summaryQuery', path: ['fileId'] },
+  );
 export type AiSummaryQuery = z.infer<typeof AiSummaryQuerySchema>;
 
 /** An AI summary (D-148): always shown with its disclaimer (D-057); `dates` keep the document's own wording. */
@@ -75,3 +91,18 @@ export const AiSummarySchema = z.object({
   createdAt: z.iso.datetime(),
 });
 export type AiSummary = z.infer<typeof AiSummarySchema>;
+
+/** An item of `GET /ai/summaries?fileId`: the summary plus the document it summarises. */
+export const AiSummaryListItemSchema = AiSummarySchema.extend({
+  source: z.object({ type: z.literal('DOCUMENT'), id: z.uuid(), name: z.string() }),
+});
+export type AiSummaryListItem = z.infer<typeof AiSummaryListItemSchema>;
+
+/** `POST /ai/summaries/:id/feedback` (201 `{id}`): why a summary was not good. The comment is plain text. */
+export const AiFeedbackSchema = z.object({
+  reason: z.enum(AI_FEEDBACK_REASONS),
+  comment: longText(1000).optional(),
+});
+export type AiFeedbackRequest = z.infer<typeof AiFeedbackSchema>;
+export const AiFeedbackCreatedSchema = z.object({ id: z.uuid() });
+export type AiFeedbackCreated = z.infer<typeof AiFeedbackCreatedSchema>;
