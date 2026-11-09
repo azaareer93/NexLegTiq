@@ -42,7 +42,9 @@ export interface FileUser {
 export interface FileActions {
   readonly edit: boolean;
   readonly reassign: boolean;
-  readonly changeStatus: boolean;
+  /** Close an open or suspended file / reopen a closed one (D-052, D-153). */
+  readonly close: boolean;
+  readonly reopen: boolean;
   readonly archive: boolean;
   readonly delete: boolean;
   /** Setting or lifting confidentiality: office manager or the file's responsible lawyer (D-096). */
@@ -66,12 +68,23 @@ function holds(file: Case, user: FileUser, permission: Permission): boolean {
 const READ_ONLY: FileActions = {
   edit: false,
   reassign: false,
-  changeStatus: false,
+  close: false,
+  reopen: false,
   archive: false,
   delete: false,
   confidentiality: false,
   billing: false,
 };
+
+/** Close an open or suspended file, reopen a closed one, archive a closed one (OM/SL only) — D-052, D-153. */
+function lifecycleActions(file: Case, user: FileUser, can: (permission: Permission) => boolean) {
+  const closed = file.status === 'CLOSED';
+  return {
+    close: (file.status === 'OPEN' || file.status === 'SUSPENDED') && can('close:case'),
+    reopen: closed && can('reopen:case'),
+    archive: closed && (user.role === 'OFFICE_MANAGER' || user.role === 'SENIOR_LAWYER'),
+  };
+}
 
 /**
  * What the header offers (UI only: the API re-checks every call, D-051). An archived file is read-only for everyone
@@ -81,12 +94,10 @@ export function fileActions(file: Case, user: FileUser): FileActions {
   if (file.status === 'ARCHIVED') return READ_ONLY;
   const can = (permission: Permission) => holds(file, user, permission);
   const edit = can('edit:any:case') || (can('edit:assigned:case') && isAssigned(file, user.id));
-  const lifecycle = can('close:case') || can('reopen:case');
   return {
     edit,
     reassign: can('edit:any:case'),
-    changeStatus: lifecycle,
-    archive: lifecycle,
+    ...lifecycleActions(file, user, can),
     // The API checks a delete as a write too (D-096).
     delete: can('delete:case') && can('edit:any:case'),
     confidentiality:

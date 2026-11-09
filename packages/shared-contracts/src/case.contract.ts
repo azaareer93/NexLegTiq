@@ -195,3 +195,26 @@ export type AddTeamMemberRequest = z.input<typeof AddTeamMemberSchema>;
 /** `PATCH /cases/:id/team/:userId`: a new role on the file (same rules as adding). */
 export const UpdateTeamMemberSchema = z.object({ role: z.enum(FILE_TEAM_ROLES) });
 export type UpdateTeamMemberRequest = z.infer<typeof UpdateTeamMemberSchema>;
+
+/**
+ * `POST /cases/:id/close` (D-153): open tasks block it with 422 BIZ-003 (detail `openTasks`) unless `force` with a
+ * `forceReason`.
+ */
+export const CloseCaseSchema = z
+  .object({
+    reason: plainText(1000).optional(),
+    force: z.boolean().default(false),
+    forceReason: plainText(1000).optional(),
+  })
+  .refine((body) => !body.force || Boolean(body.forceReason?.trim()), {
+    path: ['forceReason'],
+    message: 'validation.required',
+  });
+export type CloseCaseRequest = z.input<typeof CloseCaseSchema>;
+
+/** `POST /cases/:id/reassign` (D-153): a new responsible lawyer (OM, SL or L), with an optional note for the timeline. */
+export const ReassignCaseSchema = z.object({
+  newResponsibleLawyerId: z.uuid(),
+  note: plainText(1000).optional(),
+});
+export type ReassignCaseRequest = z.infer<typeof ReassignCaseSchema>;

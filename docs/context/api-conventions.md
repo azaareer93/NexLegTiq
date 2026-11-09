@@ -56,8 +56,8 @@ GET `offices/me/statistics` · POST `offices/me/export` (202)
 **clients**: CRUD `clients` (+ `?search, clientType, sort`) · `clients/:id/contacts` CRUD · GET `clients/:id/files` ·
 GET `clients/:id/invoices` · `clients/:id/notes` · portal access: POST `clients/:id/portal-invitations`, GET/DELETE `clients/:id/portal-users`
 **cases** (legal files): POST/GET `cases` (`?status, fileType, priority, scope=mine|all, search, clientId, sort`) · GET/PATCH/DELETE `cases/:id` ·
-POST `cases/:id/close` · POST `cases/:id/reopen` · POST `cases/:id/archive` · POST `cases/:id/reassign` ·
 GET/POST `cases/:id/clients`, PATCH (`{isPrimary: true}`)/DELETE `cases/:id/clients/:clientId` (last client → 422 BIZ-018) · GET/POST `cases/:id/team`, PATCH (`{role}`)/DELETE `cases/:id/team/:userId` (the responsible lawyer cannot leave → 422 BIZ-019; D-140) · GET/POST `cases/:id/parties` (POST and PATCH return `{fileParty, conflicts[]}`), PATCH/DELETE `cases/:id/parties/:filePartyId` (D-135) · `cases/:id/witnesses` (+statements) ·
+POST `cases/:id/close` (open tasks → 422 BIZ-003 unless `force`+`forceReason`; closed → BIZ-002) · POST `cases/:id/reopen|archive` (wrong status → 409 RES-003; archived → BIZ-007) · POST `cases/:id/reassign` (D-153) ·
 GET `cases/:id/timeline?cursor&types&limit` (`{items, nextCursor, names}`, newest first; D-150) · `cases/:id/notes` · GET `cases/:id/audit` · GET `conflicts?resolved&fileId` · PATCH `conflicts/:id/resolve` (`{notes}`; already resolved → 422 BIZ-017) ·
 GET `parties?search=` (reuse: Arabic-normalised name or exact national/tax id) · CRUD `task-templates`
 **courts**: GET `courts?jurisdiction&courtType&search` (global+office) · GET `courts/:id` · POST/PATCH/DELETE `courts` (office-owned; global → 403) · GET/POST `courts/:id/judges`, PATCH/DELETE `courts/:id/judges/:judgeId` · CRUD `prosecutors` (D-115)

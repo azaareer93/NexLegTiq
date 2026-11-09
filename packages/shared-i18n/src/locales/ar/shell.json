@@ -51,7 +51,8 @@
     "openWithCount_few": "الإشعارات، {{count}} إشعارات غير مقروءة",
     "openWithCount_many": "الإشعارات، {{count}} إشعارًا غير مقروء",
     "openWithCount_other": "الإشعارات، {{count}} إشعار غير مقروء",
-    "markReadOf": "تعليم «⁨{{title}}⁩» كمقروء"
+    "markReadOf": "تعليم «⁨{{title}}⁩» كمقروء",
+    "fileReassignedAway": "أُعيد تكليف الملف ⁨{{fileNumber}}⁩ إلى محامٍ آخر"
   },
   "profile": {
     "menu": "قائمة الحساب",
