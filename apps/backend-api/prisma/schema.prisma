@@ -1409,6 +1409,12 @@ model TaskTemplate {
   @@map("task_templates")
 }
 
+enum TaskSource {
+  MANUAL
+  TEMPLATE
+  AI_NEXT_STEP
+}
+
 /**
  * A to-do on a file, or a personal one (fileId null: only its creator and assignee see it). `completedAt` is set
  * exactly while DONE (CHECK). Hard-deleted (audited); recurrence, reminders and template/AI sources join with their
@@ -1429,6 +1435,9 @@ model Task {
   completedAt  DateTime?  @map("completed_at") @db.Timestamptz(3)
   /// Position in its Kanban column, ascending (PATCH /tasks/reorder).
   sortOrder    Int        @default(0) @map("sort_order")
+  /// Where the task came from (D-156): typed by hand, a task template on file open, or an AI next step.
+  sourceType   TaskSource @default(MANUAL) @map("source_type")
+  sourceId     String?    @map("source_id") @db.Uuid
   createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
 

@@ -40,6 +40,7 @@ function setup(context: Partial<RequestContext> = caller('OFFICE_MANAGER')) {
         .fn()
         .mockResolvedValue({ currency: 'ILS', jurisdiction: 'PALESTINE', timezone: 'Asia/Hebron' }),
     },
+    taskTemplate: { findMany: jest.fn().mockResolvedValue([]) },
     officeSettings: {
       findFirstOrThrow: jest.fn().mockResolvedValue({
         defaultBillingMethod: 'HOURLY',

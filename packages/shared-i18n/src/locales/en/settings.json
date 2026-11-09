@@ -79,5 +79,23 @@
     "sessionIdleMinutes": "Sign out after inactivity (minutes)",
     "auditRetentionDays": "Keep the audit log (days)",
     "auditRetentionHelp": "At least 365 days; it can only be raised."
+  },
+  "templates": {
+    "title": "Task templates",
+    "hint": "A new case gets these tasks, due the given number of days after it opens. A task for the paralegal is skipped when the case has none.",
+    "add": "Add template",
+    "edit": "Edit template",
+    "name": "Template name",
+    "fileType": "Case type",
+    "anyType": "Every case type",
+    "taskTitle": "Task",
+    "description": "Task description",
+    "dueDays": "Due after (days)",
+    "assignee": "Assigned to",
+    "active": "Active",
+    "activeFor": "Template {{name}} active",
+    "actions": "Actions",
+    "deleteTitle": "Delete this template?",
+    "deleteBody": "New cases will no longer get this task. Tasks already created stay."
   }
 }

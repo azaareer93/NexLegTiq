@@ -2874,3 +2874,25 @@ checks the account again), so known and unknown addresses take the same path. Ac
 non-empty password (an older password still works); the policy is applied to new accounts by the service (VAL-001 on `password`).
 **Accepted:** the preview's `accountExists` tells whoever holds the link that the address has an account; revoking in one office ends
 the account's sessions in every office (it signs in again).
+**D-156 — Task templates: matching, assignees, due dates, starter set** · Accepted (MVP-78, 2026-11-09) · Amends D-098
+MVP-78 left open how a template's assignee is found, what "skip if role missing" covers, where the starter set lives and
+how a task records its origin. → **Schema (amends D-098):** `Task.sourceType` (`TaskSource` MANUAL|TEMPLATE|AI_NEXT_STEP,
+default MANUAL — existing tasks were typed by hand) and `sourceId` (the template, or the AI result later; no FK, so a deleted
+template leaves its tasks as history); migration `task_source`. **API** `GET/POST /task-templates`, `PATCH/DELETE
+/task-templates/:id` (`manage:office` = OFFICE_MANAGER): name, `fileType` (null = every type), `defaultTitle`,
+`defaultDescription`, `dueDaysAfterOpen` (0–365, null = no due date), `defaultAssigneeRole` RESPONSIBLE_LAWYER|PARALEGAL
+(MEMBER is not offered — a file has no single member; an older null row means the responsible lawyer), `isActive`
+(retires one without deleting); audited; delete is hard. **On file create** (same transaction as the file, after its team):
+every active template of the office for the file's type or every type becomes a TODO task — due the opening date (office
+zone, D-095) plus the days, assigned to the file's responsible lawyer or its responsible paralegal; **a paralegal template is
+skipped when the file has none**; placed at the end of the TODO column in template order (earliest due first); creator =
+the file's creator; `sourceType TEMPLATE`. No notification is sent for them (the lawyer just opened or was given the file).
+**Starter set:** signup (D-083) creates five templates in the office's default language — litigation: statement of claim
++7 (lawyer), evidence +14 (paralegal), service +30 (lawyer); lease: drafting +3 (lawyer), registration +14 (paralegal);
+existing offices get none (they add their own). **Office app:** Settings → Task templates (a card with the list, active
+switch, add/edit modal, delete after a confirm). **Not done:** templates applied when a file's type changes, per-template
+assignment to a named user, ordering by drag.
+Review additions (same PR): template tasks are **audited** like hand-made ones (one `Task` CREATE row each, with
+`sourceType` and `sourceId`, written in the file's transaction); a deleted template's audit row keeps its name and task
+title; the Settings card shows an error with a retry when the list cannot load and lists the template name; the Arabic
+starter names use the glossary's «تقاضٍ».

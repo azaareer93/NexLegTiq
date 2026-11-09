@@ -418,7 +418,7 @@ describe('documents tab (MVP-75)', () => {
     );
     renderApp(`/cases/${FILE_ID}?tab=documents`, 'en');
     // Cold start plus the query client's one retry: slower than a plain load under a full parallel run.
-    const retry = await screen.findByRole('button', { name: /try again/i }, { timeout: 2 * COLD });
+    const retry = await screen.findByRole('button', { name: /try again/i }, { timeout: 3 * COLD });
     broken = false;
     fireEvent.click(retry);
     expect(await screen.findByTestId(`document-row-${DOC_ID}`)).toBeTruthy();

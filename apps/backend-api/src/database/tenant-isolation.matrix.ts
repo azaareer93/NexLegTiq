@@ -251,6 +251,7 @@ export const TENANT_ISOLATION_MATRIX: readonly TenantResource[] = [
         data: { officeId, name: 'Isolation', defaultTitle: 'File the claim' },
       }),
     update: { name: 'Renamed' },
+    http: { list: 'task-templates', item: (id) => `task-templates/${id}` },
   },
   {
     model: 'Task',

@@ -1,5 +1,8 @@
-import { TaskSchema } from '@nexlegtiq/shared-contracts';
+import { TaskSchema, TaskTemplateSchema } from '@nexlegtiq/shared-contracts';
 import type {
+  CreateTaskTemplateRequest,
+  TaskTemplate,
+  UpdateTaskTemplateRequest,
   CreateTaskRequest,
   Task,
   TaskQuerySchema,
@@ -29,6 +32,20 @@ export function tasksApi(client: ApiClient) {
     /** A column's tasks in their new order (`create:task`); 204. */
     reorder: (status: TaskStatus, taskIds: readonly string[]): Promise<void> =>
       client.request({ method: 'PATCH', path: 'tasks/reorder', body: { status, taskIds } }),
+    remove: (id: string): Promise<void> => client.request({ method: 'DELETE', path: path(id) }),
+  };
+}
+
+/** The office's task templates (`manage:office`, D-156). */
+export function taskTemplatesApi(client: ApiClient) {
+  const path = (id: string) => `task-templates/${encodeURIComponent(id)}`;
+  return {
+    list: (signal?: AbortSignal): Promise<TaskTemplate[]> =>
+      client.request({ method: 'GET', path: 'task-templates', signal }, TaskTemplateSchema.array()),
+    create: (body: CreateTaskTemplateRequest): Promise<TaskTemplate> =>
+      client.request({ method: 'POST', path: 'task-templates', body }, TaskTemplateSchema),
+    update: (id: string, body: UpdateTaskTemplateRequest): Promise<TaskTemplate> =>
+      client.request({ method: 'PATCH', path: path(id), body }, TaskTemplateSchema),
     remove: (id: string): Promise<void> => client.request({ method: 'DELETE', path: path(id) }),
   };
 }
