@@ -38,7 +38,20 @@ async function until(condition: () => boolean): Promise<void> {
   expect(condition()).toBe(true);
 }
 
-const server = setupServer(http.post(api('admin/auth/refresh'), () => fail(401, 'AUTH-003')));
+const server = setupServer(
+  http.post(api('admin/auth/refresh'), () => fail(401, 'AUTH-003')),
+  // The signed-in home redirects to the offices list.
+  http.get(api('admin/offices'), () =>
+    HttpResponse.json({
+      success: true,
+      data: [],
+      meta: {
+        ...meta,
+        pagination: { page: 1, limit: 20, total: 0, totalPages: 0, hasMore: false },
+      },
+    }),
+  ),
+);
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
 afterEach(() => {
   cleanup();
@@ -95,7 +108,7 @@ describe('admin sign-in', () => {
     click('login-submit');
 
     expect(await screen.findByTestId('admin-name')).toHaveProperty('textContent', 'Founder Name');
-    expect(router.state.location.pathname).toBe('/');
+    await waitFor(() => expect(router.state.location.pathname).toBe('/offices'));
     expect(body).toEqual({
       email: 'founder@example.test',
       password: 'Testtesttest1',
