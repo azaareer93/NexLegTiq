@@ -38,6 +38,7 @@ export class InvoiceLifecycle {
   async update(id: string, input: UpdateInvoiceRequest): Promise<Invoice> {
     await this.uow.run(async (tx) => {
       const row = await this.access.locked(tx, id, ['DRAFT']);
+      const oldExtras = row.lines.filter((line) => line.timeEntryId === null).length;
       const totals = await this.replaceExtras(tx, row, input);
       await tx.invoice.update({
         where: { id },
@@ -53,13 +54,15 @@ export class InvoiceLifecycle {
         action: 'UPDATE',
         oldValues: {
           total: roundMoney(row.total.toFixed(), row.currency),
+          taxRatePercent: row.taxRatePercent.toFixed(2),
           dueDate: row.dueDate ? day(row.dueDate) : null,
+          extraLines: oldExtras,
         },
         newValues: {
           ...totals,
           dueDate: input.dueDate ?? (row.dueDate ? day(row.dueDate) : null),
           notesChanged: input.notes !== undefined,
-          extraLines: input.extraLines?.length,
+          extraLines: input.extraLines?.length ?? oldExtras,
         },
       });
     });
@@ -135,6 +138,7 @@ export class InvoiceLifecycle {
   async markPaid(id: string, input: MarkInvoicePaidRequest): Promise<Invoice> {
     await this.uow.run(async (tx) => {
       const row = await this.access.locked(tx, id, ['SENT', 'OVERDUE']);
+      await this.assertPaymentDate(tx, row, input.paidAt);
       await tx.invoice.update({
         where: { id },
         data: {
@@ -154,6 +158,18 @@ export class InvoiceLifecycle {
       });
     });
     return this.invoices.get(id);
+  }
+
+  /** The payment date (office time zone) is neither in the future nor before the issue date. */
+  private async assertPaymentDate(tx: ScopedTransaction, row: Locked, paidAt: string) {
+    const { timezone } = await tx.office.findFirstOrThrow({ select: { timezone: true } });
+    const paidOn = wallClock(new Date(paidAt), timezone).date;
+    if (paidOn > wallClock(new Date(), timezone).date) {
+      throw new ValidationException([{ field: 'paidAt', message: 'validation.futureDate' }]);
+    }
+    if (row.issueDate && paidOn < day(row.issueDate)) {
+      throw new ValidationException([{ field: 'paidAt', message: 'validation.dateRange' }]);
+    }
   }
 
   /** Voiding frees the billed entries; the invoice keeps its number and lines as history. */

@@ -10,6 +10,10 @@ describe('lineAmount (D-162)', () => {
     ['0.33', '10.000', 'JOD', '3.300'],
     ['0.10', '1.005', 'JOD', '0.100'],
     ['1.00', '0.0125', 'JOD', '0.012'],
+    // JOD ties at three digits: to the even digit, down and up
+    ['1.00', '0.0135', 'JOD', '0.014'],
+    ['1.00', '0.0145', 'JOD', '0.014'],
+    ['1.00', '0.0155', 'JOD', '0.016'],
   ])('should multiply %s x %s in %s to %s', (quantity, price, currency, expected) => {
     expect(lineAmount(quantity, price, currency)).toBe(expected);
   });
@@ -33,6 +37,12 @@ describe('invoiceTotals (D-162)', () => {
       total: '117.585',
     });
     expect(invoiceTotals(['10.50'], '5.00', true, 'ILS').taxAmount).toBe('0.52');
+  });
+
+  it('should round a JOD tax tie to the even digit, down and up', () => {
+    // 1.010 x 5% = 0.0505 -> 0.050; 1.030 x 5% = 0.0515 -> 0.052
+    expect(invoiceTotals(['1.010'], '5.00', true, 'JOD').taxAmount).toBe('0.050');
+    expect(invoiceTotals(['1.030'], '5.00', true, 'JOD').taxAmount).toBe('0.052');
   });
 
   it('should store a zero rate and no tax when tax is not included', () => {

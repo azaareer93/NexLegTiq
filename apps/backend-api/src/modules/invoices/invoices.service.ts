@@ -99,10 +99,11 @@ export class InvoicesService {
   ): Promise<string> {
     const { userId, officeId } = this.access.caller();
     const entries = await this.billableEntries(tx, officeId, candidates, input);
-    const currency = this.currencyOf(entries.length > 0 ? entries : candidates);
-    if (entries.length === 0 && input.extraLines.length === 0) {
+    // A consolidated invoice needs time to bill: extra items alone name no file, so no one could be limited by it.
+    if (entries.length === 0 && (input.extraLines.length === 0 || !input.fileId)) {
       throw invalid('periodStart', 'validation.nothingToInvoice');
     }
+    const currency = this.currencyOf(entries.length > 0 ? entries : candidates);
     const lines = buildLines(
       entries.map((entry) => ({
         id: entry.id,

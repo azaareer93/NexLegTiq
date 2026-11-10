@@ -87,6 +87,9 @@ CREATE UNIQUE INDEX "invoice_number_sequences_office_id_year_key" ON "invoice_nu
 -- CreateIndex
 CREATE INDEX "time_entries_office_id_invoice_id_idx" ON "time_entries"("office_id", "invoice_id");
 
+-- Only tests ever set time_entries.invoice_id before invoices existed; clear it so the foreign key can be added.
+UPDATE "time_entries" SET "invoice_id" = NULL WHERE "invoice_id" IS NOT NULL;
+
 -- AddForeignKey
 ALTER TABLE "time_entries" ADD CONSTRAINT "time_entries_invoice_id_office_id_fkey" FOREIGN KEY ("invoice_id", "office_id") REFERENCES "invoices"("id", "office_id") ON DELETE RESTRICT ON UPDATE RESTRICT;
 

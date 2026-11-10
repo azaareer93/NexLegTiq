@@ -20,7 +20,12 @@ describe('InvoiceAccess (D-162)', () => {
     });
     const assigned = access('LAWYER', ['view:assigned:invoices']);
     expect(assigned.fileScope()).toMatchObject({ OR: expect.any(Array) });
-    expect(assigned.visibleWhere()).toMatchObject({ AND: expect.any(Array) });
+    const [named] = assigned.visibleWhere().AND as { OR: object[] }[];
+    // A file-less invoice passes only through a line that names a file: none at all is not visible.
+    expect(named?.OR).toEqual([
+      { file: expect.anything() },
+      { fileId: null, lines: { some: { fileId: { not: null } } } },
+    ]);
   });
 
   it('should refuse a missing caller', () => {

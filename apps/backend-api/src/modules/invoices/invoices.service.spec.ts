@@ -96,21 +96,29 @@ describe('InvoicesService.create (D-162)', () => {
     expect(audit.log).toHaveBeenCalledTimes(1);
   });
 
-  it('should bill extra items alone on the files currency, consolidated without a file', async () => {
+  it('should bill extra items alone on the files currency, only on a named file', async () => {
     const { service, tx, db } = setup([], [{ id: FILE, currency: 'JOD', status: 'OPEN' }]);
     await service.create(
       body({
+        fileId: FILE,
         includeTax: false,
         extraLines: [{ description: 'Fee', quantity: '1', unitPrice: '2.5' }],
       }),
     );
     expect(tx.invoice.create.mock.calls[0][0].data).toMatchObject({
-      fileId: null,
+      fileId: FILE,
       currency: 'JOD',
       total: '2.500',
       dueDate: null,
     });
-    expect(db.legalFile.findMany).toHaveBeenCalled();
+    expect(db.legalFile.findFirst).toHaveBeenCalled();
+  });
+
+  it('should refuse a consolidated invoice with extra items but no time (it names no file)', async () => {
+    const { service } = setup([], [{ id: FILE, currency: 'ILS', status: 'OPEN' }]);
+    await expect(
+      service.create(body({ extraLines: [{ description: 'x', quantity: '1', unitPrice: '1' }] })),
+    ).rejects.toMatchObject({ code: 'VAL-001' });
   });
 
   it('should refuse unknown clients, unrated entries, nothing to bill and mixed currencies', async () => {

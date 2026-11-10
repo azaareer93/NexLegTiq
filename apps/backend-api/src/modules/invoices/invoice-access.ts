@@ -51,7 +51,8 @@ export class InvoiceAccess {
     if (Object.keys(scope).length === 0) return {};
     return {
       AND: [
-        { OR: [{ fileId: null }, { file: scope }] },
+        // Fail closed: an invoice naming no file at all is visible to the office manager only (the empty scope above).
+        { OR: [{ file: scope }, { fileId: null, lines: { some: { fileId: { not: null } } } }] },
         { lines: { none: { fileId: { not: null }, NOT: { file: scope } } } },
       ],
     };
@@ -69,6 +70,7 @@ export class InvoiceAccess {
         currency: true,
         fileId: true,
         invoiceNumber: true,
+        issueDate: true,
         dueDate: true,
         taxRatePercent: true,
         total: true,

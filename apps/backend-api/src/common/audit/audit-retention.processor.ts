@@ -64,7 +64,10 @@ export class AuditRetentionProcessor
   /** The purge spans every office, so it runs before the tenant checks of `TenantProcessor.process`. */
   override async process(job: Job<Record<string, never> & TenantJobData>): Promise<unknown> {
     if (job.name === PURGE_AUDIT_LOGS_JOB) return this.purge();
-    if (job.name === MARK_OVERDUE_INVOICES_JOB) return this.overdue.run();
+    // A platform job: only the scheduler's (no office in its data) may run it, never a job someone queued for an office.
+    if (job.name === MARK_OVERDUE_INVOICES_JOB && !('officeId' in (job.data ?? {}))) {
+      return this.overdue.run();
+    }
     return super.process(job);
   }
 

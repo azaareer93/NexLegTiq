@@ -182,6 +182,7 @@ describe('invoices (HTTP + PostgreSQL)', () => {
     const res = await draft(manager, {
       clientId: client,
       fileId: f1,
+      // 2 x 10.005 = 20.010 exactly; the price itself is a tie at two digits (10.00|5), so rounding happens on the amount.
       extraLines: [{ description: 'Court fee', quantity: '2', unitPrice: '10.005' }],
     });
     expect(res.status).toBe(201);
@@ -318,10 +319,12 @@ describe('invoices (HTTP + PostgreSQL)', () => {
       .expect(200);
     const voidAgain = await http().post(`/api/v1/invoices/${id}/void`).set(as(manager));
     expect(voidAgain.body.error.code).toBe('BIZ-006');
-    // Its hours can be invoiced again.
-    await draft(manager, { clientId: client, fileId: f1 }).then((res) =>
-      expect(res.status).toBe(201),
-    );
+    // Its hours can be invoiced again, on a new draft that bills the same entry.
+    const again = await draft(manager, { clientId: client, fileId: f1 });
+    expect(again.status).toBe(201);
+    expect(again.body.data.lines.map((l: { timeEntryId: string }) => l.timeEntryId)).toEqual([
+      e.id,
+    ]);
   });
 
   it('should edit and delete only drafts; deleting frees the entries', async () => {
@@ -386,6 +389,127 @@ describe('invoices (HTTP + PostgreSQL)', () => {
         where: { officeId: manager.officeId, eventType: 'INVOICE_PAID' },
       }),
     ).toBe(1);
+  });
+
+  it('should let two simultaneous drafts over the same entries make one invoice', async () => {
+    const entries = [await entry(f1, '1.00', '100.00'), await entry(f1, '2.00', '100.00')];
+    const results = await Promise.all([
+      draft(manager, { clientId: client, fileId: f1 }),
+      draft(manager, { clientId: client, fileId: f1 }),
+    ]);
+    // The loser waits for the entries' lock, then finds nothing left to bill (400); a lost claim would be 409.
+    expect(results.map((res) => res.status).sort()).toEqual([201, 400]);
+    const linked = await raw.timeEntry.findMany({
+      where: { id: { in: entries.map((e) => e.id) } },
+    });
+    expect(new Set(linked.map((e) => e.invoiceId)).size).toBe(1);
+    expect(linked.every((e) => e.invoiceId !== null)).toBe(true);
+    expect(await raw.invoice.count({ where: { officeId: manager.officeId } })).toBe(1);
+  });
+
+  it('should refuse extra items alone on a consolidated invoice, and show a file-less invoice to the manager only', async () => {
+    const res = await draft(manager, {
+      clientId: client,
+      extraLines: [{ description: 'Fee', quantity: '1', unitPrice: '5.00' }],
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error.details[0].message).toBe('validation.nothingToInvoice');
+    // Defence in depth: a row that names no file (made outside the API) fails closed.
+    const orphan = await raw.invoice.create({
+      data: {
+        officeId: manager.officeId,
+        clientId: client,
+        currency: 'ILS',
+        subtotal: '5',
+        taxRatePercent: '0',
+        taxAmount: '0',
+        total: '5',
+        createdById: manager.userId,
+      },
+    });
+    await http().get(`/api/v1/invoices/${orphan.id}`).set(as(manager)).expect(200);
+    for (const person of [lawyer, admin, senior]) {
+      await http().get(`/api/v1/invoices/${orphan.id}`).set(as(person)).expect(404);
+    }
+  });
+
+  it('should sweep by the office date: due 1 Nov is overdue from midnight in Hebron, not before', async () => {
+    await entry(f1, '1.00', '100.00');
+    const id = (await draft(manager, { clientId: client, fileId: f1, dueDate: '2099-01-01' })).body
+      .data.id as string;
+    await http().post(`/api/v1/invoices/${id}/send`).set(as(manager)).expect(200);
+    await raw.invoice.update({
+      where: { id },
+      data: { dueDate: new Date('2026-11-01T00:00:00Z') },
+    });
+    const sweep = new InvoiceOverdueSweep(
+      app.get(PrismaService),
+      app.get(TenantRunner),
+      app.get(UnitOfWork),
+      app.get(AuditService),
+      { setContext: () => undefined, info: () => undefined } as unknown as PinoLogger,
+    );
+    const audits = () =>
+      raw.auditLog.count({
+        where: {
+          officeId: manager.officeId,
+          entityId: id,
+          newValues: { path: ['status'], equals: 'OVERDUE' },
+        },
+      });
+    // 20:30 UTC on 1 Nov is 22:30 in Hebron (UTC+2): still the due day.
+    await sweep.run(new Date('2026-11-01T20:30:00Z'));
+    expect((await raw.invoice.findUniqueOrThrow({ where: { id } })).status).toBe('SENT');
+    // 22:30 UTC is already 2 Nov in Hebron.
+    await sweep.run(new Date('2026-11-01T22:30:00Z'));
+    expect((await raw.invoice.findUniqueOrThrow({ where: { id } })).status).toBe('OVERDUE');
+    expect(await audits()).toBe(1);
+    // A second run changes (and audits) nothing.
+    await sweep.run(new Date('2026-11-02T22:30:00Z'));
+    expect(await audits()).toBe(1);
+  });
+
+  it('should pay or void an overdue invoice, and refuse a payment dated in the future', async () => {
+    const overdue = async () => {
+      await entry(f1, '1.00', '100.00');
+      const id = (await draft(manager, { clientId: client, fileId: f1 })).body.data.id as string;
+      await http().post(`/api/v1/invoices/${id}/send`).set(as(manager)).expect(200);
+      await raw.invoice.update({ where: { id }, data: { status: 'OVERDUE' } });
+      return id;
+    };
+    const toVoid = await overdue();
+    await http().post(`/api/v1/invoices/${toVoid}/void`).set(as(manager)).expect(200);
+    const toPay = await overdue();
+    const pay = (paidAt: string) =>
+      http()
+        .post(`/api/v1/invoices/${toPay}/mark-paid`)
+        .set(as(manager))
+        .send({ paidAt, method: 'CASH' });
+    const future = await pay('2999-01-01T09:00:00+02:00');
+    expect(future.status).toBe(400);
+    expect(future.body.error.details[0].message).toBe('validation.futureDate');
+    const early = await pay('2020-01-01T09:00:00+02:00');
+    expect(early.body.error.details[0].message).toBe('validation.dateRange');
+    const paid = await pay(new Date().toISOString());
+    expect(paid.body.data.status).toBe('PAID');
+  });
+
+  it('should order equal totals by id, newest first', async () => {
+    const ids: string[] = [];
+    for (const date of ['2026-11-01', '2026-11-02']) {
+      await entry(f1, '1.00', '100.00', { workDate: date });
+      const res = await draft(manager, {
+        clientId: client,
+        fileId: f1,
+        includeTax: false,
+        periodStart: date,
+        periodEnd: date,
+      });
+      ids.push(res.body.data.id);
+    }
+    const list = await http().get('/api/v1/invoices?sort=total:asc').set(as(manager)).expect(200);
+    // Same total (100.00): the explicit tie-break is id descending (UUID v7: the later draft first).
+    expect(list.body.data.map((row: { id: string }) => row.id)).toEqual([...ids].sort().reverse());
   });
 
   it('should turn a sent invoice overdue after its due date, by the daily sweep', async () => {

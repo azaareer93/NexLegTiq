@@ -3041,3 +3041,11 @@ when **all** its files are visible; invoices of a confidential file only to the 
 Every write is audited. **Note for later code:** the generic case-scope `where` must not be negated (`NOT`) — Prisma's NULL
 handling then drops files without a paralegal; invoices use their own file-scope check. **Not here:** the PDF, emailing and
 sharing to the portal (invoice PDF story), the office app's invoicing UI, retainers.
+Review additions (D-162, same PR): **an invoice without a file is visible only to the office manager** (fail closed) and a
+consolidated invoice needs at least one time entry (`validation.nothingToInvoice`) — otherwise an extra-lines-only invoice
+for the client of a confidential file reached everyone with invoice rights. Two drafts racing for the same entries: the
+entries are locked first, so the second finds nothing left (400 `validation.nothingToInvoice`), each entry is linked once. The
+overdue job updates with `RETURNING` and audits only the rows it changed, and runs only as the platform job (no office in its
+data, as D-144). `paidAt` may be neither in the future (office zone) nor before the issue date. The update audit row records
+the old and new tax rate and extra lines. The migration clears any `time_entries.invoice_id` before adding its FK (only tests
+ever set it). A time entry on a draft already counts as invoiced (locked, BIZ-006; not "unbilled" in the D-152 totals).

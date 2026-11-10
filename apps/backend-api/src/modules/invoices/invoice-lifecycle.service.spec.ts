@@ -114,6 +114,20 @@ describe('InvoiceLifecycle send, pay, void, delete (D-162)', () => {
     });
   });
 
+  it('should number with next year at 23:30 UTC on 31 December (already 1 January in Hebron)', async () => {
+    jest.useFakeTimers({ now: new Date('2026-12-31T23:30:00Z') });
+    try {
+      const { lifecycle, tx, numbers } = setup();
+      await lifecycle.send(INVOICE);
+      expect(numbers.next).toHaveBeenCalledWith(tx, 2027);
+      expect(tx.invoice.update.mock.calls[0][0].data.issueDate).toEqual(
+        new Date('2027-01-01T00:00:00Z'),
+      );
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('should keep a chosen due date and refuse one already past', async () => {
     const ok = setup(row({ dueDate: new Date('2099-01-01T00:00:00Z') }));
     await ok.lifecycle.send(INVOICE);
@@ -136,6 +150,31 @@ describe('InvoiceLifecycle send, pay, void, delete (D-162)', () => {
       paymentReference: null,
     });
     expect(timeline.record.mock.calls[0][1]).toMatchObject({ eventType: 'INVOICE_PAID' });
+  });
+
+  it('should refuse a payment date in the future or before the issue date', async () => {
+    const future = setup(row({ status: 'SENT' }));
+    await expect(
+      future.lifecycle.markPaid(INVOICE, { paidAt: '2999-01-01T09:00:00+02:00', method: 'CASH' }),
+    ).rejects.toMatchObject({ code: 'VAL-001' });
+    const early = setup(row({ status: 'OVERDUE', issueDate: new Date('2026-11-05T00:00:00Z') }));
+    await expect(
+      early.lifecycle.markPaid(INVOICE, { paidAt: '2026-11-04T09:00:00+02:00', method: 'CASH' }),
+    ).rejects.toMatchObject({ code: 'VAL-001' });
+    await early.lifecycle.markPaid(INVOICE, {
+      paidAt: '2026-11-05T01:00:00+02:00',
+      method: 'CASH',
+    });
+    expect(early.tx.invoice.update).toHaveBeenCalled();
+  });
+
+  it('should audit the old rate and extra items of an update', async () => {
+    const { lifecycle, audit } = setup();
+    await lifecycle.update(INVOICE, { includeTax: false, extraLines: [] });
+    expect(audit.log.mock.calls[0][1]).toMatchObject({
+      oldValues: { taxRatePercent: '16.00', extraLines: 1 },
+      newValues: { taxRatePercent: '0.00', extraLines: 0 },
+    });
   });
 
   it('should void, freeing the entries, and delete a draft, freeing them too', async () => {
