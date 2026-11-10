@@ -1,4 +1,9 @@
-import { AiSummaryQuerySchema, AiSummarySchema, CreateAiSummarySchema } from './ai.contract.js';
+import {
+  AiFeedbackSchema,
+  AiSummaryQuerySchema,
+  AiSummarySchema,
+  CreateAiSummarySchema,
+} from './ai.contract.js';
 import { REALTIME_EVENTS, RealtimePayloadSchemas } from './realtime.contract.js';
 
 const ID = '01920000-0000-7000-8000-000000000001';
@@ -11,6 +16,7 @@ describe('AI summary contracts (D-148)', () => {
       sourceType: 'DOCUMENT',
       sourceId: ID,
       language: 'AR',
+      force: false,
     });
     expect(
       CreateAiSummarySchema.safeParse({ sourceType: 'DOCUMENT', sourceId: ID, language: 'FR' })
@@ -26,6 +32,18 @@ describe('AI summary contracts (D-148)', () => {
     expect(AiSummaryQuerySchema.safeParse({ sourceType: 'DOCUMENT', sourceId: 'x' }).success).toBe(
       false,
     );
+  });
+
+  it('should take exactly one query form and a bounded plain-text feedback comment', () => {
+    expect(AiSummaryQuerySchema.safeParse({ fileId: ID }).success).toBe(true);
+    expect(AiSummaryQuerySchema.safeParse({}).success).toBe(false);
+    expect(
+      AiSummaryQuerySchema.safeParse({ fileId: ID, sourceType: 'DOCUMENT', sourceId: ID }).success,
+    ).toBe(false);
+    expect(AiFeedbackSchema.safeParse({ reason: 'OTHER', comment: 'x'.repeat(1001) }).success).toBe(
+      false,
+    );
+    expect(AiFeedbackSchema.safeParse({ reason: 'PII_LEAK' }).success).toBe(true);
   });
 
   it('should read a stored summary and refuse zero chunks', () => {

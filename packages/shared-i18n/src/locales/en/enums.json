@@ -4,6 +4,13 @@
     "FIRM": "Law firm",
     "CORPORATE": "Corporate legal department"
   },
+  "aiFeedbackReason": {
+    "INACCURATE": "Inaccurate",
+    "MISSING_INFO": "Missing information",
+    "WRONG_LANGUAGE": "Wrong language",
+    "PII_LEAK": "Personal data shown",
+    "OTHER": "Other"
+  },
   "aiJobStatus": {
     "QUEUED": "Queued",
     "RUNNING": "In progress",
