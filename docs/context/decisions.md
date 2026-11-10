@@ -2932,6 +2932,21 @@ the next tick (Firefox/Safari) and a missing clipboard API is reported as a fail
 broadcast to other tabs (the server checks the session on every request, D-145); a reload restarts the client idle timer
 (the server's 30-minute limit still applies).
 
+**D-160 — Billing tab and the header timer** · Accepted (MVP-93, 2026-11-09)
+MVP-93 asks for a tax total the time-entry API does not have and left the timer's place and the edit form open. → Office app
+`features/billing` (namespace `billing`; shared API client `timeEntriesApi`) on the D-152 API. **Billing tab** (`?tab=billing`,
+shown as before to `view:all|assigned:invoices` holders, D-118): the file's time entries (date, person, hours, rate, amount,
+billable, invoiced), newest first; add and edit in a modal (date dd/MM/yyyy — empty is today on the server —, hours as a
+decimal string, description, billable); edit sends only changed fields; delete after a confirm; **invoiced entries are
+read-only** (a lock tag, no actions) and an entry invoiced meanwhile shows BIZ-006 in the dialog; totals (billable,
+non-billable and unbilled hours; billable and unbilled amounts in the file's currency, D-152). Money columns show "—" where
+the API returns null (no invoice-view right). Nothing is writable on an archived file (D-052). **Tax is not shown:** the totals
+have none and the office's tax rate is readable only with `manage:office`; tax is computed on invoices (invoices story).
+**Header timer** (`log:time`): the running timer's file number (`<Ltr>`) and a live hh:mm:ss clock, Stop (description and
+billable, then the D-152 rounding) and Discard (after a confirm); on a file page with no timer it offers Start, as does the
+Billing tab. A timer on a file the user can no longer see is not returned by the API (D-152), so starting a new one answers 409
+RES-002: the app then offers to discard the running timer. **Not done:** the invoice wizard, the invoices page and the
+retainer card (their own stories).
 **D-159 — Admin offices list, detail and suspension** · Accepted (MVP-102, 2026-11-09)
 MVP-102 left open what "status" filters, what each usage figure counts, what suspension does besides blocking sign-in and
 where its reason lives. → **API** (`src/modules/platform-offices`, platform realm: `@Public()` + `AdminRealmGuard` +

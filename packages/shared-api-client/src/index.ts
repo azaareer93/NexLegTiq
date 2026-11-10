@@ -39,3 +39,5 @@ export { adminOfficesApi } from './admin-offices.js';
 export type { AdminOfficeListParams } from './admin-offices.js';
 export { adminAuthApi } from './admin-auth.js';
 export type { AdminClientSession } from './admin-auth.js';
+export { timeEntriesApi } from './time-entries.js';
+export type { TimeEntryListParams } from './time-entries.js';

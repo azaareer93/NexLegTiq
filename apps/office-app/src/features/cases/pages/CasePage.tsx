@@ -24,6 +24,7 @@ import { useLocation, useNavigate, useParams, useSearchParams } from 'react-rout
 
 import { AiTab } from '../../ai';
 import { useSession } from '../../auth';
+import { BillingTab } from '../../billing';
 import { NotFoundPage } from '../../shell/components/status-pages';
 import { TasksView } from '../../tasks';
 import { caseKeys, useCase, useDeleteCase } from '../api/use-cases';
@@ -181,16 +182,13 @@ function FileView({
       { replace: true },
     );
 
+  const archived = file.status === 'ARCHIVED';
   const tabContent = (key: string) => {
     if (key === 'details') {
       return <CaseDetailsTab file={file} actions={actions} onOpenHearing={setHearing} />;
     }
-    if (key === 'documents') {
-      return <DocumentsTab fileId={file.id} archived={file.status === 'ARCHIVED'} />;
-    }
-    if (key === 'tasks') {
-      return <TasksView scope={{ fileId: file.id }} readOnly={file.status === 'ARCHIVED'} />;
-    }
+    if (key === 'documents') return <DocumentsTab fileId={file.id} archived={archived} />;
+    if (key === 'tasks') return <TasksView scope={{ fileId: file.id }} readOnly={archived} />;
     if (key === 'parties') return <PartiesTab fileId={file.id} canEdit={actions.edit} />;
     if (key === 'sessions') {
       return <SessionsTab fileId={file.id} canCreate={sessionRights.create} onOpen={setHearing} />;
@@ -198,13 +196,14 @@ function FileView({
     if (key === 'timeline') {
       return <TimelineTab fileId={file.id} onOpenHearing={setHearing} onOpenTab={selectTab} />;
     }
+    if (key === 'billing') return <BillingTab fileId={file.id} archived={archived} />;
     if (key === 'notes') {
       return (
         <NotesTab
           fileId={file.id}
           canWrite={actions.edit}
           canConfidential={canWriteConfidentialNotes(file, user)}
-          readOnly={file.status === 'ARCHIVED'}
+          readOnly={archived}
         />
       );
     }

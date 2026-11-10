@@ -66,6 +66,8 @@ const SHELL_DEFAULTS = [
   http.get(api('notifications/unread-count'), () => ok({ count: 0 })),
   http.get(api('notifications'), () => ok({ items: [], nextCursor: null })),
   http.get(api('dashboard'), () => ok(EMPTY_DASHBOARD)),
+  // The header timer (D-160): no timer running.
+  http.get(api('time-entries/timer'), () => ok(null)),
 ];
 
 export const server = setupServer(...SHELL_DEFAULTS);
