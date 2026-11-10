@@ -2947,3 +2947,66 @@ billable, then the D-152 rounding) and Discard (after a confirm); on a file page
 Billing tab. A timer on a file the user can no longer see is not returned by the API (D-152), so starting a new one answers 409
 RES-002: the app then offers to discard the running timer. **Not done:** the invoice wizard, the invoices page and the
 retainer card (their own stories).
+**D-159 — Admin offices list, detail and suspension** · Accepted (MVP-102, 2026-11-09)
+MVP-102 left open what "status" filters, what each usage figure counts, what suspension does besides blocking sign-in and
+where its reason lives. → **API** (`src/modules/platform-offices`, platform realm: `@Public()` + `AdminRealmGuard` +
+`AdminAuthGuard`, raw client with a reason on every access, D-080/D-145): `GET /admin/offices` — every office newest first,
+paginated, filters `search` (name, case-insensitive, `%`/`_` literal), `plan` (code of the **current subscription**: the
+live TRIALING/ACTIVE one, else the newest, as D-122), `status` = ACTIVE | SUSPENDED (`Office.isActive`; the subscription
+status is a column of its own), `jurisdiction`, `createdFrom`/`createdTo` (UTC dates, inclusive); one parameterised query
+for the page, then grouped queries for the page's offices only. **Usage per office:** active users, live files, storage =
+every stored document version in MiB rounded up (D-119/D-122), AI = counted provider calls (succeeded, not cached, not
+partial: D-144/D-148) since the start of the **UTC** month (the office's own quota month is in its time zone; the platform
+view does not need the hours of difference), last activity = the latest sign-in of any of its users. `GET
+/admin/offices/:id` adds account type, contacts, currency, time zone, every subscription newest first
+(`currentPeriodEnd` nullable, as the column) and, while suspended, `suspension {at, reason}` from the latest
+`OFFICE_SUSPENDED` platform audit row (no column on Office: the audit log is where the reason must live anyway).
+**Suspend** `POST /admin/offices/:id/suspend {reason}` (3–500 characters, plain text) in one transaction: a conditional update
+of `isActive` (a repeat or a race changes and audits nothing, 200 with the detail), **every live refresh token of the office
+revoked**, and the platform audit row `OFFICE_SUSPENDED` with the reason; the JWT guard already refuses every request of a
+suspended office's users with 403 AUTH-006 (D-082), so access tokens stop at once. **Reactivate** `POST
+/admin/offices/:id/reactivate {reason?}` the same way (`OFFICE_REACTIVATED`); users sign in again. Both drop the office's
+cached entitlements. Unknown or malformed id → 404 RES-001. **Admin panel:** the signed-in shell (name, sign-out) with
+`/offices` (filters in the URL under the API's names, D-113; table with status, plan and subscription status, usage, last
+activity, created) and `/offices/:id` (profile, usage, subscription history, suspension banner, Suspend / Reactivate with a
+reason dialog); `/` opens `/offices`. Plans, subscription actions and payments are their own story. Why: the founder can
+find any office, see what it uses and stop it at once, with the reason on record.
+Review additions (same PR): **opening an office's detail is audited** (`OFFICE_VIEWED` platform audit row, GET only: an
+admin reading another office's contacts and usage is a cross-tenant read and must be accountable; list views are not
+audited). **Suspension also closes the office users' realtime sockets** after the commit (best effort,
+`RealtimePublisher.disconnectUser`, as deactivation does, D-129); a revoked refresh cookie answers 401 (the session ended)
+and a new sign-in 403 AUTH-006. The total is counted apart from the page, so a page past the end keeps the real total and the
+panel moves to the last page (D-113); the current subscription is a `LATERAL` lookup per office and the id is compared as a
+uuid (index). `createdFrom` after `createdTo` is 400 `validation.dateRange`; `plan` is plain text. The column reads "Last
+sign-in" (it is the latest `lastLoginAt`); dates in the panel read dd/MM/yyyy (D-092). **Not changed:** the queries stay in the
+service (no repository layer, as D-146/D-149); the office's own audit log gets no row for a suspension (the platform log holds
+it); the admin panel's tests run with a 30 s timeout (AntD + axe in jsdom).
+**D-161 — AI tab: summaries of a file, regenerate, feedback and the quota badge** · Accepted (MVP-88, 2026-11-10) · Amends D-148
+MVP-88 needed a file-wide summary list, a "regenerate" that D-148's stored-summary shortcut prevented, and somewhere to keep
+"report issue" feedback. → **API** (`src/modules/ai-summaries`, `use:ai`): `GET /ai/summaries?fileId=` — the newest summary
+per document and language of the current version of every live document of the file the caller may see (D-126; an invisible
+file is 404), each with `source {type, id, name}`, newest first, at most 200; exactly one of the two query forms (`fileId`, or
+`sourceType` + `sourceId`), else 400 `validation.summaryQuery`. **Regenerate (amends D-148):** `POST /ai/summaries` takes
+`force: true` to skip the stored-summary shortcut and queue a new job — it counts against the quota (the first part is the
+counted call); a running job of the same key is still joined (dedupe). `ai_summaries` gains `regeneration` (default 0) in its
+unique key: a forced job inserts the next number and reads take the newest, so a regeneration never deletes the earlier row
+(feedback on it stays) and UPDATE stays revoked. A forced job does not read the cached part-notes of earlier jobs (its cache key
+carries the job id; its own retries share them). **Feedback:** tenant model `AiFeedback` (summary and user by composite FKs,
+`reason` = `AI_FEEDBACK_REASONS` INACCURATE | MISSING_INFO | WRONG_LANGUAGE | PII_LEAK | OTHER with AR/EN labels, optional
+comment ≤ 1000 plain text, append-only), `POST /ai/summaries/:id/feedback` → 201 `{id}` for a summary the caller may see (404
+otherwise); audited with `hasComment`, never the comment. Migration `ai_feedback_and_regeneration` (grants in `db-roles.sql`).
+**Office app** `?tab=ai` (`features/ai`, namespace `aiSummary` — `ai` would clash with the `common.ai` disclaimer keys): the
+file's summaries as cards (summary, key facts, legal issues, parties, dates, model and time, `<AiDisclaimer />` on every card and
+on the empty state), generate for a READY document in Arabic or English, the other language from a card, Regenerate, Report
+issue (reason + comment), Copy to note (a plain, non-confidential file note, D-154; only for those who may edit the file);
+pending and failed jobs (realtime `ai.job.*` / `document.summary.ready`, D-129, with a 5 s polling fallback); the quota badge
+from `GET /ai/usage` and an upgrade hint on AUTH-103; with the office's AI off (AI-005) the tab says so and offers nothing.
+**Known limits:** a pending card lives in the tab's state (leaving mid-job shows the result on the next visit, not the
+progress); session summaries come with their own story; Swagger describes both query forms with the list-item shape.
+Review additions (same PR): **a confidential document's summary is copied into a confidential note** (`source.isConfidential`
+in the list item), and "Copy to note" is offered for it only to the office manager and the file's assigned people — the ones
+who may create confidential notes (D-154) — so a summary never reaches readers who may not open its document (D-126). The
+read-only role has no access to `ai_feedbacks` (migration `ai_feedback_readonly_revoke`, as `db-roles.sql`). Lists take the
+newest per document and language by `regeneration`, then time (`distinct`, capped in the query), so regenerations never push a
+language out. The disclaimer also shows on pending and failed cards; the quota badge uses the user's digits and Arabic plural
+forms. **Accepted:** two forced regenerations at the same instant are both paid and one result is kept (as D-148's races).

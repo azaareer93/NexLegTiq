@@ -214,6 +214,7 @@ describe('Document AI summaries (integration)', () => {
   afterAll(async () => {
     if (!raw) return;
     for (const table of [
+      'aiFeedback',
       'aiSummary',
       'aiUsage',
       'aiJob',
@@ -373,5 +374,146 @@ describe('Document AI summaries (integration)', () => {
     await expect(
       raw.aiJob.count({ where: { createdById: { in: [outsider.userId, senior.userId] } } }),
     ).resolves.toBe(0);
+  });
+
+  it('should regenerate on force as a newer row that reads return, and list a file’s summaries without hidden documents', async () => {
+    const visible = await documentWith(a2, 'Layla Haddad claims unpaid rent. '.repeat(40));
+    const hidden = await documentWith(a2, 'A confidential claim. '.repeat(40), 'READY', true);
+    const body = { sourceType: 'DOCUMENT', sourceId: visible.id, language: 'EN' };
+    const first = await post(a2, body);
+    await runQueued(a2, first.body.data.jobId);
+    const [original] = await raw.aiSummary.findMany({ where: { sourceId: visible.id } });
+    const forced = await post(a2, { ...body, force: true });
+    expect(forced.status).toBe(202);
+    expect(forced.body.data.jobId).not.toBe(first.body.data.jobId);
+    await runQueued(a2, forced.body.data.jobId);
+    const rows = await raw.aiSummary.findMany({
+      where: { sourceId: visible.id },
+      orderBy: { regeneration: 'asc' },
+    });
+    expect(rows.map((row) => row.regeneration)).toEqual([0, 1]);
+    const listed = await list(a2, visible.id);
+    expect(listed.body.data.map((row: { id: string }) => row.id)).toEqual([rows[1]?.id]);
+    expect(listed.body.data[0].id).not.toBe(original?.id);
+
+    // Many regenerations of one language never push another language out of the list.
+    const base = {
+      officeId: a2.officeId,
+      sourceType: 'DOCUMENT',
+      sourceId: visible.id,
+      fileId: visible.fileId,
+      versionNumber: 1,
+      summary: 'Extra.',
+      provider: 'fake',
+      model: 'fake-1',
+      promptVersion: 'document-summary.v1',
+      createdById: a2.userId,
+    } as const;
+    await raw.aiSummary.create({ data: { ...base, language: 'AR' } });
+    for (const regeneration of [2, 3, 4]) {
+      await raw.aiSummary.create({ data: { ...base, language: 'EN', regeneration } });
+    }
+    const bothLanguages = await list(a2, visible.id);
+    expect(bothLanguages.body.data.map((row: { language: string }) => row.language).sort()).toEqual(
+      ['AR', 'EN'],
+    );
+    const newest = await raw.aiSummary.findFirstOrThrow({
+      where: { sourceId: visible.id, language: 'EN' },
+      orderBy: { regeneration: 'desc' },
+    });
+    expect(
+      bothLanguages.body.data.find((row: { language: string }) => row.language === 'EN').id,
+    ).toBe(newest.id);
+
+    // The hidden document gets a summary from its own people only.
+    await raw.aiSummary.create({
+      data: {
+        officeId: a2.officeId,
+        sourceType: 'DOCUMENT',
+        sourceId: hidden.id,
+        fileId: hidden.fileId,
+        versionNumber: 1,
+        language: 'EN',
+        summary: 'Hidden.',
+        provider: 'fake',
+        model: 'fake-1',
+        promptVersion: 'document-summary.v1',
+        createdById: a2.userId,
+      },
+    });
+    const byFile = (person: Person, fileId: string) =>
+      request(app.getHttpServer())
+        .get(`/api/v1/ai/summaries?fileId=${fileId}`)
+        .set(bearerFor(jwt, person));
+    const mine = await byFile(a2, hidden.fileId);
+    expect(mine.status).toBe(200);
+    expect(mine.body.data[0]).toMatchObject({
+      source: { type: 'DOCUMENT', id: hidden.id, name: 'Statement of claim', isConfidential: true },
+    });
+    expect((await byFile(senior, hidden.fileId)).status).toBe(200);
+    // A document of the file the colleague may not see is left out of the list.
+    const seniorView = await byFile(senior, visible.fileId);
+    expect(new Set(seniorView.body.data.map((row: { sourceId: string }) => row.sourceId))).toEqual(
+      new Set([visible.id]),
+    );
+    const sameFile = await raw.document.update({
+      where: { id: hidden.id },
+      data: { fileId: visible.fileId },
+    });
+    expect(sameFile.fileId).toBe(visible.fileId);
+    const mixed = await byFile(senior, visible.fileId);
+    expect(new Set(mixed.body.data.map((row: { sourceId: string }) => row.sourceId))).toEqual(
+      new Set([visible.id]),
+    );
+    expect((await byFile(b1, visible.fileId)).status).toBe(404);
+    expect((await byFile(outsider, visible.fileId)).status).toBe(403);
+    const both = await request(app.getHttpServer())
+      .get(
+        `/api/v1/ai/summaries?fileId=${visible.fileId}&sourceType=DOCUMENT&sourceId=${visible.id}`,
+      )
+      .set(bearerFor(jwt, a2));
+    expect([both.status, both.body.error.code]).toEqual([400, 'VAL-001']);
+  });
+
+  it('should store feedback for a visible summary and refuse hidden, foreign or invalid ones', async () => {
+    const document = await documentWith(a2, 'A confidential claim. '.repeat(40), 'READY', true);
+    const summary = await raw.aiSummary.create({
+      data: {
+        officeId: a2.officeId,
+        sourceType: 'DOCUMENT',
+        sourceId: document.id,
+        fileId: document.fileId,
+        versionNumber: 1,
+        language: 'EN',
+        summary: 'Fb.',
+        provider: 'fake',
+        model: 'fake-1',
+        promptVersion: 'document-summary.v1',
+        createdById: a2.userId,
+      },
+    });
+    const send = (person: Person, id: string, body: object) =>
+      request(app.getHttpServer())
+        .post(`/api/v1/ai/summaries/${id}/feedback`)
+        .set(bearerFor(jwt, person))
+        .send(body);
+    const ok = await send(a2, summary.id, { reason: 'INACCURATE', comment: 'Wrong date' });
+    expect(ok.status).toBe(201);
+    await expect(
+      raw.aiFeedback.findUniqueOrThrow({ where: { id: ok.body.data.id } }),
+    ).resolves.toMatchObject({ reason: 'INACCURATE', comment: 'Wrong date', userId: a2.userId });
+    const audit = await raw.auditLog.findFirstOrThrow({
+      where: { entityType: 'AiFeedback', entityId: ok.body.data.id },
+    });
+    expect(JSON.stringify(audit.newValues)).toContain('hasComment');
+    expect(JSON.stringify(audit.newValues)).not.toContain('Wrong date');
+    expect((await send(senior, summary.id, { reason: 'OTHER' })).status).toBe(404);
+    expect((await send(b1, summary.id, { reason: 'OTHER' })).status).toBe(404);
+    expect((await send(outsider, summary.id, { reason: 'OTHER' })).status).toBe(403);
+    expect((await send(a2, randomUUID(), { reason: 'OTHER' })).status).toBe(404);
+    expect((await send(a2, summary.id, { reason: 'BAD' })).body.error.code).toBe('VAL-001');
+    expect(
+      (await send(a2, summary.id, { reason: 'OTHER', comment: 'x'.repeat(1001) })).status,
+    ).toBe(400);
   });
 });

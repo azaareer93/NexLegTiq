@@ -24,7 +24,10 @@ export function RealtimeBridge(): null {
   ]);
   useInvalidateOn('document.summary.ready', ({ documentId }) => [
     ['documents', 'detail', documentId],
+    ['ai'],
   ]);
+  useInvalidateOn('ai.job.completed', () => [['ai']]);
+  useInvalidateOn('ai.job.failed', () => [['ai']]);
   useInvalidateOn('notification', () => [['notifications']]);
   return null;
 }

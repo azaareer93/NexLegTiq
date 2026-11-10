@@ -1,24 +1,33 @@
-import { Body, Controller, Get, Post, Query, Res } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Res } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import {
+  AiFeedbackCreatedSchema,
+  AiFeedbackSchema,
   AiJobAcceptedSchema,
+  AiSummaryListItemSchema,
   AiSummaryQuerySchema,
   AiSummarySchema,
   CreateAiSummarySchema,
 } from '@nexlegtiq/shared-contracts';
 import type {
+  AiFeedbackCreated,
+  AiFeedbackRequest,
   AiJobAccepted,
   AiSummary,
+  AiSummaryListItem,
   AiSummaryQuery,
   CreateAiSummaryRequest,
 } from '@nexlegtiq/shared-contracts';
 import type { Response } from 'express';
 
 import { AiSummariesService } from './ai-summaries.service';
+import { ResourceNotFoundException } from '../../common/errors/app.exception';
 import { ZodValidationPipe } from '../../common/http/zod-validation.pipe';
 import { ApiZodBody, ApiZodResponse } from '../../common/openapi/api-zod.decorators';
 import { RequirePermissions } from '../../common/rbac/permissions.decorator';
+
+const summaryId = new ParseUUIDPipe({ exceptionFactory: () => new ResourceNotFoundException() });
 
 /** AI summaries of documents (D-148): asked for here, followed through `GET /jobs/:id` or `document.summary.ready`. */
 @ApiTags('ai')
@@ -49,11 +58,26 @@ export class AiSummariesController {
 
   @Get()
   @RequirePermissions('use:ai')
-  @ApiOperation({ summary: "The latest summary per language of the document's current version" })
-  @ApiZodResponse(200, AiSummarySchema.array())
+  @ApiOperation({
+    summary:
+      "The latest summary per language of a document's current version (?sourceType&sourceId), or with the document of each, for every document of a file (?fileId)",
+  })
+  @ApiZodResponse(200, AiSummaryListItemSchema.array())
   list(
     @Query(new ZodValidationPipe(AiSummaryQuerySchema)) query: AiSummaryQuery,
-  ): Promise<AiSummary[]> {
+  ): Promise<AiSummary[] | AiSummaryListItem[]> {
     return this.summaries.list(query);
+  }
+
+  @Post(':id/feedback')
+  @RequirePermissions('use:ai')
+  @ApiOperation({ summary: 'Say why a summary was not good (404 unless its document is visible)' })
+  @ApiZodBody(AiFeedbackSchema)
+  @ApiZodResponse(201, AiFeedbackCreatedSchema)
+  feedback(
+    @Param('id', summaryId) id: string,
+    @Body(new ZodValidationPipe(AiFeedbackSchema)) body: AiFeedbackRequest,
+  ): Promise<AiFeedbackCreated> {
+    return this.summaries.feedback(id, body);
   }
 }

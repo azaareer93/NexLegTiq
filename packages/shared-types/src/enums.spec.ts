@@ -1,4 +1,4 @@
-import { AI_JOB_STATUSES, AI_SOURCE_TYPES } from './ai.js';
+import { AI_FEEDBACK_REASONS, AI_JOB_STATUSES, AI_SOURCE_TYPES } from './ai.js';
 import { COURT_TYPES } from './court.js';
 import {
   DOCUMENT_LANGUAGES,
@@ -53,6 +53,7 @@ describe('enum value lists', () => {
       NOTIFICATION_CATEGORIES,
       NOTIFICATION_TYPES,
       AI_SOURCE_TYPES,
+      AI_FEEDBACK_REASONS,
       AI_JOB_STATUSES,
       TIMELINE_EVENT_TYPES,
     }),

@@ -121,6 +121,16 @@ export const aiSummaryIn = async (db: PrismaClient, office: SeededOffice) =>
     },
   });
 
+export const aiFeedbackIn = async (db: PrismaClient, office: SeededOffice) =>
+  db.aiFeedback.create({
+    data: {
+      officeId: office.officeId,
+      summaryId: (await aiSummaryIn(db, office)).id,
+      userId: office.userId,
+      reason: 'OTHER',
+    },
+  });
+
 export const aiUsageIn = (db: PrismaClient, { officeId, userId }: SeededOffice) =>
   db.aiUsage.create({
     data: {

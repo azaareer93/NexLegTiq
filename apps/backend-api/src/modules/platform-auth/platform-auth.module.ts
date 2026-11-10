@@ -26,6 +26,6 @@ import { AuthModule } from '../auth/auth.module';
     AdminAuthGuard,
     { provide: ADMIN_JWT, useFactory: () => new JwtService() },
   ],
-  exports: [AdminRealmGuard, AdminAuthGuard, PlatformAuditService, PlatformSessions],
+  exports: [AdminRealmGuard, AdminAuthGuard, PlatformAuditService, PlatformSessions, ADMIN_JWT],
 })
 export class PlatformAuthModule {}

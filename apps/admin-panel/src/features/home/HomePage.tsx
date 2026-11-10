@@ -1,11 +1,11 @@
-import { EmptyState, PageHeader } from '@nexlegtiq/shared-ui';
 import { Button, Flex, Layout, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
+import { Outlet } from 'react-router';
 
 import { APP_NAME } from '../../app/app-name';
 import { signOut, useAdminSession } from '../auth';
 
-/** Signed-in landing page until the offices, plans and usage screens (their own stories) arrive. */
+/** Signed-in shell: header with the admin's name and sign-out; the page goes in the content area. */
 export function HomePage(): React.JSX.Element {
   const { t } = useTranslation();
   const admin = useAdminSession((state) => state.admin);
@@ -25,8 +25,7 @@ export function HomePage(): React.JSX.Element {
         </Flex>
       </Layout.Header>
       <Layout.Content style={{ padding: 24 }} data-testid="home-page">
-        <PageHeader title={t('admin.home.title')} />
-        <EmptyState description={t('admin.home.empty')} />
+        <Outlet />
       </Layout.Content>
     </Layout>
   );

@@ -312,6 +312,15 @@ enum AiSourceType {
   OPPOSING_BRIEF
 }
 
+/// Why a user rated an AI answer badly (MVP-88).
+enum AiFeedbackReason {
+  INACCURATE
+  MISSING_INFO
+  WRONG_LANGUAGE
+  PII_LEAK
+  OTHER
+}
+
 enum AiJobStatus {
   QUEUED
   RUNNING
@@ -354,6 +363,7 @@ model Office {
   aiJobs              AiJob[]
   aiUsages            AiUsage[]
   aiSummaries         AiSummary[]
+  aiFeedbacks         AiFeedback[]
   clients             Client[]
   contactPersons      ContactPerson[]
   legalFiles          LegalFile[]
@@ -471,6 +481,7 @@ model User {
   aiJobs      AiJob[]
   aiUsages    AiUsage[]
   aiSummaries AiSummary[]
+  aiFeedbacks AiFeedback[]
 
   @@unique([id, officeId])
   @@index([officeId, role])
@@ -1611,15 +1622,38 @@ model AiSummary {
   chunks         Int          @default(1)
   aiJobId        String?      @map("ai_job_id") @db.Uuid
   createdById    String       @map("created_by_id") @db.Uuid
+  /// 0 for the first summary of a version, language and prompt; a forced regeneration adds a newer row (the table is
+  /// append-only, UPDATE is revoked) and reads take the newest.
+  regeneration   Int          @default(0)
   createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
 
   office    Office    @relation(fields: [officeId], references: [id])
   file      LegalFile @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
   createdBy User      @relation(fields: [createdById, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
+  feedbacks AiFeedback[]
 
-  @@unique([officeId, sourceType, sourceId, versionNumber, language, promptVersion])
+  @@unique([officeId, sourceType, sourceId, versionNumber, language, promptVersion, regeneration])
+  @@unique([id, officeId])
   @@index([officeId, fileId])
   @@map("ai_summaries")
+}
+
+/// A user's rating of an AI summary (MVP-88). Append-only: no updatedAt, UPDATE revoked from the app role.
+model AiFeedback {
+  id        String           @id @default(uuid(7)) @db.Uuid
+  officeId  String           @map("office_id") @db.Uuid
+  summaryId String           @map("summary_id") @db.Uuid
+  userId    String           @map("user_id") @db.Uuid
+  reason    AiFeedbackReason
+  comment   String?
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  office  Office    @relation(fields: [officeId], references: [id])
+  summary AiSummary @relation(fields: [summaryId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  user    User      @relation(fields: [userId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([officeId, summaryId])
+  @@map("ai_feedbacks")
 }
 
 /// One AI provider call (or cache hit) for cost tracking and the monthly quota (D-130, ai-ocr.md CostTracker).

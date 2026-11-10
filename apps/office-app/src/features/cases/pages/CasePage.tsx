@@ -22,6 +22,7 @@ import { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 
+import { AiTab } from '../../ai';
 import { useSession } from '../../auth';
 import { BillingTab } from '../../billing';
 import { NotFoundPage } from '../../shell/components/status-pages';
@@ -34,7 +35,7 @@ import { EditCaseDrawer } from '../components/EditCaseDrawer';
 import { LifecycleDialogs } from '../components/LifecycleDialogs';
 import type { LifecycleDialog } from '../components/LifecycleDialogs';
 import { DocumentsTab } from '../documents/DocumentsTab';
-import { fileActions, isAssigned, readTab, visibleTabs } from '../file-page';
+import { canWriteConfidentialNotes, fileActions, readTab, visibleTabs } from '../file-page';
 import type { FileActions } from '../file-page';
 import { NotesTab } from '../notes/NotesTab';
 import { ConflictBanner } from '../parties/ConflictBanner';
@@ -181,16 +182,13 @@ function FileView({
       { replace: true },
     );
 
+  const archived = file.status === 'ARCHIVED';
   const tabContent = (key: string) => {
     if (key === 'details') {
       return <CaseDetailsTab file={file} actions={actions} onOpenHearing={setHearing} />;
     }
-    if (key === 'documents') {
-      return <DocumentsTab fileId={file.id} archived={file.status === 'ARCHIVED'} />;
-    }
-    if (key === 'tasks') {
-      return <TasksView scope={{ fileId: file.id }} readOnly={file.status === 'ARCHIVED'} />;
-    }
+    if (key === 'documents') return <DocumentsTab fileId={file.id} archived={archived} />;
+    if (key === 'tasks') return <TasksView scope={{ fileId: file.id }} readOnly={archived} />;
     if (key === 'parties') return <PartiesTab fileId={file.id} canEdit={actions.edit} />;
     if (key === 'sessions') {
       return <SessionsTab fileId={file.id} canCreate={sessionRights.create} onOpen={setHearing} />;
@@ -198,18 +196,18 @@ function FileView({
     if (key === 'timeline') {
       return <TimelineTab fileId={file.id} onOpenHearing={setHearing} onOpenTab={selectTab} />;
     }
-    if (key === 'billing')
-      return <BillingTab fileId={file.id} archived={file.status === 'ARCHIVED'} />;
+    if (key === 'billing') return <BillingTab fileId={file.id} archived={archived} />;
     if (key === 'notes') {
       return (
         <NotesTab
           fileId={file.id}
           canWrite={actions.edit}
-          canConfidential={user.role === 'OFFICE_MANAGER' || isAssigned(file, user.id)}
-          readOnly={file.status === 'ARCHIVED'}
+          canConfidential={canWriteConfidentialNotes(file, user)}
+          readOnly={archived}
         />
       );
     }
+    if (key === 'ai') return <AiTab file={file} user={user} canWriteNotes={actions.edit} />;
     return <ComingSoonTab />;
   };
 

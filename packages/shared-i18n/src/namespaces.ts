@@ -22,6 +22,7 @@ export const I18N_NAMESPACES = [
   'dashboard',
   'calendar',
   'team',
+  'aiSummary',
   'profile',
   'admin',
   'billing',
