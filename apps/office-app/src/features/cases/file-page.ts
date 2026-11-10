@@ -105,3 +105,7 @@ export function fileActions(file: Case, user: FileUser): FileActions {
     billing: edit && can('generate:invoice'),
   };
 }
+
+/** Confidential notes are written by the office manager and the people assigned to the file (D-154). */
+export const canWriteConfidentialNotes = (file: Case, user: { id: string; role: Role }): boolean =>
+  user.role === 'OFFICE_MANAGER' || isAssigned(file, user.id);

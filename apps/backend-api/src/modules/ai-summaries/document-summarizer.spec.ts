@@ -36,7 +36,10 @@ function setup({
   text = 'Some text.' as string | null,
 } = {}) {
   const tx = {
-    aiSummary: { create: jest.fn().mockResolvedValue({ id: 's1' }) },
+    aiSummary: {
+      create: jest.fn().mockResolvedValue({ id: 's1' }),
+      aggregate: jest.fn().mockResolvedValue({ _max: { regeneration: 0 } }),
+    },
     caseTimelineEvent: { create: jest.fn() },
   };
   const db = {
@@ -104,6 +107,49 @@ describe('DocumentSummarizer (D-148)', () => {
     // Each part is cached (a retry does not pay again); the merge is not.
     expect(calls[0]?.cacheKey).toEqual([FIELDS.documentId, 'v2', 'EN', `0/${parts}`]);
     expect(calls.at(-1)?.cacheKey).toBeUndefined();
+  });
+
+  it('should key a forced regeneration part notes by its job and still count once', async () => {
+    const { service, executor, access } = setup({
+      text: `${'a '.repeat(40_000)}
+
+`.repeat(3),
+    });
+    await service.run({ ...FIELDS, language: 'EN', force: true }, CONTEXT);
+    const calls = executor.execute.mock.calls.map(
+      ([options]) => options as { partial?: boolean; cacheKey?: string[] },
+    );
+    expect(calls[0]?.cacheKey).toEqual([
+      FIELDS.documentId,
+      'v2',
+      'EN',
+      'job-j1',
+      `0/${calls.length - 1}`,
+    ]);
+    expect(calls.filter((options) => !options.partial)).toHaveLength(1);
+    expect(access.assertQuota).toHaveBeenCalledTimes(1);
+  });
+
+  it('should store a regeneration as the next number, and reuse only its own job row when forced', async () => {
+    const first = setup();
+    first.tx.aiSummary.aggregate.mockResolvedValue({ _max: { regeneration: 2 } });
+    await first.service.run({ ...FIELDS, force: true }, CONTEXT);
+    expect(first.tx.aiSummary.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ regeneration: 3 }) }),
+    );
+    const none = setup();
+    none.tx.aiSummary.aggregate.mockResolvedValue({ _max: { regeneration: null } });
+    await none.service.run({ ...FIELDS, force: true }, CONTEXT);
+    expect(none.tx.aiSummary.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ regeneration: 0 }) }),
+    );
+    const retry = setup({ existing: { id: 's7' } });
+    await expect(retry.service.run({ ...FIELDS, force: true }, CONTEXT)).resolves.toEqual({
+      summaryId: 's7',
+    });
+    expect(retry.db.aiSummary.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ aiJobId: 'j1' }) }),
+    );
   });
 
   it('should end as superseded when a newer version arrived, and keep a summary a racing job stored', async () => {

@@ -31,6 +31,7 @@ export { partiesApi } from './parties.js';
 export type { ConflictListParams } from './parties.js';
 export { casesApi } from './cases.js';
 export type { CaseListParams } from './cases.js';
+export { aiApi } from './ai.js';
 export { notificationsApi } from './notifications.js';
 export type { NotificationListParams } from './notifications.js';
 export { profileApi } from './profile.js';

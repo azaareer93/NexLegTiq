@@ -4,6 +4,13 @@
     "FIRM": "مكتب محاماة",
     "CORPORATE": "دائرة قانونية في شركة"
   },
+  "aiFeedbackReason": {
+    "INACCURATE": "المعلومات غير دقيقة",
+    "MISSING_INFO": "معلومات ناقصة",
+    "WRONG_LANGUAGE": "لغة خاطئة",
+    "PII_LEAK": "ظهور بيانات شخصية",
+    "OTHER": "سبب آخر"
+  },
   "aiJobStatus": {
     "QUEUED": "في الانتظار",
     "RUNNING": "قيد المعالجة",
