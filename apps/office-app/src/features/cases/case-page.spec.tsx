@@ -216,9 +216,27 @@ describe('file page', () => {
       // A lawyer cannot open Audit: the link falls back to Details, and the tab is not offered.
       expect(screen.getByTestId('case-details')).toBeTruthy();
       expect(screen.queryByTestId('tab-audit')).toBeNull();
+      // The AI tab loads its summaries, documents and quota: answer them as empty.
+      server.use(
+        http.get(api('ai/summaries'), () => ok([])),
+        http.get(api('ai/usage'), () =>
+          ok({ used: 0, quota: null, remaining: null, resetsAt: '2026-12-01T00:00:00.000Z' }),
+        ),
+        http.get(api(`cases/${ID}/documents`), () =>
+          HttpResponse.json({
+            success: true,
+            data: [],
+            meta: {
+              timestamp: '2026-11-10T00:00:00.000Z',
+              requestId: 'req-12345678',
+              pagination: { page: 1, limit: 100, total: 0, totalPages: 0, hasMore: false },
+            },
+          }),
+        ),
+      );
       fireEvent.click(screen.getByTestId('tab-ai'));
       await waitFor(() => expect(router.state.location.search).toBe('?tab=ai'));
-      expect(await screen.findByText('Coming soon')).toBeTruthy();
+      expect(await screen.findByTestId('ai-tab')).toBeTruthy();
       fireEvent.click(screen.getByTestId('tab-details'));
       await waitFor(() => expect(router.state.location.search).toBe(''));
       // Tab switches replace the history entry, so "back" leaves the file.
