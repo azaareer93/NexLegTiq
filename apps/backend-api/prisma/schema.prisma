@@ -99,6 +99,21 @@ enum SubscriptionStatus {
   EXPIRED
 }
 
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  VOID
+}
+
+enum InvoicePaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CARD
+  OTHER
+}
+
 enum PaymentMethod {
   CASH
   BANK_TRANSFER
@@ -350,47 +365,50 @@ model Office {
   createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt          DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  settings            OfficeSettings?
-  users               User[]
-  invitations         OfficeInvitation[]
-  refreshTokens       RefreshToken[]
-  passwordResetTokens PasswordResetToken[]
-  emailVerifications  EmailVerificationToken[]
-  legalAcceptances    LegalAcceptance[]
-  subscriptions       Subscription[]
-  auditLogs           AuditLog[]
-  notifications       Notification[]
-  aiJobs              AiJob[]
-  aiUsages            AiUsage[]
-  aiSummaries         AiSummary[]
-  aiFeedbacks         AiFeedback[]
-  clients             Client[]
-  contactPersons      ContactPerson[]
-  legalFiles          LegalFile[]
-  fileClients         FileClient[]
-  fileTeamMembers     FileTeamMember[]
-  fileNumberSequences FileNumberSequence[]
-  parties             Party[]
-  fileParties         FileParty[]
-  conflicts           ConflictOfInterest[]
-  timelineEvents      CaseTimelineEvent[]
-  fileNotes           FileNote[]
-  taskTemplates       TaskTemplate[]
-  tasks               Task[]
-  timeEntries         TimeEntry[]
-  timeTimers          TimeTimer[]
-  clientPortalAccesses ClientPortalAccess[]
-  clientInvitations    ClientInvitation[]
-  courts              Court[]
-  judges              Judge[]
-  publicProsecutors   PublicProsecutor[]
-  sessions            Session[]
-  sessionReminders    SessionReminder[]
-  sessionAttendances  SessionPartyAttendance[]
-  documentFolders     DocumentFolder[]
-  documents           Document[]
-  documentVersions    DocumentVersion[]
-  documentTexts       DocumentText[]
+  settings               OfficeSettings?
+  users                  User[]
+  invitations            OfficeInvitation[]
+  refreshTokens          RefreshToken[]
+  passwordResetTokens    PasswordResetToken[]
+  emailVerifications     EmailVerificationToken[]
+  legalAcceptances       LegalAcceptance[]
+  subscriptions          Subscription[]
+  auditLogs              AuditLog[]
+  notifications          Notification[]
+  aiJobs                 AiJob[]
+  aiUsages               AiUsage[]
+  aiSummaries            AiSummary[]
+  aiFeedbacks            AiFeedback[]
+  clients                Client[]
+  contactPersons         ContactPerson[]
+  legalFiles             LegalFile[]
+  fileClients            FileClient[]
+  fileTeamMembers        FileTeamMember[]
+  fileNumberSequences    FileNumberSequence[]
+  parties                Party[]
+  fileParties            FileParty[]
+  conflicts              ConflictOfInterest[]
+  timelineEvents         CaseTimelineEvent[]
+  fileNotes              FileNote[]
+  taskTemplates          TaskTemplate[]
+  tasks                  Task[]
+  timeEntries            TimeEntry[]
+  timeTimers             TimeTimer[]
+  invoices               Invoice[]
+  invoiceLineItems       InvoiceLineItem[]
+  invoiceNumberSequences InvoiceNumberSequence[]
+  clientPortalAccesses   ClientPortalAccess[]
+  clientInvitations      ClientInvitation[]
+  courts                 Court[]
+  judges                 Judge[]
+  publicProsecutors      PublicProsecutor[]
+  sessions               Session[]
+  sessionReminders       SessionReminder[]
+  sessionAttendances     SessionPartyAttendance[]
+  documentFolders        DocumentFolder[]
+  documents              Document[]
+  documentVersions       DocumentVersion[]
+  documentTexts          DocumentText[]
 
   @@map("offices")
 }
@@ -450,32 +468,33 @@ model User {
   createdAt         DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt         DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  office              Office                   @relation(fields: [officeId], references: [id])
-  sentInvitations     OfficeInvitation[]
-  grantedPortalAccesses ClientPortalAccess[] @relation("PortalAccessGrantedBy")
-  sentClientInvitations ClientInvitation[] @relation("ClientInvitedBy")
-  refreshTokens       RefreshToken[]
-  passwordResetTokens PasswordResetToken[]
-  emailVerifications  EmailVerificationToken[]
-  legalAcceptances    LegalAcceptance[]
-  auditLogs           AuditLog[]
-  notifications       Notification[]
-  sessionReminders    SessionReminder[]        @relation("SessionReminderRecipient")
-  primaryClients      Client[]                 @relation("ClientPrimaryLawyer")
-  responsibleFiles    LegalFile[]              @relation("FileResponsibleLawyer")
-  paralegalFiles      LegalFile[]              @relation("FileResponsibleParalegal")
-  fileTeams           FileTeamMember[]
-  resolvedConflicts   ConflictOfInterest[]
-  timelineEvents      CaseTimelineEvent[]
-  fileNotes           FileNote[]
-  assignedTasks       Task[]                   @relation("TaskAssignee")
-  timeEntries         TimeEntry[]
-  timeTimer           TimeTimer?
-  createdTasks        Task[]                   @relation("TaskCreator")
-  attendedSessions    Session[]                @relation("SessionAttendingLawyer")
-  createdSessions     Session[]                @relation("SessionCreator")
-  uploadedDocuments   Document[]               @relation("DocumentUploader")
-  documentVersions    DocumentVersion[]        @relation("DocumentVersionCreator")
+  office                Office                   @relation(fields: [officeId], references: [id])
+  sentInvitations       OfficeInvitation[]
+  grantedPortalAccesses ClientPortalAccess[]     @relation("PortalAccessGrantedBy")
+  sentClientInvitations ClientInvitation[]       @relation("ClientInvitedBy")
+  refreshTokens         RefreshToken[]
+  passwordResetTokens   PasswordResetToken[]
+  emailVerifications    EmailVerificationToken[]
+  legalAcceptances      LegalAcceptance[]
+  auditLogs             AuditLog[]
+  notifications         Notification[]
+  sessionReminders      SessionReminder[]        @relation("SessionReminderRecipient")
+  primaryClients        Client[]                 @relation("ClientPrimaryLawyer")
+  responsibleFiles      LegalFile[]              @relation("FileResponsibleLawyer")
+  paralegalFiles        LegalFile[]              @relation("FileResponsibleParalegal")
+  fileTeams             FileTeamMember[]
+  resolvedConflicts     ConflictOfInterest[]
+  timelineEvents        CaseTimelineEvent[]
+  fileNotes             FileNote[]
+  assignedTasks         Task[]                   @relation("TaskAssignee")
+  timeEntries           TimeEntry[]
+  timeTimer             TimeTimer?
+  createdInvoices       Invoice[]
+  createdTasks          Task[]                   @relation("TaskCreator")
+  attendedSessions      Session[]                @relation("SessionAttendingLawyer")
+  createdSessions       Session[]                @relation("SessionCreator")
+  uploadedDocuments     Document[]               @relation("DocumentUploader")
+  documentVersions      DocumentVersion[]        @relation("DocumentVersionCreator")
 
   /// Target of the composite (user_id, office_id) FKs: a child row can never name a user of another office (D-079).
   aiJobs      AiJob[]
@@ -773,11 +792,12 @@ model Client {
   createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  office        Office          @relation(fields: [officeId], references: [id])
-  primaryLawyer User?           @relation("ClientPrimaryLawyer", fields: [primaryLawyerId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
-  files         FileClient[]
-  notes         FileNote[]
-  contacts      ContactPerson[]
+  office            Office               @relation(fields: [officeId], references: [id])
+  primaryLawyer     User?                @relation("ClientPrimaryLawyer", fields: [primaryLawyerId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
+  files             FileClient[]
+  notes             FileNote[]
+  contacts          ContactPerson[]
+  invoices          Invoice[]
   portalAccesses    ClientPortalAccess[]
   portalInvitations ClientInvitation[]
 
@@ -866,6 +886,8 @@ model LegalFile {
   tasks                Task[]
   timeEntries          TimeEntry[]
   timeTimers           TimeTimer[]
+  invoices             Invoice[]
+  invoiceLineItems     InvoiceLineItem[]
   sessions             Session[]
   documentFolders      DocumentFolder[]
   documents            Document[]
@@ -1482,13 +1504,16 @@ model TimeEntry {
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  office Office    @relation(fields: [officeId], references: [id])
-  file   LegalFile @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
-  user   User      @relation(fields: [userId, officeId], references: [id, officeId], onUpdate: Restrict)
+  office  Office    @relation(fields: [officeId], references: [id])
+  file    LegalFile @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  user    User      @relation(fields: [userId, officeId], references: [id, officeId], onUpdate: Restrict)
+  invoice Invoice?  @relation(fields: [invoiceId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
 
   // The entries and totals of a file; the entries of a user.
   @@index([officeId, fileId, workDate])
   @@index([officeId, userId, workDate])
+  // The entries an invoice bills (unlinking on void or delete).
+  @@index([officeId, invoiceId])
   @@map("time_entries")
 }
 
@@ -1507,6 +1532,89 @@ model TimeTimer {
 
   @@unique([userId, officeId])
   @@map("time_timers")
+}
+
+/// An invoice (MVP-91, D-162). Amounts are `Decimal(14,3)` rounded half-even to the currency's own minor digits; the
+/// number is assigned when it is sent (drafts have none) and a voided invoice keeps it.
+model Invoice {
+  id               String                @id @default(uuid(7)) @db.Uuid
+  officeId         String                @map("office_id") @db.Uuid
+  clientId         String                @map("client_id") @db.Uuid
+  /// Null = consolidated across the client's files.
+  fileId           String?               @map("file_id") @db.Uuid
+  invoiceNumber    String?               @map("invoice_number")
+  status           InvoiceStatus         @default(DRAFT)
+  currency         String                @db.Char(3)
+  issueDate        DateTime?             @map("issue_date") @db.Date
+  dueDate          DateTime?             @map("due_date") @db.Date
+  subtotal         Decimal               @db.Decimal(14, 3)
+  /// Snapshot of the office's rate (0 when the invoice includes no tax).
+  taxRatePercent   Decimal               @map("tax_rate_percent") @db.Decimal(5, 2)
+  taxAmount        Decimal               @map("tax_amount") @db.Decimal(14, 3)
+  total            Decimal               @db.Decimal(14, 3)
+  sentAt           DateTime?             @map("sent_at") @db.Timestamptz(3)
+  paidAt           DateTime?             @map("paid_at") @db.Timestamptz(3)
+  paymentMethod    InvoicePaymentMethod? @map("payment_method")
+  paymentReference String?               @map("payment_reference")
+  notes            String?
+  createdById      String                @map("created_by_id") @db.Uuid
+  createdAt        DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office      Office            @relation(fields: [officeId], references: [id])
+  client      Client            @relation(fields: [clientId, officeId], references: [id, officeId], onUpdate: Restrict)
+  file        LegalFile?        @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
+  createdBy   User              @relation(fields: [createdById, officeId], references: [id, officeId], onUpdate: Restrict)
+  lines       InvoiceLineItem[]
+  timeEntries TimeEntry[]
+
+  @@unique([id, officeId])
+  @@unique([officeId, invoiceNumber])
+  // The list (newest first), a client's or a file's invoices, and the daily overdue sweep.
+  @@index([officeId, createdAt(sort: Desc)])
+  @@index([officeId, clientId])
+  @@index([officeId, fileId])
+  @@index([officeId, status, dueDate])
+  @@map("invoices")
+}
+
+/// A line of an invoice. `timeEntryId` has no foreign key: a voided invoice keeps its lines as history while its
+/// entries are freed, and may outlive the entries (D-162). `fileId` is the file a time line belongs to (null for an
+/// extra item), which is what makes a consolidated invoice's visibility and timeline survive a void.
+model InvoiceLineItem {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  officeId    String   @map("office_id") @db.Uuid
+  invoiceId   String   @map("invoice_id") @db.Uuid
+  fileId      String?  @map("file_id") @db.Uuid
+  timeEntryId String?  @map("time_entry_id") @db.Uuid
+  description String
+  quantity    Decimal  @db.Decimal(8, 2)
+  unitPrice   Decimal  @map("unit_price") @db.Decimal(14, 3)
+  amount      Decimal  @db.Decimal(14, 3)
+  position    Int
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  office  Office     @relation(fields: [officeId], references: [id])
+  invoice Invoice    @relation(fields: [invoiceId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  file    LegalFile? @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([officeId, invoiceId, position])
+  @@map("invoice_line_items")
+}
+
+/// Gap-free invoice counter per office and year (D-162), incremented in the send transaction like FileNumberSequence.
+model InvoiceNumberSequence {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  officeId  String   @map("office_id") @db.Uuid
+  year      Int
+  lastValue Int      @map("last_value")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office Office @relation(fields: [officeId], references: [id])
+
+  @@unique([officeId, year])
+  @@map("invoice_number_sequences")
 }
 
 // ─── Cross-cutting ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -1627,9 +1735,9 @@ model AiSummary {
   regeneration   Int          @default(0)
   createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  office    Office    @relation(fields: [officeId], references: [id])
-  file      LegalFile @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
-  createdBy User      @relation(fields: [createdById, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
+  office    Office       @relation(fields: [officeId], references: [id])
+  file      LegalFile    @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  createdBy User         @relation(fields: [createdById, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
   feedbacks AiFeedback[]
 
   @@unique([officeId, sourceType, sourceId, versionNumber, language, promptVersion, regeneration])

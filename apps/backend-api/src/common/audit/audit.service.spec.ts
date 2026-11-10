@@ -1,7 +1,11 @@
 import type { ClsService } from 'nestjs-cls';
 import type { PinoLogger } from 'nestjs-pino';
 
-import { AuditRetentionProcessor, PURGE_AUDIT_LOGS_JOB } from './audit-retention.processor';
+import {
+  AuditRetentionProcessor,
+  MARK_OVERDUE_INVOICES_JOB,
+  PURGE_AUDIT_LOGS_JOB,
+} from './audit-retention.processor';
 import { AuditService, auditRow, redact } from './audit.service';
 import type { PrismaService } from '../../database/prisma.service';
 import type { RequestContext } from '../context/request-context';
@@ -137,6 +141,7 @@ describe('AuditRetentionProcessor (D-136)', () => {
       {
         get: () => ({ upsertJobScheduler: jest.fn().mockRejectedValue(new Error('redis down')) }),
       } as never,
+      {} as never,
     );
     await expect(
       processor.process({ name: PURGE_AUDIT_LOGS_JOB, data: {} } as never),
@@ -147,5 +152,19 @@ describe('AuditRetentionProcessor (D-136)', () => {
     await expect(processor.purge()).resolves.toEqual({ removed: 0 });
     await processor.onApplicationBootstrap();
     expect(logger.warn).toHaveBeenCalled();
+  });
+
+  it('should hand the overdue job to the invoice sweep', async () => {
+    const run = jest.fn().mockResolvedValue({ marked: 1 });
+    const processor = new AuditRetentionProcessor(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      { run } as never,
+    );
+    await expect(
+      processor.process({ name: MARK_OVERDUE_INVOICES_JOB, data: {} } as never),
+    ).resolves.toEqual({ marked: 1 });
   });
 });
