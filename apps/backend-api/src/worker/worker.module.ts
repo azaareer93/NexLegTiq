@@ -18,6 +18,7 @@ import { DocumentExtraction } from '../modules/documents/document-extraction';
 import { DocumentScan } from '../modules/documents/document-scan';
 import { ClamavScanner } from '../modules/documents/upload/clamav-scanner';
 import { OcrProcessor } from '../modules/documents/workers/ocr.processor';
+import { InvoiceOverdueSweep } from '../modules/invoices/invoice-overdue.sweep';
 import { NotificationsModule } from '../modules/notifications/notifications.module';
 import { NotificationProcessor } from '../modules/notifications/workers/notification.processor';
 import {
@@ -50,6 +51,7 @@ import { TimelineModule } from '../modules/timeline/timeline.module';
   providers: [
     EmailProcessor,
     AuditRetentionProcessor,
+    InvoiceOverdueSweep,
     VerificationLinks,
     PasswordResetLinks,
     InvitationLinks,

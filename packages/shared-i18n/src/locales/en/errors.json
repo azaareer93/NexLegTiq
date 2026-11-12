@@ -39,6 +39,7 @@
   "BIZ-018": "The last client of a case cannot be removed.",
   "BIZ-019": "A case always has a responsible lawyer: assign another one before removing them or changing their role.",
   "BIZ-020": "This document has no text to summarise.",
+  "BIZ-021": "An invoice can cover one currency only. Invoice the files with different currencies separately.",
   "DB-001": "Something went wrong while saving. Try again.",
   "EXT-001": "The email could not be sent. Try again later.",
   "EXT-002": "Text recognition is unavailable right now. Try again later.",

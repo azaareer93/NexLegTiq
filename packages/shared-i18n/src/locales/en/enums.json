@@ -119,6 +119,19 @@
     "CORRESPONDENCE": "Correspondence",
     "CLIENT_UPLOADS": "Client uploads"
   },
+  "invoicePaymentMethod": {
+    "CASH": "Cash",
+    "BANK_TRANSFER": "Bank transfer",
+    "CARD": "Card",
+    "OTHER": "Other"
+  },
+  "invoiceStatus": {
+    "DRAFT": "Draft",
+    "SENT": "Sent",
+    "PAID": "Paid",
+    "OVERDUE": "Overdue",
+    "VOID": "Void"
+  },
   "jurisdiction": {
     "PALESTINE": "Palestine",
     "JORDAN": "Jordan",

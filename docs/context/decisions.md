@@ -3010,3 +3010,42 @@ read-only role has no access to `ai_feedbacks` (migration `ai_feedback_readonly_
 newest per document and language by `regeneration`, then time (`distinct`, capped in the query), so regenerations never push a
 language out. The disclaimer also shows on pending and failed cards; the quota badge uses the user's digits and Arabic plural
 forms. **Accepted:** two forced regenerations at the same instant are both paid and one result is kept (as D-148's races).
+
+**D-162 — Invoices API: money precision, numbering at send, one currency, lifecycle** · Accepted (owner chose 1A 2A 3A 4A; MVP-91, 2026-11-10) · Amends D-017, D-092, D-152
+→ **Schema** (tenant, composite `(…, office_id)` FKs): `Invoice` (client, `fileId?` — null = consolidated over the client's
+files —, `invoiceNumber?`, `status` `INVOICE_STATUSES` DRAFT | SENT | PAID | OVERDUE | VOID, currency, `issueDate?`/`dueDate?`
+as dates, `subtotal`/`taxAmount`/`total`, `taxRatePercent` snapshot, `sentAt`, `paidAt`, `paymentMethod`
+`INVOICE_PAYMENT_METHODS` CASH | BANK_TRANSFER | CARD | OTHER, `paymentReference`, notes, creator), `InvoiceLineItem`
+(description, quantity, unit price, amount, position, `fileId` of the entry's file, `timeEntryId` without FK so a voided
+invoice keeps its lines), `InvoiceNumberSequence` (office + year); `time_entries.invoice_id` gets its composite FK (RESTRICT;
+drafts unlink before delete) and index (amends D-152). CHECKs: amounts ≥ 0, a number exactly when not DRAFT, `paidAt` exactly
+when PAID. **Money (owner 1A, amends D-017/D-092):** invoice and line amounts are `Decimal(14,3)`; every amount is rounded
+half-even to **its currency's** minor digits (ILS/USD 2, JOD 3) with `roundMoney(value, currency)`; time-entry rates stay
+`Decimal(14,2)`. **Tax (2A):** prices are tax-exclusive; the office's `taxRatePercent` is applied once to the subtotal and
+rounded to the currency; `includeTax: false` → 0. **Numbering (3A):** `INV-{YEAR}-{SEQ:4}` assigned at **send** (year of the
+send date in the office's time zone), gap-free per office and year (D-095 sequence row and lock), never reused — a voided invoice
+keeps its number; drafts have none and may be deleted. **One currency (4A):** a consolidated invoice over entries in more than
+one currency → **422 BIZ-021** (new). **Routes** (`src/modules/invoices`): `POST /invoices` builds a DRAFT from the billable,
+unbilled time entries with a work date in `[periodStart, periodEnd]` of one file (the client must be linked to it,
+`validation.clientNotOnFile`) or of the client's visible files (consolidated) — one line per entry (hours × the entry's rate),
+plus `extraLines` (disbursements); an entry without a rate → 400 `validation.missingRate` (nothing silently left unbilled);
+nothing to bill → 400 `validation.nothingToInvoice`; entries are linked in the same transaction on `invoice_id IS NULL` (a
+concurrent invoice → 409 RES-003). `PATCH` (notes, due date, tax, extra lines; totals recomputed) and `DELETE` (unlinks) only
+on DRAFT; `send` fixes number, issue date (today, office zone) and due date (**default issue date + 30 days**), writes
+`INVOICE_SENT` on each file the invoice covers; `mark-paid` (`mark:invoice:paid`) from SENT or OVERDUE, `INVOICE_PAID`; `void`
+from SENT or OVERDUE unlinks the entries (they can be invoiced again); a change in the wrong state → 422 BIZ-006. Writes need
+`generate:invoice`. **Overdue:** daily 04:00 UTC job `mark-overdue-invoices` (the `report` queue's processor) turns SENT
+invoices past their due date (office zone) OVERDUE, office by office, one audit row each. **Visibility:** `view:all:invoices`
+→ the office's invoices, `view:assigned:invoices` → those whose files the caller is assigned to; a consolidated invoice only
+when **all** its files are visible; invoices of a confidential file only to the office manager and the file's people (D-096).
+Every write is audited. **Note for later code:** the generic case-scope `where` must not be negated (`NOT`) — Prisma's NULL
+handling then drops files without a paralegal; invoices use their own file-scope check. **Not here:** the PDF, emailing and
+sharing to the portal (invoice PDF story), the office app's invoicing UI, retainers.
+Review additions (D-162, same PR): **an invoice without a file is visible only to the office manager** (fail closed) and a
+consolidated invoice needs at least one time entry (`validation.nothingToInvoice`) — otherwise an extra-lines-only invoice
+for the client of a confidential file reached everyone with invoice rights. Two drafts racing for the same entries: the
+entries are locked first, so the second finds nothing left (400 `validation.nothingToInvoice`), each entry is linked once. The
+overdue job updates with `RETURNING` and audits only the rows it changed, and runs only as the platform job (no office in its
+data, as D-144). `paidAt` may be neither in the future (office zone) nor before the issue date. The update audit row records
+the old and new tax rate and extra lines. The migration clears any `time_entries.invoice_id` before adding its FK (only tests
+ever set it). A time entry on a draft already counts as invoiced (locked, BIZ-006; not "unbilled" in the D-152 totals).

@@ -111,6 +111,8 @@ describe('time entries (HTTP + PostgreSQL)', () => {
       const where = { officeId: { in: officeIds } };
       await raw.timeTimer.deleteMany({ where });
       await raw.timeEntry.deleteMany({ where });
+      await raw.invoice.deleteMany({ where });
+      await raw.client.deleteMany({ where });
       await raw.fileTeamMember.deleteMany({ where });
       await raw.legalFile.deleteMany({ where });
       await raw.auditLog.deleteMany({ where });
@@ -226,8 +228,24 @@ describe('time entries (HTTP + PostgreSQL)', () => {
       amount: '225.00',
     });
     expect((await patch(senior, { description: 'Corrected by SL' })).status).toBe(200);
-    // Simulated: the invoices story sets invoiceId when it bills an entry (its FK arrives with that table).
-    await raw.timeEntry.update({ where: { id: entry.id }, data: { invoiceId: randomUUID() } });
+    // Simulated: an invoice bills the entry (the real flow is covered by invoices.int.spec.ts).
+    const invoice = await raw.invoice.create({
+      data: {
+        officeId: manager.officeId,
+        clientId: (
+          await raw.client.create({
+            data: { officeId: manager.officeId, clientType: 'INDIVIDUAL', displayName: 'Billed' },
+          })
+        ).id,
+        currency: 'ILS',
+        subtotal: '0',
+        taxRatePercent: '0',
+        taxAmount: '0',
+        total: '0',
+        createdById: manager.userId,
+      },
+    });
+    await raw.timeEntry.update({ where: { id: entry.id }, data: { invoiceId: invoice.id } });
     const before = await raw.timeEntry.findUnique({ where: { id: entry.id } });
     const locked = await patch(lawyer, { description: 'Too late' });
     expect(locked.status).toBe(422);

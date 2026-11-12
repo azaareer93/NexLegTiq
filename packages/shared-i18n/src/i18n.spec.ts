@@ -25,6 +25,8 @@ const ENUM_LABELS = {
   PARTY_TYPES: 'partyType',
   BILLING_METHODS: 'billingMethod',
   TASK_STATUSES: 'taskStatus',
+  INVOICE_STATUSES: 'invoiceStatus',
+  INVOICE_PAYMENT_METHODS: 'invoicePaymentMethod',
   COURT_TYPES: 'courtType',
   SESSION_TYPES: 'sessionType',
   SESSION_OUTCOMES: 'sessionOutcome',

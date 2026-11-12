@@ -159,6 +159,33 @@ export const timeEntryIn = async (db: PrismaClient, office: SeededOffice) =>
     },
   });
 
+export const invoiceIn = async (db: PrismaClient, office: SeededOffice) =>
+  db.invoice.create({
+    data: {
+      officeId: office.officeId,
+      clientId: (await clientIn(db, office)).id,
+      currency: 'ILS',
+      subtotal: '100.000',
+      taxRatePercent: '0',
+      taxAmount: '0.000',
+      total: '100.000',
+      createdById: office.userId,
+    },
+  });
+
+export const invoiceLineIn = async (db: PrismaClient, office: SeededOffice) =>
+  db.invoiceLineItem.create({
+    data: {
+      officeId: office.officeId,
+      invoiceId: (await invoiceIn(db, office)).id,
+      description: 'Isolation line',
+      quantity: '1.00',
+      unitPrice: '100.000',
+      amount: '100.000',
+      position: 0,
+    },
+  });
+
 export const timerIn = async (db: PrismaClient, office: SeededOffice) =>
   db.timeTimer.create({
     data: {
@@ -202,6 +229,23 @@ export const clientInvitationIn = async (db: PrismaClient, office: SeededOffice)
 export const PORTAL_RESOURCES: readonly TenantResource[] = [
   { model: 'ClientPortalAccess', create: portalAccessIn, update: { revokedAt: new Date() } },
   { model: 'ClientInvitation', create: clientInvitationIn, update: { status: 'REVOKED' } },
+];
+
+/** Billing tenant models (D-162), listed here to keep the matrix file short. */
+export const INVOICE_RESOURCES: readonly TenantResource[] = [
+  {
+    model: 'Invoice',
+    create: invoiceIn,
+    update: { notes: 'Renamed' },
+    http: { list: 'invoices', item: (id) => `invoices/${id}` },
+  },
+  { model: 'InvoiceLineItem', create: invoiceLineIn, update: { description: 'Renamed' } },
+  {
+    model: 'InvoiceNumberSequence',
+    create: (db, { officeId }) =>
+      db.invoiceNumberSequence.create({ data: { officeId, year: 2026, lastValue: 1 } }),
+    update: { lastValue: 2 },
+  },
 ];
 
 export const attendanceIn = async (db: PrismaClient, office: SeededOffice) =>
