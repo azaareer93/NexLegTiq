@@ -38,6 +38,7 @@ import { TasksModule } from '../modules/tasks/tasks.module';
 import { TimeEntriesModule } from '../modules/time-entries/time-entries.module';
 import { TimelineModule } from '../modules/timeline/timeline.module';
 import { UsersModule } from '../modules/users/users.module';
+import { WitnessesModule } from '../modules/witnesses/witnesses.module';
 
 /** Root module of the HTTP API. */
 @Module({
@@ -62,6 +63,7 @@ import { UsersModule } from '../modules/users/users.module';
     DashboardModule,
     TimeEntriesModule,
     NotesModule,
+    WitnessesModule,
     AiModule,
     AiSummariesModule,
     ClientsModule,

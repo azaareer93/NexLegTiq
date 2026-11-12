@@ -71,6 +71,7 @@
   "unknownFolder": "The selected folder does not exist in this case.",
   "unknownJudge": "The selected judge does not exist or does not sit at the selected court.",
   "unknownParty": "This party does not exist in your office.",
+  "unknownRecorder": "The person who recorded the testimony does not exist, is inactive or cannot open this case.",
   "unknownSession": "The selected hearing does not belong to this case.",
   "website": "Enter a web address starting with http:// or https://."
 }

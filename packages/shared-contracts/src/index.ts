@@ -27,3 +27,4 @@ export * from './task.contract.js';
 export * from './time-entry.contract.js';
 export * from './timeline.contract.js';
 export * from './user.contract.js';
+export * from './witness.contract.js';

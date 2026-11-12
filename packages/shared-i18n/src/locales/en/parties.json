@@ -65,5 +65,43 @@
     "banner_one": "This file has an unresolved conflict of interest.",
     "banner_other": "This file has {{count}} unresolved conflicts of interest.",
     "review": "Review"
+  },
+  "witnesses": {
+    "title": "Witnesses and experts",
+    "add": "Add witness",
+    "addTitle": "Add witness",
+    "editTitle": "Edit witness",
+    "empty": "No witnesses on this file yet",
+    "fullName": "Full name",
+    "isExpert": "Expert witness",
+    "expert": "Expert",
+    "expertiseArea": "Field of expertise",
+    "phone": "Phone",
+    "email": "Email",
+    "address": "Address",
+    "notes": "Notes",
+    "statements_one": "{{count}} statement",
+    "statements_other": "{{count}} statements",
+    "edit": "Edit {{name}}",
+    "remove": "Remove {{name}}",
+    "removeTitle": "Remove witness?",
+    "removeBody": "<name>{{name}}</name> and all of their statements will be deleted.",
+    "removed": "Witness removed"
+  },
+  "statements": {
+    "title": "Statements of {{name}}",
+    "add": "Add statement",
+    "empty": "No statements recorded yet",
+    "date": "Date",
+    "hearing": "Hearing",
+    "noHearing": "Not given at a hearing",
+    "text": "Statement",
+    "underOath": "Under oath",
+    "atHearing": "At the hearing of {{date}}",
+    "recordedBy": "Recorded by {{name}}",
+    "edit": "Edit the statement of {{date}}",
+    "remove": "Delete the statement of {{date}}",
+    "removeTitle": "Delete statement?",
+    "removeBody": "The statement will be deleted for good."
   }
 }
