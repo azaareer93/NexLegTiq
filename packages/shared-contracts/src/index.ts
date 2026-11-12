@@ -11,6 +11,7 @@ export * from './dashboard.contract.js';
 export * from './document.contract.js';
 export * from './fields.js';
 export * from './folder.contract.js';
+export * from './invoice.contract.js';
 export * from './locale.contract.js';
 export * from './note.contract.js';
 export * from './notification.contract.js';

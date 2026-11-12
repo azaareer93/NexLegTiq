@@ -119,6 +119,19 @@
     "CORRESPONDENCE": "المراسلات",
     "CLIENT_UPLOADS": "مرفوعات الموكل"
   },
+  "invoicePaymentMethod": {
+    "CASH": "نقدًا",
+    "BANK_TRANSFER": "تحويل بنكي",
+    "CARD": "بطاقة",
+    "OTHER": "أخرى"
+  },
+  "invoiceStatus": {
+    "DRAFT": "مسودة",
+    "SENT": "مُرسلة",
+    "PAID": "مدفوعة",
+    "OVERDUE": "متأخرة",
+    "VOID": "ملغاة"
+  },
   "jurisdiction": {
     "PALESTINE": "فلسطين",
     "JORDAN": "الأردن",

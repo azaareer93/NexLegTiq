@@ -10,6 +10,7 @@ import {
   documentIn,
   documentTextIn,
   fileIn,
+  INVOICE_RESOURCES,
   folderIn,
   PORTAL_RESOURCES,
   noteIn,
@@ -50,6 +51,7 @@ export interface TenantResource {
 
 export const TENANT_ISOLATION_MATRIX: readonly TenantResource[] = [
   ...PORTAL_RESOURCES,
+  ...INVOICE_RESOURCES,
   {
     model: 'OfficeSettings',
     create: (db, { officeId }) => db.officeSettings.create({ data: { officeId } }),

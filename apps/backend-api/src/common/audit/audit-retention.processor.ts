@@ -8,6 +8,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { z } from 'zod';
 
 import { PrismaService } from '../../database/prisma.service';
+import { InvoiceOverdueSweep } from '../../modules/invoices/invoice-overdue.sweep';
 import { getQueue, QUEUE, workerOptions } from '../queue/queues';
 import type { TenantJobData } from '../queue/tenant-job';
 import { TenantProcessor } from '../queue/tenant-processor';
@@ -15,6 +16,9 @@ import { TenantRunner } from '../tenancy/tenant-runner';
 
 export const PURGE_AUDIT_LOGS_JOB = 'purge-audit-logs';
 /** Daily at 03:00 UTC, an hour after the reminder reconciliation. */
+export const MARK_OVERDUE_INVOICES_JOB = 'mark-overdue-invoices';
+/** Daily at 04:00 UTC: already past midnight in the markets' zones (Hebron is UTC+2/+3). */
+export const OVERDUE_SCHEDULE = { pattern: '0 4 * * *', tz: 'UTC' } as const;
 export const PURGE_SCHEDULE = { pattern: '0 3 * * *', tz: 'UTC' } as const;
 
 /**
@@ -35,6 +39,7 @@ export class AuditRetentionProcessor
     prisma: PrismaService,
     logger: PinoLogger,
     private readonly moduleRef: ModuleRef,
+    private readonly overdue: InvoiceOverdueSweep,
   ) {
     super(tenant, prisma, logger);
   }
@@ -42,22 +47,27 @@ export class AuditRetentionProcessor
   /** Registers (or updates) the daily purge; a Redis outage at boot is logged, not fatal. */
   async onApplicationBootstrap(): Promise<void> {
     try {
-      await getQueue(this.moduleRef, QUEUE.REPORT).upsertJobScheduler(
-        PURGE_AUDIT_LOGS_JOB,
-        PURGE_SCHEDULE,
-        {
-          name: PURGE_AUDIT_LOGS_JOB,
-          data: {},
-        },
-      );
+      const queue = getQueue(this.moduleRef, QUEUE.REPORT);
+      await queue.upsertJobScheduler(PURGE_AUDIT_LOGS_JOB, PURGE_SCHEDULE, {
+        name: PURGE_AUDIT_LOGS_JOB,
+        data: {},
+      });
+      await queue.upsertJobScheduler(MARK_OVERDUE_INVOICES_JOB, OVERDUE_SCHEDULE, {
+        name: MARK_OVERDUE_INVOICES_JOB,
+        data: {},
+      });
     } catch (error) {
-      this.logger.warn({ err: error }, 'Audit retention purge not scheduled');
+      this.logger.warn({ err: error }, 'Report schedulers not registered');
     }
   }
 
   /** The purge spans every office, so it runs before the tenant checks of `TenantProcessor.process`. */
   override async process(job: Job<Record<string, never> & TenantJobData>): Promise<unknown> {
     if (job.name === PURGE_AUDIT_LOGS_JOB) return this.purge();
+    // A platform job: only the scheduler's (no office in its data) may run it, never a job someone queued for an office.
+    if (job.name === MARK_OVERDUE_INVOICES_JOB && !('officeId' in (job.data ?? {}))) {
+      return this.overdue.run();
+    }
     return super.process(job);
   }
 

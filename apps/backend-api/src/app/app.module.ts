@@ -23,6 +23,7 @@ import { CourtsModule } from '../modules/courts/courts.module';
 import { DashboardModule } from '../modules/dashboard/dashboard.module';
 import { DocumentsModule } from '../modules/documents/documents.module';
 import { FileParticipantsModule } from '../modules/file-participants/file-participants.module';
+import { InvoicesModule } from '../modules/invoices/invoices.module';
 import { LegalFilesModule } from '../modules/legal-files/legal-files.module';
 import { NotesModule } from '../modules/notes/notes.module';
 import { NotificationsModule } from '../modules/notifications/notifications.module';
@@ -62,6 +63,7 @@ import { WitnessesModule } from '../modules/witnesses/witnesses.module';
     TimelineModule,
     DashboardModule,
     TimeEntriesModule,
+    InvoicesModule,
     NotesModule,
     WitnessesModule,
     AiModule,
