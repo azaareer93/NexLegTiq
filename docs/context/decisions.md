@@ -3164,10 +3164,14 @@ the last minute, so several API processes write at most about once a minute each
 request; realtime sockets do not count). `POST /auth/refresh` reads the office's `sessionIdleMinutes` (30 without a settings
 row) **at each refresh**, so a changed setting applies to the next refresh, and refuses a session idle for longer with **401
 AUTH-004** — the family is revoked and the cookie cleared as for any dead session (D-082); no audit row (a normal expiry).
-**Grace (deviation from the ticket's exact limit):** the server allows **two minutes beyond** the office's minutes, because
-its record lags real use by up to the once-a-minute write plus the app's once-a-minute heartbeat; without it the server could
-end a session the app still counts as active. **Office app:** activity the server cannot see (reading, scrolling, typing
+**Grace (deviation from the ticket's exact limit):** the server allows **three minutes beyond** the office's minutes, because
+its record lags real use by up to the once-a-minute write plus the app's once-a-minute heartbeat (and a write racing a
+rotation can be missed); without it the server could end a session the app still counts as active. A rotation reads the
+activity time **after** claiming the token, so a write that landed just before is kept. **No revival:** the guard's write
+never touches a session already past its minutes plus the grace, so an access token refreshed just before the limit cannot
+make an abandoned session active again. **Office app:** activity the server cannot see (reading, scrolling, typing
 without a request) is sent as a light authenticated request (`GET notifications/unread-count`) at most once a minute, and on
 "stay signed in"; the app keeps its own timer and one-minute warning (D-090), and a session refused mid-use after the idle
-time lands on sign-in with "signed out after inactivity" rather than "session expired". **Not here:** the client portal realm
+time lands on sign-in with "signed out after inactivity" rather than "session expired". **Known limit:** pages that poll (documents every 10 s while processing, AI jobs every 5 s) count as activity while they
+poll — the ticket's "any authenticated request". **Not here:** the client portal realm
 (its `ClientSession` table and guard are separate, D-158 — the same rule can be added there), per-device session lists.

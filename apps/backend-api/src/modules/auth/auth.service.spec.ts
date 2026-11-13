@@ -59,6 +59,7 @@ function setup(
   const db = {
     user: { update: jest.fn().mockResolvedValue({}) },
     refreshToken: {
+      findUniqueOrThrow: jest.fn(() => Promise.resolve({ lastActivityAt: ACTIVITY_AT })),
       updateMany: jest.fn().mockResolvedValue({ count: overrides.claimed ?? 1 }),
       create: jest.fn().mockResolvedValue({ id: 'next', familyId: 'family' }),
       update: jest.fn().mockResolvedValue({}),
@@ -106,13 +107,14 @@ function setup(
 }
 
 const request = { email: 'lawyer@example.test', password: 'pw', rememberMe: false };
+const ACTIVITY_AT = new Date(Date.now() - 60_000);
 const storedToken = (extra: object = {}) => ({
   id: 'old',
   familyId: 'family',
   createdAt: new Date(Date.now() - 1000),
   expiresAt: new Date(Date.now() + 86_400_000),
   revokedAt: null,
-  lastActivityAt: new Date(Date.now() - 60_000),
+  lastActivityAt: ACTIVITY_AT,
   user: activeUser,
   ...extra,
 });
@@ -251,11 +253,11 @@ describe('AuthService.refresh', () => {
     const kept = setup({ token: stored });
     await kept.service.refresh('cookie', client);
     expect(kept.db.refreshToken.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ lastActivityAt: stored.lastActivityAt }),
+      data: expect.objectContaining({ lastActivityAt: ACTIVITY_AT }),
     });
-    // The office allows 45 minutes, plus a two-minute allowance.
+    // The office allows 45 minutes, plus a three-minute allowance.
     const idle = setup({
-      token: storedToken({ lastActivityAt: new Date(Date.now() - 48 * 60_000) }),
+      token: storedToken({ lastActivityAt: new Date(Date.now() - 49 * 60_000) }),
     });
     await expect(idle.service.refresh('cookie', client)).rejects.toMatchObject({
       code: 'AUTH-004',

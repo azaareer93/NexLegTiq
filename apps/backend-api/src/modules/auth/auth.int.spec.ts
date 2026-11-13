@@ -512,8 +512,8 @@ describe('auth (HTTP + PostgreSQL)', () => {
     it('should refuse a refresh after the idle minutes with 401 AUTH-004, revoke the family and clear the cookie', async () => {
       const { email, userId } = await seedUser();
       const cookie = cookieValue(refreshCookie(await login(email).expect(200)));
-      // 30 minutes by default, plus the two-minute allowance for the throttled activity writes.
-      await setActivity(userId, 33);
+      // 30 minutes by default, plus the three-minute allowance for the throttled activity writes.
+      await setActivity(userId, 34);
       const res = await refresh(cookie).expect(401);
       expect(res.body.error).toMatchObject({ code: 'AUTH-004' });
       expect(refreshCookie(res)).toMatch(/Expires=Thu, 01 Jan 1970/);
@@ -526,11 +526,22 @@ describe('auth (HTTP + PostgreSQL)', () => {
       ).resolves.toBe(0);
     });
 
-    it('should count an authenticated request as activity', async () => {
+    it('should count an authenticated request as activity, but not revive a session past its limit', async () => {
+      const probe = (token: string) =>
+        request(app.getHttpServer())
+          .get('/api/v1/__auth_probe__/me')
+          .set('Authorization', `Bearer ${token}`)
+          .expect(200);
+      const past = await seedUser();
+      const stale = await login(past.email).expect(200);
+      await setActivity(past.userId, 40);
+      await probe(stale.body.data.accessToken as string);
+      await refresh(cookieValue(refreshCookie(stale))).expect(401);
+
       const { email, userId } = await seedUser();
       const res = await login(email).expect(200);
       const cookie = cookieValue(refreshCookie(res));
-      await setActivity(userId, 33);
+      await setActivity(userId, 31);
       await request(app.getHttpServer())
         .get('/api/v1/__auth_probe__/me')
         .set('Authorization', `Bearer ${res.body.data.accessToken as string}`)

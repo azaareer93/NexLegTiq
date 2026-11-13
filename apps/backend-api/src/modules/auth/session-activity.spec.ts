@@ -1,5 +1,6 @@
 import type { PinoLogger } from 'nestjs-pino';
 
+import { IDLE_GRACE_MS } from './refresh-token.repository';
 import type { RefreshTokenRepository } from './refresh-token.repository';
 import { ACTIVITY_WRITE_MS, SessionActivity } from './session-activity';
 
@@ -21,7 +22,10 @@ describe('SessionActivity (MVP-168)', () => {
     await activity.touch('o1', 'f1', new Date(at.getTime() + ACTIVITY_WRITE_MS - 1));
     await activity.touch('o1', 'f2', at);
     expect(touch).toHaveBeenCalledTimes(2);
-    expect(touch).toHaveBeenCalledWith('o1', 'f1', at, ACTIVITY_WRITE_MS);
+    expect(touch).toHaveBeenCalledWith('o1', 'f1', at, {
+      withinMs: ACTIVITY_WRITE_MS,
+      graceMs: IDLE_GRACE_MS,
+    });
     await activity.touch('o1', 'f1', new Date(at.getTime() + ACTIVITY_WRITE_MS));
     expect(touch).toHaveBeenCalledTimes(3);
   });

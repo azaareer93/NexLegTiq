@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 
-import { RefreshTokenRepository } from './refresh-token.repository';
+import { IDLE_GRACE_MS, RefreshTokenRepository } from './refresh-token.repository';
 
 /** A session's activity is written at most this often (MVP-168): the idle limit is in minutes, not seconds. */
 export const ACTIVITY_WRITE_MS = 60_000;
@@ -31,7 +31,10 @@ export class SessionActivity {
     if (this.lastWrite.size >= MEMO_LIMIT) this.lastWrite.clear();
     this.lastWrite.set(familyId, at);
     try {
-      await this.refreshTokens.touch(officeId, familyId, now, ACTIVITY_WRITE_MS);
+      await this.refreshTokens.touch(officeId, familyId, now, {
+        withinMs: ACTIVITY_WRITE_MS,
+        graceMs: IDLE_GRACE_MS,
+      });
     } catch (error) {
       this.logger.warn({ err: error }, 'Could not record session activity');
     }

@@ -14,7 +14,12 @@ import { isLocked } from './lockout';
 import { LoginAttemptRepository } from './login-attempt.repository';
 import { PasswordHasher } from './password-hasher';
 import { refreshExpiry, rotatedExpiry } from './refresh-token';
-import { RefreshTokenRepository, USER_FOR_SESSION } from './refresh-token.repository';
+import {
+  DEFAULT_IDLE_MINUTES,
+  IDLE_GRACE_MS,
+  RefreshTokenRepository,
+  USER_FOR_SESSION,
+} from './refresh-token.repository';
 import { auditRow } from '../../common/audit/audit.service';
 import { hashOpaqueToken, newOpaqueToken } from '../../common/auth/opaque-token';
 import { AppException } from '../../common/errors/app.exception';
@@ -32,16 +37,13 @@ export interface IssuedSession {
 }
 
 /** The schema default of `office_settings.session_idle_minutes` (D-053), for an office without a settings row. */
-const DEFAULT_IDLE_MINUTES = 30;
 
 /**
  * The server's idle timeout (MVP-168, amends D-082/D-090): a session with no authenticated request for longer than the
  * office's `sessionIdleMinutes` (read at each refresh, so a changed setting applies at once) cannot be refreshed — 401
- * AUTH-004, and the caller revokes the family. A refresh itself is not activity. The recorded activity lags the real one by
- * up to the once-a-minute write plus the office app's once-a-minute heartbeat, so the limit gets that much grace: the
- * server never ends a session the app still counts as active.
+ * AUTH-004, and the caller revokes the family. A refresh itself is not activity; `IDLE_GRACE_MS` covers the lag of the
+ * recorded activity, so the server never ends a session the app still counts as active.
  */
-const IDLE_GRACE_MS = 2 * 60_000;
 
 function assertNotIdle(lastActivityAt: Date, user: SessionUser, now: Date): void {
   const idleMinutes = user.office.settings?.sessionIdleMinutes ?? DEFAULT_IDLE_MINUTES;
@@ -160,16 +162,10 @@ export class AuthService {
         await this.refreshTokens.lockUser(tx, user);
         // Conditional claim: of two concurrent refreshes with the same token, only one can win.
         if (!(await this.refreshTokens.claim(tx, existing.id))) return false;
+        const lastActivityAt = await this.refreshTokens.lastActivityAt(tx, existing.id);
         const next = await this.refreshTokens.create(
           tx,
-          this.newTokenRow(
-            user,
-            existing.familyId,
-            token,
-            expiresAt,
-            client,
-            existing.lastActivityAt,
-          ),
+          this.newTokenRow(user, existing.familyId, token, expiresAt, client, lastActivityAt),
         );
         await this.refreshTokens.linkReplacement(tx, existing.id, next.id);
         return true;
