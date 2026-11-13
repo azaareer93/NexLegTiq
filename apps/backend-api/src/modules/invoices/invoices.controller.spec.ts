@@ -20,9 +20,11 @@ describe('InvoicesController', () => {
       markPaid: jest.fn().mockResolvedValue('paid'),
       void: jest.fn().mockResolvedValue('voided'),
     };
+    const pdfs = { link: jest.fn().mockResolvedValue({ status: 'RENDERING' }) };
     const controller = new InvoicesController(
       invoices as unknown as InvoicesService,
       lifecycle as unknown as InvoiceLifecycle,
+      pdfs as never,
     );
     await expect(controller.list({ page: 1, limit: 20 } as never)).resolves.toBe('list');
     await expect(controller.create({ clientId: ID } as never)).resolves.toBe('created');
@@ -30,7 +32,10 @@ describe('InvoicesController', () => {
     await expect(controller.summary({ clientId: ID })).resolves.toBe('summary');
     await expect(controller.update(ID, { notes: 'x' })).resolves.toBe('updated');
     await controller.remove(ID);
-    await expect(controller.send(ID)).resolves.toBe('sent');
+    await expect(controller.send(ID, { emailClient: false })).resolves.toBe('sent');
+    const res = { status: jest.fn() };
+    await expect(controller.pdf(ID, {}, res as never)).resolves.toEqual({ status: 'RENDERING' });
+    expect(res.status).toHaveBeenCalledWith(202);
     await expect(
       controller.markPaid(ID, { paidAt: '2026-11-10T09:00:00Z', method: 'CASH' }),
     ).resolves.toBe('paid');

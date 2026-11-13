@@ -142,6 +142,7 @@ describe('AuditRetentionProcessor (D-136)', () => {
         get: () => ({ upsertJobScheduler: jest.fn().mockRejectedValue(new Error('redis down')) }),
       } as never,
       {} as never,
+      {} as never,
     );
     await expect(
       processor.process({ name: PURGE_AUDIT_LOGS_JOB, data: {} } as never),
@@ -162,9 +163,38 @@ describe('AuditRetentionProcessor (D-136)', () => {
       {} as never,
       {} as never,
       { run } as never,
+      {} as never,
     );
     await expect(
       processor.process({ name: MARK_OVERDUE_INVOICES_JOB, data: {} } as never),
     ).resolves.toEqual({ marked: 1 });
+  });
+
+  it('should hand an invoice PDF job to the renderer and refuse unknown jobs', async () => {
+    const pdfs = { run: jest.fn().mockResolvedValue({ rendered: true }) };
+    const processor = new AuditRetentionProcessor(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      pdfs as never,
+    );
+    const signal = new AbortController().signal;
+    const data = {
+      invoiceId: '01900000-0000-7000-8000-000000000001',
+      language: 'AR',
+      email: false,
+    };
+    const handle = (
+      processor as unknown as { handle: (job: object, s: AbortSignal) => Promise<unknown> }
+    ).handle.bind(processor);
+    await expect(handle({ name: 'render-invoice-pdf', id: 'j1', data }, signal)).resolves.toEqual({
+      rendered: true,
+    });
+    expect(pdfs.run).toHaveBeenCalledWith(data, 'j1', signal);
+    expect(() => handle({ name: 'other', id: 'j2', data }, signal)).toThrow(
+      'Unknown report job other',
+    );
   });
 });

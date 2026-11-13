@@ -26,13 +26,21 @@ const row = (over: object = {}) => ({
 
 function setup(locked: object = row()) {
   const tx = {
-    invoice: { update: jest.fn(), delete: jest.fn() },
+    invoice: {
+      update: jest.fn().mockResolvedValue({ updatedAt: new Date('2026-11-14T08:00:00Z') }),
+      delete: jest.fn(),
+      findFirstOrThrow: jest.fn().mockResolvedValue({ client: { email: null, contacts: [] } }),
+    },
     invoiceLineItem: { deleteMany: jest.fn(), createMany: jest.fn() },
     timeEntry: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
     officeSettings: {
       findFirstOrThrow: jest.fn().mockResolvedValue({ taxRatePercent: new Prisma.Decimal('10') }),
     },
-    office: { findFirstOrThrow: jest.fn().mockResolvedValue({ timezone: 'Asia/Hebron' }) },
+    office: {
+      findFirstOrThrow: jest
+        .fn()
+        .mockResolvedValue({ timezone: 'Asia/Hebron', defaultLanguage: 'BILINGUAL' }),
+    },
   };
   const access = {
     caller: () => ({ officeId: ID(9) }),
@@ -42,16 +50,56 @@ function setup(locked: object = row()) {
   const numbers = { next: jest.fn().mockResolvedValue('INV-2026-0007') };
   const audit = { log: jest.fn() };
   const timeline = { record: jest.fn() };
+  const queues = { enqueue: jest.fn() };
+  const afterCommit: (() => unknown)[] = [];
   const lifecycle = new InvoiceLifecycle(
-    { run: (work: (t: typeof tx) => unknown) => work(tx) } as never,
+    {
+      run: (work: (t: typeof tx, after: (task: () => unknown) => void) => unknown) =>
+        work(tx, (task) => afterCommit.push(task)),
+    } as never,
     access as never,
     invoices as never,
     numbers as never,
     audit as never,
     timeline as never,
+    queues as never,
   );
-  return { lifecycle, tx, access, numbers, audit, timeline };
+  return { lifecycle, tx, access, numbers, audit, timeline, queues, afterCommit };
 }
+
+describe('InvoiceLifecycle.send and the PDF (MVP-92)', () => {
+  it('should render the PDF after the commit, in Arabic for a bilingual office, without email by default', async () => {
+    const { lifecycle, queues, afterCommit } = setup();
+    await lifecycle.send(INVOICE);
+    expect(queues.enqueue).not.toHaveBeenCalled();
+    await Promise.all(afterCommit.map((task) => task()));
+    expect(queues.enqueue).toHaveBeenCalledWith(
+      'report',
+      'render-invoice-pdf',
+      { invoiceId: INVOICE, language: 'AR', email: false },
+      { jobId: expect.stringMatching(new RegExp(`^invoice-pdf-${INVOICE}-AR-\\d+-\\d+-send$`)) },
+    );
+  });
+
+  it('should refuse to email a client without an address and email one that has it', async () => {
+    const refused = setup();
+    await expect(refused.lifecycle.send(INVOICE, { emailClient: true })).rejects.toMatchObject({
+      code: 'VAL-001',
+    });
+    const ok = setup();
+    ok.tx.invoice.findFirstOrThrow.mockResolvedValue({
+      client: { email: null, contacts: [{ email: 'billing@example.test' }] },
+    });
+    await ok.lifecycle.send(INVOICE, { emailClient: true, language: 'EN' });
+    await Promise.all(ok.afterCommit.map((task) => task()));
+    expect(ok.queues.enqueue).toHaveBeenCalledWith(
+      'report',
+      'render-invoice-pdf',
+      { invoiceId: INVOICE, language: 'EN', email: true },
+      expect.anything(),
+    );
+  });
+});
 
 describe('InvoiceLifecycle.update (D-162)', () => {
   it('should keep the time lines, replace the extras and recompute with the office rate', async () => {

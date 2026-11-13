@@ -1634,6 +1634,10 @@ model Invoice {
   createdById      String                @map("created_by_id") @db.Uuid
   createdAt        DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt        DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+  /// The stored PDF (MVP-92): current while pdfRenderedFor equals updatedAt and the language matches.
+  pdfStorageKey    String?               @map("pdf_storage_key")
+  pdfLanguage      OfficeLanguage?       @map("pdf_language")
+  pdfRenderedFor   DateTime?             @map("pdf_rendered_for") @db.Timestamptz(3)
 
   office      Office            @relation(fields: [officeId], references: [id])
   client      Client            @relation(fields: [clientId, officeId], references: [id, officeId], onUpdate: Restrict)

@@ -31,12 +31,13 @@ USER node
 EXPOSE 3000
 CMD ["node", "--enable-source-maps", "main.js"]
 
-# OCR tools only where jobs run, so the API image stays small (D-103). Debian's tesseract-ocr brings eng and osd (the
-# orientation model `--psm 1` uses); ara is added.
+# OCR tools and Chromium only where jobs run, so the API image stays small (D-103). Debian's tesseract-ocr brings eng
+# and osd (the orientation model `--psm 1` uses); ara is added. Chromium prints invoice PDFs (D-171); the template embeds
+# its fonts, so no font packages are needed.
 FROM runtime AS worker
 USER root
 RUN apt-get update \
- && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-ara poppler-utils \
+ && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-ara poppler-utils chromium \
  && rm -rf /var/lib/apt/lists/*
 USER node
 CMD ["node", "--enable-source-maps", "worker.js"]

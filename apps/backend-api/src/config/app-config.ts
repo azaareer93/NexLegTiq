@@ -162,6 +162,11 @@ export class AppConfig {
     };
   }
 
+  /** Chromium binary that prints invoice PDFs (D-171). */
+  get chromiumPath(): string {
+    return this.#env.PDF_CHROMIUM_PATH;
+  }
+
   /** Google Vision fallback (D-142); null when no credentials are configured. */
   get vision(): {
     readonly apiKey: string;

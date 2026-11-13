@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type {
+  SendInvoiceRequest,
   Invoice,
   MarkInvoicePaidRequest,
   UpdateInvoiceRequest,
@@ -11,8 +12,10 @@ import { buildLines, invoiceTotals } from './invoice-math';
 import { InvoiceNumberService } from './invoice-number.service';
 import { day, plusDays } from './invoice-presenter';
 import { InvoicesService } from './invoices.service';
+import { enqueuePdf, officePdfLanguage } from './pdf/invoice-pdf.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { ValidationException } from '../../common/errors/app.exception';
+import { QueueProducer } from '../../common/queue/queue-producer';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { ScopedTransaction } from '../../database/unit-of-work';
 import { toDbDate } from '../tasks/tasks.repository';
@@ -32,6 +35,7 @@ export class InvoiceLifecycle {
     private readonly numbers: InvoiceNumberService,
     private readonly audit: AuditService,
     private readonly timeline: TimelineService,
+    private readonly queues: QueueProducer,
   ) {}
 
   /** A draft's notes, due date, tax inclusion and extra items; time lines stay (delete and re-draft to re-pull entries). */
@@ -102,10 +106,19 @@ export class InvoiceLifecycle {
     return invoiceTotals(amounts, rate, input.includeTax ?? row.taxRatePercent.gt(0), row.currency);
   }
 
-  /** Numbers the draft (gap-free per office and year of the send date) and fixes its issue and due dates. */
-  async send(id: string): Promise<Invoice> {
-    await this.uow.run(async (tx) => {
+  /**
+   * Numbers the draft (gap-free per office and year of the send date) and fixes its issue and due dates; after the commit
+   * its PDF is rendered and, with `emailClient`, emailed to the client's primary contact (D-171).
+   */
+  async send(id: string, input: SendInvoiceRequest = { emailClient: false }): Promise<Invoice> {
+    await this.uow.run(async (tx, afterCommit) => {
       const row = await this.access.locked(tx, id, ['DRAFT']);
+      if (input.emailClient && !(await this.clientHasEmail(tx, id))) {
+        throw new ValidationException([
+          { field: 'emailClient', message: 'validation.noClientEmail' },
+        ]);
+      }
+      const language = input.language ?? (await officePdfLanguage(tx));
       const { timezone } = await tx.office.findFirstOrThrow({ select: { timezone: true } });
       const today = wallClock(new Date(), timezone).date;
       const dueDate = row.dueDate ? day(row.dueDate) : plusDays(today, PAYMENT_TERM_DAYS);
@@ -113,8 +126,9 @@ export class InvoiceLifecycle {
         throw new ValidationException([{ field: 'dueDate', message: 'validation.dateRange' }]);
       }
       const number = await this.numbers.next(tx, Number(today.slice(0, 4)));
-      await tx.invoice.update({
+      const { updatedAt } = await tx.invoice.update({
         where: { id },
+        select: { updatedAt: true },
         data: {
           status: 'SENT',
           invoiceNumber: number,
@@ -129,10 +143,42 @@ export class InvoiceLifecycle {
         entityId: id,
         action: 'UPDATE',
         oldValues: { status: 'DRAFT' },
-        newValues: { status: 'SENT', invoiceNumber: number, issueDate: today, dueDate },
+        newValues: {
+          status: 'SENT',
+          invoiceNumber: number,
+          issueDate: today,
+          dueDate,
+          emailClient: input.emailClient,
+        },
       });
+      afterCommit(
+        () =>
+          enqueuePdf(
+            this.queues,
+            { invoiceId: id, language, email: input.emailClient },
+            updatedAt,
+            '-send',
+          ),
+        'enqueue invoice PDF',
+      );
     });
     return this.invoices.get(id);
+  }
+
+  /** The primary contact's or the client's own address (where the renderer sends it). */
+  private async clientHasEmail(tx: ScopedTransaction, id: string): Promise<boolean> {
+    const { client } = await tx.invoice.findFirstOrThrow({
+      where: { id },
+      select: {
+        client: {
+          select: {
+            email: true,
+            contacts: { where: { isPrimary: true }, select: { email: true } },
+          },
+        },
+      },
+    });
+    return Boolean(client.contacts[0]?.email ?? client.email);
   }
 
   async markPaid(id: string, input: MarkInvoicePaidRequest): Promise<Invoice> {

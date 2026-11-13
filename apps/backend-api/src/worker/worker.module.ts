@@ -19,6 +19,7 @@ import { DocumentScan } from '../modules/documents/document-scan';
 import { ClamavScanner } from '../modules/documents/upload/clamav-scanner';
 import { OcrProcessor } from '../modules/documents/workers/ocr.processor';
 import { InvoiceOverdueSweep } from '../modules/invoices/invoice-overdue.sweep';
+import { InvoicePdfRenderer } from '../modules/invoices/pdf/invoice-pdf.renderer';
 import { NotificationsModule } from '../modules/notifications/notifications.module';
 import { NotificationProcessor } from '../modules/notifications/workers/notification.processor';
 import {
@@ -52,6 +53,7 @@ import { TimelineModule } from '../modules/timeline/timeline.module';
     EmailProcessor,
     AuditRetentionProcessor,
     InvoiceOverdueSweep,
+    InvoicePdfRenderer,
     VerificationLinks,
     PasswordResetLinks,
     InvitationLinks,
