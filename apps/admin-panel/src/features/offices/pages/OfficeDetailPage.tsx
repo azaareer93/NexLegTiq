@@ -4,7 +4,7 @@ import type {
   AdminOfficeStatistics,
   AdminSubscriptionRow,
 } from '@nexlegtiq/shared-contracts';
-import { isErrorCode } from '@nexlegtiq/shared-types';
+import { FILE_STATUSES, isErrorCode } from '@nexlegtiq/shared-types';
 import {
   Bdi,
   EmptyState,
@@ -17,7 +17,7 @@ import {
   useApiErrorHandler,
   useFormat,
 } from '@nexlegtiq/shared-ui';
-import { Alert, Button, Card, Descriptions, Table } from 'antd';
+import { Alert, Button, Card, Descriptions, Space, Table } from 'antd';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router';
@@ -63,8 +63,6 @@ function Subscriptions({ rows }: { readonly rows: AdminSubscriptionRow[] }): Rea
   );
 }
 
-const FILE_STATUSES = ['OPEN', 'SUSPENDED', 'CLOSED', 'ARCHIVED'] as const;
-
 /** D-164: counts only, over the last 30 days where the label says so. */
 function Statistics({ stats }: { readonly stats: AdminOfficeStatistics }): React.JSX.Element {
   const { t } = useTranslation();
@@ -73,7 +71,7 @@ function Statistics({ stats }: { readonly stats: AdminOfficeStatistics }): React
   const onOff = (on: boolean) => t(on ? 'admin.offices.stats.on' : 'admin.offices.stats.off');
   return (
     <Card
-      title={t('admin.offices.stats.title')}
+      title={t('admin.offices.stats.title', { days: n(30) })}
       style={{ marginBlockEnd: 16 }}
       data-testid="office-statistics"
     >
@@ -94,12 +92,17 @@ function Statistics({ stats }: { readonly stats: AdminOfficeStatistics }): React
           {n(stats.documents)}
         </Descriptions.Item>
         <Descriptions.Item label={t('admin.offices.stats.filesByStatus')}>
-          {FILE_STATUSES.map((status) =>
-            t('admin.offices.stats.statusCount', {
-              status: t(`enums.fileStatus.${status}`),
-              count: n(stats.filesByStatus[status]),
-            }),
-          ).join(t('admin.offices.stats.separator'))}
+          {FILE_STATUSES.map((status, index) => (
+            <span key={status}>
+              {index > 0 ? t('admin.offices.stats.separator') : null}
+              <Bdi>
+                {t('admin.offices.stats.statusCount', {
+                  status: t(`enums.fileStatus.${status}`),
+                  count: n(stats.filesByStatus[status]),
+                })}
+              </Bdi>
+            </span>
+          ))}
         </Descriptions.Item>
         <Descriptions.Item label={t('admin.offices.stats.aiEnabled')}>
           {onOff(stats.aiEnabled)}
@@ -115,12 +118,12 @@ function Statistics({ stats }: { readonly stats: AdminOfficeStatistics }): React
 function OfficeStatus({ office }: { readonly office: AdminOfficeDetail }): React.JSX.Element {
   const { t } = useTranslation();
   return (
-    <>
+    <Space size={4} wrap>
       <StatusTag tone={office.status === 'SUSPENDED' ? 'error' : 'success'}>
         {t(`admin.offices.status.${office.status}`)}
       </StatusTag>
       {office.atRisk ? <AtRiskTag id={office.id} /> : null}
-    </>
+    </Space>
   );
 }
 

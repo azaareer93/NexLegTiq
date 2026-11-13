@@ -3054,8 +3054,8 @@ ever set it). A time entry on a draft already counts as invoiced (locked, BIZ-00
 MVP-165 asked for a 0–100 activity score with five levels, a per-role staff section, per-case activity, daily snapshots and a
 90-day trend. → The owner chose **statistics plus one at-risk rule**; the score, levels, per-role and per-case sections, the
 snapshot table and the trend are **not built** (they can follow once the counts below prove useful). **"Activity" is the office
-audit log** (D-136, kept ≥ 365 days): a **write** is a `CREATE`, `UPDATE`, `DELETE` or `SHARE` row; views, downloads and sign-ins
-are not work done. **List and detail** (`GET /admin/offices`, `/admin/offices/:id`) gain `lastWriteAt` (the office's latest write)
+audit log** (D-136, kept ≥ 365 days): a **write** is a `CREATE`, `UPDATE`, `DELETE` or `SHARE` row **made by a person** (`userId`
+set); views, downloads, sign-ins and system jobs (an invoice turned overdue by the daily sweep) are not work done. **List and detail** (`GET /admin/offices`, `/admin/offices/:id`) gain `lastWriteAt` (the office's latest write)
 and **`atRisk`** = an active office **older than 14 days** whose last write is **older than 14 days, or that has none**; suspended
 offices are never at risk (suspension says more). The admin panel shows a "Needs follow-up" tag with the reason as a tooltip,
 in words, never colour alone, and a "Last change" column. **Detail** gains `statistics`, counts only (nothing named leaves the
@@ -3063,7 +3063,7 @@ office, D-080): active users who signed in within 30 days (`lastLoginAt`, the on
 status, files created in 30 days, live documents and those created in 30 days, writes in 30 days, and the office's AI and OCR
 switches (a missing settings row counts as on, the column defaults). Windows are rolling 30 × 24 h, not calendar days.
 Constants (`WRITE_ACTIONS`, `STATS_WINDOW_DAYS`, `AT_RISK_QUIET_DAYS`) live in `platform-offices/office-activity.ts`; tuning
-needs no migration. No migration: `audit_logs (office_id, occurred_at DESC)` already exists; the list's last-write lookup is one
-grouped query over the page's offices (a max per office over its write rows) — fine at today's volume, to be precomputed daily
-if it slows. Not audited separately: reading statistics is part of the detail view, already `OFFICE_VIEWED` (D-159). **Not
+needs no migration. No migration: `audit_logs (office_id, occurred_at DESC)` already exists; the list's last write is a correlated
+subquery per listed office that walks that index backwards and stops at the first write (`LIMIT 1`); a partial index on writes
+is the next step if offices with long runs of views ever slow it. Not audited separately: reading statistics is part of the detail view, already `OFFICE_VIEWED` (D-159). **Not
 done:** a list filter or sort by at-risk, alerts, the office manager's name on the detail.

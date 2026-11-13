@@ -13,6 +13,7 @@ const baseRow = {
   plan_code: 'PS_FREE',
   plan_name: null,
   sub_status: 'ACTIVE',
+  last_write_at: null,
 };
 
 interface Opts {
@@ -53,10 +54,7 @@ function build(o: Opts = {}) {
       count: jest.fn().mockResolvedValue(1),
     },
     document: { count: jest.fn().mockResolvedValue(3) },
-    auditLog: {
-      groupBy: jest.fn().mockResolvedValue([]),
-      count: jest.fn().mockResolvedValue(4),
-    },
+    auditLog: { count: jest.fn().mockResolvedValue(4) },
     officeSettings: { findUnique: jest.fn().mockResolvedValue(null) },
     documentVersion: { groupBy: jest.fn().mockResolvedValue([]) },
     aiUsage: { groupBy: jest.fn().mockResolvedValue([]) },
@@ -114,7 +112,13 @@ describe('PlatformOfficesService list', () => {
       createdTo: '2026-02-01',
     } as never);
     const page = queries.find((q) => !q.sql.includes('count(*)'));
-    const [source, limit, offset] = page?.values as [{ values: unknown[] }, number, number];
+    const [writes, source, limit, offset] = page?.values as [
+      { values: unknown[] },
+      { values: unknown[] },
+      number,
+      number,
+    ];
+    expect(writes.values).toEqual(['CREATE', 'UPDATE', 'DELETE', 'SHARE']);
     expect(source.values).toEqual(
       expect.arrayContaining(['50\\%\\_a', 'ACTIVE', 'PS_FREE', 'PALESTINE', '2026-01-01']),
     );
@@ -145,13 +149,12 @@ describe('PlatformOfficesService list', () => {
 
 describe('PlatformOfficesService get', () => {
   it('should count files per status, default the switches without settings and flag a quiet office', async () => {
-    const { service, raw } = build();
+    const { service, raw } = build({
+      rows: [{ ...baseRow, last_write_at: new Date('2026-01-03T00:00:00Z') }],
+    });
     raw.legalFile.groupBy.mockImplementation(({ by }: { by: string[] }) =>
       Promise.resolve(by[0] === 'status' ? [{ status: 'CLOSED', _count: { _all: 5 } }] : []),
     );
-    raw.auditLog.groupBy.mockResolvedValue([
-      { officeId: 'o1', _max: { occurredAt: new Date('2026-01-03T00:00:00Z') } },
-    ]);
     const detail = await service.get('o1');
     expect(detail.statistics).toEqual({
       signedIn30d: 2,

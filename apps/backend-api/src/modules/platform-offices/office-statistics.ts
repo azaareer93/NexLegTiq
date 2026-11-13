@@ -10,17 +10,21 @@ export async function officeStatistics(
   now = new Date(),
 ): Promise<AdminOfficeStatistics> {
   const since = daysAgo(STATS_WINDOW_DAYS, now);
-  const liveFile = { officeId, deletedAt: null };
-  const liveDocument = { officeId, deletedAt: null };
+  const live = { officeId, deletedAt: null };
   const [signedIn30d, byStatus, filesNew30d, documents, documentsNew30d, writes30d, settings] =
     await Promise.all([
       raw.user.count({ where: { officeId, isActive: true, lastLoginAt: { gte: since } } }),
-      raw.legalFile.groupBy({ by: ['status'], where: liveFile, _count: { _all: true } }),
-      raw.legalFile.count({ where: { ...liveFile, createdAt: { gte: since } } }),
-      raw.document.count({ where: liveDocument }),
-      raw.document.count({ where: { ...liveDocument, createdAt: { gte: since } } }),
+      raw.legalFile.groupBy({ by: ['status'], where: live, _count: { _all: true } }),
+      raw.legalFile.count({ where: { ...live, createdAt: { gte: since } } }),
+      raw.document.count({ where: live }),
+      raw.document.count({ where: { ...live, createdAt: { gte: since } } }),
       raw.auditLog.count({
-        where: { officeId, action: { in: [...WRITE_ACTIONS] }, occurredAt: { gte: since } },
+        where: {
+          officeId,
+          userId: { not: null },
+          action: { in: [...WRITE_ACTIONS] },
+          occurredAt: { gte: since },
+        },
       }),
       raw.officeSettings.findUnique({
         where: { officeId },

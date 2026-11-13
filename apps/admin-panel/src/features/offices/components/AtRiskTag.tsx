@@ -7,7 +7,8 @@ export function AtRiskTag({ id }: { readonly id: string }): React.JSX.Element {
   const { t } = useTranslation();
   return (
     <Tooltip title={t('admin.offices.atRiskHint')}>
-      <span data-testid={`office-at-risk-${id}`}>
+      {/* Focusable so keyboard users reach the reason too. */}
+      <span tabIndex={0} data-testid={`office-at-risk-${id}`}>
         <StatusTag tone="warning">{t('admin.offices.atRisk')}</StatusTag>
       </span>
     </Tooltip>

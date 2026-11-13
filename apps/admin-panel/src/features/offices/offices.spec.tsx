@@ -202,6 +202,16 @@ describe('offices list review cases', () => {
     expect(router.state.location.search).toBe('?page=2');
   });
 
+  it('should show no at-risk tag for an office that is not at risk, and no last change yet', async () => {
+    server.use(
+      http.get(api('admin/offices'), () => page([{ ...ITEM, atRisk: false, lastWriteAt: null }])),
+    );
+    renderAt('/offices');
+    await screen.findByTestId(`office-link-${ID}`);
+    expect(screen.queryByTestId(`office-at-risk-${ID}`)).toBeNull();
+    expect(screen.getByTestId('offices-table').textContent).toContain('Last change');
+  });
+
   it('should write the status filter into the URL', async () => {
     server.use(http.get(api('admin/offices'), () => page([ITEM])));
     const router = renderAt('/offices');

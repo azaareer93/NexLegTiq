@@ -20,4 +20,10 @@ describe('isAtRisk (D-164)', () => {
     );
     expect(isAtRisk({ isActive: false, createdAt: old, lastWriteAt: null }, now)).toBe(false);
   });
+
+  it('should count a write exactly 14 days old as recent, and an office exactly 14 days old as old enough', () => {
+    const edge = daysAgo(14, now);
+    expect(isAtRisk({ isActive: true, createdAt: old, lastWriteAt: edge }, now)).toBe(false);
+    expect(isAtRisk({ isActive: true, createdAt: edge, lastWriteAt: null }, now)).toBe(true);
+  });
 });

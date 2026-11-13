@@ -13,7 +13,7 @@ import {
   useApiErrorHandler,
   useFormat,
 } from '@nexlegtiq/shared-ui';
-import { Button, DatePicker, Flex, Input, Select, Table } from 'antd';
+import { Button, DatePicker, Flex, Input, Select, Space, Table } from 'antd';
 import type { TableColumnsType } from 'antd';
 import dayjs from 'dayjs';
 import { useMemo } from 'react';
@@ -49,12 +49,12 @@ function useColumns(): TableColumnsType<AdminOfficeListItem> {
       title: t('admin.offices.columns.status'),
       key: 'status',
       render: (_, row) => (
-        <>
+        <Space size={4} wrap>
           <StatusTag tone={row.status === 'ACTIVE' ? 'success' : 'error'}>
             {t(`admin.offices.status.${row.status}`)}
           </StatusTag>
           {row.atRisk ? <AtRiskTag id={row.id} /> : null}
-        </>
+        </Space>
       ),
     },
     {

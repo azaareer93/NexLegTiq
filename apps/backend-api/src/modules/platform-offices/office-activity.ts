@@ -1,6 +1,6 @@
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Writes = actions that change office data; views, downloads and sign-ins are not work done (D-164). */
+/** Writes = actions that change office data, by a person (rows with a user); views, downloads, sign-ins and system jobs are not work done (D-164). */
 export const WRITE_ACTIONS = ['CREATE', 'UPDATE', 'DELETE', 'SHARE'] as const;
 /** Window of the detail page's "30d" counts. */
 export const STATS_WINDOW_DAYS = 30;

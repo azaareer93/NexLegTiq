@@ -29,6 +29,7 @@ interface BaseRow {
   plan_code: string | null;
   plan_name: string | null;
   sub_status: AdminOfficeListItem['subscriptionStatus'];
+  last_write_at: Date | null;
 }
 
 const escapeLike = (value: string): string => value.replace(/[\\%_]/g, (c) => `\\${c}`);
@@ -221,7 +222,12 @@ export class PlatformOfficesService {
     const [rows, counted] = await Promise.all([
       raw.$queryRaw<BaseRow[]>`
         SELECT o.id::text AS id, o.name, o.jurisdiction::text AS jurisdiction, o.is_active, o.created_at,
-               cur.code AS plan_code, cur.name AS plan_name, cur.status AS sub_status
+               cur.code AS plan_code, cur.name AS plan_name, cur.status AS sub_status,
+               -- Walks audit_logs (office_id, occurred_at DESC) and stops at the first write by a person (D-164).
+               (SELECT a.occurred_at FROM audit_logs a
+                WHERE a.office_id = o.id AND a.user_id IS NOT NULL
+                  AND a.action::text IN (${Prisma.join([...WRITE_ACTIONS])})
+                ORDER BY a.occurred_at DESC LIMIT 1) AS last_write_at
         ${source}
         ORDER BY o.created_at DESC, o.id DESC
         LIMIT ${limit} OFFSET ${offset}`,
@@ -239,7 +245,7 @@ export class PlatformOfficesService {
     monthStart.setUTCHours(0, 0, 0, 0);
     // unscoped: platform admin usage overview across offices (D-080).
     const raw = this.prisma.unscoped();
-    const [users, files, bytes, ai, logins, writes] = await Promise.all([
+    const [users, files, bytes, ai, logins] = await Promise.all([
       raw.user.groupBy({
         by: ['officeId'],
         where: { officeId, isActive: true },
@@ -268,22 +274,15 @@ export class PlatformOfficesService {
         _count: { _all: true },
       }),
       raw.user.groupBy({ by: ['officeId'], where: { officeId }, _max: { lastLoginAt: true } }),
-      // shortcut: a max over each office's audit rows per page, fine at today's volume; precompute daily if it slows.
-      raw.auditLog.groupBy({
-        by: ['officeId'],
-        where: { officeId, action: { in: [...WRITE_ACTIONS] } },
-        _max: { occurredAt: true },
-      }),
     ]);
     const u = new Map(users.map((x) => [x.officeId, x._count._all]));
     const f = new Map(files.map((x) => [x.officeId, x._count._all]));
     const b = new Map(bytes.map((x) => [x.officeId, x._sum.sizeBytes ?? 0n]));
     const a = new Map(ai.map((x) => [x.officeId, x._count._all]));
     const l = new Map(logins.map((x) => [x.officeId, x._max.lastLoginAt]));
-    const w = new Map(writes.map((x) => [x.officeId, x._max.occurredAt]));
     const now = new Date();
     return rows.map((r) => ({
-      ...activity(r, w.get(r.id), now),
+      ...activity(r, now),
       id: r.id,
       name: r.name,
       jurisdiction: r.jurisdiction,
@@ -303,8 +302,8 @@ export class PlatformOfficesService {
 }
 
 /** The last write and the at-risk flag of one office (D-164). */
-function activity(r: BaseRow, last: Date | null | undefined, now: Date) {
-  const lastWriteAt = last ?? null;
+function activity(r: BaseRow, now: Date): Pick<AdminOfficeListItem, 'lastWriteAt' | 'atRisk'> {
+  const lastWriteAt = r.last_write_at;
   return {
     lastWriteAt: lastWriteAt?.toISOString() ?? null,
     atRisk: isAtRisk({ isActive: r.is_active, createdAt: r.created_at, lastWriteAt }, now),
