@@ -2679,7 +2679,7 @@ event's file, read through `TimelineService.recent`, so the D-150 read-time filt
 the overdue tasks assigned to them, and the office's hearings of the next 7 days — **counts only, confidential files
 included** (as client file counts, D-108). **Deviation — no cache:** the ticket's `o:{officeId}:dashboard:{userId}` 60 s
 cache with event invalidation is not built (D-096: nothing caches yet; the page is a dozen indexed counts and short lists,
-measured in the integration test's fixtures, not under load) — add it with the load test (MVP-117) if p95 asks for it.
+measured in the integration test's fixtures, not under load) — add it with the load test (the load-test story) if p95 asks for it.
 **Office app:** `/` replaces the placeholder — greeting with the office's date, KPI cards linking to cases (`scope=mine`),
 calendar, tasks, documents and clients, today's hearings (the one within the hour tagged), the 7-day list, recent activity
 in the timeline's sentences (`eventSentence`, D-150) and the team table; a new office (no open files, no activity) with
@@ -2696,7 +2696,7 @@ it): a senior lawyer learns how many open files and overdue tasks each lawyer ha
 no titles). Lists are capped at 20 (today's hearings too, without a "more" hint). The dashboard **refreshes live** on
 `task.*`, `session.scheduled` and `document.processed` (the realtime bridge invalidates `['dashboard']`). `TimelineService`
 gains `recent(userId, limit)`; `list` and `recent` share the read-time filter (`readable`). Numbers follow the user's digit
-style. **Not changed:** no repository layer (the service holds its queries, like D-146/D-149); no load test (MVP-117).
+style. **Not changed:** no repository layer (the service holds its queries, like D-146/D-149); no load test (the load-test story).
 
 **D-152 — Time entries, the running timer and file totals** · Accepted (MVP-90, 2026-11-09)
 MVP-90 left the timer's storage, the rate and currency source, who sees whose entries and money, and the lock before an
@@ -3132,3 +3132,24 @@ run yet); **paid this month** = PAID with `paidAt` since the first instant of th
 rounded to each currency's digits. Drafts and voided invoices never count. **No cache** (D-151 built none, so there is nothing
 to invalidate); the page refetches on focus. **Deviation:** the cards do not link anywhere yet — the office app has no invoices
 page (its own story adds the link). The card reads "Paid this month" rather than "revenue" (it is cash received, tax included).
+
+**D-167 — Global search API: one query per type, visibility in SQL and again in Prisma, no cache yet** · Accepted (MVP-81, 2026-11-13)
+MVP-81 left open how the access rules reach ranked raw SQL, what a group's "count" is and asked for a 60 s user-scoped
+cache. → **`GET /search?q&type=all|cases|clients|parties|documents|tasks&limit`** (`src/modules/search`, ANY of
+`view:all|assigned:cases`, 60/min per IP): `q` 2–200 characters (VAL-001 `validation.tooShort`), `limit` 1–20 per group
+(default 5). Each type runs D-165's `searchQuery` in parallel with the reader's visibility as its required `where`
+(`fileVisibleSql` = `CaseAccessService.visibleWhere` on `legal_files`: assigned scope, confidential files for the office
+manager and the file's people; documents = the **current version's text of a READY document** on a visible file, a
+confidential document only for the office manager, its uploader and the file's people, D-126; tasks = on a visible file or
+the caller's personal tasks, D-098), so the limit counts only rows the reader may open. The rows are then read through the
+Prisma access rules again (`visibleWhere` of files, documents and tasks): if the SQL ever drifts from them, results shrink,
+they never leak; the integration test pins both per role. **Clients** only for `manage:clients` (D-121), **parties** (the
+office-wide registry, D-135) only for `edit:any|assigned:case`; other readers get those groups empty. **Groups** are
+`{items, hasMore}` (the query fetches `limit + 1`) instead of a total count, which would need a second counting query per
+type. **Document snippets:** `ts_headline` (simple config) over the first 50,000 characters of the text (on the Arabic-normalised text when the written one marks nothing, so a letter-variant match is still highlighted), only for documents that passed the re-check, returned as
+`[{text, match}]` parts split on control-character markers stripped from the text first — the app renders them as text,
+never HTML. A snippet is not audited (D-128 audits reading a text page; a snippet of a few words is part of the result).
+**Deviation — no cache:** the ticket's `o:{officeId}:u:{userId}:search:{hash}` 60 s cache is not built, as for the
+dashboard (D-151): D-165 measured 6–57 ms P95 per query on 50k rows, and a cache would hide a file created a minute ago from
+its own author; add it with the load test (the load-test story) if p95 asks. **Not here:** witness statements in results (their vector
+exists, D-163 — a later group), Arabic prefix stemming (D-165's known limit), the search overlay (its own story).
