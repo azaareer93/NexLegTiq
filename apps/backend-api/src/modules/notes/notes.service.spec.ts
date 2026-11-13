@@ -1,6 +1,6 @@
 import type { ClsService } from 'nestjs-cls';
 
-import { NotesController } from './notes.controller';
+import { ClientNotesController, NotesController } from './notes.controller';
 import { NotesService } from './notes.service';
 import type { AuditService } from '../../common/audit/audit.service';
 import type { RequestContext } from '../../common/context/request-context';
@@ -166,5 +166,12 @@ describe('NotesService (D-154)', () => {
     await expect(controller.update(FILE, NOTE, { pinned: true })).resolves.toBe('updated');
     await controller.remove(FILE, NOTE);
     expect(notes.remove).toHaveBeenCalledWith({ fileId: FILE }, NOTE);
+    const client = new ClientNotesController(notes as unknown as NotesService);
+    await client.list(FILE);
+    await client.create(FILE, { body: 'x' });
+    await client.update(FILE, NOTE, { pinned: true });
+    await client.remove(FILE, NOTE);
+    expect(notes.list).toHaveBeenLastCalledWith({ clientId: FILE });
+    expect(notes.remove).toHaveBeenLastCalledWith({ clientId: FILE }, NOTE);
   });
 });

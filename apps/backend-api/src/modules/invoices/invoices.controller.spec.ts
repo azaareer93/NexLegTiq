@@ -11,6 +11,7 @@ describe('InvoicesController', () => {
       list: jest.fn().mockResolvedValue('list'),
       create: jest.fn().mockResolvedValue('created'),
       get: jest.fn().mockResolvedValue('invoice'),
+      summary: jest.fn().mockResolvedValue('summary'),
     };
     const lifecycle = {
       update: jest.fn().mockResolvedValue('updated'),
@@ -26,6 +27,7 @@ describe('InvoicesController', () => {
     await expect(controller.list({ page: 1, limit: 20 } as never)).resolves.toBe('list');
     await expect(controller.create({ clientId: ID } as never)).resolves.toBe('created');
     await expect(controller.get(ID)).resolves.toBe('invoice');
+    await expect(controller.summary({ clientId: ID })).resolves.toBe('summary');
     await expect(controller.update(ID, { notes: 'x' })).resolves.toBe('updated');
     await controller.remove(ID);
     await expect(controller.send(ID)).resolves.toBe('sent');
