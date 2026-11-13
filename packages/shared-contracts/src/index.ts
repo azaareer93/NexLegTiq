@@ -21,6 +21,7 @@ export * from './password.contract.js';
 export * from './portal-auth.contract.js';
 export * from './profile.contract.js';
 export * from './realtime.contract.js';
+export * from './search.contract.js';
 export * from './session.contract.js';
 export * from './subscription.contract.js';
 export * from './task-template.contract.js';
