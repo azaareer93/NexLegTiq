@@ -6,6 +6,14 @@ import type { ScopedPrismaClient } from '../../database/prisma.service';
 /** The scoped client or a transaction opened on it. */
 type ScopedTx = Pick<ScopedPrismaClient, 'refreshToken'>;
 
+/** Idle minutes without an office settings row (D-053; the column default). */
+export const DEFAULT_IDLE_MINUTES = 30;
+/**
+ * Allowance on the server's idle limit: its record lags real use by up to the once-a-minute write and the office app's
+ * once-a-minute heartbeat, and a write racing a rotation can be missed (MVP-168).
+ */
+export const IDLE_GRACE_MS = 3 * 60_000;
+
 export const USER_FOR_SESSION = {
   id: true,
   officeId: true,
@@ -35,6 +43,8 @@ export interface NewRefreshToken {
   readonly expiresAt: Date;
   readonly ipAddress: string;
   readonly userAgent: string | null;
+  /** Login: now; rotation: the rotated token's, since a refresh is not activity (MVP-168). */
+  readonly lastActivityAt: Date;
 }
 
 /**
@@ -55,6 +65,7 @@ export class RefreshTokenRepository {
         createdAt: true,
         expiresAt: true,
         revokedAt: true,
+        lastActivityAt: true,
         user: { select: USER_FOR_SESSION },
       },
     });
@@ -114,6 +125,35 @@ export class RefreshTokenRepository {
       },
       data: { revokedAt: now },
     });
+  }
+
+  /**
+   * Marks the session's live token as used now, unless it was marked within `withinMs` — and never a session already past
+   * the office's idle minutes plus `graceMs`: an access token issued just before the limit must not revive it (MVP-168).
+   */
+  async touch(
+    officeId: string,
+    familyId: string,
+    now: Date,
+    { withinMs, graceMs }: { withinMs: number; graceMs: number },
+  ): Promise<void> {
+    // Called by the JWT guard before the request's tenant context exists; office and family come from the verified token.
+    // unscoped: guard-time write filtered by the token's own office and family.
+    await this.prisma.unscoped().$executeRaw`
+      UPDATE "refresh_tokens" t SET "last_activity_at" = ${now}
+      WHERE t."office_id" = ${officeId}::uuid AND t."family_id" = ${familyId}::uuid AND t."revoked_at" IS NULL
+        AND t."last_activity_at" < ${new Date(now.getTime() - withinMs)}
+        AND t."last_activity_at" >= ${new Date(now.getTime() - graceMs)}::timestamptz - make_interval(mins => coalesce(
+          (SELECT s."session_idle_minutes" FROM "office_settings" s WHERE s."office_id" = t."office_id"), ${DEFAULT_IDLE_MINUTES}))`;
+  }
+
+  /** The claimed token's activity time, read after the claim: a guard write that landed before it is kept (MVP-168). */
+  async lastActivityAt(tx: ScopedTx, id: string): Promise<Date> {
+    const row = await tx.refreshToken.findUniqueOrThrow({
+      where: { id },
+      select: { lastActivityAt: true },
+    });
+    return row.lastActivityAt;
   }
 
   async revokeFamily(tx: ScopedTx, familyId: string): Promise<void> {
