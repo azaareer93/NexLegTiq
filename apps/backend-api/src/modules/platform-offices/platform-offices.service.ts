@@ -7,6 +7,8 @@ import type {
 import type { OfficeId } from '@nexlegtiq/shared-types';
 import { PinoLogger } from 'nestjs-pino';
 
+import { isAtRisk, WRITE_ACTIONS } from './office-activity';
+import { officeStatistics } from './office-statistics';
 import { ResourceNotFoundException } from '../../common/errors/app.exception';
 import { PaginatedResult } from '../../common/http/paginated-result';
 import { RealtimePublisher } from '../../common/realtime/realtime.publisher';
@@ -27,6 +29,7 @@ interface BaseRow {
   plan_code: string | null;
   plan_name: string | null;
   sub_status: AdminOfficeListItem['subscriptionStatus'];
+  last_write_at: Date | null;
 }
 
 const escapeLike = (value: string): string => value.replace(/[\\%_]/g, (c) => `\\${c}`);
@@ -99,6 +102,7 @@ export class PlatformOfficesService {
         createdAt: s.createdAt.toISOString(),
       })),
       suspension,
+      statistics: await officeStatistics(raw, id),
     };
   }
 
@@ -218,7 +222,12 @@ export class PlatformOfficesService {
     const [rows, counted] = await Promise.all([
       raw.$queryRaw<BaseRow[]>`
         SELECT o.id::text AS id, o.name, o.jurisdiction::text AS jurisdiction, o.is_active, o.created_at,
-               cur.code AS plan_code, cur.name AS plan_name, cur.status AS sub_status
+               cur.code AS plan_code, cur.name AS plan_name, cur.status AS sub_status,
+               -- Walks audit_logs (office_id, occurred_at DESC) and stops at the first write by a person (D-164).
+               (SELECT a.occurred_at FROM audit_logs a
+                WHERE a.office_id = o.id AND a.user_id IS NOT NULL
+                  AND a.action::text IN (${Prisma.join([...WRITE_ACTIONS])})
+                ORDER BY a.occurred_at DESC LIMIT 1) AS last_write_at
         ${source}
         ORDER BY o.created_at DESC, o.id DESC
         LIMIT ${limit} OFFSET ${offset}`,
@@ -271,7 +280,9 @@ export class PlatformOfficesService {
     const b = new Map(bytes.map((x) => [x.officeId, x._sum.sizeBytes ?? 0n]));
     const a = new Map(ai.map((x) => [x.officeId, x._count._all]));
     const l = new Map(logins.map((x) => [x.officeId, x._max.lastLoginAt]));
+    const now = new Date();
     return rows.map((r) => ({
+      ...activity(r, now),
       id: r.id,
       name: r.name,
       jurisdiction: r.jurisdiction,
@@ -288,4 +299,13 @@ export class PlatformOfficesService {
       lastActivityAt: l.get(r.id)?.toISOString() ?? null,
     }));
   }
+}
+
+/** The last write and the at-risk flag of one office (D-164). */
+function activity(r: BaseRow, now: Date): Pick<AdminOfficeListItem, 'lastWriteAt' | 'atRisk'> {
+  const lastWriteAt = r.last_write_at;
+  return {
+    lastWriteAt: lastWriteAt?.toISOString() ?? null,
+    atRisk: isAtRisk({ isActive: r.is_active, createdAt: r.created_at, lastWriteAt }, now),
+  };
 }

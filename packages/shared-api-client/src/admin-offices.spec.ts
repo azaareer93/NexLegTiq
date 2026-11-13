@@ -19,6 +19,8 @@ const item = {
   subscriptionStatus: 'ACTIVE',
   usage: { activeUsers: 2, liveFiles: 3, storageMb: 4, aiThisMonth: 5 },
   lastActivityAt: null,
+  lastWriteAt: null,
+  atRisk: false,
 };
 const detail = {
   ...item,
@@ -29,6 +31,16 @@ const detail = {
   timezone: 'Asia/Hebron',
   subscriptions: [],
   suspension: null,
+  statistics: {
+    signedIn30d: 1,
+    filesByStatus: { OPEN: 1, SUSPENDED: 0, CLOSED: 0, ARCHIVED: 0 },
+    filesNew30d: 0,
+    documents: 0,
+    documentsNew30d: 0,
+    writes30d: 0,
+    aiEnabled: true,
+    ocrEnabled: false,
+  },
 };
 
 const server = setupServer();

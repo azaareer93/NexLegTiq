@@ -48,6 +48,8 @@ describe('admin offices contracts', () => {
       subscriptionStatus: 'TRIALING',
       usage: { activeUsers: 2, liveFiles: 3, storageMb: 1, aiThisMonth: 0 },
       lastActivityAt: null,
+      lastWriteAt: null,
+      atRisk: false,
       accountType: 'FIRM',
       email: null,
       phone: null,
@@ -65,6 +67,16 @@ describe('admin offices contracts', () => {
         },
       ],
       suspension: null,
+      statistics: {
+        signedIn30d: 1,
+        filesByStatus: { OPEN: 1, SUSPENDED: 0, CLOSED: 0, ARCHIVED: 0 },
+        filesNew30d: 0,
+        documents: 0,
+        documentsNew30d: 0,
+        writes30d: 0,
+        aiEnabled: true,
+        ocrEnabled: false,
+      },
     };
     expect(AdminOfficeDetailSchema.safeParse(office).success).toBe(true);
   });

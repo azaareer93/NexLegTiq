@@ -24,6 +24,8 @@ const ITEM = {
   subscriptionStatus: 'ACTIVE',
   usage: { activeUsers: 3, liveFiles: 12, storageMb: 40, aiThisMonth: 2 },
   lastActivityAt: '2026-11-08T10:00:00.000Z',
+  lastWriteAt: '2026-11-07T10:00:00.000Z',
+  atRisk: true,
 };
 const DETAIL = {
   ...ITEM,
@@ -44,6 +46,16 @@ const DETAIL = {
     },
   ],
   suspension: null,
+  statistics: {
+    signedIn30d: 1,
+    filesByStatus: { OPEN: 1, SUSPENDED: 0, CLOSED: 0, ARCHIVED: 0 },
+    filesNew30d: 0,
+    documents: 0,
+    documentsNew30d: 0,
+    writes30d: 17,
+    aiEnabled: true,
+    ocrEnabled: false,
+  },
 };
 const SUSPENDED = {
   ...DETAIL,
@@ -121,6 +133,7 @@ describe('offices list', () => {
       const row = await screen.findByTestId(`office-link-${ID}`);
       expect(row.textContent).toContain('Haddad & Partners');
       expect(screen.getByTestId('offices-table').textContent).toContain('Free plan');
+      expect(screen.getByTestId(`office-at-risk-${ID}`)).toBeTruthy();
       expect(seen[0]).toBe(''); // invalid parameters are dropped
 
       const search = within(screen.getByTestId('offices-search')).getByRole('searchbox');
@@ -189,6 +202,16 @@ describe('offices list review cases', () => {
     expect(router.state.location.search).toBe('?page=2');
   });
 
+  it('should show no at-risk tag for an office that is not at risk, and no last change yet', async () => {
+    server.use(
+      http.get(api('admin/offices'), () => page([{ ...ITEM, atRisk: false, lastWriteAt: null }])),
+    );
+    renderAt('/offices');
+    await screen.findByTestId(`office-link-${ID}`);
+    expect(screen.queryByTestId(`office-at-risk-${ID}`)).toBeNull();
+    expect(screen.getByTestId('offices-table').textContent).toContain('Last change');
+  });
+
   it('should write the status filter into the URL', async () => {
     server.use(http.get(api('admin/offices'), () => page([ITEM])));
     const router = renderAt('/offices');
@@ -225,6 +248,11 @@ describe('office detail', () => {
     renderAt(`/offices/${ID}`);
     expect((await screen.findByTestId('page-office')).textContent).toContain('office@example.test');
     expect(screen.getByTestId('office-usage').textContent).toContain('40');
+    const stats = screen.getByTestId('office-statistics').textContent;
+    expect(stats).toContain('17');
+    expect(stats).toContain('Open: 1');
+    expect(stats).toContain('Off');
+    expect(screen.getByTestId(`office-at-risk-${ID}`).textContent).toBe('Needs follow-up');
     expect(screen.getByTestId('office-subscriptions').textContent).toContain('Free plan');
     expect(screen.queryByTestId('office-suspension')).toBeNull();
   });

@@ -40,7 +40,8 @@
       "plan": "الخطة",
       "status": "الحالة",
       "storage": "التخزين",
-      "users": "المستخدمون"
+      "users": "المستخدمون",
+      "lastWrite": "آخر تغيير"
     },
     "detail": {
       "accountType": "نوع الحساب",
@@ -98,7 +99,24 @@
       "reason": "السبب:",
       "title": "معلّق منذ"
     },
-    "title": "المكاتب"
+    "title": "المكاتب",
+    "atRisk": "بحاجة إلى متابعة",
+    "atRiskHint": "لا تغييرات منذ أسبوعين",
+    "stats": {
+      "title": "آخر {{days}} يومًا",
+      "signedIn30d": "مستخدمون سجّلوا الدخول",
+      "filesByStatus": "الملفات حسب الحالة",
+      "filesNew30d": "ملفات جديدة",
+      "documents": "المستندات",
+      "documentsNew30d": "مستندات جديدة",
+      "writes30d": "عمليات التعديل",
+      "aiEnabled": "الذكاء الاصطناعي",
+      "ocrEnabled": "التعرّف الضوئي على النصوص",
+      "on": "مفعّل",
+      "off": "معطّل",
+      "statusCount": "{{status}}: {{count}}",
+      "separator": "، "
+    }
   },
   "recovery": {
     "continue": "المتابعة إلى لوحة الإدارة",
