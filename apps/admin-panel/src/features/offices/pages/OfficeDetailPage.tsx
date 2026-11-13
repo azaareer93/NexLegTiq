@@ -1,6 +1,10 @@
 import { ApiError } from '@nexlegtiq/shared-api-client';
-import type { AdminOfficeDetail, AdminSubscriptionRow } from '@nexlegtiq/shared-contracts';
-import { isErrorCode } from '@nexlegtiq/shared-types';
+import type {
+  AdminOfficeDetail,
+  AdminOfficeStatistics,
+  AdminSubscriptionRow,
+} from '@nexlegtiq/shared-contracts';
+import { FILE_STATUSES, isErrorCode } from '@nexlegtiq/shared-types';
 import {
   Bdi,
   EmptyState,
@@ -13,11 +17,12 @@ import {
   useApiErrorHandler,
   useFormat,
 } from '@nexlegtiq/shared-ui';
-import { Alert, Button, Card, Descriptions, Table } from 'antd';
+import { Alert, Button, Card, Descriptions, Space, Table } from 'antd';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router';
 
+import { AtRiskTag } from '../components/AtRiskTag';
 import { OfficeActionModal } from '../components/OfficeActionModal';
 import { useOffice } from '../hooks';
 
@@ -58,6 +63,70 @@ function Subscriptions({ rows }: { readonly rows: AdminSubscriptionRow[] }): Rea
   );
 }
 
+/** D-164: counts only, over the last 30 days where the label says so. */
+function Statistics({ stats }: { readonly stats: AdminOfficeStatistics }): React.JSX.Element {
+  const { t } = useTranslation();
+  const format = useFormat();
+  const n = (value: number) => format.number(value);
+  const onOff = (on: boolean) => t(on ? 'admin.offices.stats.on' : 'admin.offices.stats.off');
+  return (
+    <Card
+      title={t('admin.offices.stats.title', { days: n(30) })}
+      style={{ marginBlockEnd: 16 }}
+      data-testid="office-statistics"
+    >
+      <Descriptions column={{ xs: 1, md: 2 }}>
+        <Descriptions.Item label={t('admin.offices.stats.signedIn30d')}>
+          {n(stats.signedIn30d)}
+        </Descriptions.Item>
+        <Descriptions.Item label={t('admin.offices.stats.writes30d')}>
+          {n(stats.writes30d)}
+        </Descriptions.Item>
+        <Descriptions.Item label={t('admin.offices.stats.filesNew30d')}>
+          {n(stats.filesNew30d)}
+        </Descriptions.Item>
+        <Descriptions.Item label={t('admin.offices.stats.documentsNew30d')}>
+          {n(stats.documentsNew30d)}
+        </Descriptions.Item>
+        <Descriptions.Item label={t('admin.offices.stats.documents')}>
+          {n(stats.documents)}
+        </Descriptions.Item>
+        <Descriptions.Item label={t('admin.offices.stats.filesByStatus')}>
+          {FILE_STATUSES.map((status, index) => (
+            <span key={status}>
+              {index > 0 ? t('admin.offices.stats.separator') : null}
+              <Bdi>
+                {t('admin.offices.stats.statusCount', {
+                  status: t(`enums.fileStatus.${status}`),
+                  count: n(stats.filesByStatus[status]),
+                })}
+              </Bdi>
+            </span>
+          ))}
+        </Descriptions.Item>
+        <Descriptions.Item label={t('admin.offices.stats.aiEnabled')}>
+          {onOff(stats.aiEnabled)}
+        </Descriptions.Item>
+        <Descriptions.Item label={t('admin.offices.stats.ocrEnabled')}>
+          {onOff(stats.ocrEnabled)}
+        </Descriptions.Item>
+      </Descriptions>
+    </Card>
+  );
+}
+
+function OfficeStatus({ office }: { readonly office: AdminOfficeDetail }): React.JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <Space size={4} wrap>
+      <StatusTag tone={office.status === 'SUSPENDED' ? 'error' : 'success'}>
+        {t(`admin.offices.status.${office.status}`)}
+      </StatusTag>
+      {office.atRisk ? <AtRiskTag id={office.id} /> : null}
+    </Space>
+  );
+}
+
 function Detail({ office }: { readonly office: AdminOfficeDetail }): React.JSX.Element {
   const { t } = useTranslation();
   const format = useFormat();
@@ -71,11 +140,7 @@ function Detail({ office }: { readonly office: AdminOfficeDetail }): React.JSX.E
       <PageHeader
         onBack={() => void navigate('/offices')}
         title={<Bdi>{office.name}</Bdi>}
-        subtitle={
-          <StatusTag tone={suspended ? 'error' : 'success'}>
-            {t(`admin.offices.status.${office.status}`)}
-          </StatusTag>
-        }
+        subtitle={<OfficeStatus office={office} />}
         extra={
           <Button
             danger={!suspended}
@@ -131,6 +196,9 @@ function Detail({ office }: { readonly office: AdminOfficeDetail }): React.JSX.E
           <Descriptions.Item label={t('admin.offices.columns.lastActivity')}>
             {office.lastActivityAt ? format.dateTime(office.lastActivityAt) : none}
           </Descriptions.Item>
+          <Descriptions.Item label={t('admin.offices.columns.lastWrite')}>
+            {office.lastWriteAt ? format.dateTime(office.lastWriteAt) : none}
+          </Descriptions.Item>
         </Descriptions>
       </Card>
       <Card
@@ -153,6 +221,7 @@ function Detail({ office }: { readonly office: AdminOfficeDetail }): React.JSX.E
           </Descriptions.Item>
         </Descriptions>
       </Card>
+      <Statistics stats={office.statistics} />
       <Card title={t('admin.offices.detail.subscriptions')}>
         <Subscriptions rows={office.subscriptions} />
       </Card>

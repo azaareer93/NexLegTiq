@@ -40,7 +40,8 @@
       "plan": "Plan",
       "status": "Status",
       "storage": "Storage",
-      "users": "Users"
+      "users": "Users",
+      "lastWrite": "Last change"
     },
     "detail": {
       "accountType": "Account type",
@@ -98,7 +99,24 @@
       "reason": "Reason:",
       "title": "Suspended since"
     },
-    "title": "Offices"
+    "title": "Offices",
+    "atRisk": "Needs follow-up",
+    "atRiskHint": "No changes in two weeks",
+    "stats": {
+      "title": "Last {{days}} days",
+      "signedIn30d": "Users who signed in",
+      "filesByStatus": "Cases by status",
+      "filesNew30d": "New cases",
+      "documents": "Documents",
+      "documentsNew30d": "New documents",
+      "writes30d": "Edits",
+      "aiEnabled": "AI",
+      "ocrEnabled": "Text recognition (OCR)",
+      "on": "On",
+      "off": "Off",
+      "statusCount": "{{status}}: {{count}}",
+      "separator": ", "
+    }
   },
   "recovery": {
     "continue": "Continue to the admin panel",

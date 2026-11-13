@@ -9,6 +9,7 @@ import { AppModule } from '../../app/app.module';
 import { configureApp } from '../../app/configure-app';
 import { integrationEnv } from '../../config/env.fixture';
 import { PrismaService } from '../../database/prisma.service';
+import { documentIn, fileIn } from '../../database/tenant-isolation.fixtures';
 import type { PrismaClient } from '../../generated/prisma/client';
 import { PasswordHasher } from '../auth/password-hasher';
 import { totpCode, totpStep } from '../platform-auth/totp';
@@ -90,6 +91,9 @@ describe('platform admin offices (HTTP + PostgreSQL)', () => {
     await raw.refreshToken.deleteMany({ where: { officeId: { in: officeIds } } });
     await raw.documentVersion.deleteMany({ where: { officeId: { in: officeIds } } });
     await raw.auditLog.deleteMany({ where: { officeId: { in: officeIds } } });
+    await raw.document.deleteMany({ where: { officeId: { in: officeIds } } });
+    await raw.documentFolder.deleteMany({ where: { officeId: { in: officeIds } } });
+    await raw.legalFile.deleteMany({ where: { officeId: { in: officeIds } } });
     await raw.user.deleteMany({ where: { officeId: { in: officeIds } } });
     await raw.subscription.deleteMany({ where: { officeId: { in: officeIds } } });
     await raw.officeSettings.deleteMany({ where: { officeId: { in: officeIds } } });
@@ -278,6 +282,83 @@ describe('platform admin offices (HTTP + PostgreSQL)', () => {
     await raw.documentVersion.deleteMany({ where: { officeId: office.id } });
     await raw.document.deleteMany({ where: { officeId: office.id } });
     await raw.legalFile.deleteMany({ where: { officeId: office.id } });
+  });
+
+  it('should count the last 30 days and flag an old office whose last write is 14+ days old (D-164)', async () => {
+    const day = 24 * 60 * 60 * 1000;
+    const ago = (days: number) => new Date(Date.now() - days * day);
+    const longAgo = new Date('2024-01-01T00:00:00Z');
+    const quiet = await seedOffice('Quiet', 'PALESTINE', 1, longAgo);
+    const busy = await seedOffice('Busy', 'PALESTINE', 2, longAgo);
+    const fresh = await seedOffice('Fresh', 'PALESTINE', 1);
+    const halted = await seedOffice('Halted', 'PALESTINE', 1, longAgo);
+    await raw.office.update({ where: { id: halted.office.id }, data: { isActive: false } });
+    const q = { officeId: quiet.office.id, userId: quiet.users[0]?.id ?? null };
+    const b = { officeId: busy.office.id, userId: busy.users[0]?.id ?? null };
+    await raw.auditLog.createMany({
+      data: [
+        { ...q, entityType: 'LegalFile', action: 'UPDATE', occurredAt: ago(20) },
+        // Reads and system jobs are not work: neither keeps an office out of risk.
+        { ...q, entityType: 'LegalFile', action: 'VIEW' },
+        { ...q, userId: null, entityType: 'Invoice', action: 'UPDATE' },
+        { ...b, entityType: 'LegalFile', action: 'CREATE' },
+        { ...b, entityType: 'Document', action: 'SHARE' },
+        { ...b, entityType: 'Task', action: 'UPDATE', occurredAt: ago(40) },
+      ],
+    });
+    // Busy: one live file and document, one deleted file; one recent sign-in, one old, one inactive user.
+    const seeded = { officeId: busy.office.id, userId: b.userId ?? '', planId: '' };
+    await documentIn(raw, seeded);
+    const gone = await fileIn(raw, seeded);
+    await raw.legalFile.update({ where: { id: gone.id }, data: { deletedAt: new Date() } });
+    const [recent, stale] = busy.users;
+    await raw.user.update({ where: { id: recent?.id }, data: { lastLoginAt: ago(1) } });
+    await raw.user.update({ where: { id: stale?.id }, data: { lastLoginAt: ago(45) } });
+    const extra = await raw.user.create({
+      data: {
+        officeId: busy.office.id,
+        fullName: 'Former',
+        email: `po-${randomUUID()}@example.test`,
+        passwordHash: '!',
+        role: 'LAWYER',
+        isActive: false,
+        lastLoginAt: ago(1),
+      },
+    });
+    emails.push(extra.email);
+
+    const list = await http()
+      .get('/api/v1/admin/offices')
+      .query({ search: tag, limit: 100 })
+      .set(auth)
+      .expect(200);
+    const flag = (id: string) =>
+      list.body.data.find((o: { id: string }) => o.id === id) as {
+        atRisk: boolean;
+        lastWriteAt: string | null;
+      };
+    expect(flag(quiet.office.id).atRisk).toBe(true);
+    expect(new Date(flag(quiet.office.id).lastWriteAt ?? 0).getTime()).toBeLessThan(
+      ago(19).getTime(),
+    );
+    expect(flag(busy.office.id).atRisk).toBe(false);
+    expect(flag(fresh.office.id)).toMatchObject({ atRisk: false, lastWriteAt: null });
+    expect(flag(halted.office.id).atRisk).toBe(false); // suspended offices are never at risk
+
+    const statsOf = async (id: string) =>
+      (await http().get(`/api/v1/admin/offices/${id}`).set(auth).expect(200)).body.data.statistics;
+    expect(await statsOf(busy.office.id)).toEqual({
+      signedIn30d: 1,
+      filesByStatus: { OPEN: 1, SUSPENDED: 0, CLOSED: 0, ARCHIVED: 0 },
+      filesNew30d: 1,
+      documents: 1,
+      documentsNew30d: 1,
+      writes30d: 2,
+      aiEnabled: true,
+      ocrEnabled: true,
+    });
+    // Another office's rows never count: quiet has only its own person-made write.
+    expect(await statsOf(quiet.office.id)).toMatchObject({ writes30d: 1, documents: 0 });
   });
 
   it('should answer 404 RES-001 for an unknown or malformed office id and refuse office tokens', async () => {
