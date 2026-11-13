@@ -115,6 +115,27 @@ describe('IdleTimeout', () => {
     expect(logouts()).toBe(0);
   });
 
+  it('should tell the server about activity at most once a minute (MVP-168)', async () => {
+    let pings = 0;
+    server.use(
+      http.get(api('notifications/unread-count'), () => {
+        pings += 1;
+        return ok({ count: 0 });
+      }),
+    );
+    renderIdle();
+    // Right after start-up the page's own requests already counted.
+    fireEvent.keyDown(window, { key: 'a' });
+    act(() => {
+      vi.advanceTimersByTime(MINUTE);
+    });
+    fireEvent.keyDown(window, { key: 'b' });
+    fireEvent.keyDown(window, { key: 'c' });
+    await until(() => expect(pings).toBe(1));
+    await settle();
+    expect(pings).toBe(1);
+  });
+
   it('should keep the warning open while the pointer moves towards its buttons', async () => {
     renderIdle();
     act(() => {

@@ -1,14 +1,28 @@
+import { notificationsApi } from '@nexlegtiq/shared-api-client';
 import { Button, Modal } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { broadcast, onRemoteActivity, recordActivity, signOut, useSession } from '../session';
+import {
+  apiClient,
+  broadcast,
+  onRemoteActivity,
+  recordActivity,
+  signOut,
+  useSession,
+} from '../session';
 
 /** The warning shows during the last minute (MVP-42). */
 export const IDLE_WARNING_MS = 60_000;
 /** Activity is shared with the other tabs at most this often, so working in one tab keeps them all signed in. */
 const BROADCAST_EVERY_MS = 15_000;
 const ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'wheel', 'touchstart', 'mousemove'] as const;
+/**
+ * The server counts only API requests as activity (MVP-168): while the user works without any (reading a long document),
+ * a light authenticated request at most this often keeps the server's idle timer in step with this one.
+ */
+const HEARTBEAT_EVERY_MS = 60_000;
+const notifications = notificationsApi(apiClient);
 
 /**
  * Signs the user out after the office's idle timeout (D-053, default 30 min) with a one-minute warning. Counted from the
@@ -19,6 +33,7 @@ export function IdleTimeout(): React.JSX.Element | null {
   const idleMs = useSession((state) => state.idleMinutes) * 60_000;
   const lastActivity = useRef(Date.now());
   const lastBroadcast = useRef(0);
+  const lastHeartbeat = useRef(Date.now());
   const warning = useRef(false);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
 
@@ -35,6 +50,11 @@ export function IdleTimeout(): React.JSX.Element | null {
         lastBroadcast.current = now;
         broadcast({ type: 'activity', at: now });
         recordActivity(now);
+      }
+      if (now - lastHeartbeat.current >= HEARTBEAT_EVERY_MS) {
+        lastHeartbeat.current = now;
+        // Its answer does not matter; a failure is the next request's to report.
+        notifications.unreadCount().catch(() => undefined);
       }
     };
     ACTIVITY_EVENTS.forEach((event) =>
@@ -66,6 +86,8 @@ export function IdleTimeout(): React.JSX.Element | null {
     warning.current = false;
     broadcast({ type: 'activity', at: lastActivity.current });
     recordActivity(lastActivity.current);
+    lastHeartbeat.current = lastActivity.current;
+    notifications.unreadCount().catch(() => undefined);
     setSecondsLeft(null);
   };
 

@@ -118,6 +118,7 @@ describe('auth (HTTP + PostgreSQL)', () => {
     const where = { officeId: { in: officeIds } };
     await raw.auditLog.deleteMany({ where });
     await raw.refreshToken.deleteMany({ where });
+    await raw.officeSettings.deleteMany({ where });
     await raw.user.deleteMany({ where });
     await raw.subscription.deleteMany({ where });
     await raw.office.deleteMany({ where: { id: { in: officeIds } } });
@@ -485,6 +486,82 @@ describe('auth (HTTP + PostgreSQL)', () => {
       await expect(
         prisma.unscoped().refreshToken.count({ where: { userId, revokedAt: null } }),
       ).resolves.toBe(0);
+    });
+  });
+
+  describe('server idle timeout (MVP-168)', () => {
+    const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000);
+    const setActivity = (userId: string, minutes: number) =>
+      prisma.unscoped().refreshToken.updateMany({
+        where: { userId, revokedAt: null },
+        data: { lastActivityAt: minutesAgo(minutes) },
+      });
+    const live = (userId: string) =>
+      prisma.unscoped().refreshToken.findFirst({ where: { userId, revokedAt: null } });
+
+    it('should refresh within the idle window without counting the refresh as activity', async () => {
+      const { email, userId } = await seedUser();
+      const cookie = cookieValue(refreshCookie(await login(email).expect(200)));
+      await setActivity(userId, 20);
+      const before = (await live(userId))?.lastActivityAt;
+      await refresh(cookie).expect(200);
+      // The rotated token keeps the old activity time: background refreshes alone never keep a session alive.
+      expect((await live(userId))?.lastActivityAt).toEqual(before);
+    });
+
+    it('should refuse a refresh after the idle minutes with 401 AUTH-004, revoke the family and clear the cookie', async () => {
+      const { email, userId } = await seedUser();
+      const cookie = cookieValue(refreshCookie(await login(email).expect(200)));
+      // 30 minutes by default, plus the three-minute allowance for the throttled activity writes.
+      await setActivity(userId, 34);
+      const res = await refresh(cookie).expect(401);
+      expect(res.body.error).toMatchObject({ code: 'AUTH-004' });
+      expect(refreshCookie(res)).toMatch(/Expires=Thu, 01 Jan 1970/);
+      await expect(
+        prisma.unscoped().refreshToken.count({ where: { userId, revokedAt: null } }),
+      ).resolves.toBe(0);
+      // A normal expiry: no SECURITY row.
+      await expect(
+        prisma.unscoped().auditLog.count({ where: { userId, action: 'SECURITY' } }),
+      ).resolves.toBe(0);
+    });
+
+    it('should count an authenticated request as activity, but not revive a session past its limit', async () => {
+      const probe = (token: string) =>
+        request(app.getHttpServer())
+          .get('/api/v1/__auth_probe__/me')
+          .set('Authorization', `Bearer ${token}`)
+          .expect(200);
+      const past = await seedUser();
+      const stale = await login(past.email).expect(200);
+      await setActivity(past.userId, 40);
+      await probe(stale.body.data.accessToken as string);
+      await refresh(cookieValue(refreshCookie(stale))).expect(401);
+
+      const { email, userId } = await seedUser();
+      const res = await login(email).expect(200);
+      const cookie = cookieValue(refreshCookie(res));
+      await setActivity(userId, 31);
+      await request(app.getHttpServer())
+        .get('/api/v1/__auth_probe__/me')
+        .set('Authorization', `Bearer ${res.body.data.accessToken as string}`)
+        .expect(200);
+      expect((await live(userId))?.lastActivityAt.getTime()).toBeGreaterThan(
+        minutesAgo(1).getTime(),
+      );
+      await refresh(cookie).expect(200);
+    });
+
+    it("should read the office's idle minutes at each refresh", async () => {
+      const { email, userId, officeId } = await seedUser();
+      const cookie = cookieValue(refreshCookie(await login(email).expect(200)));
+      await prisma.unscoped().officeSettings.create({ data: { officeId, sessionIdleMinutes: 60 } });
+      await setActivity(userId, 40);
+      const rotated = cookieValue(refreshCookie(await refresh(cookie).expect(200)));
+      await prisma
+        .unscoped()
+        .officeSettings.update({ where: { officeId }, data: { sessionIdleMinutes: 15 } });
+      expect((await refresh(rotated).expect(401)).body.error).toMatchObject({ code: 'AUTH-004' });
     });
   });
 
