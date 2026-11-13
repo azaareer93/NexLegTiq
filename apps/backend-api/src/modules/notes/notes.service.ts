@@ -16,6 +16,7 @@ import { assignedFilesWhere } from '../../common/rbac/case-scope';
 import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { ScopedTransaction } from '../../database/unit-of-work';
+import type { Prisma } from '../../generated/prisma/client';
 import { lockFile } from '../file-participants/file-lock';
 import { CaseAccessService } from '../legal-files/case-access.service';
 
@@ -40,12 +41,16 @@ type NoteRow = {
   author: { id: string; fullName: string };
 };
 
-/** At most this many notes per file in one answer (newest first after the pinned ones). */
+/** At most this many notes per file or client in one answer (newest first after the pinned ones). */
 const LIMIT = 500;
 
+/** What a note is about: a file (D-154) or a client (D-168). */
+export type NoteSubject = { readonly fileId: string } | { readonly clientId: string };
+
 /**
- * A file's notes (MVP-65, D-154). Confidential notes are encrypted (D-056) and seen only by the office manager and the
- * people assigned to the file (D-051); authors change their own notes, OM/SL any they can see.
+ * Internal notes of a file (MVP-65, D-154) or a client (MVP-55, D-168), encrypted when confidential (D-056). A file's
+ * confidential notes are seen only by the office manager and the people assigned to the file (D-051); a client's only by
+ * the office manager and their author. Authors change their own notes, OM/SL any they can see.
  */
 @Injectable()
 export class NotesService {
@@ -70,14 +75,56 @@ export class NotesService {
     return `file_notes.body:${this.caller().officeId}:${noteId}`;
   }
 
+  /** The subject's notes and nothing else: a client's notes are those without a file. */
+  private scope(subject: NoteSubject): Prisma.FileNoteWhereInput {
+    return 'fileId' in subject
+      ? { fileId: subject.fileId }
+      : { clientId: subject.clientId, fileId: null };
+  }
+
+  /** The subject is there for the caller: a visible file (open to work for a change), or a live client (404). */
+  private async assertAccess(subject: NoteSubject, mode: 'read' | 'contribute'): Promise<void> {
+    if ('fileId' in subject) {
+      await this.access.assertFileAccess(subject.fileId, mode);
+      return;
+    }
+    const live = await this.prisma.db.client.count({
+      where: { id: subject.clientId, deletedAt: null },
+    });
+    if (live === 0) throw new ResourceNotFoundException();
+  }
+
   /** Whether the caller may read the file's confidential notes: the office manager or someone assigned to it. */
-  private async seesConfidential(fileId: string): Promise<boolean> {
+  private async seesFileConfidential(fileId: string): Promise<boolean> {
     const { userId, role } = this.caller();
     if (role === 'OFFICE_MANAGER') return true;
     const assigned = await this.prisma.db.legalFile.count({
       where: { AND: [{ id: fileId }, assignedFilesWhere(userId as UserId)] },
     });
     return assigned > 0;
+  }
+
+  /** The confidential notes the caller may read: all, none, or (on a client) their own. */
+  private async confidentialWhere(subject: NoteSubject): Promise<Prisma.FileNoteWhereInput> {
+    const { userId, role } = this.caller();
+    if ('fileId' in subject) {
+      return (await this.seesFileConfidential(subject.fileId)) ? {} : { isConfidential: false };
+    }
+    return role === 'OFFICE_MANAGER'
+      ? {}
+      : { OR: [{ isConfidential: false }, { authorId: userId }] };
+  }
+
+  /** Only those who read confidential notes may make one (else the caller would hide it from themselves, D-154). */
+  private async mayMakeConfidential(subject: NoteSubject): Promise<boolean> {
+    // The author always reads their own confidential client note (D-168).
+    return 'fileId' in subject ? this.seesFileConfidential(subject.fileId) : true;
+  }
+
+  private async assertMayMakeConfidential(subject: NoteSubject, was: boolean, wanted?: boolean) {
+    if (wanted && !was && !(await this.mayMakeConfidential(subject))) {
+      throw new PermissionDeniedException();
+    }
   }
 
   private toNote(row: NoteRow): Note {
@@ -94,11 +141,10 @@ export class NotesService {
     };
   }
 
-  async list(fileId: string): Promise<Note[]> {
-    await this.access.assertFileAccess(fileId, 'read');
-    const confidential = await this.seesConfidential(fileId);
+  async list(subject: NoteSubject): Promise<Note[]> {
+    await this.assertAccess(subject, 'read');
     const rows = await this.prisma.db.fileNote.findMany({
-      where: { fileId, ...(confidential ? {} : { isConfidential: false }) },
+      where: { ...this.scope(subject), ...(await this.confidentialWhere(subject)) },
       orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
       take: LIMIT,
       select: SELECT,
@@ -106,21 +152,19 @@ export class NotesService {
     return rows.map((row) => this.toNote(row));
   }
 
-  async create(fileId: string, input: CreateNoteRequest): Promise<Note> {
+  async create(subject: NoteSubject, input: CreateNoteRequest): Promise<Note> {
     const { userId, officeId } = this.caller();
-    await this.access.assertFileAccess(fileId, 'contribute');
-    if (input.isConfidential && !(await this.seesConfidential(fileId))) {
-      throw new PermissionDeniedException();
-    }
+    await this.assertAccess(subject, 'contribute');
+    await this.assertMayMakeConfidential(subject, false, input.isConfidential);
     const id = uuidV7();
     const isConfidential = input.isConfidential ?? false;
     const row = await this.uow.run(async (tx) => {
-      await lockFile(tx, officeId, fileId);
+      await this.lock(tx, subject);
       const created = await tx.fileNote.create({
         data: {
           id,
           officeId,
-          fileId,
+          ...subject,
           authorId: userId,
           body: isConfidential ? this.cipher.encrypt(input.body, this.context(id)) : input.body,
           isConfidential,
@@ -133,24 +177,28 @@ export class NotesService {
         entityId: id,
         action: 'CREATE',
         // The text is never audited: it may be confidential, and the note itself is the record.
-        newValues: { fileId, authorId: userId, isConfidential, pinned: created.pinned },
+        newValues: { ...subject, authorId: userId, isConfidential, pinned: created.pinned },
       });
       return created;
     });
     return this.toNote(row);
   }
 
-  /** The note for a change: on the file, visible to the caller, theirs or the caller is OM/SL; the file open to work. */
+  /** A file's notes change only while the file is live and not archived (re-checked under its lock, D-096). */
+  private async lock(tx: ScopedTransaction, subject: NoteSubject): Promise<void> {
+    if ('fileId' in subject) await lockFile(tx, this.caller().officeId, subject.fileId);
+  }
+
+  /** The note for a change: the subject's, visible to the caller, theirs or the caller is OM/SL. */
   private async changeable(
     tx: ScopedTransaction,
-    fileId: string,
+    subject: NoteSubject,
     noteId: string,
   ): Promise<NoteRow> {
-    const { userId, role, officeId } = this.caller();
-    await lockFile(tx, officeId, fileId);
-    const confidential = await this.seesConfidential(fileId);
+    const { userId, role } = this.caller();
+    await this.lock(tx, subject);
     const row = await tx.fileNote.findFirst({
-      where: { id: noteId, fileId, ...(confidential ? {} : { isConfidential: false }) },
+      where: { id: noteId, ...this.scope(subject), ...(await this.confidentialWhere(subject)) },
       select: SELECT,
     });
     if (!row) throw new ResourceNotFoundException();
@@ -160,20 +208,14 @@ export class NotesService {
     return row;
   }
 
-  /** Only those who read confidential notes may make one (else the caller would hide it from themselves, D-154). */
-  private async assertMayMakeConfidential(fileId: string, was: boolean, wanted?: boolean) {
-    if (wanted && !was && !(await this.seesConfidential(fileId)))
-      throw new PermissionDeniedException();
-  }
-
-  async update(fileId: string, noteId: string, input: UpdateNoteRequest): Promise<Note> {
+  async update(subject: NoteSubject, noteId: string, input: UpdateNoteRequest): Promise<Note> {
     if (Object.values(input).every((value) => value === undefined)) {
       throw new ValidationException([{ field: 'body', message: 'validation.required' }]);
     }
-    await this.access.assertFileAccess(fileId, 'contribute');
-    const row = await this.uow.run(async (tx) => {
-      const before = this.toNote(await this.changeable(tx, fileId, noteId));
-      await this.assertMayMakeConfidential(fileId, before.isConfidential, input.isConfidential);
+    await this.assertAccess(subject, 'contribute');
+    return this.uow.run(async (tx) => {
+      const before = this.toNote(await this.changeable(tx, subject, noteId));
+      await this.assertMayMakeConfidential(subject, before.isConfidential, input.isConfidential);
       const isConfidential = input.isConfidential ?? before.isConfidential;
       const body = input.body ?? before.body;
       const pinned = input.pinned ?? before.pinned;
@@ -204,19 +246,18 @@ export class NotesService {
       });
       return this.toNote(updated);
     });
-    return row;
   }
 
-  async remove(fileId: string, noteId: string): Promise<void> {
-    await this.access.assertFileAccess(fileId, 'contribute');
+  async remove(subject: NoteSubject, noteId: string): Promise<void> {
+    await this.assertAccess(subject, 'contribute');
     await this.uow.run(async (tx) => {
-      const row = await this.changeable(tx, fileId, noteId);
+      const row = await this.changeable(tx, subject, noteId);
       await tx.fileNote.delete({ where: { id: noteId } });
       await this.audit.log(tx, {
         entityType: 'FileNote',
         entityId: noteId,
         action: 'DELETE',
-        oldValues: { fileId, isConfidential: row.isConfidential, authorId: row.authorId },
+        oldValues: { ...subject, isConfidential: row.isConfidential, authorId: row.authorId },
       });
     });
   }

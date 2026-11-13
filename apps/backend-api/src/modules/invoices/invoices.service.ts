@@ -4,7 +4,9 @@ import type {
   Invoice,
   InvoiceListItem,
   InvoiceQuery,
+  InvoiceSummary,
 } from '@nexlegtiq/shared-contracts';
+import { roundMoney } from '@nexlegtiq/shared-utils';
 
 import { InvoiceAccess } from './invoice-access';
 import { buildLines, invoiceTotals } from './invoice-math';
@@ -69,6 +71,29 @@ export class InvoicesService {
       this.prisma.db.invoice.count({ where }),
     ]);
     return PaginatedResult.of(rows.map(toListItem), { page, limit, total });
+  }
+
+  /** A client's billed and outstanding totals over the invoices the caller may see (MVP-55), per currency (D-162). */
+  async summary(clientId: string): Promise<InvoiceSummary> {
+    const sum = (status: Prisma.InvoiceWhereInput['status']) =>
+      this.prisma.db.invoice.groupBy({
+        by: ['currency'],
+        where: { AND: [this.access.visibleWhere(), { clientId, status }] },
+        _sum: { total: true },
+        _count: { _all: true },
+        orderBy: { currency: 'asc' },
+      });
+    const [billed, outstanding] = await Promise.all([
+      sum({ in: ['SENT', 'OVERDUE', 'PAID'] }),
+      sum({ in: ['SENT', 'OVERDUE'] }),
+    ]);
+    const totals = (rows: Awaited<ReturnType<typeof sum>>) =>
+      rows.map((row) => ({
+        currency: row.currency,
+        amount: roundMoney(row._sum.total?.toFixed() ?? '0', row.currency),
+        count: row._count._all,
+      }));
+    return { billed: totals(billed), outstanding: totals(outstanding) };
   }
 
   async get(id: string): Promise<Invoice> {

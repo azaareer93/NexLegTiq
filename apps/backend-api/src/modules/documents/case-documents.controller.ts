@@ -1,14 +1,24 @@
 import { Controller, Get, HttpStatus, Param, ParseUUIDPipe, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { DocumentQuerySchema, DocumentSchema } from '@nexlegtiq/shared-contracts';
-import type { Document, DocumentQuery } from '@nexlegtiq/shared-contracts';
+import {
+  ClientDocumentQuerySchema,
+  ClientDocumentSchema,
+  DocumentQuerySchema,
+  DocumentSchema,
+} from '@nexlegtiq/shared-contracts';
+import type {
+  ClientDocument,
+  ClientDocumentQuery,
+  Document,
+  DocumentQuery,
+} from '@nexlegtiq/shared-contracts';
 
 import { DocumentRecordsService } from './document-records.service';
 import { ResourceNotFoundException } from '../../common/errors/app.exception';
 import type { PaginatedResult } from '../../common/http/paginated-result';
 import { ZodValidationPipe } from '../../common/http/zod-validation.pipe';
 import { ApiZodQuery, ApiZodResponse } from '../../common/openapi/api-zod.decorators';
-import { RequireAnyPermission } from '../../common/rbac/permissions.decorator';
+import { RequireAnyPermission, RequirePermissions } from '../../common/rbac/permissions.decorator';
 
 /** A malformed id is the same 404 as an unknown one (D-019). */
 const uuid = new ParseUUIDPipe({ exceptionFactory: () => new ResourceNotFoundException() });
@@ -32,5 +42,27 @@ export class CaseDocumentsController {
     @Query(new ZodValidationPipe(DocumentQuerySchema)) query: DocumentQuery,
   ): Promise<PaginatedResult<Document>> {
     return this.records.list(fileId, query);
+  }
+}
+
+/** The documents across a client's files (MVP-55), for the client profile — a client route, so `manage:clients` (D-121). */
+@ApiTags('documents')
+@ApiBearerAuth('JWT')
+@Controller('clients/:id/documents')
+export class ClientDocumentsController {
+  constructor(private readonly records: DocumentRecordsService) {}
+
+  @Get()
+  @RequirePermissions('manage:clients')
+  @ApiOperation({
+    summary: "Documents on the client's files that the caller may see (newest first)",
+  })
+  @ApiZodQuery(ClientDocumentQuerySchema)
+  @ApiZodResponse(HttpStatus.OK, ClientDocumentSchema, { paginated: true })
+  list(
+    @Param('id', uuid) clientId: string,
+    @Query(new ZodValidationPipe(ClientDocumentQuerySchema)) query: ClientDocumentQuery,
+  ): Promise<PaginatedResult<ClientDocument>> {
+    return this.records.listForClient(clientId, query);
   }
 }

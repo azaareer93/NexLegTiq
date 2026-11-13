@@ -28,6 +28,7 @@ const row = (overrides: object = {}) => ({
 function setup(role: string, userId = AUTHOR, assigned = 1) {
   const db = {
     legalFile: { count: jest.fn().mockResolvedValue(assigned) },
+    client: { count: jest.fn().mockResolvedValue(1) },
     fileNote: {
       findMany: jest
         .fn()
@@ -59,27 +60,32 @@ function setup(role: string, userId = AUTHOR, assigned = 1) {
 describe('NotesService (D-154)', () => {
   it('should decrypt confidential notes for those who may see them and hide them from others', async () => {
     const { service, db } = setup('LAWYER');
-    expect((await service.list(FILE)).map((n) => n.body)).toEqual(['Text', 'Secret']);
+    expect((await service.list({ fileId: FILE })).map((n) => n.body)).toEqual(['Text', 'Secret']);
     const unassigned = setup('SENIOR_LAWYER', 'sl', 0);
-    await unassigned.service.list(FILE);
+    await unassigned.service.list({ fileId: FILE });
     expect(unassigned.db.fileNote.findMany.mock.calls[0]?.[0].where).toEqual({
       fileId: FILE,
       isConfidential: false,
     });
     expect(db.fileNote.findMany.mock.calls[0]?.[0].where).toEqual({ fileId: FILE });
     // The office manager sees confidential notes without being assigned.
-    expect((await setup('OFFICE_MANAGER', 'om', 0).service.list(FILE))[0]?.canEdit).toBe(true);
+    expect(
+      (await setup('OFFICE_MANAGER', 'om', 0).service.list({ fileId: FILE }))[0]?.canEdit,
+    ).toBe(true);
   });
 
   it('should encrypt a confidential note and refuse one from someone who may not read them', async () => {
     const { service, db } = setup('LAWYER');
-    const note = await service.create(FILE, { body: 'Secret', isConfidential: true });
+    const note = await service.create({ fileId: FILE }, { body: 'Secret', isConfidential: true });
     expect(db.fileNote.create.mock.calls[0]?.[0].data.body).toBe('enc:Secret');
     expect(note).toMatchObject({ body: 'Secret', isConfidential: true });
     await expect(
-      setup('SENIOR_LAWYER', 'sl', 0).service.create(FILE, { body: 'x', isConfidential: true }),
+      setup('SENIOR_LAWYER', 'sl', 0).service.create(
+        { fileId: FILE },
+        { body: 'x', isConfidential: true },
+      ),
     ).rejects.toMatchObject({ code: 'AUTH-100' });
-    await service.create(FILE, { body: 'Plain' });
+    await service.create({ fileId: FILE }, { body: 'Plain' });
     expect(db.fileNote.create.mock.calls[1]?.[0].data).toMatchObject({
       body: 'Plain',
       pinned: false,
@@ -88,29 +94,63 @@ describe('NotesService (D-154)', () => {
 
   it("should change a note for its author or OM/SL, and refuse someone else's", async () => {
     const { service, audit } = setup('LAWYER');
-    await expect(service.update(FILE, NOTE, {})).rejects.toMatchObject({ code: 'VAL-001' });
-    await service.update(FILE, NOTE, { body: 'New', pinned: true });
+    await expect(service.update({ fileId: FILE }, NOTE, {})).rejects.toMatchObject({
+      code: 'VAL-001',
+    });
+    await service.update({ fileId: FILE }, NOTE, { body: 'New', pinned: true });
     expect(audit.log.mock.calls[0]?.[1].newValues).toMatchObject({
       bodyChanged: true,
       pinned: true,
     });
-    await service.update(FILE, NOTE, { isConfidential: true });
+    await service.update({ fileId: FILE }, NOTE, { isConfidential: true });
     await expect(
-      setup('PARALEGAL', 'p').service.update(FILE, NOTE, { pinned: true }),
+      setup('PARALEGAL', 'p').service.update({ fileId: FILE }, NOTE, { pinned: true }),
     ).rejects.toMatchObject({
       code: 'AUTH-100',
     });
     await expect(
-      setup('SENIOR_LAWYER', 'sl', 0).service.update(FILE, NOTE, { isConfidential: true }),
+      setup('SENIOR_LAWYER', 'sl', 0).service.update({ fileId: FILE }, NOTE, {
+        isConfidential: true,
+      }),
     ).rejects.toMatchObject({ code: 'AUTH-100' });
-    await setup('SENIOR_LAWYER', 'sl').service.remove(FILE, NOTE);
+    await setup('SENIOR_LAWYER', 'sl').service.remove({ fileId: FILE }, NOTE);
     const missing = setup('LAWYER');
     missing.db.fileNote.findFirst.mockResolvedValueOnce(null);
-    await expect(missing.service.remove(FILE, NOTE)).rejects.toMatchObject({ code: 'RES-001' });
+    await expect(missing.service.remove({ fileId: FILE }, NOTE)).rejects.toMatchObject({
+      code: 'RES-001',
+    });
+  });
+
+  it('should show a client note to the office manager and its author only (D-168)', async () => {
+    const CLIENT = '01920000-0000-7000-8000-0000000000c1';
+    const lawyer = setup('LAWYER', 'l');
+    await lawyer.service.list({ clientId: CLIENT });
+    expect(lawyer.db.fileNote.findMany.mock.calls[0]?.[0].where).toEqual({
+      clientId: CLIENT,
+      fileId: null,
+      OR: [{ isConfidential: false }, { authorId: 'l' }],
+    });
+    const om = setup('OFFICE_MANAGER', 'om');
+    await om.service.list({ clientId: CLIENT });
+    expect(om.db.fileNote.findMany.mock.calls[0]?.[0].where).toEqual({
+      clientId: CLIENT,
+      fileId: null,
+    });
+    // Anyone may write a confidential client note: its author reads it.
+    await lawyer.service.create({ clientId: CLIENT }, { body: 'Secret', isConfidential: true });
+    expect(lawyer.db.fileNote.create.mock.calls[0]?.[0].data).toMatchObject({
+      clientId: CLIENT,
+      body: 'enc:Secret',
+    });
+    expect(lawyer.db.$queryRaw).not.toHaveBeenCalled();
+    lawyer.db.client.count.mockResolvedValueOnce(0);
+    await expect(lawyer.service.list({ clientId: CLIENT })).rejects.toMatchObject({
+      code: 'RES-001',
+    });
   });
 
   it('should refuse to run without a caller', async () => {
-    await expect(setup('', '').service.list(FILE)).rejects.toThrow('No office caller');
+    await expect(setup('', '').service.list({ fileId: FILE })).rejects.toThrow('No office caller');
   });
 
   it('should hand each route to the service', async () => {
@@ -125,6 +165,6 @@ describe('NotesService (D-154)', () => {
     await expect(controller.create(FILE, { body: 'x' })).resolves.toBe('created');
     await expect(controller.update(FILE, NOTE, { pinned: true })).resolves.toBe('updated');
     await controller.remove(FILE, NOTE);
-    expect(notes.remove).toHaveBeenCalledWith(FILE, NOTE);
+    expect(notes.remove).toHaveBeenCalledWith({ fileId: FILE }, NOTE);
   });
 });
