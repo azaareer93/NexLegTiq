@@ -43,7 +43,11 @@ export function searchQuery(
   }
   const { table, trigram } = SEARCH_TARGETS[target];
   const from = Prisma.raw(`"${table}"`);
-  const words = Prisma.sql`t."search_vector_simple" @@ q.s OR t."search_vector_english" @@ q.e`;
+  // The tsqueries are written inline, not read from the CTE: from a CTE the planner cannot use them as index
+  // conditions and may scan the whole table (seen on CI with 50k files).
+  const simple = Prisma.sql`websearch_to_tsquery('simple', nlq_normalize_ar(unaccent(${query}::text)))`;
+  const english = Prisma.sql`websearch_to_tsquery('english', unaccent(${query}::text))`;
+  const words = Prisma.sql`t."search_vector_simple" @@ ${simple} OR t."search_vector_english" @@ ${english}`;
   const scope = Prisma.sql`t."office_id" = ${officeId}::uuid AND (${where})`;
   // Word matches rank first (1 + ts_rank); the trigram pass only runs when they leave room under the limit.
   const fuzzy = trigram
