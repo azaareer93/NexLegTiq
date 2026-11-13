@@ -29,7 +29,7 @@ const FILE_REF = { id: true, fileNumber: true, title: true } as const;
 const START = '\u0001';
 const STOP = '\u0002';
 // shortcut: snippets are cut from the first 100,000 characters of a text; read further if long documents miss them.
-const SNIPPET_SOURCE_CHARS = 100_000;
+const SNIPPET_SOURCE_CHARS = 50_000;
 const HEADLINE_OPTIONS = `StartSel=${START}, StopSel=${STOP}, MaxWords=25, MinWords=10, MaxFragments=2, FragmentDelimiter=" … "`;
 
 /**
@@ -56,6 +56,7 @@ export class SearchService {
       this.prisma.db.$queryRaw<SearchHit[]>(
         searchQuery(target, caller.officeId, q, limit + 1, where),
       );
+    // hasMore counts rows before the Prisma re-check; a row it drops (a drift, rare) can leave a short page with hasMore.
     const page = <T>(items: T[]) => ({
       items: items.slice(0, limit),
       hasMore: items.length > limit,
@@ -122,22 +123,43 @@ export class SearchService {
   private async documentHits(officeId: string, q: string, found: SearchHit[]) {
     const textIds = found.map((h) => h.id);
     if (textIds.length === 0) return [];
-    const snippets = await this.prisma.db.$queryRaw<
-      { id: string; documentId: string; headline: string }[]
-    >`
-      SELECT t."id"::text AS id, t."document_id"::text AS "documentId",
-             ts_headline('simple', translate(left(t."text", ${SNIPPET_SOURCE_CHARS}), ${START + STOP}, ''),
-                         websearch_to_tsquery('simple', unaccent(${q}::text)), ${HEADLINE_OPTIONS}) AS headline
-      FROM "document_texts" t
-      WHERE t."office_id" = ${officeId}::uuid AND t."id" = ANY(${textIds}::uuid[])`;
-    const byText = new Map(snippets.map((s) => [s.id, s]));
-    const documentIds = textIds.flatMap((id) => byText.get(id)?.documentId ?? []);
-    const docs = await this.prisma.db.document.findMany({
-      where: { AND: [{ id: { in: documentIds } }, this.documents.visibleWhere()] },
-      select: { id: true, name: true, file: { select: FILE_REF } },
+    const texts = await this.prisma.db.documentText.findMany({
+      where: { id: { in: textIds } },
+      select: { id: true, documentId: true, versionNumber: true },
     });
+    const byText = new Map(texts.map((t) => [t.id, t]));
+    const documentIds = textIds.flatMap((id) => byText.get(id)?.documentId ?? []);
+    // Re-check: visible, scanned clean and still on the version whose text matched (D-126, D-128).
+    const docs = await this.prisma.db.document.findMany({
+      where: {
+        AND: [{ id: { in: documentIds } }, { status: 'READY' }, this.documents.visibleWhere()],
+      },
+      select: { id: true, name: true, currentVersion: true, file: { select: FILE_REF } },
+    });
+    const current = inOrder(documentIds, docs).filter((d) =>
+      texts.some((t) => t.documentId === d.id && t.versionNumber === d.currentVersion),
+    );
+    const visibleTextIds = texts
+      .filter((t) =>
+        current.some((d) => d.id === t.documentId && d.currentVersion === t.versionNumber),
+      )
+      .map((t) => t.id);
+    if (visibleTextIds.length === 0) return [];
+    // Highlight on the text as written; when the match came from an Arabic letter variant (D-059), on the normalised text.
+    const snippets = await this.prisma.db.$queryRaw<{ documentId: string; headline: string }[]>`
+      SELECT s."documentId", CASE WHEN position(${START} in s.raw) > 0 THEN s.raw ELSE
+               ts_headline('simple', nlq_normalize_ar(s.src),
+                           websearch_to_tsquery('simple', nlq_normalize_ar(unaccent(${q}::text))), ${HEADLINE_OPTIONS})
+             END AS headline
+      FROM (
+        SELECT x."document_id"::text AS "documentId", x.src,
+               ts_headline('simple', x.src, websearch_to_tsquery('simple', unaccent(${q}::text)), ${HEADLINE_OPTIONS}) AS raw
+        FROM (SELECT t."document_id", translate(left(t."text", ${SNIPPET_SOURCE_CHARS}), ${START + STOP}, '') AS src
+              FROM "document_texts" t
+              WHERE t."office_id" = ${officeId}::uuid AND t."id" = ANY(${visibleTextIds}::uuid[])) x
+      ) s`;
     const headlines = new Map(snippets.map((s) => [s.documentId, s.headline]));
-    return inOrder(documentIds, docs).map((d) => ({
+    return current.map(({ currentVersion: _version, ...d }) => ({
       ...d,
       snippet: snippetParts(headlines.get(d.id) ?? ''),
     }));

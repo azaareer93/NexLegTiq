@@ -143,7 +143,12 @@ describe('global search (HTTP + PostgreSQL)', () => {
     ids.hiddenDoc = await document(ids.colleague, manager, 'Memo', 'Zaytoun strategy notes', {
       isConfidential: true,
     });
-    await document(ids.otherOffice, other, 'B claim', 'Zaytoun in office B');
+    ids.otherDoc = await document(ids.otherOffice, other, 'B claim', 'Zaytoun in office B');
+    ids.arabicDoc = await document(ids.colleague, manager, 'Lease', 'استأجر المستأجر أرض الزيتون');
+    // Its current version has no text yet: the text that matched belongs to an older version.
+    await document(ids.colleague, manager, 'Stale', 'Zaytoun superseded wording', {
+      currentVersion: 2,
+    });
 
     ids.client = (
       await raw.client.create({
@@ -253,11 +258,28 @@ describe('global search (HTTP + PostgreSQL)', () => {
     expect(found.cases.hasMore).toBe(true);
   });
 
-  it('should refuse a one-character query', async () => {
-    const res = await request(app.getHttpServer())
-      .get('/api/v1/search?q=z')
-      .set(bearerFor(jwt, manager))
-      .expect(400);
-    expect((res.body as { error: { code: string } }).error.code).toBe('VAL-001');
+  it('should highlight an Arabic match found through a letter variant', async () => {
+    const found = await search(manager, `q=${encodeURIComponent('استاجر')}&type=documents`);
+    expect(idsOf(found.documents)).toEqual([ids.arabicDoc]);
+    expect(found.documents.items[0]?.snippet).toContainEqual({ text: 'استاجر', match: true });
   });
+
+  it('should give office B only its own rows', async () => {
+    const found = await search(other);
+    expect(idsOf(found.cases)).toEqual([ids.otherOffice]);
+    expect(idsOf(found.documents)).toEqual([ids.otherDoc]);
+    expect(found.clients.items).toEqual([]);
+    expect(found.tasks.items).toEqual([]);
+  });
+
+  it.each(['q=z', 'q=zaytoun&limit=21', 'q=zaytoun&type=notes'])(
+    'should refuse %s with VAL-001',
+    async (query) => {
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/search?${query}`)
+        .set(bearerFor(jwt, manager))
+        .expect(400);
+      expect((res.body as { error: { code: string } }).error.code).toBe('VAL-001');
+    },
+  );
 });

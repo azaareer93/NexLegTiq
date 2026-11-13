@@ -3146,7 +3146,7 @@ Prisma access rules again (`visibleWhere` of files, documents and tasks): if the
 they never leak; the integration test pins both per role. **Clients** only for `manage:clients` (D-121), **parties** (the
 office-wide registry, D-135) only for `edit:any|assigned:case`; other readers get those groups empty. **Groups** are
 `{items, hasMore}` (the query fetches `limit + 1`) instead of a total count, which would need a second counting query per
-type. **Document snippets:** `ts_headline` (simple config) over the first 100,000 characters of the text, returned as
+type. **Document snippets:** `ts_headline` (simple config) over the first 50,000 characters of the text (on the Arabic-normalised text when the written one marks nothing, so a letter-variant match is still highlighted), only for documents that passed the re-check, returned as
 `[{text, match}]` parts split on control-character markers stripped from the text first — the app renders them as text,
 never HTML. A snippet is not audited (D-128 audits reading a text page; a snippet of a few words is part of the result).
 **Deviation — no cache:** the ticket's `o:{officeId}:u:{userId}:search:{hash}` 60 s cache is not built, as for the
