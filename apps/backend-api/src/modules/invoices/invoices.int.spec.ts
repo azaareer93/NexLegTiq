@@ -366,7 +366,7 @@ describe('invoices (HTTP + PostgreSQL)', () => {
   it('should mark a sent invoice paid with INVOICE_PAID, and refuse a draft or a second payment', async () => {
     await entry(f1, '1.00', '100.00');
     const id = (await draft(manager, { clientId: client, fileId: f1 })).body.data.id as string;
-    const pay = { paidAt: '2026-11-10T09:00:00+02:00', method: 'BANK_TRANSFER', reference: 'TX-1' };
+    const pay = { paidAt: new Date().toISOString(), method: 'BANK_TRANSFER', reference: 'TX-1' };
     const early = await http().post(`/api/v1/invoices/${id}/mark-paid`).set(as(manager)).send(pay);
     expect(early.body.error.code).toBe('BIZ-006');
     await http().post(`/api/v1/invoices/${id}/send`).set(as(manager)).expect(200);
@@ -536,7 +536,7 @@ describe('invoices (HTTP + PostgreSQL)', () => {
     await http()
       .post(`/api/v1/invoices/${id}/mark-paid`)
       .set(as(manager))
-      .send({ paidAt: '2026-11-10T09:00:00+02:00', method: 'CASH' })
+      .send({ paidAt: new Date().toISOString(), method: 'CASH' })
       .expect(200);
   });
 
@@ -590,7 +590,7 @@ describe('invoices (HTTP + PostgreSQL)', () => {
     await http().get('/api/v1/invoices').set(as(trainee)).expect(403);
     await draft(trainee, { clientId: client }).then((res) => expect(res.status).toBe(403));
     await draft(paralegal, { clientId: client }).then((res) => expect(res.status).toBe(403));
-    const pay = { paidAt: '2026-11-10T09:00:00+02:00', method: 'CASH' };
+    const pay = { paidAt: new Date().toISOString(), method: 'CASH' };
     await http().post(`/api/v1/invoices/${id}/mark-paid`).set(as(paralegal)).send(pay).expect(403);
     await http().post(`/api/v1/invoices/${id}/mark-paid`).set(as(manager)).send({}).expect(400);
   });
