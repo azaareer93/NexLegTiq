@@ -7,6 +7,8 @@ import type {
 import type { OfficeId } from '@nexlegtiq/shared-types';
 import { PinoLogger } from 'nestjs-pino';
 
+import { isAtRisk, WRITE_ACTIONS } from './office-activity';
+import { officeStatistics } from './office-statistics';
 import { ResourceNotFoundException } from '../../common/errors/app.exception';
 import { PaginatedResult } from '../../common/http/paginated-result';
 import { RealtimePublisher } from '../../common/realtime/realtime.publisher';
@@ -99,6 +101,7 @@ export class PlatformOfficesService {
         createdAt: s.createdAt.toISOString(),
       })),
       suspension,
+      statistics: await officeStatistics(raw, id),
     };
   }
 
@@ -236,7 +239,7 @@ export class PlatformOfficesService {
     monthStart.setUTCHours(0, 0, 0, 0);
     // unscoped: platform admin usage overview across offices (D-080).
     const raw = this.prisma.unscoped();
-    const [users, files, bytes, ai, logins] = await Promise.all([
+    const [users, files, bytes, ai, logins, writes] = await Promise.all([
       raw.user.groupBy({
         by: ['officeId'],
         where: { officeId, isActive: true },
@@ -265,13 +268,22 @@ export class PlatformOfficesService {
         _count: { _all: true },
       }),
       raw.user.groupBy({ by: ['officeId'], where: { officeId }, _max: { lastLoginAt: true } }),
+      // shortcut: a max over each office's audit rows per page, fine at today's volume; precompute daily if it slows.
+      raw.auditLog.groupBy({
+        by: ['officeId'],
+        where: { officeId, action: { in: [...WRITE_ACTIONS] } },
+        _max: { occurredAt: true },
+      }),
     ]);
     const u = new Map(users.map((x) => [x.officeId, x._count._all]));
     const f = new Map(files.map((x) => [x.officeId, x._count._all]));
     const b = new Map(bytes.map((x) => [x.officeId, x._sum.sizeBytes ?? 0n]));
     const a = new Map(ai.map((x) => [x.officeId, x._count._all]));
     const l = new Map(logins.map((x) => [x.officeId, x._max.lastLoginAt]));
+    const w = new Map(writes.map((x) => [x.officeId, x._max.occurredAt]));
+    const now = new Date();
     return rows.map((r) => ({
+      ...activity(r, w.get(r.id), now),
       id: r.id,
       name: r.name,
       jurisdiction: r.jurisdiction,
@@ -288,4 +300,13 @@ export class PlatformOfficesService {
       lastActivityAt: l.get(r.id)?.toISOString() ?? null,
     }));
   }
+}
+
+/** The last write and the at-risk flag of one office (D-164). */
+function activity(r: BaseRow, last: Date | null | undefined, now: Date) {
+  const lastWriteAt = last ?? null;
+  return {
+    lastWriteAt: lastWriteAt?.toISOString() ?? null,
+    atRisk: isAtRisk({ isActive: r.is_active, createdAt: r.created_at, lastWriteAt }, now),
+  };
 }

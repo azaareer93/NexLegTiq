@@ -20,6 +20,7 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, Navigate, useSearchParams } from 'react-router';
 
+import { AtRiskTag } from '../components/AtRiskTag';
 import { useOfficesList } from '../hooks';
 import { readQuery, withChanges } from '../list-params';
 
@@ -48,9 +49,12 @@ function useColumns(): TableColumnsType<AdminOfficeListItem> {
       title: t('admin.offices.columns.status'),
       key: 'status',
       render: (_, row) => (
-        <StatusTag tone={row.status === 'ACTIVE' ? 'success' : 'error'}>
-          {t(`admin.offices.status.${row.status}`)}
-        </StatusTag>
+        <>
+          <StatusTag tone={row.status === 'ACTIVE' ? 'success' : 'error'}>
+            {t(`admin.offices.status.${row.status}`)}
+          </StatusTag>
+          {row.atRisk ? <AtRiskTag id={row.id} /> : null}
+        </>
       ),
     },
     {
@@ -92,6 +96,11 @@ function useColumns(): TableColumnsType<AdminOfficeListItem> {
       title: t('admin.offices.columns.lastActivity'),
       key: 'lastActivity',
       render: (_, row) => (row.lastActivityAt ? format.dateTime(row.lastActivityAt) : none),
+    },
+    {
+      title: t('admin.offices.columns.lastWrite'),
+      key: 'lastWrite',
+      render: (_, row) => (row.lastWriteAt ? format.dateTime(row.lastWriteAt) : none),
     },
     {
       title: t('admin.offices.columns.created'),

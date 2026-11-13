@@ -280,6 +280,49 @@ describe('platform admin offices (HTTP + PostgreSQL)', () => {
     await raw.legalFile.deleteMany({ where: { officeId: office.id } });
   });
 
+  it('should count the last 30 days and flag an old office whose last write is 14+ days old (D-164)', async () => {
+    const quiet = await seedOffice('Quiet', 'PALESTINE', 1, new Date('2024-01-01T00:00:00Z'));
+    const busy = await seedOffice('Busy', 'PALESTINE', 1, new Date('2024-01-01T00:00:00Z'));
+    const fresh = await seedOffice('Fresh', 'PALESTINE', 1);
+    const old = new Date(Date.now() - 20 * 24 * 60 * 60 * 1000);
+    await raw.auditLog.createMany({
+      data: [
+        { officeId: quiet.office.id, entityType: 'LegalFile', action: 'UPDATE', occurredAt: old },
+        // Reads are not work: a recent view keeps nobody out of risk.
+        { officeId: quiet.office.id, entityType: 'LegalFile', action: 'VIEW' },
+        { officeId: busy.office.id, entityType: 'LegalFile', action: 'CREATE' },
+        { officeId: busy.office.id, entityType: 'Task', action: 'UPDATE' },
+      ],
+    });
+    const list = await http()
+      .get('/api/v1/admin/offices')
+      .query({ search: tag, limit: 100 })
+      .set(auth)
+      .expect(200);
+    const flag = (id: string) =>
+      list.body.data.find((o: { id: string }) => o.id === id) as {
+        atRisk: boolean;
+        lastWriteAt: string;
+      };
+    expect(flag(quiet.office.id)).toMatchObject({ atRisk: true, lastWriteAt: old.toISOString() });
+    expect(flag(busy.office.id).atRisk).toBe(false);
+    expect(flag(fresh.office.id)).toMatchObject({ atRisk: false, lastWriteAt: null });
+    const detail = await http()
+      .get(`/api/v1/admin/offices/${busy.office.id}`)
+      .set(auth)
+      .expect(200);
+    expect(detail.body.data.statistics).toMatchObject({
+      writes30d: 2,
+      signedIn30d: 0,
+      documents: 0,
+    });
+    const quietDetail = await http()
+      .get(`/api/v1/admin/offices/${quiet.office.id}`)
+      .set(auth)
+      .expect(200);
+    expect(quietDetail.body.data.statistics.writes30d).toBe(1);
+  });
+
   it('should answer 404 RES-001 for an unknown or malformed office id and refuse office tokens', async () => {
     for (const id of [randomUUID(), 'not-a-uuid']) {
       const res = await http().get(`/api/v1/admin/offices/${id}`).set(auth).expect(404);

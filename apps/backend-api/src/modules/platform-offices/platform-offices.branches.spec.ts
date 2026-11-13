@@ -43,11 +43,21 @@ function build(o: Opts = {}) {
     }),
     user: {
       groupBy: jest.fn().mockResolvedValue([]),
+      count: jest.fn().mockResolvedValue(2),
       findMany: o.usersFail
         ? jest.fn().mockRejectedValue(new Error('db'))
         : jest.fn().mockResolvedValue([{ id: 'u1' }, { id: 'u2' }]),
     },
-    legalFile: { groupBy: jest.fn().mockResolvedValue([]) },
+    legalFile: {
+      groupBy: jest.fn().mockResolvedValue([]),
+      count: jest.fn().mockResolvedValue(1),
+    },
+    document: { count: jest.fn().mockResolvedValue(3) },
+    auditLog: {
+      groupBy: jest.fn().mockResolvedValue([]),
+      count: jest.fn().mockResolvedValue(4),
+    },
+    officeSettings: { findUnique: jest.fn().mockResolvedValue(null) },
     documentVersion: { groupBy: jest.fn().mockResolvedValue([]) },
     aiUsage: { groupBy: jest.fn().mockResolvedValue([]) },
     office: {
@@ -134,6 +144,28 @@ describe('PlatformOfficesService list', () => {
 });
 
 describe('PlatformOfficesService get', () => {
+  it('should count files per status, default the switches without settings and flag a quiet office', async () => {
+    const { service, raw } = build();
+    raw.legalFile.groupBy.mockImplementation(({ by }: { by: string[] }) =>
+      Promise.resolve(by[0] === 'status' ? [{ status: 'CLOSED', _count: { _all: 5 } }] : []),
+    );
+    raw.auditLog.groupBy.mockResolvedValue([
+      { officeId: 'o1', _max: { occurredAt: new Date('2026-01-03T00:00:00Z') } },
+    ]);
+    const detail = await service.get('o1');
+    expect(detail.statistics).toEqual({
+      signedIn30d: 2,
+      filesByStatus: { OPEN: 0, SUSPENDED: 0, CLOSED: 5, ARCHIVED: 0 },
+      filesNew30d: 1,
+      documents: 3,
+      documentsNew30d: 3,
+      writes30d: 4,
+      aiEnabled: true,
+      ocrEnabled: true,
+    });
+    expect(detail).toMatchObject({ lastWriteAt: '2026-01-03T00:00:00.000Z', atRisk: true });
+  });
+
   it('should answer 404 for an unknown office', async () => {
     const { service } = build({ rows: [] });
     await expect(service.get('missing')).rejects.toBeInstanceOf(ResourceNotFoundException);
