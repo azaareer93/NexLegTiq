@@ -20,12 +20,13 @@ settings, or name another `MVP-<n>` key in a commit, PR title or PR body (mergin
      entry with `memory_store` (dozens of calls through the conversation) unless `memory_import` itself fails. Never run the
      seed script without `--export` in a session: the MCP server owns `.swarm/memory.db`. If the import refuses (WAL sidecar
      files), skip the Ruflo part, keep the pending file and say so.
-   - **Notion**: if `git rev-parse HEAD:docs/context/decisions.md` differs from `.git/nexlegtiq/notion-decisions`
+   - **Notion**: if `git rev-parse HEAD:docs/context/decisions` differs from `.git/nexlegtiq/notion-decisions`
      (or that file is missing), run `/sync-notion decisions`.
    - Make sure the dev stack is up for integration tests: `docker compose -f docker/compose.dev.yml up -d`.
 1. **Load**: fetch the issue (`getJiraIssue`, fields incl. description, issuelinks, parent, labels, comment). If it's an
    Epic, pick its first eligible child (`--auto`) or list the children and ask.
-2. **Context**: read `docs/context/00-index.md`, the topic files for the ticket's labels/epic, and `decisions.md`.
+2. **Context**: read `docs/context/00-index.md`, the topic files for the ticket's labels/epic, and the decisions of its area
+   (`grep -ril '<topic>' docs/context/decisions`; new ones are new files `D-###.md`).
    `memory_search` (namespaces `patterns`, `lessons`, `decisions`) for prior work. Notion only if the digest lacks detail.
 3. **Blockers → base branch**: for every "is blocked by" link:
    - Done → nothing to do.
@@ -55,6 +56,6 @@ settings, or name another `MVP-<n>` key in a commit, PR title or PR body (mergin
    record it in the ticket's `D-###`; otherwise follow the Skip rule but **keep the branch and push it** (no PR), so the work
    is not lost. Re-run step 8 after fixes and commit them (`fix(<scope>): review fixes …`).
 10. **Ship**: run `/ship` (it opens the PR against the stack parent when `nlqParent` is set).
-11. **Notion**: if `decisions.md` changed on this branch, run `/sync-notion decisions`.
+11. **Notion**: if `docs/context/decisions/` changed on this branch, run `/sync-notion decisions`.
 12. **Report** in ≤ 8 lines: PR URL, base (develop or parent), decisions made, deviations, anything left for me.
     `--auto` → end with the line `DONE: MVP-<n> <PR URL>`.

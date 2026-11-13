@@ -15,7 +15,7 @@
   LOG="${TMPDIR:-${TEMP:-/tmp}}/nexlegtiq-post-merge.log"
 
   # Oldest unsynced base wins: several pulls before the next /ticket still cover every change.
-  if [ -n "$(git diff --name-only ORIG_HEAD HEAD -- 'docs/context/*.md' 2>/dev/null)" ] && [ ! -s "$STATE/ruflo-pending" ]; then
+  if [ -n "$(git diff --name-only ORIG_HEAD HEAD -- 'docs/context/*.md' 'docs/context/decisions/*.md' 2>/dev/null)" ] && [ ! -s "$STATE/ruflo-pending" ]; then
     mkdir -p "$STATE" && git rev-parse ORIG_HEAD > "$STATE/ruflo-pending"
   fi
 

@@ -6,7 +6,7 @@ multi-agent swarms to Claude Code. In this repo it is the **long-term memory lay
 | Layer | Holds | Canonical? |
 |---|---|---|
 | Notion | product intent, business, design specs | intent |
-| `docs/context/*.md` + `decisions.md` | engineering digest + resolved conflicts | **yes (engineering)** |
+| `docs/context/*.md` + `decisions/D-NNN.md` | engineering digest + resolved conflicts | **yes (engineering)** |
 | `CLAUDE.md`, `.claude/rules`, skills | how Claude must work here | yes |
 | Ruflo memory | searchable copy of the digest + accumulated patterns/lessons | derived + learned |
 | Jira MVP | what to build next, status | yes (work) |

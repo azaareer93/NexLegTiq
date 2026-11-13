@@ -3,7 +3,7 @@ description: Check a ticket, file or area against the Notion-derived specs and d
 argument-hint: "MVP-123 | path | topic"
 ---
 Spec-check **$ARGUMENTS** using the `spec-guardian` subagent:
-- If a Jira key: compare its description/AC with `docs/context/*` and `decisions.md`; list missing AC (i18n, RBAC, tenant, audit,
+- If a Jira key: compare its description/AC with `docs/context/*` and the decisions of its area (`docs/context/decisions/`); list missing AC (i18n, RBAC, tenant, audit,
   errors, tests), contradictions, and suggest improved AC. Offer to update the ticket (`editJiraIssue`) — do it if I agree or if only
   additive (APEX mode: additive fixes are applied directly, then reported).
 - If a path/area: compare implementation with the specs; list deviations with file:line, classify as *bug*, *undocumented decision*

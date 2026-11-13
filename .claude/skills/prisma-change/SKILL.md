@@ -4,7 +4,7 @@ description: Safe Prisma schema and migration workflow for NexLegTiq — model c
 ---
 # Prisma change workflow
 
-1. Check `docs/context/domain-model.md` + `decisions.md`; if diverging, add a `D-###` (via `/adr`) in the same PR.
+1. Check `docs/context/domain-model.md` + `docs/context/decisions/`; if diverging, add a `D-###` (via `/adr`) in the same PR.
 2. Edit `apps/backend-api/prisma/schema.prisma` following `.claude/rules/prisma.md`:
 ```prisma
 model Session {

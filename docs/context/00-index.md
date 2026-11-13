@@ -1,7 +1,8 @@
 # NexLegTiq Knowledge Map
 
 The Notion workspace is the **source of intent**; these files are the **engineering-canonical digest** (read 2026-09-28),
-with every cross-document conflict resolved in `decisions.md`. Read order for a new task: this index → `decisions.md` →
+with every cross-document conflict resolved in `decisions/` (one `D-NNN.md` each). Read order for a new task: this index → the decisions of the area
+(`grep -ril <topic> docs/context/decisions`) →
 the topic file(s) → the linked Notion page only if you need detail that isn't here.
 
 Root: [NexLegTiq – The Intelligent Workspace for Modern Law Offices](https://app.notion.com/p/361fd30cf06d818183deda87a78c8d7a)
@@ -19,7 +20,7 @@ Root: [NexLegTiq – The Intelligent Workspace for Modern Law Offices](https://a
 | `quality-testing.md` | TS/naming/lint rules, gates, test pyramid, Definition of Done | [Development Guidelines](https://app.notion.com/p/399fd30cf06d8002be06efc3142592eb) · [Testing Strategy](https://app.notion.com/p/399fd30cf06d80e89427fd86426a4a2b) |
 | `ops-security.md` | security controls, privacy duties, deploy, backups/DR, monitoring, support | [Deployment](https://app.notion.com/p/399fd30cf06d80eba626ff926e1c2d58) · [Infra Cost](https://app.notion.com/p/399fd30cf06d803aa910f1111088d889) · [DR](https://app.notion.com/p/399fd30cf06d80b3b023c163e05ede0f) · [Incident Response](https://app.notion.com/p/399fd30cf06d8069ae79c0ffd347ec07) · [Backup & Restore](https://app.notion.com/p/399fd30cf06d8031ad67e79ff6f91a9d) · [ToS & Privacy](https://app.notion.com/p/399fd30cf06d80d1a65dc70010a39fc7) · [DPA](https://app.notion.com/p/399fd30cf06d80d8b428d358f34f1bab) · [Troubleshooting](https://app.notion.com/p/399fd30cf06d807c8bdbd0dba1675362) · [Support Playbook](https://app.notion.com/p/399fd30cf06d806fb88ac9a3c512e0be) · [FAQ](https://app.notion.com/p/399fd30cf06d807da129e80d5f431fd5) |
 | `glossary.md` | EN↔AR legal terms, code names | [Arabic Localization](https://app.notion.com/p/399fd30cf06d80a6ae4fd04303391f6a) |
-| `decisions.md` | **all resolved conflicts (D-###)** — wins over everything else | — |
+| `decisions/D-NNN.md` | **all resolved conflicts, one file each** — wins over everything else | — |
 
 Not engineering inputs (marketing/sales): [Sales Playbook](https://app.notion.com/p/399fd30cf06d80118518c86763a1b4eb),
 [Case Studies](https://app.notion.com/p/399fd30cf06d8000af80d62d393d8847) (illustrative only, D-007),
