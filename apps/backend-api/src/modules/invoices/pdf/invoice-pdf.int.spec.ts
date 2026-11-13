@@ -9,6 +9,7 @@ const itPrints = canPrint ? it : it.skip;
 
 const SAMPLE: InvoicePdfData = {
   language: 'AR',
+  status: 'SENT',
   invoiceNumber: 'INV-2026-0007',
   issueDate: '2026-11-14',
   dueDate: '2026-12-14',

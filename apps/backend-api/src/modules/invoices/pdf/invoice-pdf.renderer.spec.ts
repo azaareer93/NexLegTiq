@@ -27,6 +27,8 @@ const row = (over: object = {}) => ({
   pdfRenderedFor: null,
   client: {
     displayName: '<b>Acme</b>',
+    deletedAt: null,
+    isActive: true,
     address: null,
     phone: null,
     email: 'client@example.test',
@@ -86,7 +88,7 @@ describe('InvoicePdfRenderer (MVP-92)', () => {
     );
     expect(result).toEqual({ rendered: true, emailed: true });
     expect(prisma.db.invoice.updateMany).toHaveBeenCalledWith({
-      where: { id: ID, updatedAt: UPDATED },
+      where: { id: ID, updatedAt: UPDATED, pdfStorageKey: null },
       data: expect.objectContaining({
         pdfLanguage: 'EN',
         pdfRenderedFor: UPDATED,
@@ -158,9 +160,21 @@ describe('InvoicePdfRenderer (MVP-92)', () => {
     stored.storage.getStream.mockResolvedValue([Buffer.from('%PDF')]);
     expect(
       await stored.renderer.run({ invoiceId: ID, language: 'AR', email: true }, 'j', signal),
-    ).toEqual({ rendered: true, emailed: true });
+    ).toEqual({ rendered: false, emailed: true });
     expect(stored.storage.getStream).toHaveBeenCalledWith('o1/invoices/x.pdf');
     expect(stored.mail.send.mock.calls[0]?.[1].text).not.toContain('تاريخ الاستحقاق');
+  });
+
+  it.each([
+    ['a voided invoice', { status: 'VOID' }],
+    ['a paid invoice', { status: 'PAID' }],
+    ['a deleted client', { client: { ...row().client, deletedAt: new Date() } }],
+    ['an inactive client', { client: { ...row().client, isActive: false } }],
+  ])('should not email %s', async (_case, over) => {
+    const { renderer, mail } = setup(row(over));
+    const result = await renderer.run({ invoiceId: ID, language: 'AR', email: true }, 'j', signal);
+    expect(result).toEqual({ rendered: true, emailed: false });
+    expect(mail.send).not.toHaveBeenCalled();
   });
 
   it("should fall back to the client's own address", () => {
@@ -171,6 +185,7 @@ describe('InvoicePdfRenderer (MVP-92)', () => {
 describe('invoiceHtml (MVP-92)', () => {
   const data = {
     language: 'AR' as const,
+    status: 'DRAFT',
     invoiceNumber: null,
     issueDate: null,
     dueDate: null,
@@ -238,6 +253,14 @@ describe('invoiceHtml (MVP-92)', () => {
     }
     expect(html).toContain('<bdi dir="ltr">2026-LIT-00001</bdi>');
     expect(html).toContain('<bdi dir="ltr">+970 2 295 1234</bdi>');
+  });
+
+  it('should stamp paid and void invoices, and nothing else', () => {
+    expect(invoiceHtml({ ...data, status: 'VOID' })).toContain('class="stamp void">ملغاة');
+    expect(invoiceHtml({ ...data, status: 'PAID', language: 'EN' })).toContain(
+      'class="stamp paid">Paid',
+    );
+    expect(invoiceHtml({ ...data, status: 'SENT' })).not.toContain('class="stamp');
   });
 
   it('should write English left to right', () => {

@@ -33,6 +33,12 @@ export async function printPdf(
         '--disable-gpu',
         '--disable-extensions',
         '--no-first-run',
+        // Nothing to fetch: no update checks, sync or other calls home from the worker.
+        '--disable-background-networking',
+        '--disable-component-update',
+        '--disable-sync',
+        '--no-proxy-server',
+        '--disable-dev-shm-usage',
         '--no-pdf-header-footer',
         `--user-data-dir=${join(folder, 'profile')}`,
         `--print-to-pdf=${out}`,

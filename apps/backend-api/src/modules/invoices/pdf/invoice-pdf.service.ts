@@ -16,13 +16,14 @@ import { InvoiceAccess } from '../invoice-access';
 const LINK_TTL_SECONDS = 300;
 
 /** The office's language for documents it sends: a bilingual office writes in Arabic unless asked otherwise. */
-export async function officePdfLanguage(
-  db: Pick<ScopedTransaction, 'office'>,
-): Promise<PdfLanguage> {
+export const pdfLanguageOf = (defaultLanguage: string): PdfLanguage =>
+  defaultLanguage === 'EN' ? 'EN' : 'AR';
+
+async function officePdfLanguage(db: Pick<ScopedTransaction, 'office'>): Promise<PdfLanguage> {
   const { defaultLanguage } = await db.office.findFirstOrThrow({
     select: { defaultLanguage: true },
   });
-  return defaultLanguage === 'EN' ? 'EN' : 'AR';
+  return pdfLanguageOf(defaultLanguage);
 }
 
 /** Queues a render; one per invoice state, language and minute (a failed render can be asked for again a minute later). */

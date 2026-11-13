@@ -9,6 +9,8 @@ export type PdfLanguage = 'AR' | 'EN';
 /** Everything the PDF shows, already read from the invoice (amounts as decimal strings, dates `YYYY-MM-DD`). */
 export interface InvoicePdfData {
   readonly language: PdfLanguage;
+  /** PAID and VOID are stamped on the page; other states print as the invoice. */
+  readonly status: string;
   readonly invoiceNumber: string | null;
   readonly issueDate: string | null;
   readonly dueDate: string | null;
@@ -45,6 +47,8 @@ const COPY = {
   AR: {
     title: 'فاتورة',
     draft: 'مسودة — غير مرقّمة',
+    PAID: 'مدفوعة',
+    VOID: 'ملغاة — لا يُطالب بها',
     number: 'رقم الفاتورة',
     issued: 'تاريخ الإصدار',
     due: 'تاريخ الاستحقاق',
@@ -64,6 +68,8 @@ const COPY = {
   EN: {
     title: 'Invoice',
     draft: 'Draft — not numbered',
+    PAID: 'Paid',
+    VOID: 'Void — not payable',
     number: 'Invoice number',
     issued: 'Issue date',
     due: 'Due date',
@@ -149,6 +155,10 @@ const fileSection = (file: InvoicePdfData['file'], t: Copy) =>
   file
     ? `<section><div class="label">${esc(t.file)}</div><div>${ltr(file.fileNumber)} — ${esc(file.title)}</div></section>`
     : '';
+const stamp = (status: string, t: Copy) =>
+  status === 'PAID' || status === 'VOID'
+    ? `<div class="stamp ${status.toLowerCase()}">${esc(t[status as 'PAID' | 'VOID'])}</div>`
+    : '';
 const notesBlock = (notes: string | null, t: Copy) =>
   notes ? `<div class="notes"><div class="label">${esc(t.notes)}</div>${esc(notes)}</div>` : '';
 
@@ -199,6 +209,9 @@ tr{break-inside:avoid;}
 .totals td{border:none;padding:3px 8px;}
 .grand td{font-weight:700;font-size:12pt;border-block-start:2px solid #1f3a5f;}
 .notes{margin-block-start:20px;white-space:pre-wrap;unicode-bidi:plaintext;}
+.stamp{display:inline-block;margin-block-start:8px;padding:4px 12px;border:2px solid;font-weight:700;font-size:13pt;}
+.stamp.paid{color:#1e7b45;}
+.stamp.void{color:#b42318;}
 </style></head>
 <body>
 <header>
@@ -209,7 +222,7 @@ tr{break-inside:avoid;}
 <span class="label">${esc(t.number)}</span><span>${data.invoiceNumber ? ltr(data.invoiceNumber) : esc(t.draft)}</span>
 <span class="label">${esc(t.issued)}</span><span>${date(data.issueDate)}</span>
 <span class="label">${esc(t.due)}</span><span>${date(data.dueDate)}</span>
-</div></div>
+</div>${stamp(data.status, t)}</div>
 </header>
 <div class="parties">
 <section><div class="label">${esc(t.billTo)}</div><div>${esc(client.name)}</div>

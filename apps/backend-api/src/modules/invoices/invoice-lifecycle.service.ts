@@ -12,7 +12,7 @@ import { buildLines, invoiceTotals } from './invoice-math';
 import { InvoiceNumberService } from './invoice-number.service';
 import { day, plusDays } from './invoice-presenter';
 import { InvoicesService } from './invoices.service';
-import { enqueuePdf, officePdfLanguage } from './pdf/invoice-pdf.service';
+import { enqueuePdf, pdfLanguageOf } from './pdf/invoice-pdf.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { ValidationException } from '../../common/errors/app.exception';
 import { QueueProducer } from '../../common/queue/queue-producer';
@@ -118,8 +118,10 @@ export class InvoiceLifecycle {
           { field: 'emailClient', message: 'validation.noClientEmail' },
         ]);
       }
-      const language = input.language ?? (await officePdfLanguage(tx));
-      const { timezone } = await tx.office.findFirstOrThrow({ select: { timezone: true } });
+      const { timezone, defaultLanguage } = await tx.office.findFirstOrThrow({
+        select: { timezone: true, defaultLanguage: true },
+      });
+      const language = input.language ?? pdfLanguageOf(defaultLanguage);
       const today = wallClock(new Date(), timezone).date;
       const dueDate = row.dueDate ? day(row.dueDate) : plusDays(today, PAYMENT_TERM_DAYS);
       if (dueDate < today) {

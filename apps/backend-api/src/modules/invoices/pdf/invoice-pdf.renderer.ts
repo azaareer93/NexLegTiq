@@ -46,6 +46,8 @@ const RENDER_SELECT = {
       address: true,
       phone: true,
       email: true,
+      deletedAt: true,
+      isActive: true,
       contacts: { where: { isPrimary: true }, select: { email: true } },
     },
   },
@@ -130,7 +132,7 @@ export class InvoicePdfRenderer {
         signal,
       },
     );
-    return { rendered: true, emailed };
+    return { rendered: pdf !== null, emailed };
   }
 
   private async email(
@@ -141,7 +143,12 @@ export class InvoicePdfRenderer {
     { jobId, signal }: { jobId: string; signal: AbortSignal },
   ): Promise<boolean> {
     const to = recipientOf(row.client);
-    if (!to || !row.invoiceNumber) return false;
+    // Only a payable invoice of a current client goes out: voided or paid meanwhile, or a removed client, is not mailed.
+    const sendable = row.status === 'SENT' || row.status === 'OVERDUE';
+    if (!to || !row.invoiceNumber || !sendable || row.client.deletedAt || !row.client.isActive) {
+      this.logger.warn({ invoiceId: row.id, status: row.status }, 'Invoice not emailed');
+      return false;
+    }
     const mail = renderMail(
       'invoice',
       language,
@@ -153,7 +160,8 @@ export class InvoicePdfRenderer {
           ? formatDate(day(row.dueDate), { locale: language === 'AR' ? 'ar' : 'en' })
           : '',
       },
-      this.config.mail.officeAppUrl,
+      // Mail to a client: the legal footer is the portal's (D-158).
+      this.config.mail.clientPortalUrl,
     );
     await this.mail.send(to, mail, {
       signal,
@@ -171,7 +179,8 @@ export class InvoicePdfRenderer {
     await this.storage.put(key, pdf, { contentType: 'application/pdf', contentLength: pdf.length });
     // `updatedAt` written as it was: recording the PDF is not a change of the invoice.
     const { count } = await this.prisma.db.invoice.updateMany({
-      where: { id: row.id, updatedAt: row.updatedAt },
+      // Compare-and-swap on the stored key too: of two renders of the same state, the later one keeps no orphan.
+      where: { id: row.id, updatedAt: row.updatedAt, pdfStorageKey: row.pdfStorageKey },
       data: {
         pdfStorageKey: key,
         pdfLanguage: language,
@@ -200,6 +209,7 @@ function pdfData(row: RenderRow, office: OfficeRow, language: PdfLanguage): Invo
   const money = (value: Prisma.Decimal) => roundMoney(value.toFixed(), row.currency);
   return {
     language,
+    status: row.status,
     invoiceNumber: row.invoiceNumber,
     issueDate: row.issueDate ? day(row.issueDate) : null,
     dueDate: row.dueDate ? day(row.dueDate) : null,

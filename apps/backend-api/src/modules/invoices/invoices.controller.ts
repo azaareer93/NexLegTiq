@@ -13,6 +13,7 @@ import {
   Res,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiNoContentResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import {
   CreateInvoiceSchema,
   InvoiceListItemSchema,
@@ -134,7 +135,7 @@ export class InvoicesController {
     summary:
       'Send a draft: assigns its number, issue and due dates, renders its PDF and, with emailClient, emails it to the client (no address → 400 validation.noClientEmail)',
   })
-  @ApiZodBody(SendInvoiceSchema)
+  @ApiZodBody(SendInvoiceSchema, { required: false })
   @ApiZodResponse(HttpStatus.OK, InvoiceSchema)
   send(
     @Param('id', invoiceId) id: string,
@@ -145,6 +146,8 @@ export class InvoicesController {
 
   @Get(':id/pdf')
   @RequireAnyPermission('view:all:invoices', 'view:assigned:invoices')
+  // Each ask may queue a Chromium print on the shared report queue (D-171).
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @ApiOperation({
     summary:
       'The invoice PDF: 200 with a 5-minute link when it shows the invoice as it is now, else 202 while the worker renders it (ask again)',
