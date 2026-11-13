@@ -32,6 +32,7 @@ import { PartiesModule } from '../modules/parties/parties.module';
 import { PlatformAuthModule } from '../modules/platform-auth/platform-auth.module';
 import { PlatformOfficesModule } from '../modules/platform-offices/platform-offices.module';
 import { PortalAuthModule } from '../modules/portal-auth/portal-auth.module';
+import { SearchModule } from '../modules/search/search.module';
 import { SessionsModule } from '../modules/sessions/sessions.module';
 import { SubscriptionGuard } from '../modules/subscriptions/subscription.guard';
 import { SubscriptionsModule } from '../modules/subscriptions/subscriptions.module';
@@ -62,6 +63,7 @@ import { WitnessesModule } from '../modules/witnesses/witnesses.module';
     NotificationsModule,
     TimelineModule,
     DashboardModule,
+    SearchModule,
     TimeEntriesModule,
     InvoicesModule,
     NotesModule,
