@@ -3073,6 +3073,36 @@ data, as D-144). `paidAt` may be neither in the future (office zone) nor before 
 the old and new tax rate and extra lines. The migration clears any `time_entries.invoice_id` before adding its FK (only tests
 ever set it). A time entry on a draft already counts as invoiced (locked, BIZ-006; not "unbilled" in the D-152 totals).
 
+**D-165 — Search vectors on files, clients, parties and tasks; the query builder** · Accepted (MVP-80, 2026-11-13)
+MVP-80 left the fields of each vector, the fuzzy rule and how full-text and trigram results combine open. → **Vectors**
+(migration `search_vectors`): `search_vector_simple` (`simple` over `nlq_normalize_ar(unaccent(text))`) and
+`search_vector_english` on `legal_files` (number, title, sub-type, court case number, description), `clients` (display, full
+and company name), `parties` (full or company name) and `tasks` (title, description), filled by `BEFORE` triggers through one
+helper, `nlq_search_vectors(text)` (the first 500,000 characters, as document text, D-119); existing rows were backfilled by
+the migration; GIN indexes on all eight. Document text (D-119) and witness statements (D-163) already had theirs.
+**Trigram** GIN indexes on the normalised file title, task title and client display name (parties had theirs, D-135).
+Identifiers and notes are not searched (encrypted, D-056; identifiers match exactly through the blind index, D-135).
+**Query builder** (`common/search/search-query.ts`, `searchQuery(target, officeId, query, limit, where?)` → `Prisma.Sql` for
+`$queryRaw`): `websearch_to_tsquery` on both configs (quotes, `-word`, `or`), ranked `1 + ts_rank(simple) + ts_rank(english)`;
+then, **only when those leave room under the limit**, a trigram pass (`word_similarity`, pg_trgm `<%`) on the name or title
+for typos and partial words, ranked below every word match. The office id is always a bound parameter (D-080); `where`
+lets the caller add deleted/visibility rules on alias `t` before the limit, so results are never lost to a filter applied
+afterwards. Table names and expressions come only from `SEARCH_TARGETS`. The search API, its access rules and grouping are
+the global-search story's. **Benchmark** (`search-query.performance.int.spec.ts`, 50k files, clients and tasks in one office,
+titles from real words and 2,000 others): P95 6–57 ms per query on the dev machine, budget 200 ms. Running the trigram pass on
+every query cost 190–270 ms on files, hence the fallback. **Known limits:** the `simple` config keeps the article and
+attached prefixes, so "مدرسة" finds "مدرسة" and "مدرسه" but not "المدرسة" (the trigram pass catches it only for names and
+titles); Arabic light stemming (ال، و، ب، ل) is the next improvement, in `nlq_normalize_ar`'s companion, with a re-index.
+Arabic-Indic digits and NFKC presentation forms are not folded yet (D-092).
+Review additions (same PR): **`where` is required** — every caller states which rows its reader may see (deleted rows,
+confidential files and documents, personal tasks, old document versions), so a forgotten filter cannot leak ids; `limit` must
+be an integer from 1 to 100. **Rank contract** for the global-search story: a word match ranks above 1, a trigram match at
+most 1, so word matches always lead. `documents` returns `document_texts.id` (one per version). The benchmark asserts the
+plans use the GIN indexes (`EXPLAIN`); tests cover renames refreshing every new vector and the backfill. The migration
+rewrites every row of the four tables and builds its indexes in one transaction — fine before production data; a large
+table would need `CREATE INDEX CONCURRENTLY` in a migration of its own. **Not covered here:** calls through the scoped
+client (the raw-SQL guard of D-080 accepts the query: the office id is a parameter), parties/documents/statements in the
+benchmark, and the "ال" prefix (above) — all for the global-search story.
 **D-164 — Admin office statistics and the at-risk flag (smaller scope)** · Accepted (owner chose the smaller scope; MVP-165, 2026-11-13)
 MVP-165 asked for a 0–100 activity score with five levels, a per-role staff section, per-case activity, daily snapshots and a
 90-day trend. → The owner chose **statistics plus one at-risk rule**; the score, levels, per-role and per-case sections, the
