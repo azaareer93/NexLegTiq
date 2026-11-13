@@ -95,6 +95,7 @@ function serveWrites(client: Client): { method: string; path: string; body: unkn
   };
   server.use(
     http.get(api(`clients/${client.id}`), () => ok(client)),
+    http.get(api('invoices/summary'), () => ok({ billed: [], outstanding: [] })),
     http.post(api('clients'), async ({ request }) => {
       await record(request);
       return ok(client, 201);
@@ -216,7 +217,7 @@ describe('list parameters and request bodies', () => {
 
 describe('clients list', () => {
   it(
-    'should list clients with their phone and email left-to-right and open one in the drawer',
+    'should list clients with their phone and email left-to-right and open one on its page',
     async () => {
       setViewport(1280);
       signedIn();
@@ -240,11 +241,13 @@ describe('clients list', () => {
       expect(screen.getByText('2 clients')).toBeTruthy();
 
       fireEvent.click(within(grid).getByText('Omar Khalil'));
+      expect(await screen.findByTestId('page-client', {}, { timeout: COLD })).toBeTruthy();
+      expect(screen.getByTestId('client-contacts')).toBeTruthy();
+      fireEvent.click(screen.getByTestId('client-edit'));
       expect(await screen.findByText('Edit client')).toBeTruthy();
       expect((await screen.findByTestId('client-name-input')).getAttribute('value')).toBe(
         'Omar Khalil',
       );
-      expect(screen.getByTestId('client-contacts')).toBeTruthy();
     },
     SLOW,
   );
@@ -426,9 +429,8 @@ describe('client drawer', () => {
         isPrimary: false,
       });
       const writes = serveWrites(detail({ contacts: [contact({ isPrimary: false }), second] }));
-      renderApp('/clients');
-      fireEvent.click(within(await table()).getByText('Omar Khalil'));
-      await screen.findByTestId('client-name-input');
+      renderApp(`/clients/${ID}`);
+      await screen.findByTestId(`contact-primary-${CONTACT_ID}`, {}, { timeout: COLD });
 
       fireEvent.click(screen.getByTestId(`contact-primary-${CONTACT_ID}`));
       await waitFor(() =>
@@ -446,6 +448,10 @@ describe('client drawer', () => {
       fireEvent.click(within(confirm as HTMLElement).getByRole('button', { name: 'Delete' }));
       await waitFor(() => expect(writes.at(-1)?.method).toBe('DELETE'));
 
+      fireEvent.click(screen.getByTestId('client-edit'));
+      await screen.findByTestId('client-phone-input');
+      // The profile edits contacts on the page: its drawer does not repeat them.
+      expect(screen.getAllByTestId('client-contacts')).toHaveLength(1);
       type('client-phone-input', '+970599111111');
       fireEvent.click(screen.getByTestId('client-save'));
       await waitFor(() =>

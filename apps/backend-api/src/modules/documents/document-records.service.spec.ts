@@ -69,6 +69,7 @@ function setup(options: Partial<typeof DEFAULTS> = {}) {
     },
     documentText: { findFirst: jest.fn().mockResolvedValue(text === null ? null : { text }) },
     legalFile: { count: jest.fn().mockResolvedValue(responsible) },
+    client: { count: jest.fn().mockResolvedValue(1) },
     auditLog: { create: jest.fn() },
   };
   const documents = {
@@ -104,6 +105,19 @@ const QUERY = {
 };
 
 describe('DocumentRecordsService', () => {
+  it("should list a client's documents with their file, and 404 for a client that is not there (MVP-55)", async () => {
+    const { service, db } = setup();
+    const file = { id: 'f1', fileNumber: '2026-LIT-00001', title: 'Rent' };
+    db.document.findMany.mockResolvedValueOnce([{ ...ROW, file }]);
+    const page = await service.listForClient('c1', QUERY);
+    expect(page.items[0]).toMatchObject({ id: 'd1', file });
+    expect(db.document.findMany.mock.calls[0]?.[0].where.AND[0]).toEqual({
+      file: { clients: { some: { clientId: 'c1' } } },
+    });
+    db.client.count.mockResolvedValueOnce(0);
+    await expect(service.listForClient('c1', QUERY)).rejects.toMatchObject({ code: 'RES-001' });
+  });
+
   it('should list with filters and present numbers and dates', async () => {
     const { service, db } = setup();
     const page = await service.list('f1', {

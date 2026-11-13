@@ -3175,3 +3175,23 @@ without a request) is sent as a light authenticated request (`GET notifications/
 time lands on sign-in with "signed out after inactivity" rather than "session expired". **Known limit:** pages that poll (documents every 10 s while processing, AI jobs every 5 s) count as activity while they
 poll — the ticket's "any authenticated request". **Not here:** the client portal realm
 (its `ClientSession` table and guard are separate, D-158 — the same rule can be added there), per-device session lists.
+**D-168 — Client profile: client notes, documents across files, invoice totals** · Accepted (MVP-55, 2026-11-13)
+MVP-55 left who reads a client's confidential notes, how documents "across files" and "total billed / outstanding" are
+read, and what the Portal tab shows open. → **Page** `/clients/:id?tab=` (office app, `manage:clients` like every client
+route, D-121): Overview (details, contact persons edited in place, open and closed cases, total billed and outstanding),
+Cases (`GET /cases?clientId=`), Documents, Invoices (only with `view:all|assigned:invoices`), Notes and Portal access (a
+"coming soon" state until the portal UI story); tabs mount when first opened and live in `?tab=` (an unknown or forbidden
+tab falls back to Overview). A row of the clients list opens the profile; new clients are still added in the drawer, whose
+contacts editor is hidden on the profile (the page edits them). **Client notes** `GET/POST/PATCH/DELETE
+/clients/:id/notes` (`manage:clients`): `FileNote` rows with `clientId` and no file, the file-note service and rules of
+D-154 with one difference — a client has no "people assigned", so a **confidential client note is read only by the office
+manager and its author**; a new note may be made confidential by its writer, an existing one only by the office manager or its author (anyone else would hide it from themselves, as D-154 prevents); OM/SL change any note
+they can see. Bodies are encrypted with the same AES-GCM context as file notes; audit rows never hold the text; a file's
+notes never list client notes. A deleted or unknown client is 404. **Documents** `GET /clients/:id/documents`
+(`manage:clients`): the live documents of every file linked to the client, through `DocumentAccessService.visibleWhere`
+(file scope, confidential files and documents, D-096/D-126), each with its file `{id, fileNumber, title}`, the file list's
+filters minus folders, paginated. **Invoice totals** `GET /invoices/summary?clientId=` (ANY of `view:all|assigned:invoices`):
+per currency, billed = SENT, OVERDUE or PAID and outstanding = SENT or OVERDUE, over the invoices the caller may see (D-162
+visibility), rounded to the currency (D-162), never added across currencies; drafts and void invoices never count. **Not
+done:** the portal-access list on the profile (its API exists, D-158; the portal UI story shows it), client-level timeline,
+document upload from the profile (documents belong to a file).

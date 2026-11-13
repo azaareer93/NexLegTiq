@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type {
+  ClientDocument,
+  ClientDocumentQuery,
   Document,
   DocumentQuery,
   DocumentText,
@@ -56,6 +58,13 @@ const DOCUMENT_SELECT = {
 
 type DocumentRow = Prisma.DocumentGetPayload<{ select: typeof DOCUMENT_SELECT }>;
 
+// Lists also read the file: the client list shows it, a file's list drops it.
+const CLIENT_DOCUMENT_SELECT = {
+  ...DOCUMENT_SELECT,
+  file: { select: { id: true, fileNumber: true, title: true } },
+} satisfies Prisma.DocumentSelect;
+type ClientDocumentRow = Prisma.DocumentGetPayload<{ select: typeof CLIENT_DOCUMENT_SELECT }>;
+
 const toDocument = ({ sizeBytes, createdAt, updatedAt, ...row }: DocumentRow): Document => ({
   ...row,
   sizeBytes: Number(sizeBytes),
@@ -95,6 +104,35 @@ export class DocumentRecordsService {
 
   async list(fileId: string, query: DocumentQuery): Promise<PaginatedResult<Document>> {
     await this.files.assertFileAccess(fileId, 'read');
+    const folder = query.folderId
+      ? { folderId: query.folderId === 'root' ? null : query.folderId }
+      : {};
+    return this.page([{ fileId }, folder], query, ({ file: _file, ...row }) => toDocument(row));
+  }
+
+  /**
+   * The documents of every file the client is linked to (MVP-55), through the same access rule as a file's list: only
+   * files and documents the caller may see. A deleted or unknown client is 404.
+   */
+  async listForClient(
+    clientId: string,
+    query: ClientDocumentQuery,
+  ): Promise<PaginatedResult<ClientDocument>> {
+    const client = await this.prisma.db.client.count({ where: { id: clientId, deletedAt: null } });
+    if (client === 0) throw new ResourceNotFoundException();
+    return this.page(
+      [{ file: { clients: { some: { clientId } } } }],
+      query,
+      ({ file, ...row }) => ({ ...toDocument(row), file }),
+    );
+  }
+
+  /** One page of the caller's visible live documents matching `scope` and the list filters, sorted as asked. */
+  private async page<T>(
+    scope: Prisma.DocumentWhereInput[],
+    query: ClientDocumentQuery,
+    map: (row: ClientDocumentRow) => T,
+  ): Promise<PaginatedResult<T>> {
     const search = query.search
       ? {
           OR: [
@@ -105,9 +143,8 @@ export class DocumentRecordsService {
       : {};
     const where: Prisma.DocumentWhereInput = {
       AND: [
-        { fileId },
+        ...scope,
         this.documents.visibleWhere(),
-        query.folderId ? { folderId: query.folderId === 'root' ? null : query.folderId } : {},
         query.documentType ? { documentType: query.documentType } : {},
         query.status ? { status: query.status } : {},
         search,
@@ -116,7 +153,7 @@ export class DocumentRecordsService {
     const [rows, total] = await Promise.all([
       this.prisma.db.document.findMany({
         where,
-        select: DOCUMENT_SELECT,
+        select: CLIENT_DOCUMENT_SELECT,
         orderBy: [
           ...query.sort.map(({ field, direction }) => ({ [field]: direction })),
           { id: 'asc' },
@@ -126,7 +163,7 @@ export class DocumentRecordsService {
       }),
       this.prisma.db.document.count({ where }),
     ]);
-    return PaginatedResult.of(rows.map(toDocument), {
+    return PaginatedResult.of(rows.map(map), {
       page: query.page,
       limit: query.limit,
       total,

@@ -66,5 +66,45 @@
     "placeholder": "Search clients",
     "create": "New client",
     "noResults": "No matching clients"
+  },
+  "profile": {
+    "tabs": {
+      "overview": "Overview",
+      "files": "Cases",
+      "documents": "Documents",
+      "invoices": "Invoices",
+      "notes": "Notes",
+      "portal": "Portal access"
+    },
+    "details": "Details",
+    "primaryLawyer": "Primary lawyer",
+    "since": "Client since",
+    "stats": {
+      "openFiles": "Open cases",
+      "closedFiles": "Closed cases",
+      "billed": "Total billed",
+      "outstanding": "Outstanding"
+    },
+    "columns": {
+      "name": "Name",
+      "file": "Case",
+      "type": "Type",
+      "status": "Status",
+      "updatedAt": "Last updated",
+      "invoiceNumber": "Invoice number",
+      "total": "Total",
+      "dueDate": "Due date"
+    },
+    "files": {
+      "empty": "No cases for this client yet."
+    },
+    "documents": {
+      "empty": "No documents on this client’s cases."
+    },
+    "invoices": {
+      "empty": "No invoices for this client yet.",
+      "draft": "Draft",
+      "consolidated": "Several cases"
+    }
   }
 }

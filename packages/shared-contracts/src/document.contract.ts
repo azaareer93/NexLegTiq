@@ -101,6 +101,16 @@ export const DocumentSchema = z.object({
 });
 export type Document = z.infer<typeof DocumentSchema>;
 
+/** `GET /clients/:id/documents` (MVP-55): the same filters across the client's files, without folders (they are per file). */
+export const ClientDocumentQuerySchema = DocumentQuerySchema.omit({ folderId: true });
+export type ClientDocumentQuery = z.infer<typeof ClientDocumentQuerySchema>;
+
+/** A document of one of the client's files, with that file (the list spans several). */
+export const ClientDocumentSchema = DocumentSchema.extend({
+  file: z.object({ id: z.uuid(), fileNumber: z.string(), title: z.string() }),
+});
+export type ClientDocument = z.infer<typeof ClientDocumentSchema>;
+
 /** `PATCH /documents/:id`: rename, retype, move (`folderId: null` = the file's root) or mark confidential. */
 export const UpdateDocumentSchema = z
   .object({

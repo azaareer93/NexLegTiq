@@ -4,7 +4,7 @@ import { longText } from './fields.js';
 
 const BodySchema = longText(10_000).pipe(z.string().min(1, 'validation.required'));
 
-/** `POST /cases/:id/notes` (D-154). The body is plain text: shown as written, never rendered as HTML. */
+/** `POST /cases/:id/notes` (D-154) and `POST /clients/:id/notes` (D-168). The body is plain text: shown as written, never rendered as HTML. */
 export const CreateNoteSchema = z.object({
   body: BodySchema,
   isConfidential: z.boolean().default(false),
@@ -17,7 +17,7 @@ export const UpdateNoteSchema = z
   .partial();
 export type UpdateNoteRequest = z.infer<typeof UpdateNoteSchema>;
 
-/** A note of a file; `canEdit` says whether the caller may change it (its author, or OM/SL). */
+/** A note of a file or a client; `canEdit` says whether the caller may change it (its author, or OM/SL). */
 export const NoteSchema = z.object({
   id: z.uuid(),
   body: z.string(),

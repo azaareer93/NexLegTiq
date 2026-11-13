@@ -200,7 +200,7 @@ function FileView({
     if (key === 'notes') {
       return (
         <NotesTab
-          fileId={file.id}
+          subject={{ fileId: file.id }}
           canWrite={actions.edit}
           canConfidential={canWriteConfidentialNotes(file, user)}
           readOnly={archived}

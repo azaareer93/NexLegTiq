@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 
-import { CaseDocumentsController } from './case-documents.controller';
+import { CaseDocumentsController, ClientDocumentsController } from './case-documents.controller';
 import { DocumentAccessService } from './document-access.service';
 import { DocumentRecordsService } from './document-records.service';
 import { DocumentRetry } from './document-retry';
@@ -17,7 +17,12 @@ import { LegalFilesModule } from '../legal-files/legal-files.module';
  */
 @Module({
   imports: [LegalFilesModule],
-  controllers: [FoldersController, DocumentsController, CaseDocumentsController],
+  controllers: [
+    FoldersController,
+    DocumentsController,
+    CaseDocumentsController,
+    ClientDocumentsController,
+  ],
   providers: [
     FoldersService,
     DocumentsService,
