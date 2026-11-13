@@ -36,6 +36,11 @@ describe('DashboardSchema (D-151)', () => {
       deadlines: [],
       activity: { items: [], names: {} },
       team: null,
+      finance: {
+        unpaid: [{ currency: 'ILS', amount: '1.00', count: 1 }],
+        overdueCount: 0,
+        revenueThisMonth: [],
+      },
     });
     expect(parsed.team).toBeNull();
   });

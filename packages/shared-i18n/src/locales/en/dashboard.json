@@ -35,5 +35,12 @@
     "title": "Start with your first case",
     "description": "Open a case to see its hearings, tasks and documents here.",
     "action": "New case"
+  },
+  "finance": {
+    "unpaid": "Unpaid invoices",
+    "overdue_one": "{{count}} overdue",
+    "overdue_other": "{{count}} overdue",
+    "revenue": "Paid this month",
+    "none": "None"
   }
 }

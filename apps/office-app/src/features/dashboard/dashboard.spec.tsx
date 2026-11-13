@@ -71,6 +71,14 @@ const FULL: Dashboard = {
     workload: [{ userId: LAWYER, fullName: 'Omar Lawyer', openFiles: 4, overdueTasks: 2 }],
     hearingsThisWeek: 6,
   },
+  finance: {
+    unpaid: [
+      { currency: 'ILS', amount: '1500.50', count: 3 },
+      { currency: 'JOD', amount: '20.000', count: 1 },
+    ],
+    overdueCount: 2,
+    revenueThisMonth: [],
+  },
 };
 
 async function openDashboard(role: Role, data: Dashboard, locale: 'en' | 'ar' = 'en') {
@@ -107,6 +115,10 @@ describe('Dashboard (D-151)', () => {
         within(screen.getByTestId('dashboard-activity')).getByText('File ⁦2026-LIT-00007⁩ opened'),
       ).toBeTruthy();
       expect(within(screen.getByTestId('dashboard-team')).getByText('⁨Omar Lawyer⁩')).toBeTruthy();
+      const unpaid = within(screen.getByTestId('kpi-unpaid'));
+      expect(unpaid.getByText('₪1,500.50')).toBeTruthy();
+      expect(unpaid.getByText('2 overdue')).toBeTruthy();
+      expect(within(screen.getByTestId('kpi-revenue')).getByText('None')).toBeTruthy();
       expect(screen.queryByTestId('dashboard-new-case')).toBeNull();
       fireEvent.click(screen.getByTestId('kpi-overdue'));
       await waitFor(() => expect(router.state.location.pathname).toBe('/tasks'));
@@ -115,10 +127,16 @@ describe('Dashboard (D-151)', () => {
   );
 
   it(
-    'should leave out the client and office cards a lawyer does not get',
+    'should leave out the client, office and money cards a trainee does not get',
     async () => {
-      await openDashboard('LAWYER', { ...FULL, newClientsThisMonth: null, team: null });
+      await openDashboard('TRAINEE', {
+        ...FULL,
+        newClientsThisMonth: null,
+        team: null,
+        finance: null,
+      });
       expect(screen.queryByTestId('kpi-clients')).toBeNull();
+      expect(screen.queryByTestId('kpi-unpaid')).toBeNull();
       expect(screen.queryByTestId('dashboard-team')).toBeNull();
     },
     SLOW,

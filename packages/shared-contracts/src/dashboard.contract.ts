@@ -34,10 +34,21 @@ export const DashboardWorkloadSchema = z.object({
 });
 export type DashboardWorkload = z.infer<typeof DashboardWorkloadSchema>;
 
+const MoneyByCurrencySchema = z.object({ currency: z.string(), amount: z.string() });
+
+/** Invoice money the caller may see (MVP-149): unpaid = SENT or OVERDUE; revenue = paid this month (office zone). */
+export const DashboardFinanceSchema = z.object({
+  unpaid: z.array(MoneyByCurrencySchema.extend({ count: z.number().int() })),
+  /** Unpaid and past their due date (OVERDUE, or SENT before the daily sweep has turned them). */
+  overdueCount: z.number().int(),
+  revenueThisMonth: z.array(MoneyByCurrencySchema),
+});
+export type DashboardFinance = z.infer<typeof DashboardFinanceSchema>;
+
 /**
  * `GET /dashboard` (D-151): the caller's day. "My files" are the files they are assigned to (D-051); dates are the
  * office's (D-092). `newClientsThisMonth` is null without `manage:clients`, `team` null for roles other than the office
- * manager and senior lawyers.
+ * manager and senior lawyers, `finance` null without `view:all|assigned:invoices`.
  */
 export const DashboardSchema = z.object({
   today: z.iso.date(),
@@ -57,5 +68,6 @@ export const DashboardSchema = z.object({
   team: z
     .object({ workload: z.array(DashboardWorkloadSchema), hearingsThisWeek: z.number().int() })
     .nullable(),
+  finance: DashboardFinanceSchema.nullable(),
 });
 export type Dashboard = z.infer<typeof DashboardSchema>;

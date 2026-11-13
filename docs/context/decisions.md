@@ -3067,3 +3067,15 @@ needs no migration. No migration: `audit_logs (office_id, occurred_at DESC)` alr
 subquery per listed office that walks that index backwards and stops at the first write (`LIMIT 1`); a partial index on writes
 is the next step if offices with long runs of views ever slow it. Not audited separately: reading statistics is part of the detail view, already `OFFICE_VIEWED` (D-159). **Not
 done:** a list filter or sort by at-risk, alerts, the office manager's name on the detail.
+
+**D-166 — Dashboard finance cards: who sees them, what counts, no invoices link yet** · Accepted (MVP-149, 2026-11-13) · Amends D-151
+MVP-149 asked for unpaid invoices and this month's revenue on `GET /dashboard`, a cache invalidated on invoice changes and
+drill-down links to an Invoices page. → `finance` is **null without `view:all|assigned:invoices`** (TRAINEE, EXTERNAL_COLLABORATOR
+— as billing terms, D-096) and otherwise counts **only the invoices the caller may see** (`InvoiceAccess.visibleWhere`, D-162:
+a lawyer sees their files' invoices, confidential files only for the office manager and the file's people). **Unpaid** = SENT or
+OVERDUE, summed per currency with the count (one currency per invoice, D-162, so nothing is added across currencies);
+**overdue** = unpaid and OVERDUE, or SENT with a due date before today in the office's zone (the daily sweep, D-162, may not have
+run yet); **paid this month** = PAID with `paidAt` since the first instant of the office's calendar month (D-092). Totals are
+rounded to each currency's digits. Drafts and voided invoices never count. **No cache** (D-151 built none, so there is nothing
+to invalidate); the page refetches on focus. **Deviation:** the cards do not link anywhere yet — the office app has no invoices
+page (its own story adds the link). The card reads "Paid this month" rather than "revenue" (it is cash received, tax included).
