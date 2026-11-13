@@ -186,9 +186,41 @@ describe('dashboard (HTTP + PostgreSQL)', () => {
         uploadedById: manager.userId,
       },
     });
-    await raw.client.create({
+    const client = await raw.client.create({
       data: { officeId, clientType: 'INDIVIDUAL', displayName: 'Nour Haddad' },
     });
+    // MVP-149: the lawyer sees the invoices of their file, the manager also the confidential one's; drafts never count.
+    const invoice = (
+      onFile: string,
+      status: 'DRAFT' | 'SENT' | 'OVERDUE' | 'PAID',
+      total: string,
+      dueInDays = 30,
+    ) =>
+      raw.invoice.create({
+        data: {
+          officeId,
+          clientId: client.id,
+          fileId: onFile,
+          status,
+          invoiceNumber: status === 'DRAFT' ? null : `INV-${randomUUID()}`,
+          currency: 'ILS',
+          issueDate: status === 'DRAFT' ? null : dateOnly(-40),
+          dueDate: dateOnly(dueInDays),
+          subtotal: total,
+          taxRatePercent: '0',
+          taxAmount: '0',
+          total,
+          paidAt: status === 'PAID' ? new Date() : null,
+          createdById: manager.userId,
+        },
+      });
+    await invoice(fileId, 'SENT', '100');
+    await invoice(fileId, 'OVERDUE', '50.5', -10);
+    // Past due but not yet swept to OVERDUE: still counted as overdue.
+    await invoice(fileId, 'SENT', '10', -1);
+    await invoice(fileId, 'PAID', '200');
+    await invoice(fileId, 'DRAFT', '7');
+    await invoice(secret.id, 'SENT', '999');
     await raw.caseTimelineEvent.create({
       data: {
         officeId,
@@ -204,6 +236,7 @@ describe('dashboard (HTTP + PostgreSQL)', () => {
     if (raw) {
       const where = { officeId: { in: officeIds } };
       await raw.caseTimelineEvent.deleteMany({ where });
+      await raw.invoice.deleteMany({ where });
       await raw.document.deleteMany({ where });
       await raw.task.deleteMany({ where });
       await raw.session.deleteMany({ where });
@@ -236,6 +269,11 @@ describe('dashboard (HTTP + PostgreSQL)', () => {
       newDocuments: 1,
       newClientsThisMonth: 1,
       team: null,
+      finance: {
+        unpaid: [{ currency: 'ILS', amount: '160.50', count: 3 }],
+        overdueCount: 2,
+        revenueThisMonth: [{ currency: 'ILS', amount: '200.00' }],
+      },
     });
     expect(data.todayHearings.map((h: { id: string }) => h.id)).toEqual(
       soonIsToday ? [soonId] : [],
@@ -260,6 +298,7 @@ describe('dashboard (HTTP + PostgreSQL)', () => {
     // The manager is responsible for the confidential file only.
     expect(data).toMatchObject({ openFiles: { count: 1 }, newDocuments: 0, overdueTasks: 0 });
     expect(data.activity.items).toEqual([]);
+    expect(data.finance.unpaid).toEqual([{ currency: 'ILS', amount: '1159.50', count: 4 }]);
     expect(data.team.hearingsThisWeek).toBe(2);
     expect(data.team.workload).toEqual([
       { userId: manager.userId, fullName: 'Layla Manager', openFiles: 1, overdueTasks: 0 },
@@ -272,10 +311,15 @@ describe('dashboard (HTTP + PostgreSQL)', () => {
     expect(await dashboard(trainee)).toMatchObject({
       newClientsThisMonth: null,
       team: null,
+      finance: null,
       openFiles: { count: 0 },
     });
     const b = await dashboard(other);
-    expect(b).toMatchObject({ newClientsThisMonth: 0, team: { hearingsThisWeek: 0 } });
+    expect(b).toMatchObject({
+      newClientsThisMonth: 0,
+      team: { hearingsThisWeek: 0 },
+      finance: { unpaid: [], overdueCount: 0, revenueThisMonth: [] },
+    });
     expect(b.team.workload).toEqual([
       { userId: other.userId, fullName: 'OFFICE_MANAGER', openFiles: 1, overdueTasks: 1 },
     ]);

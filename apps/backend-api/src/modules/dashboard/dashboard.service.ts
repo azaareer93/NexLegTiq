@@ -1,7 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import type { Dashboard, DashboardDeadline, DashboardHearing } from '@nexlegtiq/shared-contracts';
+import type {
+  Dashboard,
+  DashboardDeadline,
+  DashboardFinance,
+  DashboardHearing,
+} from '@nexlegtiq/shared-contracts';
 import type { SessionType, UserId } from '@nexlegtiq/shared-types';
-import { wallClock, zonedDateTime } from '@nexlegtiq/shared-utils';
+import { roundMoney, wallClock, zonedDateTime } from '@nexlegtiq/shared-utils';
 import { ClsService } from 'nestjs-cls';
 
 import type { RequestContext } from '../../common/context/request-context';
@@ -9,6 +14,7 @@ import { assignedFilesWhere } from '../../common/rbac/case-scope';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
 import { DocumentAccessService } from '../documents/document-access.service';
+import { InvoiceAccess } from '../invoices/invoice-access';
 import { CaseAccessService } from '../legal-files/case-access.service';
 import { toDbDate } from '../tasks/tasks.repository';
 import { TimelineService } from '../timeline/timeline.service';
@@ -98,6 +104,7 @@ export class DashboardService {
     private readonly files: CaseAccessService,
     private readonly documents: DocumentAccessService,
     private readonly timeline: TimelineService,
+    private readonly invoices: InvoiceAccess,
   ) {}
 
   async get(now = new Date()): Promise<Dashboard> {
@@ -110,19 +117,23 @@ export class DashboardService {
     });
     const today = wallClock(now, timezone).date;
     const at = (date: string) => new Date(zonedDateTime(date, '00:00', timezone));
-    const [mine, team, newClientsThisMonth, activity] = await Promise.all([
+    const monthStart = at(`${today.slice(0, 8)}01`);
+    const [mine, team, newClientsThisMonth, activity, finance] = await Promise.all([
       this.mine(userId, today, now, at),
       role === 'OFFICE_MANAGER' || role === 'SENIOR_LAWYER'
         ? this.team(today, now, at(addDays(today, WEEK)))
         : null,
       permissions.includes('manage:clients')
         ? this.prisma.db.client.count({
-            where: { deletedAt: null, createdAt: { gte: at(`${today.slice(0, 8)}01`) } },
+            where: { deletedAt: null, createdAt: { gte: monthStart } },
           })
         : null,
       this.timeline.recent(userId, LIST),
+      permissions.includes('view:all:invoices') || permissions.includes('view:assigned:invoices')
+        ? this.finance(today, monthStart)
+        : null,
     ]);
-    return { today, ...mine, newClientsThisMonth, activity, team };
+    return { today, ...mine, newClientsThisMonth, activity, team, finance };
   }
 
   /** What concerns the caller: the files they are assigned to (D-051), the hearings they attend, their tasks. */
@@ -207,6 +218,51 @@ export class DashboardService {
       overdueTasks,
       newDocuments,
       deadlines: deadlines(hearingsAhead, tasksAhead, at),
+    };
+  }
+
+  /** Unpaid and this month's paid invoices the caller may see (D-162 visibility), summed per currency. */
+  private async finance(today: string, monthStart: Date): Promise<DashboardFinance> {
+    const db = this.prisma.db;
+    const visible = this.invoices.visibleWhere();
+    const unpaid: Prisma.InvoiceWhereInput = { status: { in: ['SENT', 'OVERDUE'] } };
+    const [open, overdueCount, paid] = await Promise.all([
+      db.invoice.groupBy({
+        by: ['currency'],
+        where: { AND: [visible, unpaid] },
+        _sum: { total: true },
+        _count: { _all: true },
+        orderBy: { currency: 'asc' },
+      }),
+      db.invoice.count({
+        where: {
+          AND: [
+            visible,
+            unpaid,
+            { OR: [{ status: 'OVERDUE' }, { dueDate: { lt: toDbDate(today) } }] },
+          ],
+        },
+      }),
+      db.invoice.groupBy({
+        by: ['currency'],
+        where: { AND: [visible, { status: 'PAID', paidAt: { gte: monthStart } }] },
+        _sum: { total: true },
+        orderBy: { currency: 'asc' },
+      }),
+    ]);
+    const amount = (currency: string, total: Prisma.Decimal | null) =>
+      roundMoney(total?.toFixed() ?? '0', currency);
+    return {
+      unpaid: open.map((row) => ({
+        currency: row.currency,
+        amount: amount(row.currency, row._sum.total),
+        count: row._count._all,
+      })),
+      overdueCount,
+      revenueThisMonth: paid.map((row) => ({
+        currency: row.currency,
+        amount: amount(row.currency, row._sum.total),
+      })),
     };
   }
 
