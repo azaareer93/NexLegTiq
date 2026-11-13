@@ -10,6 +10,7 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { isLocked, lockedUntil } from './lockout';
 import { PasswordHasher } from './password-hasher';
 import { refreshCookieOptions, refreshExpiry, rotatedExpiry } from './refresh-token';
+import type { SessionActivity } from './session-activity';
 import { hashOpaqueToken, newOpaqueToken } from '../../common/auth/opaque-token';
 import { Public } from '../../common/auth/public.decorator';
 import { AppException, PermissionDeniedException } from '../../common/errors/app.exception';
@@ -145,6 +146,7 @@ describe('JwtAuthGuard', () => {
   ) {
     const findFirst = jest.fn().mockResolvedValue(user);
     const prisma = { unscoped: () => ({ user: { findFirst } }) } as unknown as PrismaService;
+    const activity = { touch: jest.fn() };
     const guard = new JwtAuthGuard(
       new Reflector(),
       new AccessTokenVerifier(
@@ -152,6 +154,7 @@ describe('JwtAuthGuard', () => {
         prisma,
         new AppConfig(parseEnv(testEnv({ EMAIL_VERIFICATION_ENFORCED: 'true' }))),
       ),
+      activity as unknown as SessionActivity,
     );
     const request: { headers: Record<string, string>; user?: unknown } = { headers: {} };
     const run = (authorization?: string, handler: object = () => undefined): Promise<boolean> => {
@@ -162,7 +165,7 @@ describe('JwtAuthGuard', () => {
         switchToHttp: () => ({ getRequest: () => request }),
       } as unknown as ExecutionContext);
     };
-    return { run, request, findFirst };
+    return { run, request, findFirst, activity };
   }
 
   it('should let @Public() routes through without a token', async () => {
@@ -184,13 +187,14 @@ describe('JwtAuthGuard', () => {
   });
 
   it('should authenticate a valid token and reload the role from the database', async () => {
-    const { run, request, findFirst } = setup({
+    const { run, request, findFirst, activity } = setup({
       role: 'SENIOR_LAWYER',
       isActive: true,
       ...verified,
       office: { isActive: true },
     });
     await expect(run(`Bearer ${sign({ role: 'TRAINEE' })}`)).resolves.toBe(true);
+    expect(activity.touch).toHaveBeenCalledWith(OFFICE, 'family');
     expect(findFirst).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: USER, officeId: OFFICE } }),
     );
@@ -205,6 +209,8 @@ describe('JwtAuthGuard', () => {
 
   it('should read the first of repeated Authorization headers and leave out a missing session id', async () => {
     const { request, findFirst } = setup();
+    // Without a session id there is no session to keep alive (MVP-168).
+    const noActivity = { touch: jest.fn() };
     const guard = new JwtAuthGuard(
       new Reflector(),
       new AccessTokenVerifier(
@@ -212,6 +218,7 @@ describe('JwtAuthGuard', () => {
         { unscoped: () => ({ user: { findFirst } }) } as unknown as PrismaService,
         new AppConfig(parseEnv(testEnv())),
       ),
+      noActivity as unknown as SessionActivity,
     );
     const headers = { authorization: [`Bearer ${sign({ sid: undefined })}`, 'Bearer other'] };
     const context = {
@@ -220,6 +227,7 @@ describe('JwtAuthGuard', () => {
       switchToHttp: () => ({ getRequest: () => Object.assign(request, { headers }) }),
     } as unknown as ExecutionContext;
     await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(noActivity.touch).not.toHaveBeenCalled();
     expect(request.user).not.toHaveProperty('sessionId');
   });
 

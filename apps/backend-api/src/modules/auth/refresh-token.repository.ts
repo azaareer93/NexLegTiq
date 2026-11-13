@@ -35,6 +35,8 @@ export interface NewRefreshToken {
   readonly expiresAt: Date;
   readonly ipAddress: string;
   readonly userAgent: string | null;
+  /** Login: now; rotation: the rotated token's, since a refresh is not activity (MVP-168). */
+  readonly lastActivityAt: Date;
 }
 
 /**
@@ -55,6 +57,7 @@ export class RefreshTokenRepository {
         createdAt: true,
         expiresAt: true,
         revokedAt: true,
+        lastActivityAt: true,
         user: { select: USER_FOR_SESSION },
       },
     });
@@ -113,6 +116,21 @@ export class RefreshTokenRepository {
         ...(exceptFamilyId ? { familyId: { not: exceptFamilyId } } : {}),
       },
       data: { revokedAt: now },
+    });
+  }
+
+  /** Marks the session's live token as used now, unless it was marked within `withinMs` (MVP-168). */
+  async touch(officeId: string, familyId: string, now: Date, withinMs: number): Promise<void> {
+    // Called by the JWT guard before the request's tenant context exists; office and family come from the verified token.
+    // unscoped: guard-time write filtered by the token's own office and family.
+    await this.prisma.unscoped().refreshToken.updateMany({
+      where: {
+        officeId,
+        familyId,
+        revokedAt: null,
+        lastActivityAt: { lt: new Date(now.getTime() - withinMs) },
+      },
+      data: { lastActivityAt: now },
     });
   }
 

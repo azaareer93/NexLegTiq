@@ -34,6 +34,22 @@ export interface IssuedSession {
 /** The schema default of `office_settings.session_idle_minutes` (D-053), for an office without a settings row. */
 const DEFAULT_IDLE_MINUTES = 30;
 
+/**
+ * The server's idle timeout (MVP-168, amends D-082/D-090): a session with no authenticated request for longer than the
+ * office's `sessionIdleMinutes` (read at each refresh, so a changed setting applies at once) cannot be refreshed — 401
+ * AUTH-004, and the caller revokes the family. A refresh itself is not activity. The recorded activity lags the real one by
+ * up to the once-a-minute write plus the office app's once-a-minute heartbeat, so the limit gets that much grace: the
+ * server never ends a session the app still counts as active.
+ */
+const IDLE_GRACE_MS = 2 * 60_000;
+
+function assertNotIdle(lastActivityAt: Date, user: SessionUser, now: Date): void {
+  const idleMinutes = user.office.settings?.sessionIdleMinutes ?? DEFAULT_IDLE_MINUTES;
+  if (now.getTime() - lastActivityAt.getTime() > idleMinutes * 60_000 + IDLE_GRACE_MS) {
+    throw new AppException('AUTH-004', 'Session ended after inactivity');
+  }
+}
+
 export type SessionUser = Prisma.UserGetPayload<{ select: typeof USER_FOR_SESSION }>;
 /** The scoped client or a transaction opened on it. */
 export type SessionTx = Pick<ScopedPrismaClient, 'refreshToken' | 'auditLog' | 'user'>;
@@ -105,7 +121,7 @@ export class AuthService {
     await tx.user.update({ where: { id: user.id }, data: { lastLoginAt: now } });
     await this.refreshTokens.create(
       tx,
-      this.newTokenRow(user, familyId, refreshToken, refreshExpiresAt, client),
+      this.newTokenRow(user, familyId, refreshToken, refreshExpiresAt, client, now),
     );
     await this.audit(tx, user, 'LOGIN', client);
     return { familyId, refreshToken, refreshExpiresAt };
@@ -125,6 +141,7 @@ export class AuthService {
       if (existing.expiresAt <= now) throw new AppException('AUTH-004', 'Refresh token expired');
       try {
         this.assertActive(user, now);
+        assertNotIdle(existing.lastActivityAt, user, now);
       } catch (error) {
         await this.prisma.db.$transaction((tx) =>
           this.refreshTokens.revokeFamily(tx, existing.familyId),
@@ -145,7 +162,14 @@ export class AuthService {
         if (!(await this.refreshTokens.claim(tx, existing.id))) return false;
         const next = await this.refreshTokens.create(
           tx,
-          this.newTokenRow(user, existing.familyId, token, expiresAt, client),
+          this.newTokenRow(
+            user,
+            existing.familyId,
+            token,
+            expiresAt,
+            client,
+            existing.lastActivityAt,
+          ),
         );
         await this.refreshTokens.linkReplacement(tx, existing.id, next.id);
         return true;
@@ -192,8 +216,10 @@ export class AuthService {
     token: string,
     expiresAt: Date,
     client: ClientInfo,
+    lastActivityAt: Date,
   ) {
     return {
+      lastActivityAt,
       officeId: user.officeId,
       userId: user.id,
       familyId,

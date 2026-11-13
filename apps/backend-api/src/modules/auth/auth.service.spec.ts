@@ -112,6 +112,7 @@ const storedToken = (extra: object = {}) => ({
   createdAt: new Date(Date.now() - 1000),
   expiresAt: new Date(Date.now() + 86_400_000),
   revokedAt: null,
+  lastActivityAt: new Date(Date.now() - 60_000),
   user: activeUser,
   ...extra,
 });
@@ -243,6 +244,27 @@ describe('AuthService.refresh', () => {
       db.refreshToken.updateMany.mock.invocationCallOrder[0] ?? 0,
     );
     expect(issued.session.user.id).toBe(USER);
+  });
+
+  it('should keep the activity time on rotation and refuse an idle session with AUTH-004 (MVP-168)', async () => {
+    const stored = storedToken();
+    const kept = setup({ token: stored });
+    await kept.service.refresh('cookie', client);
+    expect(kept.db.refreshToken.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ lastActivityAt: stored.lastActivityAt }),
+    });
+    // The office allows 45 minutes, plus a two-minute allowance.
+    const idle = setup({
+      token: storedToken({ lastActivityAt: new Date(Date.now() - 48 * 60_000) }),
+    });
+    await expect(idle.service.refresh('cookie', client)).rejects.toMatchObject({
+      code: 'AUTH-004',
+    });
+    expect(idle.db.refreshToken.updateMany).toHaveBeenCalledWith({
+      where: { familyId: 'family', revokedAt: null },
+      data: { revokedAt: expect.any(Date) },
+    });
+    expect(idle.db.refreshToken.create).not.toHaveBeenCalled();
   });
 
   it('should answer AUTH-005 for a missing or unknown token', async () => {

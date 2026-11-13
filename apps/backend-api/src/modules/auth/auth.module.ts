@@ -13,6 +13,7 @@ import { PasswordController } from './password.controller';
 import { PasswordRepository } from './password.repository';
 import { PasswordService } from './password.service';
 import { RefreshTokenRepository } from './refresh-token.repository';
+import { SessionActivity } from './session-activity';
 import { SignupRepository } from './signup.repository';
 import { SignupService } from './signup.service';
 import { AppConfig } from '../../config/app-config';
@@ -36,6 +37,7 @@ import { AppConfig } from '../../config/app-config';
     PasswordRepository,
     PasswordHasher,
     JwtAuthGuard,
+    SessionActivity,
     AccessTokenVerifier,
     RefreshTokenRepository,
     LoginAttemptRepository,

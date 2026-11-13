@@ -3,6 +3,7 @@ import type { CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
 import { AccessTokenVerifier } from './access-token-verifier';
+import { SessionActivity } from './session-activity';
 import { IS_PUBLIC_KEY } from '../../common/auth/public.decorator';
 import type { AuthPrincipal } from '../../common/context/request-context';
 
@@ -17,13 +18,14 @@ type AuthenticatedRequest = {
  * role, active flags and office status are reloaded from the database on every request (`AccessTokenVerifier`), so a
  * demotion, deactivation or office suspension applies on the next request rather than when the token expires (D-081,
  * D-082). With EMAIL_VERIFICATION_ENFORCED, an email still unverified 7 days after signup is refused with 403 AUTH-010
- * (D-083).
+ * (D-083). Each request also counts as activity of its session (MVP-168).
  */
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly tokens: AccessTokenVerifier,
+    private readonly activity: SessionActivity,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -35,9 +37,10 @@ export class JwtAuthGuard implements CanActivate {
     )
       return true;
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
-    request.user = (
-      await this.tokens.verify(bearerToken(request.headers['authorization']))
-    ).principal;
+    const { principal } = await this.tokens.verify(bearerToken(request.headers['authorization']));
+    request.user = principal;
+    // Any authenticated request is activity: it keeps the session refreshable (MVP-168).
+    if (principal.sessionId) await this.activity.touch(principal.officeId, principal.sessionId);
     return true;
   }
 }

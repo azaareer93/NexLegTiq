@@ -58,7 +58,8 @@ export const apiClient = createApiClient({
   getToken: () => useSession.getState().accessToken,
   setToken: (accessToken) => useSession.setState({ accessToken }),
   // The session was lost mid-use (refresh refused): the guards send the user to sign-in with a notice.
-  onAuthFailure: () => endSession('expired'),
+  // The server also ends idle sessions (MVP-168): after the idle time the notice says so, not just "expired".
+  onAuthFailure: () => endSession(idleSinceLastVisit() ? 'idle' : 'expired'),
 });
 export const auth = authApi(apiClient);
 

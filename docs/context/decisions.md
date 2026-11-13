@@ -3153,3 +3153,21 @@ never HTML. A snippet is not audited (D-128 audits reading a text page; a snippe
 dashboard (D-151): D-165 measured 6–57 ms P95 per query on 50k rows, and a cache would hide a file created a minute ago from
 its own author; add it with the load test (the load-test story) if p95 asks. **Not here:** witness statements in results (their vector
 exists, D-163 — a later group), Arabic prefix stemming (D-165's known limit), the search overlay (its own story).
+
+**D-169 — Server-side idle timeout for office sessions** · Accepted (owner answer 12B; MVP-168, 2026-11-13) · Amends D-082, D-090
+D-090 left enforcing the idle timeout on the server open; the owner chose to enforce it (a stolen or forgotten refresh cookie
+kept a session alive up to 90 days while someone refreshed). → `refresh_tokens.last_activity_at` (migration
+`refresh_token_last_activity`; existing sessions start counting at the migration): set at login, **copied on rotation** (a
+refresh is not activity), bumped by `JwtAuthGuard` on every authenticated request at most **once a minute per session**
+(`SessionActivity`: a per-process memo skips the query in between, and the update only matches a live token not written in
+the last minute, so several API processes write at most about once a minute each; a failed write is logged, never fails the
+request; realtime sockets do not count). `POST /auth/refresh` reads the office's `sessionIdleMinutes` (30 without a settings
+row) **at each refresh**, so a changed setting applies to the next refresh, and refuses a session idle for longer with **401
+AUTH-004** — the family is revoked and the cookie cleared as for any dead session (D-082); no audit row (a normal expiry).
+**Grace (deviation from the ticket's exact limit):** the server allows **two minutes beyond** the office's minutes, because
+its record lags real use by up to the once-a-minute write plus the app's once-a-minute heartbeat; without it the server could
+end a session the app still counts as active. **Office app:** activity the server cannot see (reading, scrolling, typing
+without a request) is sent as a light authenticated request (`GET notifications/unread-count`) at most once a minute, and on
+"stay signed in"; the app keeps its own timer and one-minute warning (D-090), and a session refused mid-use after the idle
+time lands on sign-in with "signed out after inactivity" rather than "session expired". **Not here:** the client portal realm
+(its `ClientSession` table and guard are separate, D-158 — the same rule can be added there), per-device session lists.
