@@ -1,7 +1,7 @@
 import type { Request } from 'express';
 import type { ClsService } from 'nestjs-cls';
 
-import { CaseDocumentsController } from './case-documents.controller';
+import { CaseDocumentsController, ClientDocumentsController } from './case-documents.controller';
 import type { DocumentRecordsService } from './document-records.service';
 import type { DocumentRetry } from './document-retry';
 import { DocumentsController } from './documents.controller';
@@ -18,6 +18,7 @@ describe('DocumentsController', () => {
     };
     const records = {
       list: jest.fn().mockResolvedValue('page'),
+      listForClient: jest.fn().mockResolvedValue('page'),
       get: jest.fn().mockResolvedValue('document'),
       update: jest.fn().mockResolvedValue('updated'),
       remove: jest.fn().mockResolvedValue(undefined),
@@ -57,5 +58,8 @@ describe('DocumentsController', () => {
     );
     const list = new CaseDocumentsController(records as unknown as DocumentRecordsService);
     await expect(list.list('f1', {} as never)).resolves.toBe('page');
+    const forClient = new ClientDocumentsController(records as unknown as DocumentRecordsService);
+    await forClient.list('c1', {} as never);
+    expect(records.listForClient).toHaveBeenCalledWith('c1', {});
   });
 });

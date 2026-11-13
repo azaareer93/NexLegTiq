@@ -52,6 +52,7 @@ function setup(
       findMany: jest.fn().mockResolvedValue([]),
       count: jest.fn().mockResolvedValue(0),
       findFirst: jest.fn().mockResolvedValue(null),
+      groupBy: jest.fn().mockResolvedValue([]),
     },
   };
   const audit = { log: jest.fn() };
@@ -168,6 +169,27 @@ describe('InvoicesService.create (D-162)', () => {
 });
 
 describe('InvoicesService reads (D-162)', () => {
+  it("should total a client's invoices per currency, rounded to its digits (MVP-55)", async () => {
+    const { service, db } = setup();
+    db.invoice.groupBy
+      .mockResolvedValueOnce([
+        { currency: 'ILS', _sum: { total: new Prisma.Decimal('10.5') }, _count: { _all: 2 } },
+        { currency: 'JOD', _sum: { total: null }, _count: { _all: 0 } },
+      ])
+      .mockResolvedValueOnce([]);
+    expect(await service.summary(CLIENT)).toEqual({
+      billed: [
+        { currency: 'ILS', amount: '10.50', count: 2 },
+        { currency: 'JOD', amount: '0.000', count: 0 },
+      ],
+      outstanding: [],
+    });
+    expect(db.invoice.groupBy.mock.calls[1]?.[0].where.AND[1]).toEqual({
+      clientId: CLIENT,
+      status: { in: ['SENT', 'OVERDUE'] },
+    });
+  });
+
   it('should list with filters and sort, id as tie-breaker', async () => {
     const { service, db } = setup();
     const result = await service.list({

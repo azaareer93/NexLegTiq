@@ -93,6 +93,23 @@ export const InvoiceQuerySchema = z
   });
 export type InvoiceQuery = z.infer<typeof InvoiceQuerySchema>;
 
+/** `GET /invoices/summary?clientId=` (MVP-55): totals of the invoices the caller may see. */
+export const InvoiceSummaryQuerySchema = z.object({ clientId: z.uuid() });
+export type InvoiceSummaryQuery = z.infer<typeof InvoiceSummaryQuerySchema>;
+
+const CurrencyTotalSchema = z.object({
+  currency: z.string(),
+  amount: z.string(),
+  count: z.number().int(),
+});
+
+/** Per currency (never added across currencies): billed = sent, overdue or paid; outstanding = sent or overdue. */
+export const InvoiceSummarySchema = z.object({
+  billed: z.array(CurrencyTotalSchema),
+  outstanding: z.array(CurrencyTotalSchema),
+});
+export type InvoiceSummary = z.infer<typeof InvoiceSummarySchema>;
+
 export const InvoiceLineSchema = z.object({
   id: z.uuid(),
   description: z.string(),

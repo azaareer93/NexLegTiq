@@ -17,6 +17,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useNoteMutations, useNotes } from './use-notes';
+import type { NoteSubject } from './use-notes';
 
 interface Draft {
   readonly body: string;
@@ -26,14 +27,14 @@ interface Draft {
 
 /** The new-note form: plain text, optionally confidential (encrypted, D-154) or pinned. */
 function NewNote({
-  fileId,
+  subject,
   canConfidential,
 }: {
-  readonly fileId: string;
+  readonly subject: NoteSubject;
   readonly canConfidential: boolean;
 }) {
   const { t } = useTranslation();
-  const { add } = useNoteMutations(fileId);
+  const { add } = useNoteMutations(subject);
   const [form] = Form.useForm<Draft>();
   return (
     <Card>
@@ -71,18 +72,18 @@ function NewNote({
 
 /** One note: its text as written (never HTML), and the changes its author or OM/SL may make. */
 function NoteCard({
-  fileId,
+  subject,
   note,
   readOnly,
 }: {
-  readonly fileId: string;
+  readonly subject: NoteSubject;
   readonly note: Note;
   readonly readOnly: boolean;
 }) {
   const { t } = useTranslation();
   const format = useFormat();
   const { notify } = useApiErrorHandler();
-  const { update, remove } = useNoteMutations(fileId);
+  const { update, remove } = useNoteMutations(subject);
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [body, setBody] = useState(note.body);
@@ -191,22 +192,22 @@ function NoteCard({
   );
 }
 
-/** `?tab=notes` (MVP-65, D-154): the file's internal notes, pinned first; never shown on the client portal. */
+/** `?tab=notes` of a file (MVP-65, D-154) or a client (MVP-55, D-168): internal notes, pinned first; never on the portal. */
 export function NotesTab({
-  fileId,
+  subject,
   canWrite,
   canConfidential,
   readOnly,
 }: {
-  readonly fileId: string;
+  readonly subject: NoteSubject;
   readonly canWrite: boolean;
-  /** The office manager and the file people read and write confidential notes (D-154). */
+  /** Who may write confidential notes: on a file the office manager and its people (D-154); on a client anyone (D-168). */
   readonly canConfidential: boolean;
   readonly readOnly: boolean;
 }) {
   const { t } = useTranslation();
   const { referenceOf } = useApiErrorHandler();
-  const notes = useNotes(fileId);
+  const notes = useNotes(subject);
   if (notes.isError) {
     return (
       <ErrorState
@@ -221,12 +222,14 @@ export function NotesTab({
   if (!notes.data) return <LoadingSkeleton rows={4} />;
   return (
     <Flex vertical gap={16} data-testid="notes-tab">
-      {canWrite && !readOnly ? <NewNote fileId={fileId} canConfidential={canConfidential} /> : null}
+      {canWrite && !readOnly ? (
+        <NewNote subject={subject} canConfidential={canConfidential} />
+      ) : null}
       {notes.data.length === 0 ? (
         <EmptyState title={t('cases.notes.empty')} />
       ) : (
         notes.data.map((note) => (
-          <NoteCard key={note.id} fileId={fileId} note={note} readOnly={readOnly} />
+          <NoteCard key={note.id} subject={subject} note={note} readOnly={readOnly} />
         ))
       )}
     </Flex>

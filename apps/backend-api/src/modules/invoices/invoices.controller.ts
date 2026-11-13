@@ -17,6 +17,8 @@ import {
   InvoiceListItemSchema,
   InvoiceQuerySchema,
   InvoiceSchema,
+  InvoiceSummaryQuerySchema,
+  InvoiceSummarySchema,
   MarkInvoicePaidSchema,
   UpdateInvoiceSchema,
 } from '@nexlegtiq/shared-contracts';
@@ -25,6 +27,8 @@ import type {
   Invoice,
   InvoiceListItem,
   InvoiceQuery,
+  InvoiceSummary,
+  InvoiceSummaryQuery,
   MarkInvoicePaidRequest,
   UpdateInvoiceRequest,
 } from '@nexlegtiq/shared-contracts';
@@ -58,6 +62,20 @@ export class InvoicesController {
     @Query(new ZodValidationPipe(InvoiceQuerySchema)) query: InvoiceQuery,
   ): Promise<PaginatedResult<InvoiceListItem>> {
     return this.invoices.list(query);
+  }
+
+  // Declared before `:id`, which would otherwise take "summary" as an id.
+  @Get('summary')
+  @RequireAnyPermission('view:all:invoices', 'view:assigned:invoices')
+  @ApiOperation({
+    summary: "A client's billed and outstanding totals per currency (visible invoices)",
+  })
+  @ApiZodQuery(InvoiceSummaryQuerySchema)
+  @ApiZodResponse(HttpStatus.OK, InvoiceSummarySchema)
+  summary(
+    @Query(new ZodValidationPipe(InvoiceSummaryQuerySchema)) query: InvoiceSummaryQuery,
+  ): Promise<InvoiceSummary> {
+    return this.invoices.summary(query.clientId);
   }
 
   @Post()

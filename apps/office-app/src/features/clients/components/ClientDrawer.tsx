@@ -172,12 +172,14 @@ function DrawerBody({
   initialName,
   onSaved,
   onCancel,
+  contacts,
 }: {
   readonly id: string | null;
   readonly detail: ReturnType<typeof useClient>;
   readonly initialName?: string;
   readonly onSaved: (client: Client) => void;
   readonly onCancel: () => void;
+  readonly contacts: boolean;
 }): React.JSX.Element {
   if (id && detail.isError && !detail.data) {
     return <ApiErrorAlert error={detail.error} testId="client-load-error" />;
@@ -194,7 +196,7 @@ function DrawerBody({
         onCancel={onCancel}
         onSaved={onSaved}
       />
-      {detail.data ? (
+      {contacts && detail.data ? (
         <>
           <Divider />
           <ContactsEditor client={detail.data} />
@@ -216,6 +218,8 @@ export interface ClientDrawerProps {
    * added (they need the client to exist first).
    */
   readonly onCreated?: (client: Client) => void;
+  /** Whether to edit the contact persons here too (the client profile edits them on its page). Default true. */
+  readonly contacts?: boolean;
 }
 
 /** Creates or edits a client; an existing client also gets its contact persons (D-121). */
@@ -225,6 +229,7 @@ export function ClientDrawer({
   initialName,
   onClose,
   onCreated,
+  contacts = true,
 }: ClientDrawerProps): React.JSX.Element {
   const { t } = useTranslation();
   // A client created here is edited here next (its contacts can then be added).
@@ -256,6 +261,7 @@ export function ClientDrawer({
         initialName={initialName}
         onCancel={close}
         onSaved={saved}
+        contacts={contacts}
       />
     </Drawer>
   );

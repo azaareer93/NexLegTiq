@@ -12,7 +12,7 @@ import {
 import { Button, Flex } from 'antd';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Navigate, useSearchParams } from 'react-router';
+import { Navigate, useNavigate, useSearchParams } from 'react-router';
 
 import { useClientsList } from '../api/use-clients';
 import { ClientDrawer } from '../components/ClientDrawer';
@@ -110,25 +110,22 @@ function ListBody({
   );
 }
 
-/** The drawer: closed, a new client, or one client by id. */
-type DrawerState =
-  { readonly open: false } | { readonly open: true; readonly clientId: string | null };
-
 /**
  * `/clients` (frontend.md#clients): search and filters kept in the URL (D-121), server-side paging and sorting; a row
- * opens the client in the drawer until the client profile page exists.
+ * opens the client's profile (MVP-55); new clients are added in the drawer.
  */
 export function ClientsListPage(): React.JSX.Element {
   const { t } = useTranslation();
   const [params, setParams] = useSearchParams();
-  const [drawer, setDrawer] = useState<DrawerState>({ open: false });
+  const navigate = useNavigate();
+  const [creating, setCreating] = useState(false);
 
   const query = useMemo(() => readQuery(params), [params]);
   const state = parseQuery(query);
   const list = useClientsList(query);
   const change = (changes: ListChanges) => setParams((prev) => withChanges(prev, changes));
   const filtered = hasFilters(query);
-  const create = () => setDrawer({ open: true, clientId: null });
+  const create = () => setCreating(true);
 
   const page = list.data;
   // A page past the end (bookmark, clients deleted meanwhile): go to the last page there is.
@@ -156,7 +153,7 @@ export function ClientsListPage(): React.JSX.Element {
           filtered={filtered}
           onChange={change}
           onCreate={create}
-          onOpen={(id) => setDrawer({ open: true, clientId: id })}
+          onOpen={(id) => void navigate(`/clients/${id}`)}
           onClear={() =>
             setParams((prev) =>
               withChanges(prev, { search: undefined, clientType: undefined, isActive: undefined }),
@@ -164,11 +161,7 @@ export function ClientsListPage(): React.JSX.Element {
           }
         />
       </Flex>
-      <ClientDrawer
-        open={drawer.open}
-        clientId={drawer.open ? drawer.clientId : null}
-        onClose={() => setDrawer({ open: false })}
-      />
+      <ClientDrawer open={creating} clientId={null} onClose={() => setCreating(false)} />
     </section>
   );
 }

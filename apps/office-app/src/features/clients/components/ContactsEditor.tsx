@@ -36,7 +36,14 @@ function bodyOf(values: Values, before: Values | null): Record<string, string | 
 }
 
 /** A client's contact persons (D-108): exactly one is primary once there are any; the server keeps that true. */
-export function ContactsEditor({ client }: { readonly client: Client }): React.JSX.Element {
+export function ContactsEditor({
+  client,
+  headingLevel = 5,
+}: {
+  readonly client: Client;
+  /** The heading under the page's own (2 on the client profile, whose title is the h1). */
+  readonly headingLevel?: 2 | 5;
+}): React.JSX.Element {
   const { t } = useTranslation();
   const { translateKey, applyToForm } = useApiErrorHandler();
   const [form] = Form.useForm<Values>();
@@ -74,7 +81,7 @@ export function ContactsEditor({ client }: { readonly client: Client }): React.J
 
   return (
     <Flex vertical gap={12} data-testid="client-contacts">
-      <Typography.Title level={5} style={{ margin: 0 }}>
+      <Typography.Title level={headingLevel} style={{ margin: 0 }}>
         {t('clients.contacts.title')}
       </Typography.Title>
       <ApiErrorAlert error={remove.error ?? promote.error} testId="contact-error" />
