@@ -20,6 +20,7 @@ import { AddPartyModal } from './AddPartyModal';
 import { ConflictsModal } from './ConflictsModal';
 import { EditRoleModal } from './EditRoleModal';
 import { useFileParties, useRemoveParty } from './use-parties';
+import { WitnessesSection } from '../witnesses/WitnessesSection';
 
 /** The file's parties by role, in the order of `PARTY_TYPES` (plaintiffs first); empty roles are left out. */
 export function groupByRole(parties: readonly FileParty[]): [PartyType, FileParty[]][] {
@@ -210,6 +211,7 @@ export function PartiesTab({
         </Flex>
       ) : null}
       <PartyGroups parties={parties} canEdit={canEdit} onEdit={setEditing} onRemove={setRemoving} />
+      <WitnessesSection fileId={fileId} canEdit={canEdit} />
       {/* Mounted per opening: a fresh form, starting on "existing party". */}
       {adding ? (
         <AddPartyModal

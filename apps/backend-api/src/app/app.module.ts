@@ -32,6 +32,7 @@ import { PartiesModule } from '../modules/parties/parties.module';
 import { PlatformAuthModule } from '../modules/platform-auth/platform-auth.module';
 import { PlatformOfficesModule } from '../modules/platform-offices/platform-offices.module';
 import { PortalAuthModule } from '../modules/portal-auth/portal-auth.module';
+import { SearchModule } from '../modules/search/search.module';
 import { SessionsModule } from '../modules/sessions/sessions.module';
 import { SubscriptionGuard } from '../modules/subscriptions/subscription.guard';
 import { SubscriptionsModule } from '../modules/subscriptions/subscriptions.module';
@@ -39,6 +40,7 @@ import { TasksModule } from '../modules/tasks/tasks.module';
 import { TimeEntriesModule } from '../modules/time-entries/time-entries.module';
 import { TimelineModule } from '../modules/timeline/timeline.module';
 import { UsersModule } from '../modules/users/users.module';
+import { WitnessesModule } from '../modules/witnesses/witnesses.module';
 
 /** Root module of the HTTP API. */
 @Module({
@@ -61,9 +63,11 @@ import { UsersModule } from '../modules/users/users.module';
     NotificationsModule,
     TimelineModule,
     DashboardModule,
+    SearchModule,
     TimeEntriesModule,
     InvoicesModule,
     NotesModule,
+    WitnessesModule,
     AiModule,
     AiSummariesModule,
     ClientsModule,

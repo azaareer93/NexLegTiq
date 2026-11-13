@@ -2679,7 +2679,7 @@ event's file, read through `TimelineService.recent`, so the D-150 read-time filt
 the overdue tasks assigned to them, and the office's hearings of the next 7 days — **counts only, confidential files
 included** (as client file counts, D-108). **Deviation — no cache:** the ticket's `o:{officeId}:dashboard:{userId}` 60 s
 cache with event invalidation is not built (D-096: nothing caches yet; the page is a dozen indexed counts and short lists,
-measured in the integration test's fixtures, not under load) — add it with the load test (MVP-117) if p95 asks for it.
+measured in the integration test's fixtures, not under load) — add it with the load test (the load-test story) if p95 asks for it.
 **Office app:** `/` replaces the placeholder — greeting with the office's date, KPI cards linking to cases (`scope=mine`),
 calendar, tasks, documents and clients, today's hearings (the one within the hour tagged), the 7-day list, recent activity
 in the timeline's sentences (`eventSentence`, D-150) and the team table; a new office (no open files, no activity) with
@@ -2696,7 +2696,7 @@ it): a senior lawyer learns how many open files and overdue tasks each lawyer ha
 no titles). Lists are capped at 20 (today's hearings too, without a "more" hint). The dashboard **refreshes live** on
 `task.*`, `session.scheduled` and `document.processed` (the realtime bridge invalidates `['dashboard']`). `TimelineService`
 gains `recent(userId, limit)`; `list` and `recent` share the read-time filter (`readable`). Numbers follow the user's digit
-style. **Not changed:** no repository layer (the service holds its queries, like D-146/D-149); no load test (MVP-117).
+style. **Not changed:** no repository layer (the service holds its queries, like D-146/D-149); no load test (the load-test story).
 
 **D-152 — Time entries, the running timer and file totals** · Accepted (MVP-90, 2026-11-09)
 MVP-90 left the timer's storage, the rate and currency source, who sees whose entries and money, and the lock before an
@@ -3011,6 +3011,29 @@ newest per document and language by `regeneration`, then time (`distinct`, cappe
 language out. The disclaimer also shows on pending and failed cards; the quota badge uses the user's digits and Arabic plural
 forms. **Accepted:** two forced regenerations at the same instant are both paid and one result is kept (as D-148's races).
 
+**D-163 — Witnesses and statements: access, references, audit and the Parties tab** · Accepted (MVP-143, 2026-11-12)
+MVP-143 left the routes' rights, who may be the recorder, what is audited and where the section lives open. → **Schema**
+(tenant models, migration `witnesses`): `Witness` (file, name, `isExpert`, `expertiseArea`, phone, email, address, notes;
+cascades with a purged file) and `WitnessStatement` (witness, `statementDate` a calendar date, plain `text`, `sessionId?`,
+`recordedById`, `isUnderOath`); every reference is a composite FK that carries `file_id` — a statement's witness and hearing
+are always of its own file —, and a trigger fills `search_vector_simple` (`nlq_normalize_ar(unaccent(text))`) and
+`search_vector_english` (D-059, first 500,000 characters), GIN-indexed for global search. The read-only role has no access to
+`witness_statements` (case content, as `document_texts`). Contacts are plain text (not identifiers, D-056). **Routes** (`src/modules/witnesses`):
+`GET/POST /cases/:id/witnesses`, `PATCH/DELETE /cases/:id/witnesses/:witnessId`, `GET/POST /witnesses/:id/statements`,
+`PATCH/DELETE /witnesses/:id/statements/:statementId` — reads ANY of `view:all|assigned:cases` and the file visible, writes ANY
+of `edit:any|assigned:case` and write access (D-096: 404 otherwise, also for another office, a witness of another file or a
+malformed id; BIZ-007 on an archived file); every write locks the file row (`lockFile`) and re-checks it. Confidential files
+need no extra rule: only their people see them. **Statements:** a date after today in the office's zone → VAL-001
+`validation.futureDate`; a hearing not of the file → `validation.unknownSession`; `recordedById` defaults to the caller, another
+colleague must be active and see the file by their own scope (`validation.unknownRecorder`). Text is stored and returned as
+written and shown by React as text (no markup), up to 20,000 characters, control/bidi characters refused. Deleting a witness
+deletes their statements. **Timeline:** `WITNESS_STATEMENT_ADDED` (`{witnessId, name, statementDate}`, never the testimony),
+not portal-visible (D-150). **Audit:** every write; statement text and witness notes are never audited, only that they
+changed (`textChanged`, `notesChanged`). **Portal:** no portal route reads witnesses (D-003). **Office app:** a "Witnesses and
+experts" card at the end of the Parties tab (add/edit/remove for editors of the file) and a drawer per witness with their
+statements, newest first (add/edit/delete; the hearing picked from the file's past hearings; statements not kept in memory once
+closed). **Not done:** a recorder picker (the caller records), statements in global search results (the search story reads the
+vectors), party attendance at hearings, AI summaries of statements (the source type exists, D-039).
 **D-162 — Invoices API: money precision, numbering at send, one currency, lifecycle** · Accepted (owner chose 1A 2A 3A 4A; MVP-91, 2026-11-10) · Amends D-017, D-092, D-152
 → **Schema** (tenant, composite `(…, office_id)` FKs): `Invoice` (client, `fileId?` — null = consolidated over the client's
 files —, `invoiceNumber?`, `status` `INVOICE_STATUSES` DRAFT | SENT | PAID | OVERDUE | VOID, currency, `issueDate?`/`dueDate?`
@@ -3050,6 +3073,36 @@ data, as D-144). `paidAt` may be neither in the future (office zone) nor before 
 the old and new tax rate and extra lines. The migration clears any `time_entries.invoice_id` before adding its FK (only tests
 ever set it). A time entry on a draft already counts as invoiced (locked, BIZ-006; not "unbilled" in the D-152 totals).
 
+**D-165 — Search vectors on files, clients, parties and tasks; the query builder** · Accepted (MVP-80, 2026-11-13)
+MVP-80 left the fields of each vector, the fuzzy rule and how full-text and trigram results combine open. → **Vectors**
+(migration `search_vectors`): `search_vector_simple` (`simple` over `nlq_normalize_ar(unaccent(text))`) and
+`search_vector_english` on `legal_files` (number, title, sub-type, court case number, description), `clients` (display, full
+and company name), `parties` (full or company name) and `tasks` (title, description), filled by `BEFORE` triggers through one
+helper, `nlq_search_vectors(text)` (the first 500,000 characters, as document text, D-119); existing rows were backfilled by
+the migration; GIN indexes on all eight. Document text (D-119) and witness statements (D-163) already had theirs.
+**Trigram** GIN indexes on the normalised file title, task title and client display name (parties had theirs, D-135).
+Identifiers and notes are not searched (encrypted, D-056; identifiers match exactly through the blind index, D-135).
+**Query builder** (`common/search/search-query.ts`, `searchQuery(target, officeId, query, limit, where?)` → `Prisma.Sql` for
+`$queryRaw`): `websearch_to_tsquery` on both configs (quotes, `-word`, `or`), ranked `1 + ts_rank(simple) + ts_rank(english)`;
+then, **only when those leave room under the limit**, a trigram pass (`word_similarity`, pg_trgm `<%`) on the name or title
+for typos and partial words, ranked below every word match. The office id is always a bound parameter (D-080); `where`
+lets the caller add deleted/visibility rules on alias `t` before the limit, so results are never lost to a filter applied
+afterwards. Table names and expressions come only from `SEARCH_TARGETS`. The search API, its access rules and grouping are
+the global-search story's. **Benchmark** (`search-query.performance.int.spec.ts`, 50k files, clients and tasks in one office,
+titles from real words and 2,000 others): P95 6–57 ms per query on the dev machine, budget 200 ms. Running the trigram pass on
+every query cost 190–270 ms on files, hence the fallback. **Known limits:** the `simple` config keeps the article and
+attached prefixes, so "مدرسة" finds "مدرسة" and "مدرسه" but not "المدرسة" (the trigram pass catches it only for names and
+titles); Arabic light stemming (ال، و، ب، ل) is the next improvement, in `nlq_normalize_ar`'s companion, with a re-index.
+Arabic-Indic digits and NFKC presentation forms are not folded yet (D-092).
+Review additions (same PR): **`where` is required** — every caller states which rows its reader may see (deleted rows,
+confidential files and documents, personal tasks, old document versions), so a forgotten filter cannot leak ids; `limit` must
+be an integer from 1 to 100. **Rank contract** for the global-search story: a word match ranks above 1, a trigram match at
+most 1, so word matches always lead. `documents` returns `document_texts.id` (one per version). The benchmark asserts the
+plans use the GIN indexes (`EXPLAIN`); tests cover renames refreshing every new vector and the backfill. The migration
+rewrites every row of the four tables and builds its indexes in one transaction — fine before production data; a large
+table would need `CREATE INDEX CONCURRENTLY` in a migration of its own. **Not covered here:** calls through the scoped
+client (the raw-SQL guard of D-080 accepts the query: the office id is a parameter), parties/documents/statements in the
+benchmark, and the "ال" prefix (above) — all for the global-search story.
 **D-164 — Admin office statistics and the at-risk flag (smaller scope)** · Accepted (owner chose the smaller scope; MVP-165, 2026-11-13)
 MVP-165 asked for a 0–100 activity score with five levels, a per-role staff section, per-case activity, daily snapshots and a
 90-day trend. → The owner chose **statistics plus one at-risk rule**; the score, levels, per-role and per-case sections, the
@@ -3079,3 +3132,24 @@ run yet); **paid this month** = PAID with `paidAt` since the first instant of th
 rounded to each currency's digits. Drafts and voided invoices never count. **No cache** (D-151 built none, so there is nothing
 to invalidate); the page refetches on focus. **Deviation:** the cards do not link anywhere yet — the office app has no invoices
 page (its own story adds the link). The card reads "Paid this month" rather than "revenue" (it is cash received, tax included).
+
+**D-167 — Global search API: one query per type, visibility in SQL and again in Prisma, no cache yet** · Accepted (MVP-81, 2026-11-13)
+MVP-81 left open how the access rules reach ranked raw SQL, what a group's "count" is and asked for a 60 s user-scoped
+cache. → **`GET /search?q&type=all|cases|clients|parties|documents|tasks&limit`** (`src/modules/search`, ANY of
+`view:all|assigned:cases`, 60/min per IP): `q` 2–200 characters (VAL-001 `validation.tooShort`), `limit` 1–20 per group
+(default 5). Each type runs D-165's `searchQuery` in parallel with the reader's visibility as its required `where`
+(`fileVisibleSql` = `CaseAccessService.visibleWhere` on `legal_files`: assigned scope, confidential files for the office
+manager and the file's people; documents = the **current version's text of a READY document** on a visible file, a
+confidential document only for the office manager, its uploader and the file's people, D-126; tasks = on a visible file or
+the caller's personal tasks, D-098), so the limit counts only rows the reader may open. The rows are then read through the
+Prisma access rules again (`visibleWhere` of files, documents and tasks): if the SQL ever drifts from them, results shrink,
+they never leak; the integration test pins both per role. **Clients** only for `manage:clients` (D-121), **parties** (the
+office-wide registry, D-135) only for `edit:any|assigned:case`; other readers get those groups empty. **Groups** are
+`{items, hasMore}` (the query fetches `limit + 1`) instead of a total count, which would need a second counting query per
+type. **Document snippets:** `ts_headline` (simple config) over the first 50,000 characters of the text (on the Arabic-normalised text when the written one marks nothing, so a letter-variant match is still highlighted), only for documents that passed the re-check, returned as
+`[{text, match}]` parts split on control-character markers stripped from the text first — the app renders them as text,
+never HTML. A snippet is not audited (D-128 audits reading a text page; a snippet of a few words is part of the result).
+**Deviation — no cache:** the ticket's `o:{officeId}:u:{userId}:search:{hash}` 60 s cache is not built, as for the
+dashboard (D-151): D-165 measured 6–57 ms P95 per query on 50k rows, and a cache would hide a file created a minute ago from
+its own author; add it with the load test (the load-test story) if p95 asks. **Not here:** witness statements in results (their vector
+exists, D-163 — a later group), Arabic prefix stemming (D-165's known limit), the search overlay (its own story).

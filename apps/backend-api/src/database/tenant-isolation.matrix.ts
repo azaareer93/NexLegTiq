@@ -13,6 +13,7 @@ import {
   INVOICE_RESOURCES,
   folderIn,
   PORTAL_RESOURCES,
+  noteIn,
   notificationIn,
   partyIn,
   reminderIn,
@@ -21,6 +22,8 @@ import {
   timeEntryIn,
   timerIn,
   versionIn,
+  statementIn,
+  witnessIn,
 } from './tenant-isolation.fixtures';
 import type { TenantModel } from './tenant-models';
 import type { PrismaClient } from '../generated/prisma/client';
@@ -234,19 +237,7 @@ export const TENANT_ISOLATION_MATRIX: readonly TenantResource[] = [
       }),
     update: { sourceType: 'changed' },
   },
-  {
-    model: 'FileNote',
-    create: async (db, office) =>
-      db.fileNote.create({
-        data: {
-          officeId: office.officeId,
-          fileId: (await fileIn(db, office)).id,
-          authorId: office.userId,
-          body: 'Isolation note',
-        },
-      }),
-    update: { pinned: true },
-  },
+  { model: 'FileNote', create: noteIn, update: { pinned: true } },
   {
     model: 'TaskTemplate',
     create: (db, { officeId }) =>
@@ -314,4 +305,7 @@ export const TENANT_ISOLATION_MATRIX: readonly TenantResource[] = [
   { model: 'AiUsage', create: aiUsageIn, update: { cached: true } },
   { model: 'AiSummary', create: aiSummaryIn, update: { summary: 'Changed' } },
   { model: 'AiFeedback', create: aiFeedbackIn, update: { comment: 'Changed' } },
+  // Witnesses are nested under their file; their HTTP isolation is in witnesses.int.spec.ts.
+  { model: 'Witness', create: witnessIn, update: { fullName: 'Renamed' } },
+  { model: 'WitnessStatement', create: statementIn, update: { isUnderOath: true } },
 ];

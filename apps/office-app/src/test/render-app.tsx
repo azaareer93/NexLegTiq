@@ -69,6 +69,8 @@ const SHELL_DEFAULTS = [
   http.get(api('dashboard'), () => ok(EMPTY_DASHBOARD)),
   // The header timer (D-160): no timer running.
   http.get(api('time-entries/timer'), () => ok(null)),
+  // The Parties tab's witnesses (D-163): none.
+  http.get(api('cases/:id/witnesses'), () => ok([])),
 ];
 
 export const server = setupServer(...SHELL_DEFAULTS);

@@ -100,6 +100,9 @@ BEGIN
   IF to_regclass('public.document_texts') IS NOT NULL THEN
     REVOKE ALL ON public.document_texts FROM nexlegtiq_readonly;
   END IF;
+  IF to_regclass('public.witness_statements') IS NOT NULL THEN
+    REVOKE ALL ON public.witness_statements FROM nexlegtiq_readonly;
+  END IF;
   IF to_regclass('public._prisma_migrations') IS NOT NULL THEN
     REVOKE ALL ON public._prisma_migrations FROM nexlegtiq_app, nexlegtiq_readonly;
   END IF;

@@ -390,6 +390,8 @@ model Office {
   conflicts              ConflictOfInterest[]
   timelineEvents         CaseTimelineEvent[]
   fileNotes              FileNote[]
+  witnesses              Witness[]
+  witnessStatements      WitnessStatement[]
   taskTemplates          TaskTemplate[]
   tasks                  Task[]
   timeEntries            TimeEntry[]
@@ -486,6 +488,7 @@ model User {
   resolvedConflicts     ConflictOfInterest[]
   timelineEvents        CaseTimelineEvent[]
   fileNotes             FileNote[]
+  recordedStatements    WitnessStatement[]
   assignedTasks         Task[]                   @relation("TaskAssignee")
   timeEntries           TimeEntry[]
   timeTimer             TimeTimer?
@@ -769,28 +772,31 @@ model Subscription {
 
 /// Clients API: MVP-53 (D-108). Soft-deleted only; national id and tax id are ciphertext (D-056).
 model Client {
-  id              String     @id @default(uuid(7)) @db.Uuid
-  officeId        String     @map("office_id") @db.Uuid
-  clientType      ClientType @map("client_type")
-  displayName     String     @map("display_name")
-  fullName        String?    @map("full_name")
-  companyName     String?    @map("company_name")
+  id                  String                   @id @default(uuid(7)) @db.Uuid
+  officeId            String                   @map("office_id") @db.Uuid
+  clientType          ClientType               @map("client_type")
+  displayName         String                   @map("display_name")
+  fullName            String?                  @map("full_name")
+  companyName         String?                  @map("company_name")
   /// AES-256-GCM ciphertext `v<key>:…` (D-056, CHECK), never the raw number.
-  nationalId      String?    @map("national_id")
+  nationalId          String?                  @map("national_id")
   /// Ciphertext for an INDIVIDUAL client (D-056: tax ids of individuals; CHECK).
-  taxId           String?    @map("tax_id")
+  taxId               String?                  @map("tax_id")
   /// Keyed HMAC of the normalised identifier: matches a party to a client without decrypting (D-135).
-  nationalIdIndex String?    @map("national_id_index")
-  taxIdIndex      String?    @map("tax_id_index")
-  phone           String?
-  email           String?    @db.Citext
-  address         String?
-  industry        String?
-  primaryLawyerId String?    @map("primary_lawyer_id") @db.Uuid
-  isActive        Boolean    @default(true) @map("is_active")
-  deletedAt       DateTime?  @map("deleted_at") @db.Timestamptz(3)
-  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+  nationalIdIndex     String?                  @map("national_id_index")
+  taxIdIndex          String?                  @map("tax_id_index")
+  phone               String?
+  email               String?                  @db.Citext
+  address             String?
+  industry            String?
+  primaryLawyerId     String?                  @map("primary_lawyer_id") @db.Uuid
+  isActive            Boolean                  @default(true) @map("is_active")
+  deletedAt           DateTime?                @map("deleted_at") @db.Timestamptz(3)
+  createdAt           DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+  /// Filled by trigger (D-165): 'simple' over nlq_normalize_ar(unaccent(text)) and 'english' (D-059).
+  searchVectorSimple  Unsupported("tsvector")? @map("search_vector_simple")
+  searchVectorEnglish Unsupported("tsvector")? @map("search_vector_english")
 
   office            Office               @relation(fields: [officeId], references: [id])
   primaryLawyer     User?                @relation("ClientPrimaryLawyer", fields: [primaryLawyerId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
@@ -839,36 +845,39 @@ model ContactPerson {
 
 /// A case. Open-file and list indexes are partial/covering SQL indexes in the migration.
 model LegalFile {
-  id                     String        @id @default(uuid(7)) @db.Uuid
-  officeId               String        @map("office_id") @db.Uuid
+  id                     String                   @id @default(uuid(7)) @db.Uuid
+  officeId               String                   @map("office_id") @db.Uuid
   /// Rendered from OfficeSettings.fileNumberFormat by FileNumberService; never reused, also after a soft delete.
-  fileNumber             String        @map("file_number")
+  fileNumber             String                   @map("file_number")
   title                  String
   description            String?
-  fileType               FileType      @map("file_type")
-  subType                String?       @map("sub_type")
-  status                 FileStatus    @default(OPEN)
-  priority               Priority      @default(MEDIUM)
-  openingDate            DateTime      @default(dbgenerated("CURRENT_DATE")) @map("opening_date") @db.Date
-  closingDate            DateTime?     @map("closing_date") @db.Date
-  responsibleLawyerId    String        @map("responsible_lawyer_id") @db.Uuid
-  responsibleParalegalId String?       @map("responsible_paralegal_id") @db.Uuid
-  courtCaseNumber        String?       @map("court_case_number")
+  fileType               FileType                 @map("file_type")
+  subType                String?                  @map("sub_type")
+  status                 FileStatus               @default(OPEN)
+  priority               Priority                 @default(MEDIUM)
+  openingDate            DateTime                 @default(dbgenerated("CURRENT_DATE")) @map("opening_date") @db.Date
+  closingDate            DateTime?                @map("closing_date") @db.Date
+  responsibleLawyerId    String                   @map("responsible_lawyer_id") @db.Uuid
+  responsibleParalegalId String?                  @map("responsible_paralegal_id") @db.Uuid
+  courtCaseNumber        String?                  @map("court_case_number")
   jurisdiction           Jurisdiction
-  billingMethod          BillingMethod @default(HOURLY) @map("billing_method")
-  hourlyRate             Decimal?      @map("hourly_rate") @db.Decimal(14, 2)
-  fixedFee               Decimal?      @map("fixed_fee") @db.Decimal(14, 2)
-  retainerBalance        Decimal       @default(0) @map("retainer_balance") @db.Decimal(14, 2)
+  billingMethod          BillingMethod            @default(HOURLY) @map("billing_method")
+  hourlyRate             Decimal?                 @map("hourly_rate") @db.Decimal(14, 2)
+  fixedFee               Decimal?                 @map("fixed_fee") @db.Decimal(14, 2)
+  retainerBalance        Decimal                  @default(0) @map("retainer_balance") @db.Decimal(14, 2)
   /// ISO-4217 code of every amount on the file (D-017).
-  currency               String        @db.Char(3)
-  isConfidential         Boolean       @default(false) @map("is_confidential")
+  currency               String                   @db.Char(3)
+  isConfidential         Boolean                  @default(false) @map("is_confidential")
   /// A platform court or one of the office's (D-037); a trigger checks it is visible to the file's office (D-115).
-  courtId                String?       @map("court_id") @db.Uuid
+  courtId                String?                  @map("court_id") @db.Uuid
   /// Requires `courtId` and sits at that court (same trigger).
-  judgeId                String?       @map("judge_id") @db.Uuid
-  deletedAt              DateTime?     @map("deleted_at") @db.Timestamptz(3)
-  createdAt              DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt              DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  judgeId                String?                  @map("judge_id") @db.Uuid
+  deletedAt              DateTime?                @map("deleted_at") @db.Timestamptz(3)
+  createdAt              DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+  /// Filled by trigger (D-165): 'simple' over nlq_normalize_ar(unaccent(text)) and 'english' (D-059).
+  searchVectorSimple     Unsupported("tsvector")? @map("search_vector_simple")
+  searchVectorEnglish    Unsupported("tsvector")? @map("search_vector_english")
 
   office               Office               @relation(fields: [officeId], references: [id])
   court                Court?               @relation(fields: [courtId], references: [id], onDelete: Restrict, onUpdate: Restrict)
@@ -883,6 +892,7 @@ model LegalFile {
   timeline             CaseTimelineEvent[]
   aiSummaries          AiSummary[]
   notes                FileNote[]
+  witnesses            Witness[]
   tasks                Task[]
   timeEntries          TimeEntry[]
   timeTimers           TimeTimer[]
@@ -960,26 +970,29 @@ model FileNumberSequence {
 
 /// Office-scoped registry reused across files for conflict checks (D-030). Individual → fullName, else companyName (CHECK).
 model Party {
-  id                  String   @id @default(uuid(7)) @db.Uuid
-  officeId            String   @map("office_id") @db.Uuid
-  isIndividual        Boolean  @map("is_individual")
-  fullName            String?  @map("full_name")
-  companyName         String?  @map("company_name")
+  id                  String                   @id @default(uuid(7)) @db.Uuid
+  officeId            String                   @map("office_id") @db.Uuid
+  isIndividual        Boolean                  @map("is_individual")
+  fullName            String?                  @map("full_name")
+  companyName         String?                  @map("company_name")
   /// AES-256-GCM ciphertext `v<key>:…` (D-056, CHECK).
-  nationalId          String?  @map("national_id")
+  nationalId          String?                  @map("national_id")
   /// Ciphertext when isIndividual (D-056: tax ids of individuals; CHECK).
-  taxId               String?  @map("tax_id")
+  taxId               String?                  @map("tax_id")
   /// Keyed HMAC of the normalised identifier for exact-match lookups without decrypting (D-135).
-  nationalIdIndex     String?  @map("national_id_index")
-  taxIdIndex          String?  @map("tax_id_index")
+  nationalIdIndex     String?                  @map("national_id_index")
+  taxIdIndex          String?                  @map("tax_id_index")
   address             String?
   phone               String?
-  email               String?  @db.Citext
-  legalRepresentative String?  @map("legal_representative")
+  email               String?                  @db.Citext
+  legalRepresentative String?                  @map("legal_representative")
   /// AES-256-GCM ciphertext `v<key>:…` (D-056, CHECK).
   notes               String?
-  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdAt           DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+  /// Filled by trigger (D-165): 'simple' over nlq_normalize_ar(unaccent(text)) and 'english' (D-059).
+  searchVectorSimple  Unsupported("tsvector")? @map("search_vector_simple")
+  searchVectorEnglish Unsupported("tsvector")? @map("search_vector_english")
 
   office    Office                   @relation(fields: [officeId], references: [id])
   files     FileParty[]
@@ -1093,6 +1106,63 @@ model FileNote {
   @@map("file_notes")
 }
 
+// ─── Witnesses and testimony (MVP-143, D-163) ───────────────────────────────────────────────────────────────────
+
+/// A witness or expert of one file; internal to the office (never on the client portal). Cascades with a purged file.
+model Witness {
+  id            String   @id @default(uuid(7)) @db.Uuid
+  officeId      String   @map("office_id") @db.Uuid
+  fileId        String   @map("file_id") @db.Uuid
+  fullName      String   @map("full_name")
+  isExpert      Boolean  @default(false) @map("is_expert")
+  expertiseArea String?  @map("expertise_area")
+  phone         String?
+  email         String?
+  address       String?
+  notes         String?
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office     Office             @relation(fields: [officeId], references: [id])
+  file       LegalFile          @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  statements WitnessStatement[]
+
+  @@unique([id, officeId])
+  /// Target of statements' (witness_id, file_id, office_id) FK: a statement's file is its witness's file.
+  @@unique([id, fileId, officeId])
+  @@index([officeId, fileId, fullName])
+  @@map("witnesses")
+}
+
+/// A recorded testimony. Plain text; `searchVector*` are filled by a trigger (like document_texts, D-119).
+model WitnessStatement {
+  id                  String                   @id @default(uuid(7)) @db.Uuid
+  officeId            String                   @map("office_id") @db.Uuid
+  fileId              String                   @map("file_id") @db.Uuid
+  witnessId           String                   @map("witness_id") @db.Uuid
+  statementDate       DateTime                 @map("statement_date") @db.Date
+  text                String
+  sessionId           String?                  @map("session_id") @db.Uuid
+  recordedById        String                   @map("recorded_by_id") @db.Uuid
+  isUnderOath         Boolean                  @default(false) @map("is_under_oath")
+  searchVectorSimple  Unsupported("tsvector")? @map("search_vector_simple")
+  searchVectorEnglish Unsupported("tsvector")? @map("search_vector_english")
+  createdAt           DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office     Office   @relation(fields: [officeId], references: [id])
+  witness    Witness  @relation(fields: [witnessId, fileId, officeId], references: [id, fileId, officeId], onDelete: Cascade, onUpdate: Restrict)
+  /// NoAction (end of statement): purging a file cascades to its sessions and statements together.
+  session    Session? @relation(fields: [sessionId, fileId, officeId], references: [id, fileId, officeId], onDelete: NoAction, onUpdate: Restrict)
+  recordedBy User     @relation(fields: [recordedById, officeId], references: [id, officeId], onUpdate: Restrict)
+
+  @@index([officeId, witnessId, statementDate(sort: Desc)])
+  @@index([sessionId])
+  @@index([searchVectorSimple], map: "witness_statements_search_simple_idx", type: Gin)
+  @@index([searchVectorEnglish], map: "witness_statements_search_english_idx", type: Gin)
+  @@map("witness_statements")
+}
+
 // ─── Courts (D-037, D-115) ──────────────────────────────────────────────────────────────────────────────────────
 
 /// Reference data: `officeId` null = a platform row (seeded, read-only to offices), set = the office's own row.
@@ -1195,17 +1265,18 @@ model Session {
   createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt          DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  office          Office                   @relation(fields: [officeId], references: [id])
-  file            LegalFile                @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
-  court           Court?                   @relation(fields: [courtId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  judge           Judge?                   @relation(fields: [judgeId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  attendingLawyer User                     @relation("SessionAttendingLawyer", fields: [attendingLawyerId, officeId], references: [id, officeId], onUpdate: Restrict)
-  createdBy       User                     @relation("SessionCreator", fields: [createdById, officeId], references: [id, officeId], onUpdate: Restrict)
-  nextSession     Session?                 @relation("SessionNext", fields: [nextSessionId, officeId], references: [id, officeId], onDelete: NoAction, onUpdate: Restrict)
-  previousSession Session?                 @relation("SessionNext")
-  reminders       SessionReminder[]
-  attendances     SessionPartyAttendance[]
-  documents       Document[]
+  office            Office                   @relation(fields: [officeId], references: [id])
+  file              LegalFile                @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  court             Court?                   @relation(fields: [courtId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  judge             Judge?                   @relation(fields: [judgeId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  attendingLawyer   User                     @relation("SessionAttendingLawyer", fields: [attendingLawyerId, officeId], references: [id, officeId], onUpdate: Restrict)
+  createdBy         User                     @relation("SessionCreator", fields: [createdById, officeId], references: [id, officeId], onUpdate: Restrict)
+  nextSession       Session?                 @relation("SessionNext", fields: [nextSessionId, officeId], references: [id, officeId], onDelete: NoAction, onUpdate: Restrict)
+  previousSession   Session?                 @relation("SessionNext")
+  reminders         SessionReminder[]
+  attendances       SessionPartyAttendance[]
+  documents         Document[]
+  witnessStatements WitnessStatement[]
 
   @@unique([id, officeId])
   /// Target of documents' (session_id, file_id, office_id) FK: a document's session belongs to the document's file.
@@ -1454,25 +1525,28 @@ enum TaskSource {
  * stories (D-098).
  */
 model Task {
-  id           String     @id @default(uuid(7)) @db.Uuid
-  officeId     String     @map("office_id") @db.Uuid
-  fileId       String?    @map("file_id") @db.Uuid
-  title        String
-  description  String?
+  id                  String                   @id @default(uuid(7)) @db.Uuid
+  officeId            String                   @map("office_id") @db.Uuid
+  fileId              String?                  @map("file_id") @db.Uuid
+  title               String
+  description         String?
   /// Calendar date (D-092): a deadline, shown as written in every time zone.
-  dueDate      DateTime?  @map("due_date") @db.Date
-  priority     Priority   @default(MEDIUM)
-  status       TaskStatus @default(TODO)
-  assignedToId String     @map("assigned_to_id") @db.Uuid
-  createdById  String     @map("created_by_id") @db.Uuid
-  completedAt  DateTime?  @map("completed_at") @db.Timestamptz(3)
+  dueDate             DateTime?                @map("due_date") @db.Date
+  priority            Priority                 @default(MEDIUM)
+  status              TaskStatus               @default(TODO)
+  assignedToId        String                   @map("assigned_to_id") @db.Uuid
+  createdById         String                   @map("created_by_id") @db.Uuid
+  completedAt         DateTime?                @map("completed_at") @db.Timestamptz(3)
   /// Position in its Kanban column, ascending (PATCH /tasks/reorder).
-  sortOrder    Int        @default(0) @map("sort_order")
+  sortOrder           Int                      @default(0) @map("sort_order")
   /// Where the task came from (D-156): typed by hand, a task template on file open, or an AI next step.
-  sourceType   TaskSource @default(MANUAL) @map("source_type")
-  sourceId     String?    @map("source_id") @db.Uuid
-  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+  sourceType          TaskSource               @default(MANUAL) @map("source_type")
+  sourceId            String?                  @map("source_id") @db.Uuid
+  createdAt           DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+  /// Filled by trigger (D-165): 'simple' over nlq_normalize_ar(unaccent(text)) and 'english' (D-059).
+  searchVectorSimple  Unsupported("tsvector")? @map("search_vector_simple")
+  searchVectorEnglish Unsupported("tsvector")? @map("search_vector_english")
 
   office     Office     @relation(fields: [officeId], references: [id])
   file       LegalFile? @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)

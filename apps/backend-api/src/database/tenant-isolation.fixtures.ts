@@ -256,3 +256,36 @@ export const attendanceIn = async (db: PrismaClient, office: SeededOffice) =>
       partyId: (await partyIn(db, office)).id,
     },
   });
+
+export const witnessIn = async (db: PrismaClient, office: SeededOffice) =>
+  db.witness.create({
+    data: {
+      officeId: office.officeId,
+      fileId: (await fileIn(db, office)).id,
+      fullName: 'Isolation witness',
+    },
+  });
+
+export const statementIn = async (db: PrismaClient, office: SeededOffice) => {
+  const witness = await witnessIn(db, office);
+  return db.witnessStatement.create({
+    data: {
+      officeId: office.officeId,
+      fileId: witness.fileId,
+      witnessId: witness.id,
+      statementDate: new Date('2026-01-01T00:00:00Z'),
+      text: 'Isolation statement',
+      recordedById: office.userId,
+    },
+  });
+};
+
+export const noteIn = async (db: PrismaClient, office: SeededOffice) =>
+  db.fileNote.create({
+    data: {
+      officeId: office.officeId,
+      fileId: (await fileIn(db, office)).id,
+      authorId: office.userId,
+      body: 'Isolation note',
+    },
+  });
