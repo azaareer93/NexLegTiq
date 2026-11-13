@@ -53,6 +53,10 @@ export const AdminOfficeListItemSchema = z.object({
   usage: AdminOfficeUsageSchema,
   /** The latest sign-in of any of its users; null if nobody signed in yet. */
   lastActivityAt: z.iso.datetime().nullable(),
+  /** The latest write (create, update, delete, share) in the office audit log; null if none yet. */
+  lastWriteAt: z.iso.datetime().nullable(),
+  /** An active office older than 14 days with no write in the last 14 days (D-164). */
+  atRisk: z.boolean(),
 });
 export type AdminOfficeListItem = z.infer<typeof AdminOfficeListItemSchema>;
 
@@ -67,6 +71,27 @@ export const AdminSubscriptionRowSchema = z.object({
 });
 export type AdminSubscriptionRow = z.infer<typeof AdminSubscriptionRowSchema>;
 
+/** Counts only, nothing named leaves the office (D-164); "30d" = the last 30 days. */
+export const AdminOfficeStatisticsSchema = z.object({
+  /** Active users who signed in within 30 days. */
+  signedIn30d: z.number().int(),
+  /** Live files per status. */
+  filesByStatus: z.object({
+    OPEN: z.number().int(),
+    SUSPENDED: z.number().int(),
+    CLOSED: z.number().int(),
+    ARCHIVED: z.number().int(),
+  }),
+  filesNew30d: z.number().int(),
+  documents: z.number().int(),
+  documentsNew30d: z.number().int(),
+  /** Writes (create, update, delete, share) in the office audit log. */
+  writes30d: z.number().int(),
+  aiEnabled: z.boolean(),
+  ocrEnabled: z.boolean(),
+});
+export type AdminOfficeStatistics = z.infer<typeof AdminOfficeStatisticsSchema>;
+
 /** `GET /admin/offices/:id`. */
 export const AdminOfficeDetailSchema = AdminOfficeListItemSchema.extend({
   accountType: z.enum(ACCOUNT_TYPES),
@@ -78,6 +103,7 @@ export const AdminOfficeDetailSchema = AdminOfficeListItemSchema.extend({
   subscriptions: z.array(AdminSubscriptionRowSchema),
   /** While suspended: when and why (from the platform audit log). */
   suspension: z.object({ at: z.iso.datetime(), reason: z.string() }).nullable(),
+  statistics: AdminOfficeStatisticsSchema,
 });
 export type AdminOfficeDetail = z.infer<typeof AdminOfficeDetailSchema>;
 
