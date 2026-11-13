@@ -3164,7 +3164,7 @@ tab falls back to Overview). A row of the clients list opens the profile; new cl
 contacts editor is hidden on the profile (the page edits them). **Client notes** `GET/POST/PATCH/DELETE
 /clients/:id/notes` (`manage:clients`): `FileNote` rows with `clientId` and no file, the file-note service and rules of
 D-154 with one difference — a client has no "people assigned", so a **confidential client note is read only by the office
-manager and its author**; anyone who may write a note may make it confidential (they keep reading it), OM/SL change any note
+manager and its author**; a new note may be made confidential by its writer, an existing one only by the office manager or its author (anyone else would hide it from themselves, as D-154 prevents); OM/SL change any note
 they can see. Bodies are encrypted with the same AES-GCM context as file notes; audit rows never hold the text; a file's
 notes never list client notes. A deleted or unknown client is 404. **Documents** `GET /clients/:id/documents`
 (`manage:clients`): the live documents of every file linked to the client, through `DocumentAccessService.visibleWhere`

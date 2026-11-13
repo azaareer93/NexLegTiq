@@ -181,6 +181,12 @@ describe('client profile (HTTP + PostgreSQL)', () => {
       .set(bearerFor(jwt, senior))
       .send({ pinned: true });
     expect(patch.status).toBe(404);
+    // Nor may a colleague hide the senior lawyer's plain note from them (D-168).
+    const hide = await http()
+      .patch(`/api/v1/clients/${clientId}/notes/${plain.body.data.id}`)
+      .set(bearerFor(jwt, lawyer))
+      .send({ isConfidential: true });
+    expect(hide.status).toBe(403);
     // A client note never shows on its files' notes.
     expect((await get(manager, `cases/${openFileId}/notes`)).body.data).toEqual([]);
   });

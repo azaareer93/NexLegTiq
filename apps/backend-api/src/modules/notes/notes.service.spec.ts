@@ -142,7 +142,17 @@ describe('NotesService (D-154)', () => {
       clientId: CLIENT,
       body: 'enc:Secret',
     });
-    expect(lawyer.db.$queryRaw).not.toHaveBeenCalled();
+    // A client deleted between the check and the write: refused under its lock.
+    lawyer.db.$queryRaw.mockResolvedValueOnce([]);
+    await expect(lawyer.service.create({ clientId: CLIENT }, { body: 'x' })).rejects.toMatchObject({
+      code: 'RES-001',
+    });
+    // Not on a colleague's note: the senior lawyer would no longer see it (D-168).
+    const senior = setup('SENIOR_LAWYER', 'sl');
+    await expect(
+      senior.service.update({ clientId: CLIENT }, NOTE, { isConfidential: true }),
+    ).rejects.toMatchObject({ code: 'AUTH-100' });
+    await om.service.update({ clientId: CLIENT }, NOTE, { isConfidential: true });
     lawyer.db.client.count.mockResolvedValueOnce(0);
     await expect(lawyer.service.list({ clientId: CLIENT })).rejects.toMatchObject({
       code: 'RES-001',

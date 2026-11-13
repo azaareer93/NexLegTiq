@@ -3,6 +3,7 @@ import type { CreateNoteRequest, UpdateNoteRequest } from '@nexlegtiq/shared-con
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { apiClient } from '../../auth';
+import { clientKeys } from '../../clients/api/use-clients';
 import { caseKeys } from '../api/use-cases';
 
 const cases = casesApi(apiClient);
@@ -14,7 +15,7 @@ export type NoteSubject = { readonly fileId: string } | { readonly clientId: str
 /** Under the subject's detail key: the page's refresh after any write reaches them too. */
 export const noteKeys = {
   file: (fileId: string) => [...caseKeys.detail(fileId), 'notes'] as const,
-  client: (clientId: string) => ['clients', 'detail', clientId, 'notes'] as const,
+  client: (clientId: string) => [...clientKeys.detail(clientId), 'notes'] as const,
 };
 
 /** The same four calls on either resource. */
@@ -43,12 +44,15 @@ export function useNoteMutations(subject: NoteSubject) {
       void queryClient.invalidateQueries({ queryKey: caseKeys.detail(id), exact: true });
     }
   };
+  // A confidential body is plain text in the request: not kept once the call is done.
   return {
     add: useMutation({
+      gcTime: 0,
       mutationFn: (body: CreateNoteRequest) => api.addNote(id, body),
       onSuccess,
     }),
     update: useMutation({
+      gcTime: 0,
       mutationFn: ({ id: noteId, body }: { id: string; body: UpdateNoteRequest }) =>
         api.updateNote(id, noteId, body),
       onSuccess,

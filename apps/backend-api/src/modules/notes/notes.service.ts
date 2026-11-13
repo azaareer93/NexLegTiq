@@ -116,13 +116,20 @@ export class NotesService {
   }
 
   /** Only those who read confidential notes may make one (else the caller would hide it from themselves, D-154). */
-  private async mayMakeConfidential(subject: NoteSubject): Promise<boolean> {
-    // The author always reads their own confidential client note (D-168).
-    return 'fileId' in subject ? this.seesFileConfidential(subject.fileId) : true;
+  private async mayMakeConfidential(subject: NoteSubject, authorId: string): Promise<boolean> {
+    if ('fileId' in subject) return this.seesFileConfidential(subject.fileId);
+    // A confidential client note is read by the office manager and its author only (D-168).
+    const { userId, role } = this.caller();
+    return role === 'OFFICE_MANAGER' || authorId === userId;
   }
 
-  private async assertMayMakeConfidential(subject: NoteSubject, was: boolean, wanted?: boolean) {
-    if (wanted && !was && !(await this.mayMakeConfidential(subject))) {
+  private async assertMayMakeConfidential(
+    subject: NoteSubject,
+    authorId: string,
+    was: boolean,
+    wanted?: boolean,
+  ) {
+    if (wanted && !was && !(await this.mayMakeConfidential(subject, authorId))) {
       throw new PermissionDeniedException();
     }
   }
@@ -155,7 +162,7 @@ export class NotesService {
   async create(subject: NoteSubject, input: CreateNoteRequest): Promise<Note> {
     const { userId, officeId } = this.caller();
     await this.assertAccess(subject, 'contribute');
-    await this.assertMayMakeConfidential(subject, false, input.isConfidential);
+    await this.assertMayMakeConfidential(subject, userId, false, input.isConfidential);
     const id = uuidV7();
     const isConfidential = input.isConfidential ?? false;
     const row = await this.uow.run(async (tx) => {
@@ -184,9 +191,21 @@ export class NotesService {
     return this.toNote(row);
   }
 
-  /** A file's notes change only while the file is live and not archived (re-checked under its lock, D-096). */
+  /**
+   * A file's notes change only while the file is live and not archived, a client's while the client is live — both
+   * re-checked under a lock, so a delete racing the write cannot leave a note on it (D-096).
+   */
   private async lock(tx: ScopedTransaction, subject: NoteSubject): Promise<void> {
-    if ('fileId' in subject) await lockFile(tx, this.caller().officeId, subject.fileId);
+    const { officeId } = this.caller();
+    if ('fileId' in subject) {
+      await lockFile(tx, officeId, subject.fileId);
+      return;
+    }
+    const live = await tx.$queryRaw<{ id: string }[]>`
+      SELECT id FROM "clients"
+      WHERE id = ${subject.clientId}::uuid AND office_id = ${officeId}::uuid AND deleted_at IS NULL
+      FOR SHARE`;
+    if (live.length === 0) throw new ResourceNotFoundException();
   }
 
   /** The note for a change: the subject's, visible to the caller, theirs or the caller is OM/SL. */
@@ -215,7 +234,12 @@ export class NotesService {
     await this.assertAccess(subject, 'contribute');
     return this.uow.run(async (tx) => {
       const before = this.toNote(await this.changeable(tx, subject, noteId));
-      await this.assertMayMakeConfidential(subject, before.isConfidential, input.isConfidential);
+      await this.assertMayMakeConfidential(
+        subject,
+        before.author.id,
+        before.isConfidential,
+        input.isConfidential,
+      );
       const isConfidential = input.isConfidential ?? before.isConfidential;
       const body = input.body ?? before.body;
       const pinned = input.pinned ?? before.pinned;
