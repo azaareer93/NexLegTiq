@@ -1,4 +1,4 @@
-import { casesApi } from '@nexlegtiq/shared-api-client';
+import { casesApi, clientProfileApi } from '@nexlegtiq/shared-api-client';
 import type { CreateNoteRequest, UpdateNoteRequest } from '@nexlegtiq/shared-contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -6,37 +6,53 @@ import { apiClient } from '../../auth';
 import { caseKeys } from '../api/use-cases';
 
 const cases = casesApi(apiClient);
+const clients = clientProfileApi(apiClient);
 
-/** Under the file's detail key: the file page's refresh after any write reaches them too. */
+/** What the notes are about: a file (D-154) or a client (D-168). */
+export type NoteSubject = { readonly fileId: string } | { readonly clientId: string };
+
+/** Under the subject's detail key: the page's refresh after any write reaches them too. */
 export const noteKeys = {
   file: (fileId: string) => [...caseKeys.detail(fileId), 'notes'] as const,
+  client: (clientId: string) => ['clients', 'detail', clientId, 'notes'] as const,
 };
 
-export const useNotes = (fileId: string) =>
-  useQuery({
-    queryKey: noteKeys.file(fileId),
-    queryFn: ({ signal }) => cases.notes(fileId, signal),
+/** The same four calls on either resource. */
+const target = (subject: NoteSubject) =>
+  'fileId' in subject
+    ? { id: subject.fileId, api: cases, key: noteKeys.file(subject.fileId) }
+    : { id: subject.clientId, api: clients, key: noteKeys.client(subject.clientId) };
+
+export const useNotes = (subject: NoteSubject) => {
+  const { id, api, key } = target(subject);
+  return useQuery({
+    queryKey: key,
+    queryFn: ({ signal }) => api.notes(id, signal),
     // Confidential bodies come back decrypted: never keep them once the tab is gone.
     gcTime: 0,
   });
+};
 
-export function useNoteMutations(fileId: string) {
+export function useNoteMutations(subject: NoteSubject) {
   const queryClient = useQueryClient();
+  const { id, api, key } = target(subject);
   const onSuccess = () => {
-    void queryClient.invalidateQueries({ queryKey: noteKeys.file(fileId) });
+    void queryClient.invalidateQueries({ queryKey: key });
     // The file's counts include its notes.
-    void queryClient.invalidateQueries({ queryKey: caseKeys.detail(fileId), exact: true });
+    if ('fileId' in subject) {
+      void queryClient.invalidateQueries({ queryKey: caseKeys.detail(id), exact: true });
+    }
   };
   return {
     add: useMutation({
-      mutationFn: (body: CreateNoteRequest) => cases.addNote(fileId, body),
+      mutationFn: (body: CreateNoteRequest) => api.addNote(id, body),
       onSuccess,
     }),
     update: useMutation({
-      mutationFn: ({ id, body }: { id: string; body: UpdateNoteRequest }) =>
-        cases.updateNote(fileId, id, body),
+      mutationFn: ({ id: noteId, body }: { id: string; body: UpdateNoteRequest }) =>
+        api.updateNote(id, noteId, body),
       onSuccess,
     }),
-    remove: useMutation({ mutationFn: (id: string) => cases.removeNote(fileId, id), onSuccess }),
+    remove: useMutation({ mutationFn: (noteId: string) => api.removeNote(id, noteId), onSuccess }),
   };
 }

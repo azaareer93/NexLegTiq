@@ -42,3 +42,5 @@ export type { AdminClientSession } from './admin-auth.js';
 export { timeEntriesApi } from './time-entries.js';
 export type { TimeEntryListParams } from './time-entries.js';
 export { witnessesApi } from './witnesses.js';
+export { clientProfileApi } from './client-profile.js';
+export type { ClientDocumentListParams, InvoiceListParams } from './client-profile.js';
