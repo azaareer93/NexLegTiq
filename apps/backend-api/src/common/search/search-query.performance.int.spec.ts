@@ -24,6 +24,7 @@ describe('searchQuery with 50k rows per table (performance)', () => {
 
   it(`should answer every target within ${BUDGET_MS} ms (P95 of ${RUNS})`, async () => {
     const timings: Record<string, number> = {};
+    const plans: Record<string, string> = {};
     await expect(
       prisma.$transaction(
         async (tx) => {
@@ -62,6 +63,17 @@ describe('searchQuery with 50k rows per table (performance)', () => {
               SELECT nlq_uuid_v7(), ${officeId}::uuid, ${text}, ${userId}::uuid, ${userId}::uuid, now()
               FROM generate_series(1, ${ROWS}) g`;
           await tx.$executeRaw`ANALYZE legal_files, clients, tasks`;
+          // The plans use the GIN indexes, not a scan of 50k rows.
+          const plan = async (target: SearchTarget, query: string) =>
+            (
+              await tx.$queryRaw<{ 'QUERY PLAN': string }[]>(
+                Prisma.sql`EXPLAIN ${searchQuery(target, officeId, query, 20, Prisma.sql`true`)}`,
+              )
+            )
+              .map((row) => row['QUERY PLAN'])
+              .join('\n');
+          plans.files = await plan('files', 'عقد ايجار');
+          plans.clients = await plan('clients', 'النوور');
 
           const cases: [SearchTarget, string][] = [
             ['files', 'احمد المدرسه'],
@@ -72,7 +84,8 @@ describe('searchQuery with 50k rows per table (performance)', () => {
             ['tasks', 'claims'],
           ];
           for (const [target, query] of cases) {
-            const run = () => tx.$queryRaw(searchQuery(target, officeId, query, 20));
+            const run = () =>
+              tx.$queryRaw(searchQuery(target, officeId, query, 20, Prisma.sql`true`));
             await run(); // plans warm
             const samples: number[] = [];
             for (let i = 0; i < RUNS; i += 1) {
@@ -91,5 +104,7 @@ describe('searchQuery with 50k rows per table (performance)', () => {
     // Printed for the PR description (D-165 records the numbers).
     process.stdout.write(`search P95 (ms): ${JSON.stringify(timings)}\n`);
     for (const p95 of Object.values(timings)) expect(p95).toBeLessThan(BUDGET_MS);
+    expect(plans.files).toMatch(/legal_files_search_(simple|english)_idx/);
+    expect(plans.clients).toContain('clients_display_name_norm_trgm_idx');
   }, 900_000);
 });

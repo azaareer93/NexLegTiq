@@ -3094,3 +3094,12 @@ every query cost 190–270 ms on files, hence the fallback. **Known limits:** th
 attached prefixes, so "مدرسة" finds "مدرسة" and "مدرسه" but not "المدرسة" (the trigram pass catches it only for names and
 titles); Arabic light stemming (ال، و، ب، ل) is the next improvement, in `nlq_normalize_ar`'s companion, with a re-index.
 Arabic-Indic digits and NFKC presentation forms are not folded yet (D-092).
+Review additions (same PR): **`where` is required** — every caller states which rows its reader may see (deleted rows,
+confidential files and documents, personal tasks, old document versions), so a forgotten filter cannot leak ids; `limit` must
+be an integer from 1 to 100. **Rank contract** for the global-search story: a word match ranks above 1, a trigram match at
+most 1, so word matches always lead. `documents` returns `document_texts.id` (one per version). The benchmark asserts the
+plans use the GIN indexes (`EXPLAIN`); tests cover renames refreshing every new vector and the backfill. The migration
+rewrites every row of the four tables and builds its indexes in one transaction — fine before production data; a large
+table would need `CREATE INDEX CONCURRENTLY` in a migration of its own. **Not covered here:** calls through the scoped
+client (the raw-SQL guard of D-080 accepts the query: the office id is a parameter), parties/documents/statements in the
+benchmark, and the "ال" prefix (above) — all for the global-search story.

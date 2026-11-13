@@ -26,16 +26,21 @@ export interface SearchHit {
 /**
  * Ranked ids of one target's rows in the office that match `query` (D-059): `websearch_to_tsquery` on the `simple`
  * (Arabic-normalised) and `english` vectors, or a trigram match on the name/title, ranked by `ts_rank` (+ similarity).
- * `where` narrows the rows further (deleted, visibility…) on the alias `t` before the limit applies. Word matches always
- * come before trigram ones, which fill the remaining places only (a typo, a partial name).
+ * `where` is required: the caller states which rows the reader may see (deleted, confidential, personal tasks…) on the
+ * alias `t`, before the limit applies. Word matches rank `1 + ts_rank…` (> 1) and always come before trigram matches,
+ * `word_similarity` (≤ 1), which fill the remaining places only (a typo, a partial name). `documents` returns
+ * `document_texts.id` (one row per version), `statements` the statement id.
  */
 export function searchQuery(
   target: SearchTarget,
   officeId: string,
   query: string,
   limit: number,
-  where: Prisma.Sql = Prisma.sql`true`,
+  where: Prisma.Sql,
 ): Prisma.Sql {
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+    throw new RangeError('search limit must be an integer from 1 to 100');
+  }
   const { table, trigram } = SEARCH_TARGETS[target];
   const from = Prisma.raw(`"${table}"`);
   const words = Prisma.sql`t."search_vector_simple" @@ q.s OR t."search_vector_english" @@ q.e`;
@@ -47,7 +52,7 @@ export function searchQuery(
       SELECT * FROM (
         SELECT t."id", word_similarity(q.n, ${Prisma.raw(trigram)})::float8 AS rank
         FROM ${from} t, q
-        WHERE ${scope} AND q.n <% ${Prisma.raw(trigram)} AND NOT (${words})
+        WHERE ${scope} AND q.n <% ${Prisma.raw(trigram)} AND NOT coalesce((${words}), false)
           AND (SELECT count(*) FROM hits) < ${limit}
         ORDER BY rank DESC, t."id"
         LIMIT ${limit}
