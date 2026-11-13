@@ -4,6 +4,7 @@ import { addDays, DashboardService, deadlines } from './dashboard.service';
 import type { RequestContext } from '../../common/context/request-context';
 import type { PrismaService } from '../../database/prisma.service';
 import type { DocumentAccessService } from '../documents/document-access.service';
+import type { InvoiceAccess } from '../invoices/invoice-access';
 import type { CaseAccessService } from '../legal-files/case-access.service';
 import type { TimelineService } from '../timeline/timeline.service';
 
@@ -45,6 +46,15 @@ function setup(context: Partial<RequestContext>) {
     },
     document: { count: jest.fn().mockResolvedValue(5) },
     client: { count: jest.fn().mockResolvedValue(6) },
+    invoice: {
+      groupBy: jest
+        .fn()
+        .mockResolvedValueOnce([
+          { currency: 'ILS', _sum: { total: { toFixed: () => '1500.5' } }, _count: { _all: 2 } },
+        ])
+        .mockResolvedValueOnce([{ currency: 'JOD', _sum: { total: null } }]),
+      count: jest.fn().mockResolvedValue(1),
+    },
     user: {
       findMany: jest.fn().mockResolvedValue([
         { id: ID(7), fullName: 'Omar' },
@@ -59,6 +69,7 @@ function setup(context: Partial<RequestContext>) {
     { visibleWhere: () => ({ visible: true }) } as unknown as CaseAccessService,
     { visibleWhere: () => ({ doc: true }) } as unknown as DocumentAccessService,
     timeline as unknown as TimelineService,
+    { visibleWhere: () => ({ invoice: true }) } as unknown as InvoiceAccess,
   );
   return { service, db };
 }
@@ -84,6 +95,26 @@ describe('DashboardService (D-151)', () => {
     });
     expect(data.deadlines.map((d) => d.kind)).toEqual(['TASK', 'HEARING']);
     expect(db.client.count).not.toHaveBeenCalled();
+    expect(data.finance).toBeNull();
+    expect(db.invoice.groupBy).not.toHaveBeenCalled();
+  });
+
+  it('should sum visible unpaid and paid-this-month invoices per currency for invoice viewers', async () => {
+    const { service, db } = setup({
+      userId: ID(7),
+      role: 'LAWYER',
+      permissions: ['view:assigned:invoices'],
+    } as never);
+    const data = await service.get(NOW);
+    expect(data.finance).toEqual({
+      unpaid: [{ currency: 'ILS', amount: '1500.50', count: 2 }],
+      overdueCount: 1,
+      revenueThisMonth: [{ currency: 'JOD', amount: '0.000' }],
+    });
+    expect(db.invoice.groupBy.mock.calls[1]?.[0].where.AND).toEqual([
+      { invoice: true },
+      { status: 'PAID', paidAt: { gte: new Date('2026-10-31T22:00:00.000Z') } },
+    ]);
   });
 
   it('should add the team workload and the new clients for the office manager', async () => {

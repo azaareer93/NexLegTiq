@@ -1,5 +1,5 @@
 import type { Dashboard, DashboardDeadline, DashboardHearing } from '@nexlegtiq/shared-contracts';
-import { Ltr, StatusTag, useFormat } from '@nexlegtiq/shared-ui';
+import { Bdi, Ltr, StatusTag, useFormat } from '@nexlegtiq/shared-ui';
 import { isolate } from '@nexlegtiq/shared-utils';
 import { Card, Col, Flex, List, Row, Statistic, Table, Tag, theme, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
@@ -40,6 +40,39 @@ function Kpi({
           {footer ? <Typography.Text type="secondary">{footer}</Typography.Text> : null}
         </Card>
       </Link>
+    </Col>
+  );
+}
+
+/**
+ * Money per currency (D-162: one currency per invoice, so no sum across them). Not a link yet: the office app has no
+ * invoices page (shortcut: link to it once the invoices UI story ships).
+ */
+function MoneyKpi({
+  title,
+  amounts,
+  footer,
+  testId,
+}: {
+  readonly title: string;
+  readonly amounts: readonly { currency: string; amount: string }[];
+  readonly footer?: string;
+  readonly testId: string;
+}) {
+  const { t } = useTranslation();
+  const format = useFormat();
+  const { token } = theme.useToken();
+  return (
+    <Col xs={24} sm={12} lg={8} xl={4}>
+      <Card size="small" data-testid={testId}>
+        <Typography.Text type="secondary">{title}</Typography.Text>
+        <Flex vertical style={{ fontSize: token.fontSizeHeading4 }}>
+          {amounts.length === 0
+            ? t('dashboard.finance.none')
+            : amounts.map((m) => <Bdi key={m.currency}>{format.money(m.amount, m.currency)}</Bdi>)}
+        </Flex>
+        {footer ? <Typography.Text type="secondary">{footer}</Typography.Text> : null}
+      </Card>
     </Col>
   );
 }
@@ -231,6 +264,21 @@ export function KpiRow({ data }: { readonly data: Dashboard }) {
           value={data.team.hearingsThisWeek}
           to="/calendar"
         />
+      ) : null}
+      {data.finance ? (
+        <>
+          <MoneyKpi
+            testId="kpi-unpaid"
+            title={t('dashboard.finance.unpaid')}
+            amounts={data.finance.unpaid}
+            footer={t('dashboard.finance.overdue', { count: data.finance.overdueCount })}
+          />
+          <MoneyKpi
+            testId="kpi-revenue"
+            title={t('dashboard.finance.revenue')}
+            amounts={data.finance.revenueThisMonth}
+          />
+        </>
       ) : null}
     </Row>
   );
