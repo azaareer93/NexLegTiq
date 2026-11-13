@@ -621,18 +621,21 @@ model OfficeInvitation {
 /// Office users only; admin-panel and portal sessions get their own tables (D-079). Rotated on every refresh;
 /// reuse of a revoked token revokes the whole family (auth-rbac.md).
 model RefreshToken {
-  id           String    @id @default(uuid(7)) @db.Uuid
-  officeId     String    @map("office_id") @db.Uuid
-  userId       String    @map("user_id") @db.Uuid
-  familyId     String    @map("family_id") @db.Uuid
+  id             String    @id @default(uuid(7)) @db.Uuid
+  officeId       String    @map("office_id") @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  familyId       String    @map("family_id") @db.Uuid
   /// SHA-256 of the opaque cookie value.
-  tokenHash    String    @unique @map("token_hash")
-  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(3)
-  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(3)
-  replacedById String?   @unique @map("replaced_by_id") @db.Uuid
-  ipAddress    String?   @map("ip_address") @db.Inet
-  userAgent    String?   @map("user_agent")
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  tokenHash      String    @unique @map("token_hash")
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(3)
+  replacedById   String?   @unique @map("replaced_by_id") @db.Uuid
+  ipAddress      String?   @map("ip_address") @db.Inet
+  userAgent      String?   @map("user_agent")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// Last authenticated request of the session (MVP-168): set at login, bumped by the JWT guard at most once a minute,
+  /// copied on rotation (a refresh is not activity); a refresh after the office's idle minutes is refused.
+  lastActivityAt DateTime  @default(now()) @map("last_activity_at") @db.Timestamptz(3)
 
   office     Office        @relation(fields: [officeId], references: [id])
   user       User          @relation(fields: [userId, officeId], references: [id, officeId], onDelete: Cascade)
