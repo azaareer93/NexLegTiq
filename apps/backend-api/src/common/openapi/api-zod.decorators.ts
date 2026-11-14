@@ -57,8 +57,11 @@ export function envelopeSchema(
 }
 
 /** Request body documented from its Zod contract. */
-export function ApiZodBody(schema: z.ZodType): MethodDecorator {
-  return applyDecorators(ApiBody({ schema: zodToOpenApi(schema, 'input') }));
+export function ApiZodBody(
+  schema: z.ZodType,
+  options: { required?: boolean } = {},
+): MethodDecorator {
+  return applyDecorators(ApiBody({ schema: zodToOpenApi(schema, 'input'), ...options }));
 }
 
 /** Query parameters documented from a Zod object contract (one entry per key). */

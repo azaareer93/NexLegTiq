@@ -55,7 +55,7 @@ The backend refuses to boot while a required variable is missing or invalid, and
 | Path | What |
 |---|---|
 | `CLAUDE.md` | How Claude Code works in this repo (read first) |
-| `docs/context/` | Engineering digest of the Notion specs + **decision log** (`decisions.md`) |
+| `docs/context/` | Engineering digest of the Notion specs + **decision log** (`decisions/D-NNN.md`) |
 | `docs/jira/backlog.md` | Epic/story map and delivery slices for Jira project MVP |
 | `docs/ruflo.md` | Ruflo memory setup and namespaces |
 | `docs/tooling.md` | Claude Code add-ons (plugins, task-observer, Graphify, optional proxies) — D-077 |

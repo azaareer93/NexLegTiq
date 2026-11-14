@@ -4,9 +4,9 @@ NexLegTiq is a multi-tenant, bilingual (Arabic/English, RTL/LTR), AI-assisted wo
 Launch market: Palestine. Solo-founder project: prefer simple, low-ops, well-tested solutions.
 
 ## How to work here
-- **Specs are intent, not scripture.** Notion → digested in `docs/context/` → conflicts resolved in `docs/context/decisions.md`
-  (imported below). If code, ticket and docs disagree, `decisions.md` wins; if it's silent, make the senior-engineer call,
-  record a new `D-###` entry, and mention it in the PR + Jira comment. Only stop and ask on decisions that are expensive to reverse
+- **Specs are intent, not scripture.** Notion → digested in `docs/context/` → conflicts resolved in the decision log
+  `docs/context/decisions/D-NNN.md` (one file per decision, D-170). If code, ticket and docs disagree, the decision wins; if it's silent, make the senior-engineer call,
+  record a new `D-###` file, and mention it in the PR + Jira comment. Only stop and ask on decisions that are expensive to reverse
   (schema shape of core entities, auth/security model, pricing/legal promises, infra spend).
 - Start every task from a Jira key (`MVP-123`). `/ticket MVP-123` delivers it end to end (plan, branch, implement, verify,
   `/review`, `/ship`, Notion sync). `/autopilot` (or `scripts/autopilot.sh`) loops over the backlog unattended (D-097).
@@ -63,12 +63,15 @@ pnpm nx run e2e:e2e                                   # Cypress
 - Add-ons (D-077, `docs/tooling.md`): plugins `ponytail`, `agent-skills`, `claude-code-setup` (enabled in `.claude/settings.json`);
   `task-observer` skill (activation in `.claude/rules/task-observer.md`); Graphify code graph (`graphify query` when
   `graphify-out/graph.json` exists). Headroom / claude-mem / OmniRoute are per-machine opt-ins only.
-- **Precedence:** this file, `decisions.md`, `.claude/rules`, and project skills/commands (`/review`, `/ship`, …) win over any
+- **Precedence:** this file, the decision log, `.claude/rules`, and project skills/commands (`/review`, `/ship`, …) win over any
   plugin skill. Ponytail-style minimalism never removes a non-negotiable (tenant tests, Zod contracts, audit, i18n keys,
   PII redaction). agent-skills' trunk-based git advice is overridden by D-070 (`develop` + `MVP-<n>` branches).
 
-## Decisions (canonical — keep in context)
-@docs/context/decisions.md
+## Decisions (canonical)
+The log is not loaded into context (one file per decision, so PRs never conflict on it — D-170). Before any
+non-trivial work, find the decisions of its area — `grep -ril '<topic>' docs/context/decisions` — and read the hits;
+`docs/context/decisions/README.md` has the format. A new decision is a new file `D-<next>.md` (the next number after the
+highest in the folder and in your open PRs).
 
 ## graphify
 

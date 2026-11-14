@@ -56,4 +56,4 @@ bilingual sample cases) — demo seed never runs in prod.
 4. Swagger updated (from Zod); contracts in `shared-contracts`; error codes documented.
 5. Audit logging for create/update/delete/download/share of case data.
 6. Migrations reviewed (reversible or documented), seed updated if reference data changed.
-7. `docs/context/*` or `decisions.md` updated if behavior/decision changed; Jira ticket commented with summary + PR link.
+7. `docs/context/*` updated or a `decisions/D-NNN.md` added if behavior/decision changed; Jira ticket commented with summary + PR link.

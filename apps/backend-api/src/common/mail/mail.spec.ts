@@ -26,6 +26,8 @@ const VARS = {
   time: '10:30 ص',
   court: 'محكمة صلح رام الله',
   courtRoom: '',
+  invoiceNumber: 'INV-2026-0007',
+  dueDate: '14/12/2026',
 };
 const varsFor = (template: (typeof MAIL_TEMPLATE_NAMES)[number]) =>
   MAIL_TEMPLATE_SCHEMAS[template].parse(VARS) as never;
@@ -53,7 +55,21 @@ describe('duration', () => {
 });
 
 describe('renderMail', () => {
-  it.each(MAIL_TEMPLATE_NAMES)(
+  it('should write the invoice email without a button, the number isolated left-to-right', () => {
+    const ar = renderMail('invoice', 'AR', varsFor('invoice'), APP);
+    const en = renderMail('invoice', 'EN', varsFor('invoice'), APP);
+    expect(ar.html).toContain('<html lang="ar" dir="rtl">');
+    expect(ar.html).toContain('<bdi dir="ltr">INV-2026-0007</bdi>');
+    expect(ar.text).toContain('تاريخ الاستحقاق');
+    expect(en.subject).toBe('Invoice \u2068INV-2026-0007\u2069 from \u2068مكتب\u2069');
+    expect(en.html).not.toContain('/x?token');
+    // No due date: the sentence is left out.
+    const noDue = { ...(varsFor('invoice') as object), dueDate: '' } as never;
+    expect(renderMail('invoice', 'EN', noDue, APP).text).not.toContain('Due date');
+  });
+
+  // Every template with a button (the invoice email has none, D-171).
+  it.each(MAIL_TEMPLATE_NAMES.filter((name) => name !== 'invoice'))(
     'should render %s in Arabic (rtl) and English (ltr) with fallback and legal links',
     (template) => {
       const ar = renderMail(template, 'AR', varsFor(template), APP);
@@ -204,6 +220,28 @@ describe('MailTransport', () => {
     });
     transport.onModuleDestroy();
     expect(close).toHaveBeenCalled();
+  });
+
+  it('should attach files through SMTP and as base64 through Resend (D-171)', async () => {
+    const pdf = {
+      filename: 'INV-1.pdf',
+      content: Buffer.from('%PDF'),
+      contentType: 'application/pdf',
+    };
+    const sendMail = jest.fn().mockResolvedValue({});
+    jest
+      .spyOn(nodemailer, 'createTransport')
+      .mockReturnValue({ sendMail, close: jest.fn() } as never);
+    await new MailTransport(config()).send('a@b.test', mail, { attachments: [pdf] });
+    expect(sendMail).toHaveBeenCalledWith(expect.objectContaining({ attachments: [pdf] }));
+    const fetchMock = jest
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response('{}', { status: 200 }));
+    await new MailTransport(
+      config({ EMAIL_PROVIDER: 'resend', RESEND_API_KEY: 're_test_key' }),
+    ).send('a@b.test', mail, { attachments: [pdf] });
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as { attachments: unknown };
+    expect(body.attachments).toEqual([{ filename: 'INV-1.pdf', content: 'JVBERg==' }]);
   });
 
   it('should map an SMTP failure to EXT-001 without the provider message, which quotes the address', async () => {

@@ -28,5 +28,5 @@ Apply their insights to the current task only; editing a skill or any file a lat
   the final report.
 
 ## Precedence
-Observations propose changes; they never override `CLAUDE.md`, `decisions.md` or `.claude/rules`. Approved changes to
+Observations propose changes; they never override `CLAUDE.md`, `docs/context/decisions/` or `.claude/rules`. Approved changes to
 `.claude/skills/*` go through a normal branch + PR like any other code.

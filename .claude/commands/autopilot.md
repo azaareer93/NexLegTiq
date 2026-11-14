@@ -65,7 +65,7 @@ Stop at once when `.git/nexlegtiq/autopilot-stop` exists. Each iteration appends
 - Inside `/loop` (dynamic): end the iteration and schedule the next with `ScheduleWakeup` — 60 s after `DONE`/`SKIPPED`/`FIXED`/`MERGED`,
   1800 s after `IDLE`.
 - Otherwise: run the next iteration right away; after two `IDLE`s in a row, stop and report.
-- After each `DONE`, if `decisions.md` changed since `.git/nexlegtiq/notion-decisions`, `/sync-notion decisions` (already
+- After each `DONE`, if `docs/context/decisions/` changed since `.git/nexlegtiq/notion-decisions`, `/sync-notion decisions` (already
   done by /ticket step 11 unless it failed).
 
 ## Report (when stopping)

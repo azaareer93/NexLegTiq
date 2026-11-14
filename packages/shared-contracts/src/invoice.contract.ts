@@ -152,3 +152,24 @@ export const InvoiceSchema = InvoiceListItemSchema.extend({
   lines: z.array(InvoiceLineSchema),
 });
 export type Invoice = z.infer<typeof InvoiceSchema>;
+
+/** Languages an invoice PDF is written in (MVP-92); the office's default when not chosen (BILINGUAL → Arabic). */
+export const INVOICE_PDF_LANGUAGES = ['AR', 'EN'] as const;
+const PdfLanguageSchema = z.enum(INVOICE_PDF_LANGUAGES);
+
+/** `POST /invoices/:id/send` (optional body): email the PDF to the client's primary contact. */
+export const SendInvoiceSchema = z
+  .object({ emailClient: z.boolean().default(false), language: PdfLanguageSchema.optional() })
+  .default({ emailClient: false });
+export type SendInvoiceRequest = z.infer<typeof SendInvoiceSchema>;
+
+/** `GET /invoices/:id/pdf?language=`. */
+export const InvoicePdfQuerySchema = z.object({ language: PdfLanguageSchema.optional() });
+export type InvoicePdfQuery = z.infer<typeof InvoicePdfQuerySchema>;
+
+/** 200 with a short-lived link when the PDF of the invoice as it is now exists; 202 while the worker renders it. */
+export const InvoicePdfSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('READY'), downloadUrl: z.url(), expiresIn: z.number().int() }),
+  z.object({ status: z.literal('RENDERING') }),
+]);
+export type InvoicePdf = z.infer<typeof InvoicePdfSchema>;

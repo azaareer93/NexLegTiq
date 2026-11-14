@@ -5,7 +5,7 @@ paths:
 ---
 # Prisma schema & migrations rules
 
-- Canonical model: `docs/context/domain-model.md`; changes that diverge need a `D-###` in `decisions.md`.
+- Canonical model: `docs/context/domain-model.md`; changes that diverge need a `docs/context/decisions/D-###.md`.
 - IDs `String @id @default(uuid(7)) @db.Uuid`; `createdAt @default(now()) @db.Timestamptz(3)`, `updatedAt @updatedAt`.
 - Tenant tables: `officeId String @db.Uuid` (non-null) + relation + `@@index([officeId, …])` matching the main list query.
   Register the model in `TENANT_MODELS` (tenant extension) in the same PR.

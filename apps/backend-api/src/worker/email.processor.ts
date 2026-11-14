@@ -207,7 +207,9 @@ export class EmailProcessor extends TenantProcessor<EmailJob> {
   ) {
     const { officeAppUrl, clientPortalUrl } = this.config.mail;
     // Every button in our emails leads into the office app or the client portal; anything else is a bug or an injected link.
-    if (!vars.link.startsWith(`${officeAppUrl}/`) && !vars.link.startsWith(`${clientPortalUrl}/`))
+    // The invoice email has no button and is sent by the PDF renderer, never through this queue (D-171).
+    const link = 'link' in vars ? vars.link : '';
+    if (!link.startsWith(`${officeAppUrl}/`) && !link.startsWith(`${clientPortalUrl}/`))
       throw new UnrecoverableError('Email link does not point to our apps');
     await this.transport.send(
       to,
@@ -215,7 +217,7 @@ export class EmailProcessor extends TenantProcessor<EmailJob> {
         template,
         locale,
         vars,
-        vars.link.startsWith(`${clientPortalUrl}/`) ? clientPortalUrl : officeAppUrl,
+        link.startsWith(`${clientPortalUrl}/`) ? clientPortalUrl : officeAppUrl,
       ),
       options,
     );

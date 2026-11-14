@@ -1,6 +1,6 @@
 # Domain Model (canonical)
 
-> Source: Notion "ENTITY MODELS" (34 entities) + fixes from `decisions.md` (D-015…D-039).
+> Source: Notion "ENTITY MODELS" (34 entities) + fixes from `decisions/` (D-015…D-039).
 > Conventions: UUID v7 ids; `createdAt`, `updatedAt` on every table; `deletedAt` soft delete on user-facing
 > records (files, clients, documents, tasks); enums UPPER_SNAKE; money `Decimal(14,2)` + `currency`;
 > **every tenant-owned table has `officeId` (non-null)** — marked 🔒. `officeId?` = nullable for global reference rows.

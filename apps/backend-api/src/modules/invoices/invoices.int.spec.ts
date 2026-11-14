@@ -9,10 +9,15 @@ import type { PinoLogger } from 'nestjs-pino';
 import request from 'supertest';
 
 import { InvoiceOverdueSweep } from './invoice-overdue.sweep';
+import { canPrint, TEST_CHROMIUM } from './pdf/chromium.test-helper';
+import { InvoicePdfRenderer } from './pdf/invoice-pdf.renderer';
 import { AppModule } from '../../app/app.module';
 import { configureApp } from '../../app/configure-app';
 import { AuditService } from '../../common/audit/audit.service';
+import { MailTransport } from '../../common/mail/mail-transport';
+import { StorageService } from '../../common/storage/storage.service';
 import { TenantRunner } from '../../common/tenancy/tenant-runner';
+import { AppConfig } from '../../config/app-config';
 import { integrationEnv } from '../../config/env.fixture';
 import { PrismaService } from '../../database/prisma.service';
 import { TENANT_MODELS } from '../../database/tenant-models';
@@ -616,5 +621,113 @@ describe('invoices (HTTP + PostgreSQL)', () => {
     expect(res.status).toBe(403);
     expect(res.body.error.code).toBe('AUTH-104');
     await http().get('/api/v1/invoices').set(as(person)).expect(200);
+  });
+  describe('PDF (MVP-92)', () => {
+    const sentInvoice = async () => {
+      await entry(f1, '2.00', '150.00');
+      const id = (await draft(manager, { clientId: client, fileId: f1 })).body.data.id as string;
+      await http().post(`/api/v1/invoices/${id}/send`).set(as(manager)).expect(200);
+      return id;
+    };
+    const pdf = (id: string, person = manager) =>
+      http().get(`/api/v1/invoices/${id}/pdf?language=AR`).set(as(person));
+
+    (canPrint ? it : it.skip)(
+      'should render on request, then link the current PDF and audit it; a change asks for a new one',
+      async () => {
+        const id = await sentInvoice();
+        expect((await pdf(id).expect(202)).body.data).toEqual({ status: 'RENDERING' });
+        const config = app.get(AppConfig);
+        const renderer = new InvoicePdfRenderer(
+          app.get(PrismaService),
+          app.get(StorageService),
+          app.get(MailTransport),
+          { chromiumPath: TEST_CHROMIUM, mail: config.mail } as unknown as AppConfig,
+          {
+            setContext: () => undefined,
+            info: () => undefined,
+            warn: () => undefined,
+          } as unknown as PinoLogger,
+        );
+        const run = () =>
+          app
+            .get(TenantRunner)
+            .run({ officeId: manager.officeId as never }, () =>
+              renderer.run(
+                { invoiceId: id, language: 'AR', email: false },
+                'test',
+                AbortSignal.timeout(60_000),
+              ),
+            );
+        const before = await raw.invoice.findUniqueOrThrow({ where: { id } });
+        expect(await run()).toEqual({ rendered: true });
+        const after = await raw.invoice.findUniqueOrThrow({ where: { id } });
+        // Recording the PDF is not a change of the invoice.
+        expect(after.updatedAt).toEqual(before.updatedAt);
+        expect(after.pdfStorageKey).toMatch(new RegExp(`^${manager.officeId}/invoices/${id}/`));
+        expect(await run()).toEqual({ rendered: false });
+        const ready = (await pdf(id).expect(200)).body.data;
+        expect(ready).toMatchObject({ status: 'READY', expiresIn: 300 });
+        expect(ready.downloadUrl).toContain(encodeURIComponent(after.invoiceNumber ?? ''));
+        const audit = await raw.auditLog.findMany({
+          where: { officeId: manager.officeId, entityId: id, action: 'DOWNLOAD' },
+        });
+        expect(audit).toHaveLength(1);
+        // English is another PDF; paying the invoice makes the stored one stale.
+        await http().get(`/api/v1/invoices/${id}/pdf?language=EN`).set(as(manager)).expect(202);
+        await http()
+          .post(`/api/v1/invoices/${id}/mark-paid`)
+          .set(as(manager))
+          .send({ paidAt: new Date().toISOString(), method: 'CASH' })
+          .expect(200);
+        await pdf(id).expect(202);
+      },
+      120_000,
+    );
+
+    it('should refuse to email a client without an address, and send otherwise', async () => {
+      await entry(f1, '1.00', '100.00');
+      const id = (await draft(manager, { clientId: client, fileId: f1 })).body.data.id as string;
+      const refused = await http()
+        .post(`/api/v1/invoices/${id}/send`)
+        .set(as(manager))
+        .send({ emailClient: true })
+        .expect(400);
+      expect(refused.body.error.details).toEqual([
+        { field: 'emailClient', message: 'validation.noClientEmail' },
+      ]);
+      expect((await raw.invoice.findUniqueOrThrow({ where: { id } })).status).toBe('DRAFT');
+      await raw.contactPerson.create({
+        data: {
+          officeId: manager.officeId,
+          clientId: client,
+          fullName: 'Billing contact',
+          email: 'billing@example.test',
+          isPrimary: true,
+        },
+      });
+      try {
+        await http()
+          .post(`/api/v1/invoices/${id}/send`)
+          .set(as(manager))
+          .send({ emailClient: true, language: 'EN' })
+          .expect(200);
+        const row = await raw.auditLog.findFirstOrThrow({
+          where: { entityId: id, action: 'UPDATE' },
+          orderBy: { occurredAt: 'desc' },
+        });
+        expect(row.newValues).toMatchObject({ status: 'SENT', emailClient: true });
+      } finally {
+        await raw.contactPerson.deleteMany({ where: { clientId: client } });
+      }
+    });
+
+    it("should hide another office's invoice, one outside the caller's scope, and refuse a bad language", async () => {
+      const id = await sentInvoice();
+      await pdf(id, other).expect(404);
+      await pdf(id, trainee).expect(403);
+      await http().get(`/api/v1/invoices/${id}/pdf?language=FR`).set(as(manager)).expect(400);
+      await http().get(`/api/v1/invoices/${randomUUID()}/pdf`).set(as(manager)).expect(404);
+    });
   });
 });

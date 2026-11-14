@@ -30,6 +30,7 @@
   "mustAcceptTerms": "You must accept the Terms of Service.",
   "nextSessionBefore": "The next hearing must start after this one.",
   "nextSessionExists": "The next hearing has already been scheduled.",
+  "noClientEmail": "The client has no email address. Add one to the client or its primary contact.",
   "nothingToInvoice": "There is no unbilled time or extra item to invoice.",
   "oneCode": "Enter either the app code or a recovery code, not both.",
   "openTasks": "The case still has open tasks.",
