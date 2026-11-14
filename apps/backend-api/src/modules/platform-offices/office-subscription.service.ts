@@ -15,6 +15,8 @@ import { PlatformAuditService } from '../platform-auth/platform-audit.service';
 import { EntitlementsService } from '../subscriptions/entitlements.service';
 
 const DAY_MS = 86_400_000;
+/** A typo such as 9999-12-31 must not grant access for good. */
+const MAX_YEARS_AHEAD = 5;
 /** Rows that still carry the office's access: they are changed in place; an ended one is followed by a new row. */
 const CONTINUING = new Set(['TRIALING', 'ACTIVE', 'PAST_DUE']);
 
@@ -59,7 +61,7 @@ export class OfficeSubscriptionService {
     client: ClientInfo,
   ): Promise<void> {
     // unscoped: platform admin code changes any office's subscription (D-080).
-    await this.prisma.unscoped().$transaction(async (tx) => {
+    const changed = await this.prisma.unscoped().$transaction(async (tx) => {
       // The office row lock serialises two admins acting on one office (the partial unique index is the backstop).
       const [office] = await tx.$queryRaw<{ timezone: string }[]>`
         SELECT timezone FROM offices WHERE id = ${officeId}::uuid FOR UPDATE`;
@@ -72,7 +74,7 @@ export class OfficeSubscriptionService {
       // Signup always creates one; an office without any has nothing to act on.
       if (!current) throw new ResourceNotFoundException();
       const after = await this.change(tx, current, body, office.timezone);
-      if (!after) return;
+      if (!after) return false;
       await this.audit.log(
         {
           adminId,
@@ -86,8 +88,11 @@ export class OfficeSubscriptionService {
         client,
         tx,
       );
+      return true;
     });
-    this.entitlements.invalidate(officeId as OfficeId);
+    // shortcut: a request that read the old row just before the commit may cache it again for up to 30 s; move the
+    // cache to Redis with versioned keys when a second API instance runs (see EntitlementsService).
+    if (changed) this.entitlements.invalidate(officeId as OfficeId);
   }
 
   /** The row after the action, or null when nothing changes (the same plan again). */
@@ -98,6 +103,12 @@ export class OfficeSubscriptionService {
     timeZone: string,
   ): Promise<Subscription | null> {
     if (body.action === 'CHANGE_PLAN') return this.changePlan(tx, current, body.planId);
+    const limit = new Date();
+    limit.setUTCFullYear(limit.getUTCFullYear() + MAX_YEARS_AHEAD);
+    // Compared as dates before any conversion: a year such as 9999 has no next day to convert to.
+    if (body.until > limit.toISOString().slice(0, 10)) {
+      throw new ValidationException([{ field: 'until', message: 'validation.tooFar' }]);
+    }
     const end = endOfDay(body.until, timeZone);
     if (end <= new Date()) {
       throw new ValidationException([{ field: 'until', message: 'validation.notPast' }]);
@@ -120,7 +131,16 @@ export class OfficeSubscriptionService {
     return tx.subscription.update({ where: { id: current.id }, data: { planId: plan.id } });
   }
 
-  /** Paid until `end`: a trial that turns paid starts its period now; a paid one keeps its start. */
+  /** A row still marked live whose trial or period has already ended (nothing writes EXPIRED: D-122 derives it). */
+  private lapsed(row: Subscription): boolean {
+    const end =
+      row.status === 'TRIALING' ? (row.trialEndsAt ?? row.currentPeriodEnd) : row.currentPeriodEnd;
+    return (
+      (row.status === 'TRIALING' || row.status === 'ACTIVE') && end !== null && end <= new Date()
+    );
+  }
+
+  /** Paid until `end`: a trial turning paid or a lapsed period starts again now; a running paid one keeps its start. */
   private extend(
     tx: Prisma.TransactionClient,
     current: Subscription,
@@ -140,7 +160,10 @@ export class OfficeSubscriptionService {
     }
     return tx.subscription.update({
       where: { id: current.id },
-      data: current.status === 'TRIALING' ? { ...data, currentPeriodStart: now } : data,
+      data:
+        current.status === 'TRIALING' || this.lapsed(current)
+          ? { ...data, currentPeriodStart: now }
+          : data,
     });
   }
 
@@ -152,6 +175,18 @@ export class OfficeSubscriptionService {
   ): Promise<Subscription> {
     if (current.status === 'TRIALING') {
       return tx.subscription.update({ where: { id: current.id }, data: { trialEndsAt: end } });
+    }
+    if (this.lapsed(current)) {
+      // The row is still marked live (partial unique index): it becomes the new trial in place.
+      return tx.subscription.update({
+        where: { id: current.id },
+        data: {
+          status: 'TRIALING',
+          currentPeriodStart: new Date(),
+          currentPeriodEnd: null,
+          trialEndsAt: end,
+        },
+      });
     }
     if (CONTINUING.has(current.status)) {
       throw new BusinessRuleException('BIZ-023', 'A paid subscription cannot be put on trial');

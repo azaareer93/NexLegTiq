@@ -1,5 +1,5 @@
 import type { PlanFeature } from '@nexlegtiq/shared-contracts';
-import { PLAN_FEATURES } from '@nexlegtiq/shared-contracts';
+import { PLAN_FEATURE_DEFAULTS, PLAN_FEATURES } from '@nexlegtiq/shared-contracts';
 import type { SubscriptionStatus } from '@nexlegtiq/shared-types';
 
 /** What `resolveEntitlements` needs of a subscription row and its plan. */
@@ -35,15 +35,8 @@ export interface Entitlements {
   readonly features: Readonly<Record<PlanFeature, boolean>>;
 }
 
-/**
- * A flag a plan's `features` does not set (D-122). AI and the client portal are MVP features of every plan (D-002); the
- * paid Google Vision OCR fallback must be switched on per plan.
- */
-export const FEATURE_DEFAULTS: Readonly<Record<PlanFeature, boolean>> = {
-  ai: true,
-  clientPortal: true,
-  googleVisionOcr: false,
-};
+/** A flag a plan's `features` does not set (D-122). */
+export const FEATURE_DEFAULTS = PLAN_FEATURE_DEFAULTS;
 
 /** Statuses that keep full access. PAST_DUE is a grace period: the platform admin ends it (EXPIRED or CANCELLED). */
 const FULL_ACCESS: ReadonlySet<SubscriptionStatus> = new Set(['TRIALING', 'ACTIVE', 'PAST_DUE']);

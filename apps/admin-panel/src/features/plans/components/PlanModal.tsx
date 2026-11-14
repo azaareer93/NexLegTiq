@@ -1,4 +1,9 @@
-import { CreatePlanSchema, PLAN_FEATURES, UpdatePlanSchema } from '@nexlegtiq/shared-contracts';
+import {
+  CreatePlanSchema,
+  PLAN_FEATURE_DEFAULTS,
+  PLAN_FEATURES,
+  UpdatePlanSchema,
+} from '@nexlegtiq/shared-contracts';
 import type { AdminPlan } from '@nexlegtiq/shared-contracts';
 import { PLAN_MARKETS } from '@nexlegtiq/shared-types';
 import { ApiErrorAlert, useApiErrorHandler } from '@nexlegtiq/shared-ui';
@@ -54,16 +59,29 @@ function buildBody(v: Values, plan?: AdminPlan) {
     currency: v.currency?.trim().toUpperCase(),
     maxUsers: v.maxUsers ?? null,
     aiQuotaMonthly: v.aiQuotaMonthly ?? null,
-    ocrPagesMonthly: v.ocrPagesMonthly,
+    ocrPagesMonthly: v.ocrPagesMonthly ?? 0,
     storageQuotaMb: v.storageQuotaMb,
     trialDays: v.trialDays ?? null,
-    sortOrder: v.sortOrder,
+    sortOrder: v.sortOrder ?? 0,
     isActive: v.isActive,
     features: {
       ...plan?.features,
       ...Object.fromEntries(PLAN_FEATURES.map((f) => [f, v.features?.[f] === true])),
     },
   };
+}
+
+/** Only what the admin changed: a save never overwrites another admin's edit of other fields, nor audits a no-op. */
+function changedFields(body: ReturnType<typeof buildBody>, plan: AdminPlan): Partial<typeof body> {
+  return Object.fromEntries(
+    Object.entries(body).filter(([key, value]) =>
+      key === 'features'
+        ? PLAN_FEATURES.some(
+            (f) => body.features[f] !== (plan.features[f] ?? PLAN_FEATURE_DEFAULTS[f]),
+          )
+        : JSON.stringify(value) !== JSON.stringify(plan[key as keyof AdminPlan] ?? null),
+    ),
+  );
 }
 
 /** Create a plan, or edit one (the code is fixed once created). An empty limit that may be unlimited is sent as null. */
@@ -80,7 +98,9 @@ export function PlanModal({ plan, onClose }: Props): React.JSX.Element {
     const body = buildBody(v, plan);
     try {
       if (plan) {
-        const parsed = parseForm(UpdatePlanSchema, body, form, translateKey);
+        const changed = changedFields(body, plan);
+        if (Object.keys(changed).length === 0) return onClose();
+        const parsed = parseForm(UpdatePlanSchema, changed, form, translateKey);
         if (!parsed) return;
         await update.mutateAsync({ id: plan.id, body: parsed });
       } else {
@@ -123,6 +143,8 @@ export function PlanModal({ plan, onClose }: Props): React.JSX.Element {
           sortOrder: 0,
           isActive: true,
           ...plan,
+          // A flag the plan leaves out shows what it grants: its default.
+          features: { ...PLAN_FEATURE_DEFAULTS, ...plan?.features },
         }}
       >
         <Form.Item name="code" label={t('admin.plans.columns.code')} rules={[required]}>
@@ -143,26 +165,42 @@ export function PlanModal({ plan, onClose }: Props): React.JSX.Element {
           <Input dir="ltr" maxLength={3} data-testid="plan-currency" />
         </Form.Item>
         <Form.Item name="maxUsers" label={t('admin.plans.fields.maxUsers')}>
-          <InputNumber min={1} placeholder={t('admin.plans.unlimited')} />
+          <InputNumber
+            dir="ltr"
+            style={{ width: '100%' }}
+            min={1}
+            placeholder={t('admin.plans.unlimited')}
+          />
         </Form.Item>
         <Form.Item name="aiQuotaMonthly" label={t('admin.plans.fields.aiQuota')}>
-          <InputNumber min={0} placeholder={t('admin.plans.unlimited')} />
+          <InputNumber
+            dir="ltr"
+            style={{ width: '100%' }}
+            min={0}
+            placeholder={t('admin.plans.unlimited')}
+          />
         </Form.Item>
         <Form.Item name="ocrPagesMonthly" label={t('admin.plans.fields.ocrPages')}>
-          <InputNumber min={0} />
+          <InputNumber dir="ltr" style={{ width: '100%' }} min={0} />
         </Form.Item>
         <Form.Item
           name="storageQuotaMb"
           label={t('admin.plans.fields.storageMb')}
           rules={[required]}
         >
-          <InputNumber min={1} data-testid="plan-storage" />
+          <InputNumber dir="ltr" style={{ width: '100%' }} min={1} data-testid="plan-storage" />
         </Form.Item>
         <Form.Item name="trialDays" label={t('admin.plans.fields.trialDays')}>
-          <InputNumber min={1} max={3650} placeholder={t('admin.plans.noTrial')} />
+          <InputNumber
+            dir="ltr"
+            style={{ width: '100%' }}
+            min={1}
+            max={3650}
+            placeholder={t('admin.plans.noTrial')}
+          />
         </Form.Item>
         <Form.Item name="sortOrder" label={t('admin.plans.fields.sortOrder')}>
-          <InputNumber min={0} />
+          <InputNumber dir="ltr" style={{ width: '100%' }} min={0} />
         </Form.Item>
         <Form.Item label={t('admin.plans.fields.features')}>
           {PLAN_FEATURES.map((feature) => (

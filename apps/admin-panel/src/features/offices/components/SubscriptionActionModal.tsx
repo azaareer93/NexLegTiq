@@ -109,7 +109,11 @@ export function SubscriptionActionModal({ officeId, onClose }: Props): React.JSX
             extra={t('admin.offices.subscriptionAction.untilHint')}
             rules={[{ required: true, message: translateKey('validation.required') }]}
           >
-            <DatePicker format="DD/MM/YYYY" data-testid="subscription-until" />
+            <DatePicker
+              format="DD/MM/YYYY"
+              style={{ width: '100%' }}
+              data-testid="subscription-until"
+            />
           </Form.Item>
         )}
         <Form.Item name="reason" label={t('admin.offices.modal.reason')}>

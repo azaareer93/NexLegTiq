@@ -90,11 +90,17 @@ export function PlansPage(): React.JSX.Element {
               title: t('admin.plans.columns.price'),
               render: (_, p) => <Bdi>{format.money(p.priceMonthly, p.currency)}</Bdi>,
             },
-            { title: t('admin.plans.columns.users'), render: (_, p) => limit(p.maxUsers) },
-            { title: t('admin.plans.columns.ai'), render: (_, p) => limit(p.aiQuotaMonthly) },
+            {
+              title: t('admin.plans.columns.users'),
+              render: (_, p) => <Bdi>{limit(p.maxUsers)}</Bdi>,
+            },
+            {
+              title: t('admin.plans.columns.ai'),
+              render: (_, p) => <Bdi>{limit(p.aiQuotaMonthly)}</Bdi>,
+            },
             {
               title: t('admin.plans.columns.storage'),
-              render: (_, p) => limit(p.storageQuotaMb, 'admin.offices.mb'),
+              render: (_, p) => <Bdi>{limit(p.storageQuotaMb, 'admin.offices.mb')}</Bdi>,
             },
             {
               title: t('admin.plans.columns.status'),
@@ -106,7 +112,7 @@ export function PlansPage(): React.JSX.Element {
             },
             {
               title: t('admin.plans.columns.subscriptions'),
-              render: (_, p) => format.number(p.subscriptionCount),
+              render: (_, p) => <Bdi>{format.number(p.subscriptionCount)}</Bdi>,
             },
             {
               title: t('admin.plans.columns.actions'),

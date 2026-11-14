@@ -3,7 +3,7 @@ import { endOfDay, OfficeSubscriptionService } from './office-subscription.servi
 const client = { ip: '1.2.3.4', userAgent: null, requestId: 'r1' };
 const PLAN = '01920000-0000-7000-8000-000000000001';
 const OTHER = '01920000-0000-7000-8000-000000000002';
-const FUTURE = '2099-12-31';
+const FUTURE = `${new Date().getUTCFullYear() + 1}-12-31`;
 
 function row(over: Record<string, unknown> = {}) {
   return {
@@ -31,7 +31,7 @@ function build(
     $queryRaw: jest.fn().mockResolvedValue(office ? [{ timezone: 'Asia/Hebron' }] : []),
     subscription: {
       findMany: jest.fn().mockResolvedValue(rows),
-      update: jest.fn(async ({ data }: { data: object }) => ({
+      update: jest.fn(async ({ data }: { where?: unknown; data: object }) => ({
         ...row(),
         ...(rows[0] as object),
         ...data,
@@ -88,10 +88,11 @@ describe('OfficeSubscriptionService', () => {
   });
 
   it('should change nothing and audit nothing for the same plan', async () => {
-    const { service, tx, audit } = build([row()]);
+    const { service, tx, audit, entitlements } = build([row()]);
     await service.apply('o1', { action: 'CHANGE_PLAN', planId: PLAN }, 'a1', client);
     expect(tx.subscription.update).not.toHaveBeenCalled();
     expect(audit.log).not.toHaveBeenCalled();
+    expect(entitlements.invalidate).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -124,14 +125,14 @@ describe('OfficeSubscriptionService', () => {
   it('should turn a trial paid from now, and extend a paid period keeping its start', async () => {
     const trial = build([row({ status: 'TRIALING' })]);
     await trial.service.apply('o1', { action: 'EXTEND_PERIOD', until: FUTURE }, 'a1', client);
-    expect(trial.tx.subscription.update.mock.calls[0][0].data).toMatchObject({
+    expect(trial.tx.subscription.update.mock.lastCall?.[0].data).toMatchObject({
       status: 'ACTIVE',
       currentPeriodStart: expect.any(Date),
     });
 
     const paid = build([row({ status: 'PAST_DUE' })]);
     await paid.service.apply('o1', { action: 'EXTEND_PERIOD', until: FUTURE }, 'a1', client);
-    expect(paid.tx.subscription.update.mock.calls[0][0].data).not.toHaveProperty(
+    expect(paid.tx.subscription.update.mock.lastCall?.[0].data).not.toHaveProperty(
       'currentPeriodStart',
     );
   });
@@ -139,14 +140,14 @@ describe('OfficeSubscriptionService', () => {
   it('should start a new row after an ended one, on the same plan', async () => {
     const { service, tx } = build([row({ status: 'CANCELLED' })]);
     await service.apply('o1', { action: 'EXTEND_PERIOD', until: FUTURE }, 'a1', client);
-    expect(tx.subscription.create.mock.calls[0][0].data).toMatchObject({
+    expect(tx.subscription.create.mock.lastCall?.[0].data).toMatchObject({
       officeId: 'o1',
       planId: PLAN,
       status: 'ACTIVE',
     });
     const again = build([row({ status: 'EXPIRED' })]);
     await again.service.apply('o1', { action: 'SET_TRIAL', until: FUTURE }, 'a1', client);
-    expect(again.tx.subscription.create.mock.calls[0][0].data).toMatchObject({
+    expect(again.tx.subscription.create.mock.lastCall?.[0].data).toMatchObject({
       status: 'TRIALING',
     });
   });
@@ -154,12 +155,35 @@ describe('OfficeSubscriptionService', () => {
   it('should extend a trial, and refuse a trial on a paid subscription (BIZ-023)', async () => {
     const trial = build([row({ status: 'TRIALING' })]);
     await trial.service.apply('o1', { action: 'SET_TRIAL', until: FUTURE }, 'a1', client);
-    expect(trial.tx.subscription.update.mock.calls[0][0].data).toEqual({
+    expect(trial.tx.subscription.update.mock.lastCall?.[0].data).toEqual({
       trialEndsAt: expect.any(Date),
     });
     await expect(
       build([row()]).service.apply('o1', { action: 'SET_TRIAL', until: FUTURE }, 'a1', client),
     ).rejects.toMatchObject({ code: 'BIZ-023' });
+  });
+
+  it('should refuse a date more than five years ahead', async () => {
+    const { service } = build([row()]);
+    await expect(
+      service.apply('o1', { action: 'EXTEND_PERIOD', until: '9999-12-31' }, 'a1', client),
+    ).rejects.toMatchObject({ code: 'VAL-001', details: [{ message: 'validation.tooFar' }] });
+  });
+
+  it('should restart a lapsed paid period now, and turn a lapsed one into a trial in place', async () => {
+    const ended = { currentPeriodEnd: new Date('2026-01-31T00:00:00Z') };
+    const paid = build([row(ended)]);
+    await paid.service.apply('o1', { action: 'EXTEND_PERIOD', until: FUTURE }, 'a1', client);
+    expect(paid.tx.subscription.update.mock.lastCall?.[0].data).toMatchObject({
+      currentPeriodStart: expect.any(Date),
+    });
+    const trial = build([row(ended)]);
+    await trial.service.apply('o1', { action: 'SET_TRIAL', until: FUTURE }, 'a1', client);
+    expect(trial.tx.subscription.update.mock.lastCall?.[0].data).toMatchObject({
+      status: 'TRIALING',
+      currentPeriodEnd: null,
+    });
+    expect(trial.tx.subscription.create).not.toHaveBeenCalled();
   });
 
   it('should act on the live row before a newer ended one', async () => {
@@ -168,6 +192,6 @@ describe('OfficeSubscriptionService', () => {
       row({ status: 'TRIALING' }),
     ]);
     await service.apply('o1', { action: 'SET_TRIAL', until: FUTURE }, 'a1', client);
-    expect(tx.subscription.update.mock.calls[0][0].where).toEqual({ id: 's1' });
+    expect(tx.subscription.update.mock.lastCall?.[0].where).toEqual({ id: 's1' });
   });
 });

@@ -26,14 +26,16 @@ function plan(over: Record<string, unknown> = {}) {
   };
 }
 
-function build(found: unknown = plan()) {
+function build(found: unknown = plan(), deleteError?: unknown) {
   const tx = {
     plan: {
       findMany: jest.fn().mockResolvedValue([plan()]),
       findUnique: jest.fn().mockResolvedValue(found),
       create: jest.fn().mockResolvedValue(plan()),
       update: jest.fn().mockResolvedValue(plan({ name: 'Pro+' })),
-      delete: jest.fn(),
+      delete: deleteError
+        ? jest.fn().mockRejectedValue(deleteError)
+        : jest.fn().mockResolvedValue({}),
     },
   };
   const raw = { ...tx, $transaction: (fn: (t: typeof tx) => unknown) => fn(tx) };
@@ -78,6 +80,27 @@ describe('PlatformPlansService', () => {
       newValues: { name: 'Pro+' },
     });
     expect(entitlements.invalidateAll).toHaveBeenCalled();
+  });
+
+  it('should neither audit nor drop the cache when nothing changed', async () => {
+    const { service, tx, audit, entitlements } = build();
+    tx.plan.update.mockResolvedValueOnce(plan());
+    await service.update('p1', { name: 'Pro' }, 'a1', client);
+    expect(audit.log).not.toHaveBeenCalled();
+    expect(entitlements.invalidateAll).not.toHaveBeenCalled();
+  });
+
+  it('should answer BIZ-022 when a subscription arrived before the delete, and pass other errors on', async () => {
+    const fk = Object.assign(new Error('fk'), {
+      name: 'PrismaClientKnownRequestError',
+      code: 'P2003',
+    });
+    await expect(build(plan(), fk).service.remove('p1', 'a1', client)).rejects.toMatchObject({
+      code: 'BIZ-022',
+    });
+    await expect(
+      build(plan(), new Error('down')).service.remove('p1', 'a1', client),
+    ).rejects.toThrow('down');
   });
 
   it('should answer 404 for an unknown plan', async () => {

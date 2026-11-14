@@ -5,6 +5,7 @@ import {
   BusinessRuleException,
   ResourceNotFoundException,
 } from '../../common/errors/app.exception';
+import { isPrismaError } from '../../common/errors/prisma-error';
 import { PrismaService } from '../../database/prisma.service';
 import type { Plan } from '../../generated/prisma/client';
 import type { ClientInfo } from '../auth/client-info';
@@ -38,6 +39,8 @@ const toDto = (plan: PlanRow): AdminPlan => ({
   createdAt: plan.createdAt.toISOString(),
   updatedAt: plan.updatedAt.toISOString(),
 });
+
+const inUse = () => new BusinessRuleException('BIZ-022', 'The plan is in use by a subscription');
 
 /** Plans CRUD for the platform admin (MVP-151, D-005, D-173): every change audited, cached entitlements dropped. */
 @Injectable()
@@ -84,27 +87,31 @@ export class PlatformPlansService {
     client: ClientInfo,
   ): Promise<AdminPlan> {
     // unscoped: see list.
-    const plan = await this.prisma.unscoped().$transaction(async (tx) => {
+    const result = await this.prisma.unscoped().$transaction(async (tx) => {
       const before = await tx.plan.findUnique({ where: { id } });
       if (!before) throw new ResourceNotFoundException();
       const after = await tx.plan.update({ where: { id }, data: body, include: WITH_COUNT });
+      const old = snapshot(before);
+      const now = snapshot(after);
+      // Saving the same values changes nothing: no audit row, no cache drop.
+      if (JSON.stringify(old) === JSON.stringify(now)) return { plan: after, changed: false };
       await this.audit.log(
         {
           adminId,
           action: 'PLAN_UPDATED',
           entityType: 'Plan',
           entityId: id,
-          oldValues: snapshot(before),
-          newValues: snapshot(after),
+          oldValues: old,
+          newValues: now,
         },
         client,
         tx,
       );
-      return after;
+      return { plan: after, changed: true };
     });
     // Every office on this plan sees the new limits at once.
-    this.entitlements.invalidateAll();
-    return toDto(plan);
+    if (result.changed) this.entitlements.invalidateAll();
+    return toDto(result.plan);
   }
 
   /** Only a plan no subscription ever used: history must keep its plan (deactivate it instead, BIZ-022). */
@@ -114,10 +121,13 @@ export class PlatformPlansService {
       const plan = await tx.plan.findUnique({ where: { id }, include: WITH_COUNT });
       if (!plan) throw new ResourceNotFoundException();
       if (plan._count.subscriptions > 0) {
-        throw new BusinessRuleException('BIZ-022', 'The plan is in use by a subscription');
+        throw inUse();
       }
-      // A subscription created meanwhile makes the delete fail on its foreign key: it never loses its plan.
-      await tx.plan.delete({ where: { id } });
+      // A subscription created meanwhile makes the delete fail on its foreign key: the same answer, BIZ-022.
+      await tx.plan.delete({ where: { id } }).catch((error: unknown) => {
+        if (isPrismaError(error) && error.code === 'P2003') throw inUse();
+        throw error;
+      });
       await this.audit.log(
         {
           adminId,

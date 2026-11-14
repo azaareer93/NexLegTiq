@@ -17,6 +17,8 @@ import { EntitlementsService } from '../subscriptions/entitlements.service';
 
 const PASSWORD = 'Admin-Correct-Horse-9';
 const ORIGIN = 'http://localhost:4201';
+/** Within the five-year limit of an action (D-173). */
+const NEXT_YEAR = new Date().getUTCFullYear() + 1;
 
 /** Plans CRUD and subscription actions (MVP-151, D-173) on real PostgreSQL. */
 describe('platform admin plans and subscriptions (HTTP + PostgreSQL)', () => {
@@ -227,16 +229,20 @@ describe('platform admin plans and subscriptions (HTTP + PostgreSQL)', () => {
     const officeId = await officeOn(plan.id as string);
     const url = `/api/v1/admin/offices/${officeId}/subscription`;
 
-    await http().post(url).set(auth).send({ action: 'SET_TRIAL', until: '2099-06-30' }).expect(200);
+    await http()
+      .post(url)
+      .set(auth)
+      .send({ action: 'SET_TRIAL', until: `${NEXT_YEAR}-06-30` })
+      .expect(200);
     const trial = await raw.subscription.findFirstOrThrow({ where: { officeId } });
     expect(trial.status).toBe('TRIALING');
     // The last day runs to midnight in Hebron (UTC+3 in summer).
-    expect(trial.trialEndsAt?.toISOString()).toBe('2099-06-30T21:00:00.000Z');
+    expect(trial.trialEndsAt?.toISOString()).toBe(`${NEXT_YEAR}-06-30T21:00:00.000Z`);
 
     const paid = await http()
       .post(url)
       .set(auth)
-      .send({ action: 'EXTEND_PERIOD', until: '2099-12-31' })
+      .send({ action: 'EXTEND_PERIOD', until: `${NEXT_YEAR}-12-31` })
       .expect(200);
     expect(paid.body.data.subscriptionStatus).toBe('ACTIVE');
     expect((await entitlements.forOffice(officeId as OfficeId)).status).toBe('ACTIVE');
@@ -244,7 +250,7 @@ describe('platform admin plans and subscriptions (HTTP + PostgreSQL)', () => {
     const refused = await http()
       .post(url)
       .set(auth)
-      .send({ action: 'SET_TRIAL', until: '2099-12-31' })
+      .send({ action: 'SET_TRIAL', until: `${NEXT_YEAR}-12-31` })
       .expect(422);
     expect(refused.body.error.code).toBe('BIZ-023');
     await http()
@@ -256,7 +262,7 @@ describe('platform admin plans and subscriptions (HTTP + PostgreSQL)', () => {
   });
 
   it('should answer 404 for an unknown office or a malformed id', async () => {
-    const action = { action: 'SET_TRIAL', until: '2099-12-31' };
+    const action = { action: 'SET_TRIAL', until: `${NEXT_YEAR}-12-31` };
     await http()
       .post(`/api/v1/admin/offices/${randomUUID()}/subscription`)
       .set(auth)

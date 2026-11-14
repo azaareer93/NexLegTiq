@@ -72,6 +72,7 @@
   "teamMember": "Choose an active colleague from your office.",
   "timeZone": "Choose a valid time zone.",
   "timerTooLong": "The timer ran for more than 24 hours. Discard it and log the time by hand.",
+  "tooFar": "Choose a date at most five years from today.",
   "tooLong": "This is too long.",
   "tooShort": "This is too short.",
   "totpCode": "Enter the 6-digit code from your authenticator app.",
