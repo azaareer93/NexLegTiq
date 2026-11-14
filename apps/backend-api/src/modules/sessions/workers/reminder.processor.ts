@@ -94,8 +94,12 @@ export class ReminderProcessor
     return super.process(job);
   }
 
-  protected async handle(job: Job<ReminderJob & TenantJobData>): Promise<unknown> {
-    if (job.name === TASK_DAILY_JOB) return this.tasks.daily(payload(TaskDailyJobSchema, job.data));
+  protected async handle(
+    job: Job<ReminderJob & TenantJobData>,
+    signal: AbortSignal,
+  ): Promise<unknown> {
+    if (job.name === TASK_DAILY_JOB)
+      return this.tasks.daily(payload(TaskDailyJobSchema, job.data), signal);
     if (job.name !== SEND_SESSION_REMINDER_JOB) {
       throw new UnrecoverableError(`Unknown reminder job ${job.name}`);
     }

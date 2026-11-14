@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import { permissionsFor } from '@nexlegtiq/shared-types';
 import type { OfficeId } from '@nexlegtiq/shared-types';
+import type { UserId } from '@nexlegtiq/shared-types';
 import { formatDate, wallClock } from '@nexlegtiq/shared-utils';
 import { PinoLogger } from 'nestjs-pino';
 import { z } from 'zod';
@@ -7,6 +9,7 @@ import { z } from 'zod';
 import { MailService } from '../../common/mail/mail.service';
 import { QueueProducer } from '../../common/queue/queue-producer';
 import { QUEUE } from '../../common/queue/queues';
+import { caseScope, caseScopeWhere } from '../../common/rbac/case-scope';
 import { TenantRunner } from '../../common/tenancy/tenant-runner';
 import { AppConfig } from '../../config/app-config';
 import { PrismaService } from '../../database/prisma.service';
@@ -27,6 +30,18 @@ const DAY_MS = 86_400_000;
 const addDays = (date: string, days: number) =>
   new Date(Date.parse(`${date}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
 const day = (value: Date) => value.toISOString().slice(0, 10);
+
+interface Assignee {
+  readonly id: string;
+  readonly email: string;
+  readonly fullName: string;
+  readonly uiLanguage: 'AR' | 'EN';
+  readonly notificationPrefs: unknown;
+}
+
+/** The email lists at most this many files and tasks per file (the template's limits); `count` stays the total. */
+const MAX_FILES = 20;
+const MAX_TASKS_PER_FILE = 50;
 
 interface Line {
   readonly id: string;
@@ -53,7 +68,9 @@ function byFile(lines: readonly Line[], date: string, locale: 'ar' | 'en') {
     });
     files.set(key, group);
   }
-  return [...files.values()];
+  return [...files.values()]
+    .slice(0, MAX_FILES)
+    .map((group) => ({ ...group, tasks: group.tasks.slice(0, MAX_TASKS_PER_FILE) }));
 }
 
 /**
@@ -86,25 +103,35 @@ export class TaskReminders {
     });
     let queued = 0;
     for (const office of offices) {
-      const clock = wallClock(now, office.timezone);
-      if (!clock.time.startsWith(`${DIGEST_HOUR}:`)) continue;
-      await this.tenant.run({ officeId: office.id as OfficeId }, () =>
-        this.queues.enqueue(
-          QUEUE.REMINDER,
-          TASK_DAILY_JOB,
-          { date: clock.date } satisfies TaskDailyJob,
-          {
-            jobId: `task-daily-${clock.date}`,
-          },
-        ),
-      );
-      queued += 1;
+      // One office's bad zone or failed enqueue never stops the others.
+      try {
+        const clock = wallClock(now, office.timezone);
+        if (!clock.time.startsWith(`${DIGEST_HOUR}:`)) continue;
+        await this.tenant.run({ officeId: office.id as OfficeId }, () =>
+          this.queues.enqueue(
+            QUEUE.REMINDER,
+            TASK_DAILY_JOB,
+            { date: clock.date } satisfies TaskDailyJob,
+            {
+              jobId: `task-daily-${clock.date}`,
+            },
+          ),
+        );
+        queued += 1;
+      } catch (err) {
+        this.logger.warn({ err, officeId: office.id }, 'Task reminders not queued for an office');
+      }
     }
     return { queued };
   }
 
-  /** The office's reminders and digests for `date` (its local day); runs in the office's context. */
-  async daily({ date }: TaskDailyJob): Promise<{ readonly users: number }> {
+  /**
+   * The office's reminders and digests for `date` (its local day); runs in the office's context. Per assignee, only
+   * tasks they may still see (the file is live, open or suspended, and in their case scope — as `colleagueMay`) count:
+   * a task on a deleted, closed or archived file, or one they lost access to, is neither shown nor mailed. A failure for
+   * one user does not stop the others; the job is retried after the loop (the ids make the retry a no-op for those done).
+   */
+  async daily({ date }: TaskDailyJob, signal?: AbortSignal): Promise<{ readonly users: number }> {
     const settings = await this.prisma.db.officeSettings.findFirst({
       select: { taskReminderDays: true },
     });
@@ -112,45 +139,78 @@ export class TaskReminders {
     const soon = (settings?.taskReminderDays ?? [1])
       .filter((d) => d > 0)
       .map((d) => addDays(date, d));
-    const tasks = await this.prisma.db.task.findMany({
-      where: {
-        status: { not: 'DONE' },
-        assignedTo: { isActive: true },
-        OR: [
-          { dueDate: { lte: new Date(`${date}T00:00:00Z`) } },
-          { dueDate: { in: soon.map((d) => new Date(`${d}T00:00:00Z`)) } },
-        ],
-      },
-      orderBy: [{ fileId: 'asc' }, { dueDate: 'asc' }, { id: 'asc' }],
+    const due = {
+      status: { not: 'DONE' as const },
+      OR: [
+        { dueDate: { lte: new Date(`${date}T00:00:00Z`) } },
+        { dueDate: { in: soon.map((d) => new Date(`${d}T00:00:00Z`)) } },
+      ],
+    };
+    const assignees = await this.prisma.db.user.findMany({
+      where: { isActive: true, assignedTasks: { some: due } },
       select: {
         id: true,
-        title: true,
-        dueDate: true,
-        assignedToId: true,
-        file: { select: { fileNumber: true, title: true } },
+        role: true,
+        email: true,
+        fullName: true,
+        uiLanguage: true,
+        notificationPrefs: true,
       },
     });
-    const byUser = new Map<string, Line[]>();
-    for (const task of tasks) {
-      if (!task.dueDate) continue;
-      const line = { id: task.id, title: task.title, dueDate: day(task.dueDate), file: task.file };
-      byUser.set(task.assignedToId, [...(byUser.get(task.assignedToId) ?? []), line]);
+    let reminded = 0;
+    let failed: unknown = null;
+    for (const user of assignees) {
+      if (signal?.aborted) throw new Error('Task reminders aborted');
+      try {
+        const permissions = permissionsFor(user.role);
+        const scope = caseScopeWhere(caseScope(permissions, user.id as UserId), user.role);
+        const tasks = await this.prisma.db.task.findMany({
+          where: {
+            ...due,
+            assignedToId: user.id,
+            AND: [
+              {
+                OR: [
+                  { fileId: null },
+                  {
+                    file: {
+                      is: { deletedAt: null, status: { in: ['OPEN', 'SUSPENDED'] }, ...scope },
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+          orderBy: [{ fileId: 'asc' }, { dueDate: 'asc' }, { id: 'asc' }],
+          select: {
+            id: true,
+            title: true,
+            dueDate: true,
+            file: { select: { fileNumber: true, title: true } },
+          },
+        });
+        const lines = tasks.flatMap((t) =>
+          t.dueDate ? [{ id: t.id, title: t.title, dueDate: day(t.dueDate), file: t.file }] : [],
+        );
+        if (lines.length === 0) continue;
+        await this.remind(user, lines, date, soon);
+        reminded += 1;
+      } catch (err) {
+        this.logger.warn({ err, userId: user.id }, 'Task reminders failed for a user');
+        failed = err;
+      }
     }
-    for (const [userId, lines] of byUser) await this.remind(userId, lines, date, soon);
-    return { users: byUser.size };
+    if (failed) throw failed;
+    return { users: reminded };
   }
 
   private async remind(
-    userId: string,
+    user: Assignee,
     lines: readonly Line[],
     date: string,
     soon: readonly string[],
   ): Promise<void> {
-    const user = await this.prisma.db.user.findFirst({
-      where: { id: userId, isActive: true },
-      select: { email: true, fullName: true, uiLanguage: true, notificationPrefs: true },
-    });
-    if (!user) return;
+    const userId = user.id;
     const dueSoon = lines.filter((l) => soon.includes(l.dueDate));
     for (const task of dueSoon) {
       await this.notifications.notify(
@@ -161,7 +221,7 @@ export class TaskReminders {
           params: { taskId: task.id, title: task.title, dueDate: task.dueDate },
           link: TASKS_PATH,
         },
-        { jobId: `task-due-${task.id}-${task.dueDate}` },
+        { jobId: `task-due-${task.id}-${date}` },
       );
     }
     const overdue = lines.filter((l) => l.dueDate < date).length;

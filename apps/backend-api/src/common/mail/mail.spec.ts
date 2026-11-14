@@ -69,7 +69,7 @@ describe('renderMail', () => {
   it('should write the daily task email by file in Arabic and English, overdue and due-today marked', () => {
     const ar = renderMail('task-digest', 'AR', varsFor('task-digest'), APP);
     const en = renderMail('task-digest', 'EN', varsFor('task-digest'), APP);
-    expect(ar.subject).toContain('2');
+    expect(ar.subject).toBe('تذكير بمهامك اليوم');
     expect(ar.html).toContain('<bdi dir="ltr">2026-LIT-00001</bdi> — <bdi>دعوى إخلاء</bdi>');
     expect(ar.html).toContain('<strong>متأخرة منذ</strong> <bdi>12/11/2026</bdi>');
     expect(ar.html).toContain('<strong>مستحقة اليوم</strong>');

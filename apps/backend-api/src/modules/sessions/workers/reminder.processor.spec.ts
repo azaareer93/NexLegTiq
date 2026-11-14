@@ -113,7 +113,14 @@ describe('ReminderProcessor', () => {
     await expect(processor.process(job('task-daily', { date: '2026-11-14' }))).resolves.toEqual({
       users: 2,
     });
-    expect(tasks.daily).toHaveBeenCalledWith({ date: '2026-11-14' });
+    expect(tasks.daily).toHaveBeenCalledWith({ date: '2026-11-14' }, expect.any(AbortSignal));
+    // A tick carrying an office is not the scheduler's: it goes through the office checks and is refused.
+    await expect(processor.process(job('task-reminders-tick', {}))).rejects.toBeInstanceOf(
+      UnrecoverableError,
+    );
+    await expect(processor.process(job('task-daily', { date: 'x' }))).rejects.toBeInstanceOf(
+      UnrecoverableError,
+    );
     // A session payload under the task job name is refused, not retried.
     await expect(
       processor.process(job('task-daily', { reminderId: REMINDER })),
