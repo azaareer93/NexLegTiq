@@ -1,7 +1,7 @@
 import { normalizeArabic } from '@nexlegtiq/shared-utils';
 
 import { createSeedClient, PLANS, seedPlans } from '../../prisma/seed';
-import { DEMO_OFFICE_ID, seedDemo } from '../../prisma/seed-demo';
+import { DEMO_OFFICE_ID, resetDemo, s3Put, seedDemo } from '../../prisma/seed-demo';
 import type { PrismaClient } from '../generated/prisma/client';
 
 /** Runs `body` in a transaction that is always rolled back, so tests leave no rows behind. */
@@ -66,6 +66,8 @@ describe('database (migrations + seeds, real PostgreSQL)', () => {
         prisma.user.count(),
         prisma.subscription.count(),
         prisma.plan.count(),
+        prisma.legalFile.count(),
+        prisma.invoice.count(),
       ]);
     await seedDemo(prisma);
     const afterFirst = await counts();
@@ -81,12 +83,46 @@ describe('database (migrations + seeds, real PostgreSQL)', () => {
       courtReminderDays: [7, 3, 1],
       auditRetentionDays: 365,
     });
-    await expect(prisma.user.count({ where: { officeId: DEMO_OFFICE_ID } })).resolves.toBe(1);
+    // One user per role (D-175).
+    const roles = await prisma.user.groupBy({ by: ['role'], where: { officeId: DEMO_OFFICE_ID } });
+    expect(roles).toHaveLength(7);
     await expect(
       prisma.subscription.count({
         where: { officeId: DEMO_OFFICE_ID, status: { in: ['TRIALING', 'ACTIVE'] } },
       }),
     ).resolves.toBe(1);
+  });
+
+  it('should rebuild the demo content after a reset, with documents in storage and fictional names only', async () => {
+    const storage = s3Put();
+    await resetDemo(prisma);
+    await storage.clear();
+    await expect(prisma.client.count({ where: { officeId: DEMO_OFFICE_ID } })).resolves.toBe(0);
+    await expect(seedDemo(prisma, { put: storage.put })).resolves.toEqual({ content: true });
+    await expect(seedDemo(prisma, { put: storage.put })).resolves.toEqual({ content: false });
+
+    const where = { officeId: DEMO_OFFICE_ID };
+    await expect(prisma.client.count({ where })).resolves.toBe(30);
+    await expect(prisma.legalFile.count({ where })).resolves.toBe(60);
+    const types = await prisma.legalFile.groupBy({ by: ['fileType'], where });
+    expect(types).toHaveLength(12);
+    const now = new Date();
+    await expect(
+      prisma.session.count({ where: { ...where, startsAt: { lt: now } } }),
+    ).resolves.toBeGreaterThan(0);
+    await expect(
+      prisma.session.count({ where: { ...where, startsAt: { gt: now } } }),
+    ).resolves.toBeGreaterThan(0);
+    const statuses = await prisma.invoice.groupBy({ by: ['status'], where });
+    expect(statuses.map((s) => s.status).sort()).toEqual(['DRAFT', 'OVERDUE', 'PAID', 'SENT']);
+    await expect(prisma.document.count({ where })).resolves.toBe(storage.put ? 6 : 0);
+    await expect(prisma.clientPortalAccess.count({ where })).resolves.toBe(1);
+    // Every address is on the reserved .test domain: no real person can be reached (D-007).
+    const emails = await prisma.client.findMany({ where, select: { email: true } });
+    expect(emails.every((c) => c.email?.endsWith('@demo.nexlegtiq.test'))).toBe(true);
+    // The numbering continues where the demo left it: the next file number is not taken.
+    const sequences = await prisma.fileNumberSequence.findMany({ where });
+    expect(sequences.reduce((sum, s) => sum + s.lastValue, 0)).toBe(60);
   });
 
   it.each([
