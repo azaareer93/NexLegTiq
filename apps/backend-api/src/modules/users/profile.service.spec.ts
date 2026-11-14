@@ -147,9 +147,9 @@ describe('ProfileService (D-146)', () => {
   });
 
   it('should list every category, change only what is sent and ignore an email switch without an email', async () => {
-    const { service, tx } = setup({ notificationPrefs: { TASKS: { inApp: false } } });
+    const { service, tx } = setup({ notificationPrefs: { FILES: { inApp: false } } });
     expect(await service.preferences()).toContainEqual({
-      category: 'TASKS',
+      category: 'FILES',
       inApp: false,
       email: null,
     });
@@ -159,13 +159,13 @@ describe('ProfileService (D-146)', () => {
     });
     expect(next).toContainEqual({ category: 'TEAM', inApp: false, email: null });
     expect(next).toContainEqual({ category: 'HEARINGS', inApp: true, email: false });
-    expect(next).toContainEqual({ category: 'TASKS', inApp: false, email: null });
+    expect(next).toContainEqual({ category: 'FILES', inApp: false, email: null });
     expect(tx.$queryRaw).toHaveBeenCalled();
     expect(tx.user.update).toHaveBeenCalledWith({
       where: { id: 'u1' },
       data: {
         notificationPrefs: {
-          TASKS: { inApp: false },
+          FILES: { inApp: false },
           TEAM: { inApp: false },
           HEARINGS: { email: false },
         },
@@ -176,18 +176,18 @@ describe('ProfileService (D-146)', () => {
   it('should write nothing for a switch that changes nothing, and keep choices next to an unreadable entry', async () => {
     const { service, tx, audit } = setup({
       notificationPrefs: {
-        TASKS: { inApp: false },
+        DOCUMENTS: { inApp: false },
         RENAMED: { inApp: false },
         TEAM: { inApp: 'x' },
       },
     });
     const prefs = await service.updatePreferences({
-      TASKS: { inApp: false },
+      DOCUMENTS: { inApp: false },
       FILES: { email: false },
     });
     expect(tx.user.update).not.toHaveBeenCalled();
     expect(audit.log).not.toHaveBeenCalled();
-    expect(prefs).toContainEqual({ category: 'TASKS', inApp: false, email: null });
+    expect(prefs).toContainEqual({ category: 'DOCUMENTS', inApp: false, email: null });
     expect(prefs).toContainEqual({ category: 'TEAM', inApp: true, email: null });
   });
 });
