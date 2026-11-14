@@ -10,7 +10,7 @@ import { useNavigate } from 'react-router';
 
 import { useSession } from '../auth';
 import type { SearchGroup, SearchItem } from './search-items';
-import { resultGroups } from './search-items';
+import { ActionText, resultGroups } from './search-items';
 import { MIN_QUERY, recentFor, rememberSearch, useRecentSearches, useSearch } from './use-search';
 import { useDebounced } from '../clients/list-params';
 
@@ -51,7 +51,7 @@ function buildGroups(input: GroupInput, t: TFunction): SearchGroup[] {
   const back = {
     key: 'back',
     onPick: () => setExpanded(null),
-    content: <Typography.Link>{t('shell.search.back')}</Typography.Link>,
+    content: <ActionText>{t('shell.search.back')}</ActionText>,
   };
   return [{ key: 'back', title: '', items: [back] }, ...found];
 }
@@ -77,7 +77,7 @@ function ResultList({
     <div
       id={id}
       role="listbox"
-      aria-label={t('shell.search.open')}
+      aria-label={t('shell.search.resultsLabel')}
       style={{ maxBlockSize: '60vh', overflowY: 'auto' }}
       data-testid="search-results"
     >
@@ -173,7 +173,6 @@ export function SearchPanel({ onClose }: { readonly onClose: () => void }): Reac
   const options = groups.flatMap((group) => group.items);
   const count = options.filter((item) => item.href).length;
   useEffect(() => setActive(0), [q, expanded, data]);
-  useEffect(() => setExpanded(null), [q]);
 
   const pick = (item: SearchItem | undefined) => {
     if (item?.onPick) return item.onPick();
@@ -185,7 +184,9 @@ export function SearchPanel({ onClose }: { readonly onClose: () => void }): Reac
 
   const onKeyDown = (event: React.KeyboardEvent) => {
     const step = STEP[event.key];
-    if (options.length === 0 || (step === undefined && event.key !== 'Enter')) return;
+    // Enter while the debounce is pending would open a result of the previous query.
+    const enter = event.key === 'Enter' && text.trim() === q;
+    if (options.length === 0 || (step === undefined && !enter)) return;
     event.preventDefault();
     if (step === undefined) pick(options[active]);
     else setActive((i) => (i + step + options.length) % options.length);
@@ -199,7 +200,11 @@ export function SearchPanel({ onClose }: { readonly onClose: () => void }): Reac
       <Input
         autoFocus
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => {
+          setText(e.target.value);
+          setExpanded(null);
+        }}
+        maxLength={200}
         onKeyDown={onKeyDown}
         prefix={<SearchOutlined />}
         suffix={query.isFetching && searching ? <Spin size="small" /> : null}

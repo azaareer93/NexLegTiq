@@ -37,7 +37,8 @@
     "personalTask": "Personal task",
     "noResults": "Nothing found for “{{q}}”.",
     "results_one": "One result",
-    "results_other": "{{count}} results"
+    "results_other": "{{count}} results",
+    "resultsLabel": "Search results"
   },
   "notifications": {
     "open": "Notifications",

@@ -32,16 +32,17 @@
       "documents": "المستندات",
       "tasks": "المهام"
     },
-    "seeAll": "عرض الكل في {{group}}",
+    "seeAll": "عرض جميع نتائج {{group}}",
     "back": "العودة إلى جميع النتائج",
     "personalTask": "مهمة شخصية",
-    "noResults": "لا نتائج لـ «{{q}}».",
+    "noResults": "لا توجد نتائج لعبارة «{{q}}».",
     "results_zero": "لا نتائج",
     "results_one": "نتيجة واحدة",
     "results_two": "نتيجتان",
     "results_few": "{{count}} نتائج",
     "results_many": "{{count}} نتيجة",
-    "results_other": "{{count}} نتيجة"
+    "results_other": "{{count}} نتيجة",
+    "resultsLabel": "نتائج البحث"
   },
   "notifications": {
     "open": "الإشعارات",

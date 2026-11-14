@@ -6,7 +6,7 @@ import {
 } from '@ant-design/icons';
 import type { SearchResults, SearchType, SnippetPart } from '@nexlegtiq/shared-contracts';
 import { Bdi, Ltr } from '@nexlegtiq/shared-ui';
-import { Typography } from 'antd';
+import { Typography, theme } from 'antd';
 import type { TFunction } from 'i18next';
 import type { ReactNode } from 'react';
 
@@ -33,6 +33,12 @@ export const GROUP_ORDER = [
   'tasks',
 ] as const satisfies readonly SearchType[];
 type ShownType = (typeof GROUP_ORDER)[number];
+
+/** An action inside the result list: coloured like a link, but plain text — an option holds no nested control. */
+export function ActionText({ children }: { readonly children: ReactNode }): React.JSX.Element {
+  const { token } = theme.useToken();
+  return <span style={{ color: token.colorLink }}>{children}</span>;
+}
 
 const Secondary = ({ children }: { readonly children: ReactNode }) => (
   <Typography.Text type="secondary">{children}</Typography.Text>
@@ -125,9 +131,7 @@ export function resultGroups(
             {
               key: `more-${type}`,
               onPick: () => onSeeAll(type),
-              content: (
-                <Typography.Link>{t('shell.search.seeAll', { group: title })}</Typography.Link>
-              ),
+              content: <ActionText>{t('shell.search.seeAll', { group: title })}</ActionText>,
             },
           ]
         : [];
