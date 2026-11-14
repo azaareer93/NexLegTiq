@@ -6,9 +6,13 @@ import type {
   RetainerDepositRequest,
   SendInvoiceRequest,
 } from '@nexlegtiq/shared-contracts';
+import { wallClock, zonedDateTime } from '@nexlegtiq/shared-utils';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import dayjs from 'dayjs';
+import type { Dayjs } from 'dayjs';
 
 import { apiClient } from '../../auth';
+import { useOfficeTimeZone } from '../../cases/sessions/use-sessions';
 
 const invoices = invoicesApi(apiClient);
 
@@ -27,11 +31,10 @@ export const useInvoices = (query: InvoiceListParams) =>
     placeholderData: keepPreviousData,
   });
 
-export const useRetainer = (fileId: string, enabled: boolean) =>
+export const useRetainer = (fileId: string) =>
   useQuery({
     queryKey: invoiceKeys.retainer(fileId),
     queryFn: ({ signal }) => invoices.retainer(fileId, signal),
-    enabled,
   });
 
 export function useInvoiceMutations() {
@@ -73,4 +76,18 @@ export function openDownload(url: string): void {
   link.href = url;
   link.rel = 'noopener noreferrer';
   link.click();
+}
+
+/**
+ * Today in the office's time zone, and a chosen day as noon there: the server checks payment dates against the office's
+ * day (D-162), so the browser's own day must not decide what is "the future".
+ */
+export function useOfficeDay() {
+  const zone = useOfficeTimeZone();
+  const today = dayjs(wallClock(new Date(), zone).date);
+  return {
+    today,
+    isFuture: (day: Dayjs) => day.isAfter(today, 'day'),
+    noon: (day: Dayjs) => zonedDateTime(day.format('YYYY-MM-DD'), '12:00', zone),
+  };
 }

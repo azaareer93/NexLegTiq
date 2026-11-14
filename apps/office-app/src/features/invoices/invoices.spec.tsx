@@ -281,6 +281,18 @@ describe('generate-invoice wizard and retainer in the billing tab (MVP-148)', ()
       fireEvent.change(screen.getByTestId('invoice-line-description-0'), {
         target: { value: 'Court fee' },
       });
+      // A bad price shows on its own row and sends nothing.
+      fireEvent.change(screen.getByTestId('invoice-line-price-0'), { target: { value: 'abc' } });
+      fireEvent.click(screen.getByTestId('invoice-prepare'));
+      await waitFor(() =>
+        expect(
+          screen
+            .getByTestId('invoice-line-price-0')
+            .closest('.ant-form-item')
+            ?.querySelector('.ant-form-item-explain-error'),
+        ).not.toBeNull(),
+      );
+      expect(calls.drafts).toHaveLength(0);
       fireEvent.change(screen.getByTestId('invoice-line-price-0'), { target: { value: '20' } });
       fireEvent.click(screen.getByTestId('invoice-prepare'));
       await waitFor(() => expect(calls.drafts).toHaveLength(1));

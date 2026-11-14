@@ -77,13 +77,12 @@ export function InvoiceWizard({
         periodStart: v.periodStart?.format('YYYY-MM-DD'),
         periodEnd: v.periodEnd?.format('YYYY-MM-DD'),
         includeTax: v.includeTax !== false,
-        extraLines: (v.extraLines ?? [])
-          .filter((l) => l.description?.trim())
-          .map((l) => ({
-            description: l.description?.trim(),
-            quantity: toWesternDigits(l.quantity ?? '').trim(),
-            unitPrice: toWesternDigits(l.unitPrice ?? '').trim(),
-          })),
+        // Every row is sent, so an error lands on the row that has it (an unwanted row is removed with its button).
+        extraLines: (v.extraLines ?? []).map((l) => ({
+          description: l.description?.trim(),
+          quantity: toWesternDigits(l.quantity ?? '').trim(),
+          unitPrice: toWesternDigits(l.unitPrice ?? '').trim(),
+        })),
         notes: v.notes?.trim() || undefined,
       },
       form,
@@ -112,10 +111,12 @@ export function InvoiceWizard({
   return (
     <Modal
       open
-      width={760}
+      width="min(760px, 95vw)"
+      // Closing mid-request would leave a draft the user never saw.
+      closable={!create.isPending}
+      maskClosable={!create.isPending}
       title={t(draft ? 'billing.invoicing.draftTitle' : 'billing.invoicing.title')}
       onCancel={onClose}
-      destroyOnHidden
       footer={
         draft ? (
           <Flex gap={8} justify="end" wrap>

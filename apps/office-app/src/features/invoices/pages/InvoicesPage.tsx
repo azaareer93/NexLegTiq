@@ -12,6 +12,7 @@ import {
 } from '@nexlegtiq/shared-ui';
 import { Button, DatePicker, Flex, Select } from 'antd';
 import dayjs from 'dayjs';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 
@@ -33,7 +34,10 @@ function Filters({
   readonly clear: () => void;
 }) {
   const { t } = useTranslation();
-  const clients = useClientsList({ limit: '100' }, useCan('manage:clients'));
+  const mayListClients = useCan('manage:clients');
+  const [search, setSearch] = useState('');
+  // Searched on the server (20 at a time), so an office with many clients can still pick any of them.
+  const clients = useClientsList({ limit: '20', ...(search ? { search } : {}) }, mayListClients);
   const value = (key: (typeof FILTERS)[number]) => params.get(key) ?? undefined;
   const day = (key: 'from' | 'to') => (params.get(key) ? dayjs(params.get(key)) : null);
   const date = (key: 'from' | 'to') => (
@@ -43,6 +47,12 @@ function Filters({
       aria-label={t(`billing.invoices.filters.${key}`)}
       value={day(key)}
       onChange={(d) => set({ [key]: d ? d.format('YYYY-MM-DD') : null })}
+      // The two bounds cannot cross (the API refuses from > to).
+      disabledDate={(d) => {
+        const other = day(key === 'from' ? 'to' : 'from');
+        if (!other) return false;
+        return key === 'from' ? d.isAfter(other, 'day') : d.isBefore(other, 'day');
+      }}
       data-testid={`invoices-filter-${key}`}
     />
   );
@@ -58,22 +68,24 @@ function Filters({
         data-testid="invoices-filter-status"
         options={INVOICE_STATUSES.map((s) => ({ value: s, label: t(`enums.invoiceStatus.${s}`) }))}
       />
-      <Select
-        allowClear
-        showSearch
-        optionFilterProp="search"
-        placeholder={t('billing.invoices.filters.client')}
-        aria-label={t('billing.invoices.filters.client')}
-        value={value('clientId')}
-        onChange={(v?: string) => set({ clientId: v ?? null })}
-        style={{ minInlineSize: 200 }}
-        data-testid="invoices-filter-client"
-        options={(clients.data?.items ?? []).map((c) => ({
-          value: c.id,
-          search: c.displayName,
-          label: <Bdi>{c.displayName}</Bdi>,
-        }))}
-      />
+      {mayListClients ? (
+        <Select
+          allowClear
+          showSearch
+          filterOption={false}
+          onSearch={setSearch}
+          placeholder={t('billing.invoices.filters.client')}
+          aria-label={t('billing.invoices.filters.client')}
+          value={value('clientId')}
+          onChange={(v?: string) => set({ clientId: v ?? null })}
+          style={{ minInlineSize: 200 }}
+          data-testid="invoices-filter-client"
+          options={(clients.data?.items ?? []).map((c) => ({
+            value: c.id,
+            label: <Bdi>{c.displayName}</Bdi>,
+          }))}
+        />
+      ) : null}
       {date('from')}
       {date('to')}
       {FILTERS.some((key) => params.has(key)) ? (
@@ -119,16 +131,26 @@ function Body({
   );
 }
 
+/** The filters as the API takes them; an unknown status or a broken page from the URL is dropped, never sent. */
+function readQuery(params: URLSearchParams): InvoiceListParams {
+  const status = params.get('status');
+  const page = Math.max(1, Number.parseInt(params.get('page') ?? '1', 10) || 1);
+  return {
+    ...Object.fromEntries(
+      ['clientId', 'from', 'to'].flatMap((key) =>
+        params.get(key) ? [[key, params.get(key) as string]] : [],
+      ),
+    ),
+    ...(status && (INVOICE_STATUSES as readonly string[]).includes(status) ? { status } : {}),
+    page: String(page),
+  };
+}
+
 /** `/invoices`: the office's invoices the user may see, filtered in the URL (D-113), overdue ones marked. */
 export function InvoicesPage() {
   const { t } = useTranslation();
   const [params, setParams] = useSearchParams();
-  const query: InvoiceListParams = {
-    ...Object.fromEntries(
-      FILTERS.flatMap((key) => (params.get(key) ? [[key, params.get(key) as string]] : [])),
-    ),
-    page: params.get('page') ?? '1',
-  };
+  const query = readQuery(params);
   const list = useInvoices(query);
   const set = (changes: Changes) => {
     const next = new URLSearchParams(params);

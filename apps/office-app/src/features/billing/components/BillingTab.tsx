@@ -176,12 +176,17 @@ function InvoicesSection({
         ) : null
       }
     >
-      {list.data && list.data.items.length > 0 ? (
+      {list.isError ? (
+        <LoadError error={list.error} onRetry={() => void list.refetch()} />
+      ) : !list.data ? (
+        <LoadingSkeleton rows={2} />
+      ) : list.data.items.length > 0 ? (
         <InvoicesTable
           invoices={list.data.items}
           total={list.data.pagination.total}
           page={page}
           onPage={setPage}
+          loading={list.isFetching}
           showFile={false}
         />
       ) : (

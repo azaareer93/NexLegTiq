@@ -12,13 +12,12 @@ import {
   useCan,
 } from '@nexlegtiq/shared-ui';
 import { App, Button, DatePicker, Form, Input, Modal, Select, Space } from 'antd';
-import dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { parseForm } from '../../auth/forms';
-import { openDownload, useInvoiceMutations } from '../api/use-invoices';
+import { openDownload, useInvoiceMutations, useOfficeDay } from '../api/use-invoices';
 
 const TONE: Record<InvoiceStatus, StatusTone> = {
   DRAFT: 'neutral',
@@ -59,6 +58,7 @@ function MarkPaidModal({
   const { translateKey, applyToForm } = useApiErrorHandler();
   const [form] = Form.useForm<PaidValues>();
   const { markPaid } = useInvoiceMutations();
+  const day = useOfficeDay();
   // Paying from the retainer needs the invoice's file (D-176): not offered on a consolidated invoice.
   const methods = INVOICE_PAYMENT_METHODS.filter((m) => m !== 'RETAINER' || invoice.file !== null);
 
@@ -68,7 +68,7 @@ function MarkPaidModal({
       MarkInvoicePaidSchema,
       {
         // Noon local time keeps the chosen day in every office zone.
-        paidAt: v.paidAt ? v.paidAt.hour(12).minute(0).second(0).format() : undefined,
+        paidAt: v.paidAt ? day.noon(v.paidAt) : undefined,
         method: v.method,
         reference: v.reference?.trim() || undefined,
       },
@@ -100,12 +100,12 @@ function MarkPaidModal({
         form={form}
         layout="vertical"
         noValidate
-        initialValues={{ paidAt: dayjs(), method: 'BANK_TRANSFER' }}
+        initialValues={{ paidAt: day.today, method: 'BANK_TRANSFER' }}
       >
         <Form.Item name="paidAt" label={t('billing.invoices.paidAt')}>
           <DatePicker
             format="DD/MM/YYYY"
-            disabledDate={(d) => d.isAfter(dayjs(), 'day')}
+            disabledDate={day.isFuture}
             style={{ inlineSize: '100%' }}
             data-testid="invoice-paid-at"
           />
