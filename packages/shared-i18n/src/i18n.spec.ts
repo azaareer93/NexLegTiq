@@ -27,6 +27,7 @@ const ENUM_LABELS = {
   TASK_STATUSES: 'taskStatus',
   INVOICE_STATUSES: 'invoiceStatus',
   INVOICE_PAYMENT_METHODS: 'invoicePaymentMethod',
+  RETAINER_ENTRY_KINDS: 'retainerEntryKind',
   COURT_TYPES: 'courtType',
   SESSION_TYPES: 'sessionType',
   SESSION_OUTCOMES: 'sessionOutcome',
@@ -58,6 +59,8 @@ const LABELLED_ELSEWHERE = [
   'NOTIFICATION_TYPES',
   // A set of the values above, not a list of its own.
   'PORTAL_TIMELINE_EVENT_TYPES',
+  // A subset of INVOICE_PAYMENT_METHODS (labels `enums.invoicePaymentMethod.*`).
+  'RETAINER_DEPOSIT_METHODS',
 ];
 
 describe('findMissingKeys', () => {

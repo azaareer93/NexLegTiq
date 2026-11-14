@@ -44,7 +44,8 @@
     "WITNESS_STATEMENT_ADDED": "Testimony added",
     "SUMMARY_GENERATED": "AI summary of a document prepared",
     "INVOICE_SENT": "Invoice sent",
-    "INVOICE_PAID": "Invoice paid"
+    "INVOICE_PAID": "Invoice paid",
+    "RETAINER_DEPOSITED": "Retainer deposit received"
   },
   "separator": " · ",
   "unknownPerson": "a colleague",

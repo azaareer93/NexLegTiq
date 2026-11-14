@@ -51,6 +51,7 @@ function setup(locked: object = row()) {
   const audit = { log: jest.fn() };
   const timeline = { record: jest.fn() };
   const queues = { enqueue: jest.fn() };
+  const retainers = { payInvoice: jest.fn() };
   const afterCommit: (() => unknown)[] = [];
   const lifecycle = new InvoiceLifecycle(
     {
@@ -63,8 +64,9 @@ function setup(locked: object = row()) {
     audit as never,
     timeline as never,
     queues as never,
+    retainers as never,
   );
-  return { lifecycle, tx, access, numbers, audit, timeline, queues, afterCommit };
+  return { lifecycle, tx, access, numbers, audit, timeline, queues, retainers, afterCommit };
 }
 
 describe('InvoiceLifecycle.send and the PDF (MVP-92)', () => {
@@ -198,6 +200,23 @@ describe('InvoiceLifecycle send, pay, void, delete (D-162)', () => {
       paymentReference: null,
     });
     expect(timeline.record.mock.calls[0][1]).toMatchObject({ eventType: 'INVOICE_PAID' });
+  });
+
+  it('should debit the file retainer in the same transaction when paid from it (D-176)', async () => {
+    const { lifecycle, tx, retainers } = setup(row({ status: 'SENT', fileId: ID(2) }));
+    await lifecycle.markPaid(INVOICE, { paidAt: '2026-11-10T09:00:00+02:00', method: 'RETAINER' });
+    expect(retainers.payInvoice).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        invoiceId: INVOICE,
+        fileId: ID(2),
+        paidAt: '2026-11-10T09:00:00+02:00',
+      }),
+    );
+    expect(tx.invoice.update.mock.calls[0][0].data).toMatchObject({ paymentMethod: 'RETAINER' });
+    const cash = setup(row({ status: 'SENT', fileId: ID(2) }));
+    await cash.lifecycle.markPaid(INVOICE, { paidAt: '2026-11-10T09:00:00+02:00', method: 'CASH' });
+    expect(cash.retainers.payInvoice).not.toHaveBeenCalled();
   });
 
   it('should refuse a payment date in the future or before the issue date', async () => {
