@@ -55,8 +55,9 @@ const NextStepsSchema = z.array(
   z.object({ action: z.string(), dueInDays: z.number().int().nullable() }),
 );
 
-const sessionDedupeKey = (sessionId: string, language: string) =>
-  `summary:session:${sessionId}:${language}`;
+// The session's last change is in the key: a request after an edit never joins a job reading the older minutes.
+const sessionDedupeKey = (sessionId: string, language: string, updatedAt: Date) =>
+  `summary:session:${sessionId}:${language}:${updatedAt.getTime()}`;
 
 /**
  * Session summaries (D-179): the hearing's minutes summarised, read and turned into tasks. A session is seen through
@@ -87,7 +88,7 @@ export class SessionSummariesService {
       sourceType: 'SESSION',
       sourceId: sessionId,
       fields: { sessionId, language, ...(force ? { force } : {}) },
-      dedupeKey: sessionDedupeKey(sessionId, language),
+      dedupeKey: sessionDedupeKey(sessionId, language, session.updatedAt),
     });
     return { status: 202, accepted };
   }
@@ -127,7 +128,7 @@ export class SessionSummariesService {
     const today = todayIn(timezone, new Date());
     const ids = await this.tasks.createAll(
       selected.map(({ index, title, dueDate, assigneeId }) => {
-        const step = steps[index] as { action: string; dueInDays: number | null };
+        const step = steps[index] as (typeof steps)[number];
         const due =
           dueDate ?? (step.dueInDays === null ? undefined : addDays(today, step.dueInDays));
         return {
@@ -141,7 +142,7 @@ export class SessionSummariesService {
       client,
       { type: 'AI_NEXT_STEP', id: summaryId },
     );
-    return Promise.all(ids.map((id) => this.tasks.get(id)));
+    return this.tasks.getCreated(ids);
   }
 
   private async readable(id: string) {

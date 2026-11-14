@@ -1,19 +1,19 @@
+import { plainText } from '@nexlegtiq/shared-contracts';
 import { AI_RISK_LEVELS } from '@nexlegtiq/shared-types';
 import { z } from 'zod';
 
 import { LEGAL_ASSISTANT_V1 } from './legal-assistant.v1';
 import type { AiPrompt } from '../ai-executor';
 
-const item = (max: number) => z.string().trim().min(1).max(max);
-
 /** What the model returns for a hearing's minutes (ai-ocr.md SessionSummarySchema, D-179). */
 export const SessionSummaryOutputSchema = z.object({
   summary: z.string().trim().min(20).max(1500),
-  keyFacts: z.array(item(500)).max(10),
+  keyFacts: z.array(plainText(500)).max(10),
   nextSteps: z
     .array(
       z.object({
-        action: item(300),
+        // A step can become a task title: the same safe-text rule as a typed title (D-054, no bidi controls).
+        action: plainText(300),
         // A model that has no deadline says null or leaves it out; a deadline beyond a year is not a "next step".
         dueInDays: z.number().int().min(0).max(365).nullable().default(null),
       }),

@@ -334,7 +334,6 @@ enum FolderSystemKey {
   CLIENT_UPLOADS
 }
 
-/// What an AI job or output is about (D-039 AiSummarySourceType; D-130).
 /// The risk a session summary reads in the hearing (MVP-87, D-179).
 enum AiRiskLevel {
   LOW
@@ -342,6 +341,7 @@ enum AiRiskLevel {
   HIGH
 }
 
+/// What an AI job or output is about (D-039 AiSummarySourceType; D-130).
 enum AiSourceType {
   DOCUMENT
   SESSION

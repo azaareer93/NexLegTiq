@@ -136,6 +136,11 @@ export class TasksService {
     return task.id;
   }
 
+  /** Tasks this request just created (D-179): one read, no second access check. */
+  getCreated(ids: readonly string[]): Promise<Task[]> {
+    return this.tasks.getMany(ids);
+  }
+
   async list(query: TaskQuery): Promise<PaginatedResult<Task>> {
     const filters: Prisma.TaskWhereInput = {
       ...(query.fileId && { fileId: query.fileId }),

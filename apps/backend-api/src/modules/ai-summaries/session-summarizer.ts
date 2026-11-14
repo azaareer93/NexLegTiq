@@ -87,6 +87,12 @@ export class SessionSummarizer extends BaseAiService implements OnModuleInit {
       schema: SessionSummaryOutputSchema,
     });
     const summaryId = await this.uow.run(async (tx, afterCommit) => {
+      // Edited while the model read it: this summary is of older minutes, so it is not stored (the next request asks again).
+      const now = await tx.session.findFirst({
+        where: { id: sessionId },
+        select: { updatedAt: true },
+      });
+      if (now?.updatedAt.getTime() !== session.updatedAt.getTime()) return null;
       // Rows of a session have no version (null never collides in the unique key); the count only orders them.
       const regeneration = await tx.aiSummary.count({
         where: { sourceType: 'SESSION', sourceId: sessionId, language, promptVersion },
@@ -127,7 +133,7 @@ export class SessionSummarizer extends BaseAiService implements OnModuleInit {
       );
       return row.id;
     });
-    return { summaryId };
+    return summaryId ? { summaryId } : { superseded: 1 };
   }
 
   private ready(userId: string, { id, fileId }: { id: string; fileId: string }): void {

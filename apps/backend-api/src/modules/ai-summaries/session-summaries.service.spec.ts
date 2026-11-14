@@ -12,7 +12,7 @@ import type { UnitOfWork } from '../../database/unit-of-work';
 import type { AiExecutor } from '../ai/ai-executor';
 import type { AiJobRegistry } from '../ai/ai-job-registry';
 import type { AiJobs } from '../ai/ai-jobs';
-import { SESSION_SUMMARY_V1 } from '../ai/prompts/session-summary.v1';
+import { SESSION_SUMMARY_V1, SessionSummaryOutputSchema } from '../ai/prompts/session-summary.v1';
 import type { ClientInfo } from '../auth/client-info';
 import type { CaseAccessService } from '../legal-files/case-access.service';
 import type { TasksService } from '../tasks/tasks.service';
@@ -63,7 +63,9 @@ function setup({ minutes = 'The court appointed an expert.', stored = [] as unkn
   const jobs = { enqueue: jest.fn().mockResolvedValue({ jobId: 'j1', status: 'QUEUED' }) };
   const tasks = {
     createAll: jest.fn().mockResolvedValue(['t1', 't2']),
-    get: jest.fn().mockImplementation((id: string) => Promise.resolve({ id })),
+    getCreated: jest
+      .fn()
+      .mockImplementation((ids: string[]) => Promise.resolve(ids.map((id) => ({ id })))),
   };
   const service = new SessionSummariesService(
     { db } as unknown as PrismaService,
@@ -153,6 +155,7 @@ describe('SessionSummarizer (D-179)', () => {
     officeId: string | null = 'o1',
   ) {
     const tx = {
+      session: { findFirst: jest.fn().mockResolvedValue({ updatedAt: NOW }) },
       aiSummary: {
         count: jest.fn().mockResolvedValue(0),
         create: jest.fn().mockResolvedValue({ id: SUMMARY }),
@@ -249,6 +252,23 @@ describe('SessionSummarizer (D-179)', () => {
     await expect(
       lost.summarizer.run({ sessionId: SESSION, language: 'EN' }, context as never),
     ).rejects.toThrow('No office');
+  });
+
+  it('should drop a summary of minutes edited during the call', async () => {
+    const edited = worker();
+    edited.tx.session.findFirst.mockResolvedValue({ updatedAt: new Date(NOW.getTime() + 1000) });
+    await expect(
+      edited.summarizer.run({ sessionId: SESSION, language: 'EN' }, context as never),
+    ).resolves.toEqual({ superseded: 1 });
+    expect(edited.tx.aiSummary.create).not.toHaveBeenCalled();
+  });
+
+  it('should refuse a next step with a bidi control (it may become a task title)', () => {
+    const answer = { summary: 'A hearing summary text.', keyFacts: [], riskAssessment: 'LOW' };
+    const step = (action: string) =>
+      SessionSummaryOutputSchema.safeParse({ ...answer, nextSteps: [{ action }] });
+    expect(step('Pay ‮eef').success).toBe(false);
+    expect(step('Pay the fee').success).toBe(true);
   });
 
   it('should reuse a current summary and refuse empty minutes', async () => {

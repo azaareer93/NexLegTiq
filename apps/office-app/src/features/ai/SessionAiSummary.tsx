@@ -3,7 +3,7 @@ import type { AiSummary, Session } from '@nexlegtiq/shared-contracts';
 import { AiDisclaimer, ApiErrorAlert, useCan } from '@nexlegtiq/shared-ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { Alert, App, Button, Card, Checkbox, Flex, List, Tag, Typography } from 'antd';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -27,11 +27,18 @@ function PendingJob({ jobId, onDone }: { readonly jobId: string; readonly onDone
   const status = data?.status;
   useEffect(() => {
     if (status !== 'SUCCEEDED') return;
-    void queryClient.invalidateQueries({ queryKey: aiKeys.summariesAll });
-    onDone();
+    // The button comes back only once the new summary is loaded.
+    void queryClient.invalidateQueries({ queryKey: aiKeys.summariesAll }).then(onDone);
   }, [status, queryClient, onDone]);
   if (status === 'FAILED') {
-    return <ApiErrorAlert error={{ code: data?.errorCode ?? 'SYS-001' }} />;
+    return (
+      <Flex vertical gap={8}>
+        <ApiErrorAlert error={{ code: data?.errorCode ?? 'SYS-001' }} />
+        <Button onClick={onDone} style={{ alignSelf: 'flex-start' }} data-testid="session-ai-retry">
+          {t('aiSummary.failed.dismiss')}
+        </Button>
+      </Flex>
+    );
   }
   return (
     <span role="status" data-testid="session-ai-pending">
@@ -159,15 +166,15 @@ function SessionAiCard({
   const summaries = useSessionSummaries(sessionId);
   const ask = useRequestSessionSummary(sessionId);
   const [jobId, setJobId] = useState<string | null>(null);
-  const summary =
-    summaries.data?.find((s) => s.language === language) ?? summaries.data?.[0] ?? null;
+  const clearJob = useCallback(() => setJobId(null), []);
+  const summary = summaries.data?.find((s) => s.language === language) ?? null;
   const request = async () => {
     const answer = await ask.mutateAsync(language);
     if ('jobId' in answer) setJobId(answer.jobId);
   };
   let body: React.ReactNode;
-  if (summary) body = <SummaryView summary={summary} />;
-  else if (jobId) body = <PendingJob jobId={jobId} onDone={() => setJobId(null)} />;
+  if (summary) body = <SummaryView key={summary.id} summary={summary} />;
+  else if (jobId) body = <PendingJob jobId={jobId} onDone={clearJob} />;
   else {
     body = (
       <Flex vertical gap={8}>
