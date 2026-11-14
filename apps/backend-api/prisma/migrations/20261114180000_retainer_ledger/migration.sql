@@ -8,6 +8,15 @@ ALTER TYPE "InvoicePaymentMethod" ADD VALUE IF NOT EXISTS 'RETAINER';
 -- AlterEnum
 ALTER TYPE "TimelineEventType" ADD VALUE IF NOT EXISTS 'RETAINER_DEPOSITED';
 
+-- No balance exists yet that the ledger does not explain: nothing wrote the column before this ledger (D-176).
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM "legal_files" WHERE "retainer_balance" <> 0) THEN
+    RAISE EXCEPTION 'legal_files.retainer_balance holds values without ledger entries: backfill opening deposits first';
+  END IF;
+END
+$$;
+
 -- AlterTable
 ALTER TABLE "legal_files" ALTER COLUMN "retainer_balance" SET DATA TYPE DECIMAL(14,3);
 
@@ -52,7 +61,7 @@ ALTER TABLE "retainer_entries" ADD CONSTRAINT "retainer_entries_created_by_id_of
 -- (Compared as text: a new enum value cannot be used in the transaction that adds it.)
 ALTER TABLE "retainer_entries"
   ADD CONSTRAINT "retainer_entries_sign_check" CHECK (
-    ("kind" = 'DEPOSIT' AND "amount" > 0 AND "invoice_id" IS NULL AND "method"::text IS DISTINCT FROM 'RETAINER')
+    ("kind" = 'DEPOSIT' AND "amount" > 0 AND "invoice_id" IS NULL AND "method" IS NOT NULL AND "method"::text <> 'RETAINER')
     OR ("kind" = 'INVOICE_PAYMENT' AND "amount" < 0 AND "invoice_id" IS NOT NULL AND "method"::text = 'RETAINER')
   ),
   ADD CONSTRAINT "retainer_entries_currency_check" CHECK ("currency" ~ '^[A-Z]{3}$');

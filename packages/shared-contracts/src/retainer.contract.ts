@@ -1,4 +1,8 @@
-import { RETAINER_DEPOSIT_METHODS, RETAINER_ENTRY_KINDS } from '@nexlegtiq/shared-types';
+import {
+  INVOICE_PAYMENT_METHODS,
+  RETAINER_DEPOSIT_METHODS,
+  RETAINER_ENTRY_KINDS,
+} from '@nexlegtiq/shared-types';
 import { z } from 'zod';
 
 import { plainText } from './fields.js';
@@ -25,7 +29,7 @@ export const RetainerEntrySchema = z.object({
   /** Signed decimal string: a deposit is positive, an invoice payment negative. */
   amount: z.string(),
   paidAt: z.iso.datetime(),
-  method: z.string().nullable(),
+  method: z.enum(INVOICE_PAYMENT_METHODS).nullable(),
   reference: z.string().nullable(),
   invoice: z.object({ id: z.uuid(), invoiceNumber: z.string().nullable() }).nullable(),
   createdBy: z.object({ id: z.uuid(), fullName: z.string() }),
@@ -38,6 +42,7 @@ export const RetainerSchema = z.object({
   fileId: z.uuid(),
   currency: z.string(),
   balance: z.string(),
+  /** The newest 100 entries (the balance covers all of them). */
   entries: z.array(RetainerEntrySchema),
 });
 export type Retainer = z.infer<typeof RetainerSchema>;

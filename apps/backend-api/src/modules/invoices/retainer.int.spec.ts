@@ -29,6 +29,8 @@ describe('retainer (HTTP + PostgreSQL)', () => {
   let manager: Person;
   let lawyer: Person;
   let trainee: Person;
+  let admin: Person;
+  let lawyer2: Person;
   let other: Person;
   let client: string;
   const officeIds: string[] = [];
@@ -54,7 +56,11 @@ describe('retainer (HTTP + PostgreSQL)', () => {
       return { userId: user.id, officeId: row.id, role };
     };
   }
-  const makeFile = async (currency: string, responsible: Person = lawyer) =>
+  const makeFile = async (
+    currency: string,
+    responsible: Person = lawyer,
+    extra: { isConfidential?: boolean; status?: 'ARCHIVED' } = {},
+  ) =>
     (
       await raw.legalFile.create({
         data: {
@@ -66,6 +72,7 @@ describe('retainer (HTTP + PostgreSQL)', () => {
           jurisdiction: 'PALESTINE',
           currency,
           billingMethod: 'RETAINER',
+          ...extra,
         },
       })
     ).id;
@@ -117,6 +124,8 @@ describe('retainer (HTTP + PostgreSQL)', () => {
     manager = await inA('OFFICE_MANAGER');
     lawyer = await inA('LAWYER');
     trainee = await inA('TRAINEE');
+    admin = await inA('ADMIN');
+    lawyer2 = await inA('LAWYER');
     other = await (await office('Retainer office B'))('OFFICE_MANAGER');
     client = (
       await raw.client.create({
@@ -238,5 +247,73 @@ describe('retainer (HTTP + PostgreSQL)', () => {
     await http().get('/api/v1/cases/not-a-uuid/retainer').set(as(manager)).expect(404);
     const res = await deposit(manager, file, { amount: '0' }).expect(400);
     expect(res.body.error.details[0].field).toBe('amount');
+  });
+
+  it('should put a retainer payment on the timeline and in the audit log with the balance before and after', async () => {
+    const file = await makeFile('ILS');
+    await deposit(manager, file, { amount: '300' }).expect(201);
+    const invoice = await sentInvoice(file, '120.40');
+    await payFromRetainer(manager, invoice).expect(200);
+    await expect(
+      raw.caseTimelineEvent.count({
+        where: { fileId: file, eventType: 'INVOICE_PAID', sourceId: invoice },
+      }),
+    ).resolves.toBe(1);
+    const payment = await raw.retainerEntry.findFirstOrThrow({ where: { invoiceId: invoice } });
+    const audit = await raw.auditLog.findFirstOrThrow({
+      where: { entityType: 'RetainerEntry', entityId: payment.id },
+    });
+    expect(audit.oldValues).toMatchObject({ retainerBalance: '300.00' });
+    expect(audit.newValues).toMatchObject({
+      retainerBalance: '179.60',
+      invoiceId: invoice,
+      amount: '-120.40',
+    });
+    // The deposit event carries no amount: the timeline is read by roles that may not see billing (D-096).
+    const deposited = await raw.caseTimelineEvent.findFirstOrThrow({
+      where: { fileId: file, eventType: 'RETAINER_DEPOSITED' },
+    });
+    expect(deposited.payload).toEqual({});
+  });
+
+  it('should pay one invoice once when the same payment is sent twice at the same time', async () => {
+    const file = await makeFile('ILS');
+    await deposit(manager, file, { amount: '500' }).expect(201);
+    const invoice = await sentInvoice(file, '100.00');
+    const results = await Promise.all([
+      payFromRetainer(manager, invoice),
+      payFromRetainer(manager, invoice),
+    ]);
+    expect(results.map((r) => r.status).sort()).toEqual([200, 422]);
+    await expect(raw.retainerEntry.count({ where: { invoiceId: invoice } })).resolves.toBe(1);
+    const row = await raw.legalFile.findUniqueOrThrow({ where: { id: file } });
+    expect(row.retainerBalance.toFixed(2)).toBe('400.00');
+  });
+
+  it('should add up concurrent deposits exactly', async () => {
+    const file = await makeFile('ILS');
+    const results = await Promise.all(
+      ['0.10', '0.20', '10.05', '99.99', '1'].map((amount) => deposit(manager, file, { amount })),
+    );
+    expect(results.every((r) => r.status === 201)).toBe(true);
+    const row = await raw.legalFile.findUniqueOrThrow({ where: { id: file } });
+    expect(row.retainerBalance.toFixed(2)).toBe('111.34');
+    await expect(raw.retainerEntry.count({ where: { fileId: file } })).resolves.toBe(5);
+  });
+
+  it('should refuse an archived file and keep confidential or unassigned files to the people who may see their invoices', async () => {
+    const archived = await makeFile('ILS', lawyer, { status: 'ARCHIVED' });
+    const refused = await deposit(manager, archived, { amount: '10' }).expect(422);
+    expect(refused.body.error.code).toBe('BIZ-007');
+    await expect(raw.retainerEntry.count({ where: { fileId: archived } })).resolves.toBe(0);
+
+    const confidential = await makeFile('ILS', lawyer, { isConfidential: true });
+    await http().get(`/api/v1/cases/${confidential}/retainer`).set(as(admin)).expect(404);
+    await deposit(admin, confidential, { amount: '10' }).expect(404);
+    await http().get(`/api/v1/cases/${confidential}/retainer`).set(as(lawyer)).expect(200);
+    await http().get(`/api/v1/cases/${confidential}/retainer`).set(as(manager)).expect(200);
+    const plain = await makeFile('ILS');
+    await http().get(`/api/v1/cases/${plain}/retainer`).set(as(lawyer2)).expect(404);
+    await http().get(`/api/v1/cases/${plain}/retainer`).set(as(admin)).expect(200);
   });
 });

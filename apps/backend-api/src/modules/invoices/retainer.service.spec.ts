@@ -148,6 +148,51 @@ describe('RetainerService (D-176)', () => {
       code: 'VAL-001',
     });
   });
+
+  it('should refuse a zero total, an archived file and a balance the column cannot hold', async () => {
+    const zero = build();
+    await expect(
+      zero.service.payInvoice(zero.tx as never, debit({ total: '0.00' })),
+    ).rejects.toMatchObject({
+      code: 'VAL-001',
+    });
+    const archived = build({
+      status: 'ARCHIVED',
+      currency: 'ILS',
+      retainerBalance: new Prisma.Decimal('100'),
+    });
+    await expect(archived.service.payInvoice(archived.tx as never, debit())).rejects.toMatchObject({
+      code: 'BIZ-007',
+    });
+    const full = build({
+      status: 'OPEN',
+      currency: 'ILS',
+      retainerBalance: new Prisma.Decimal('99999999999.99'),
+    });
+    await expect(
+      full.service.deposit(FILE, { amount: '10', paidAt: NOW, method: 'CASH' }),
+    ).rejects.toMatchObject({
+      code: 'VAL-001',
+    });
+  });
+
+  it('should add decimal amounts exactly and pay a JOD balance down to zero', async () => {
+    const small = build({
+      status: 'OPEN',
+      currency: 'ILS',
+      retainerBalance: new Prisma.Decimal('0.1'),
+    });
+    await small.service.deposit(FILE, { amount: '0.20', paidAt: NOW, method: 'CASH' });
+    expect(small.tx.legalFile.update.mock.calls[0][0].data).toEqual({ retainerBalance: '0.30' });
+    const jod = build({
+      status: 'OPEN',
+      currency: 'JOD',
+      retainerBalance: new Prisma.Decimal('0.001'),
+    });
+    await jod.service.payInvoice(jod.tx as never, debit({ currency: 'JOD', total: '0.001' }));
+    expect(jod.tx.legalFile.update.mock.calls[0][0].data).toEqual({ retainerBalance: '0.000' });
+    expect(jod.tx.retainerEntry.create.mock.calls[0][0].data.amount).toBe('-0.001');
+  });
 });
 
 describe('RetainerController', () => {

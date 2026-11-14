@@ -1,6 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import type { Retainer, RetainerDepositRequest } from '@nexlegtiq/shared-contracts';
-import { addMoney, currencyDigits, roundMoney, wallClock } from '@nexlegtiq/shared-utils';
+import {
+  addMoney,
+  compareMoney,
+  currencyDigits,
+  roundMoney,
+  subtractMoney,
+  wallClock,
+} from '@nexlegtiq/shared-utils';
 
 import { InvoiceAccess } from './invoice-access';
 import { AuditService } from '../../common/audit/audit.service';
@@ -23,6 +30,9 @@ export interface RetainerDebit {
   readonly total: string;
   readonly paidAt: string;
 }
+
+/** The largest balance DECIMAL(14,3) holds. */
+const MAX_BALANCE = '99999999999.999';
 
 /** Significant decimals: `10.500` has one. */
 const decimals = (amount: string) => amount.split('.')[1]?.replace(/0+$/, '').length ?? 0;
@@ -51,6 +61,8 @@ export class RetainerService {
         currency: true,
         retainerBalance: true,
         retainerEntries: {
+          // shortcut: the newest 100 entries only (the balance is the column); add a cursor when a file has more.
+          take: 100,
           orderBy: [{ paidAt: 'desc' }, { id: 'desc' }],
           select: {
             id: true,
@@ -111,13 +123,18 @@ export class RetainerService {
         select: { id: true },
       });
       const balance = roundMoney(addMoney(file.retainerBalance, amount), file.currency);
+      // DECIMAL(14,3): a sum the column cannot hold is refused, never a database error.
+      if (compareMoney(balance, MAX_BALANCE) > 0) {
+        throw new ValidationException([{ field: 'amount', message: 'validation.amount' }]);
+      }
       await tx.legalFile.update({ where: { id: fileId }, data: { retainerBalance: balance } });
       await this.timeline.record(tx, {
         fileId,
         eventType: 'RETAINER_DEPOSITED',
         sourceType: 'RetainerEntry',
         sourceId: entry.id,
-        payload: { amount, currency: file.currency },
+        // No amount: the timeline is read by roles that may not see billing (D-096).
+        payload: {},
       });
       await this.audit.log(tx, {
         entityType: 'RetainerEntry',
@@ -128,7 +145,10 @@ export class RetainerService {
           fileId,
           kind: 'DEPOSIT',
           amount,
+          currency: file.currency,
+          paidAt: input.paidAt,
           method: input.method,
+          reference: input.reference ?? null,
           retainerBalance: balance,
         },
       });
@@ -145,20 +165,27 @@ export class RetainerService {
       throw new ValidationException([{ field: 'method', message: 'validation.retainerNeedsFile' }]);
     }
     const file = await this.lockFile(tx, debit.fileId);
+    if (file.status === 'ARCHIVED') {
+      throw new BusinessRuleException('BIZ-007', 'The file is archived');
+    }
     if (file.currency !== debit.currency) {
       throw new ValidationException([{ field: 'method', message: 'validation.retainerCurrency' }]);
     }
     const total = roundMoney(debit.total, file.currency);
-    const balance = roundMoney(addMoney(file.retainerBalance, `-${total}`), file.currency);
-    if (balance.startsWith('-')) {
+    if (compareMoney(total, '0') <= 0) {
+      throw new ValidationException([{ field: 'method', message: 'validation.retainerZeroTotal' }]);
+    }
+    const balance = roundMoney(subtractMoney(file.retainerBalance, total), file.currency);
+    if (compareMoney(balance, '0') < 0) {
       throw new BusinessRuleException('BIZ-005', 'The retainer balance is not enough');
     }
+    const amount = roundMoney(subtractMoney('0', total), file.currency);
     const entry = await tx.retainerEntry.create({
       data: {
         officeId: this.officeId(),
         fileId: debit.fileId,
         kind: 'INVOICE_PAYMENT',
-        amount: `-${total}`,
+        amount,
         currency: file.currency,
         paidAt: new Date(debit.paidAt),
         method: 'RETAINER',
@@ -176,23 +203,28 @@ export class RetainerService {
       newValues: {
         fileId: debit.fileId,
         kind: 'INVOICE_PAYMENT',
+        invoiceId: debit.invoiceId,
         invoiceNumber: debit.invoiceNumber,
-        amount: `-${total}`,
+        amount,
+        paidAt: debit.paidAt,
         retainerBalance: balance,
       },
     });
   }
 
-  /** The file row, locked until the transaction ends (concurrent deposits and payments queue), if the caller sees it. */
+  /**
+   * The file row, locked until the transaction ends (concurrent deposits and payments queue), if the caller sees it.
+   * NO KEY UPDATE: only the balance changes, so inserts that reference the file (timeline, documents) do not wait.
+   */
   private async lockFile(tx: ScopedTransaction, fileId: string) {
     await tx.$queryRaw`
-      SELECT 1 FROM legal_files WHERE id = ${fileId}::uuid AND office_id = ${this.officeId()}::uuid FOR UPDATE`;
+      SELECT 1 FROM legal_files WHERE id = ${fileId}::uuid AND office_id = ${this.officeId()}::uuid FOR NO KEY UPDATE`;
     const file = await tx.legalFile.findFirst({
       where: { AND: [{ id: fileId, deletedAt: null }, this.access.fileScope()] },
       select: { status: true, currency: true, retainerBalance: true },
     });
     if (!file) throw new ResourceNotFoundException();
-    return { ...file, retainerBalance: file.retainerBalance.toFixed() };
+    return { ...file, retainerBalance: roundMoney(file.retainerBalance.toFixed(), file.currency) };
   }
 
   private async assertNotFuture(tx: ScopedTransaction, paidAt: string): Promise<void> {
