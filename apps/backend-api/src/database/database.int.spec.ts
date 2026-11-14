@@ -34,6 +34,10 @@ describe('database (migrations + seeds, real PostgreSQL)', () => {
   });
 
   afterAll(async () => {
+    // Leave the demo office empty again (office, seed users and subscription stay, as before these tests): later suites
+    // run on the same database.
+    await resetDemo(prisma);
+    await s3Put().clear();
     await prisma.$disconnect();
   });
 
