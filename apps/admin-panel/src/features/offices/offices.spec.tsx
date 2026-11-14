@@ -159,7 +159,8 @@ describe('offices list', () => {
     expect(error.textContent).toContain('req-12345678');
   });
 
-  it('should be accessible in Arabic and English', { timeout: 60_000 }, async () => {
+  // Two full renders plus axe each: CI runners take over 60 s (the payments card added a table).
+  it('should be accessible in Arabic and English', { timeout: 120_000 }, async () => {
     server.use(http.get(api('admin/offices'), () => page([ITEM])));
     renderAt('/offices', 'ar');
     await screen.findByTestId(`office-link-${ID}`);
@@ -314,7 +315,8 @@ describe('office detail', () => {
     expect(await screen.findByTestId('office-not-found')).toBeTruthy();
   });
 
-  it('should be accessible in Arabic and English', { timeout: 60_000 }, async () => {
+  // Two full renders plus axe each: CI runners take over 60 s (the payments card added a table).
+  it('should be accessible in Arabic and English', { timeout: 120_000 }, async () => {
     detailServer(SUSPENDED);
     renderAt(`/offices/${ID}`, 'ar');
     await screen.findByTestId('office-suspension');
