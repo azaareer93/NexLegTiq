@@ -70,7 +70,9 @@
     "openWithCount_many": "الإشعارات، {{count}} إشعارًا غير مقروء",
     "openWithCount_other": "الإشعارات، {{count}} إشعار غير مقروء",
     "markReadOf": "تعليم «⁨{{title}}⁩» كمقروء",
-    "fileReassignedAway": "أُعيد تكليف الملف ⁨{{fileNumber}}⁩ إلى محامٍ آخر"
+    "fileReassignedAway": "أُعيد تكليف الملف ⁨{{fileNumber}}⁩ إلى محامٍ آخر",
+    "taskDue": "مهمة مستحقة في ⁨{{dueDate}}⁩: {{title}}",
+    "taskDigest": "مهامك: {{overdue}} متأخرة، و{{today}} مستحقة اليوم"
   },
   "profile": {
     "menu": "قائمة الحساب",

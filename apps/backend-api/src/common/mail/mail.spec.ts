@@ -13,6 +13,17 @@ const APP = 'https://app.example.test';
 const config = (env: Record<string, string> = {}) =>
   new AppConfig(parseEnv(testEnv({ NODE_ENV: 'development', ...env })));
 const VARS = {
+  count: 2,
+  files: [
+    {
+      fileNumber: '2026-LIT-00001',
+      fileTitle: 'دعوى إخلاء',
+      tasks: [
+        { title: 'تقديم اللائحة', dueDate: '12/11/2026', overdue: true, today: false },
+        { title: 'Call the client', dueDate: '14/11/2026', overdue: false, today: true },
+      ],
+    },
+  ],
   name: 'عمر',
   officeName: 'مكتب',
   inviterName: 'سارة',
@@ -55,6 +66,17 @@ describe('duration', () => {
 });
 
 describe('renderMail', () => {
+  it('should write the daily task email by file in Arabic and English, overdue and due-today marked', () => {
+    const ar = renderMail('task-digest', 'AR', varsFor('task-digest'), APP);
+    const en = renderMail('task-digest', 'EN', varsFor('task-digest'), APP);
+    expect(ar.subject).toContain('2');
+    expect(ar.html).toContain('<bdi dir="ltr">2026-LIT-00001</bdi> — <bdi>دعوى إخلاء</bdi>');
+    expect(ar.html).toContain('<strong>متأخرة منذ</strong> <bdi>12/11/2026</bdi>');
+    expect(ar.html).toContain('<strong>مستحقة اليوم</strong>');
+    expect(en.html).toContain('<strong>Overdue since</strong>');
+    expect(en.text).toContain('- ⁨Call the client⁩ — Due today ⁨14/11/2026⁩');
+  });
+
   it('should write the invoice email without a button, the number isolated left-to-right', () => {
     const ar = renderMail('invoice', 'AR', varsFor('invoice'), APP);
     const en = renderMail('invoice', 'EN', varsFor('invoice'), APP);

@@ -14,6 +14,14 @@ import type { TenantJobData } from '../../../common/queue/tenant-job';
 import { TenantProcessor } from '../../../common/queue/tenant-processor';
 import { TenantRunner } from '../../../common/tenancy/tenant-runner';
 import { PrismaService } from '../../../database/prisma.service';
+import type { TaskDailyJob } from '../../tasks/task-reminders';
+import {
+  TASK_DAILY_JOB,
+  TASK_TICK_JOB,
+  TASK_TICK_SCHEDULE,
+  TaskDailyJobSchema,
+  TaskReminders,
+} from '../../tasks/task-reminders';
 import { ReminderDelivery } from '../reminder-delivery';
 import { ReminderScheduler, SEND_SESSION_REMINDER_JOB } from '../reminder-scheduler';
 import type { SessionReminderJob } from '../reminder-scheduler';
@@ -23,6 +31,15 @@ export const RECONCILE_REMINDERS_JOB = 'reconcile-reminders';
 export const RECONCILE_SCHEDULE = { pattern: '0 2 * * *', tz: 'UTC' } as const;
 
 const SessionReminderJobSchema = z.object({ reminderId: z.uuid() });
+/** Office jobs pass when they match one of the job schemas; `handle` parses each by its job name (D-177). */
+const ReminderJobSchema = z.union([SessionReminderJobSchema, TaskDailyJobSchema]);
+type ReminderJob = SessionReminderJob | TaskDailyJob;
+
+function payload<T>(schema: z.ZodType<T>, data: unknown): T {
+  const parsed = schema.safeParse(data);
+  if (!parsed.success) throw new UnrecoverableError('Invalid job payload');
+  return parsed.data;
+}
 
 /**
  * The single consumer of the `reminder` queue (MVP-68, D-117):
@@ -35,10 +52,10 @@ const SessionReminderJobSchema = z.object({ reminderId: z.uuid() });
 @Injectable()
 @Processor(QUEUE.REMINDER, workerOptions(QUEUE.REMINDER))
 export class ReminderProcessor
-  extends TenantProcessor<SessionReminderJob>
+  extends TenantProcessor<ReminderJob>
   implements OnApplicationBootstrap
 {
-  protected readonly schema = SessionReminderJobSchema;
+  protected readonly schema = ReminderJobSchema;
 
   constructor(
     tenant: TenantRunner,
@@ -47,6 +64,7 @@ export class ReminderProcessor
     private readonly delivery: ReminderDelivery,
     private readonly scheduler: ReminderScheduler,
     private readonly moduleRef: ModuleRef,
+    private readonly tasks: TaskReminders,
   ) {
     super(tenant, prisma, logger);
   }
@@ -54,27 +72,34 @@ export class ReminderProcessor
   /** Registers (or updates) the daily reconciliation; a Redis outage at boot is logged, not fatal. */
   async onApplicationBootstrap(): Promise<void> {
     try {
-      await getQueue(this.moduleRef, QUEUE.REMINDER).upsertJobScheduler(
-        RECONCILE_REMINDERS_JOB,
-        RECONCILE_SCHEDULE,
-        { name: RECONCILE_REMINDERS_JOB, data: {} },
-      );
+      const queue = getQueue(this.moduleRef, QUEUE.REMINDER);
+      await queue.upsertJobScheduler(RECONCILE_REMINDERS_JOB, RECONCILE_SCHEDULE, {
+        name: RECONCILE_REMINDERS_JOB,
+        data: {},
+      });
+      await queue.upsertJobScheduler(TASK_TICK_JOB, TASK_TICK_SCHEDULE, {
+        name: TASK_TICK_JOB,
+        data: {},
+      });
     } catch (error) {
       this.logger.warn({ err: error }, 'Reminder reconciliation not scheduled');
     }
   }
 
   /** The reconciliation spans every office, so it runs before the tenant checks of `TenantProcessor.process`. */
-  override async process(job: Job<SessionReminderJob & TenantJobData>): Promise<unknown> {
+  override async process(job: Job<ReminderJob & TenantJobData>): Promise<unknown> {
     if (job.name === RECONCILE_REMINDERS_JOB) return this.reconcile();
+    // A platform job: only the scheduler's (no office in its data) may run it.
+    if (job.name === TASK_TICK_JOB && !('officeId' in (job.data ?? {}))) return this.tasks.tick();
     return super.process(job);
   }
 
-  protected async handle(job: Job<SessionReminderJob & TenantJobData>): Promise<unknown> {
+  protected async handle(job: Job<ReminderJob & TenantJobData>): Promise<unknown> {
+    if (job.name === TASK_DAILY_JOB) return this.tasks.daily(payload(TaskDailyJobSchema, job.data));
     if (job.name !== SEND_SESSION_REMINDER_JOB) {
       throw new UnrecoverableError(`Unknown reminder job ${job.name}`);
     }
-    return this.delivery.deliver(job.data.reminderId);
+    return this.delivery.deliver(payload(SessionReminderJobSchema, job.data).reminderId);
   }
 
   /** Re-adds the job of every PENDING reminder, office by office in that office's context. */

@@ -153,6 +153,7 @@ describe('hearing reminders (HTTP + PostgreSQL + Redis)', () => {
       delivery,
       scheduler,
       app as never,
+      { tick: jest.fn(), daily: jest.fn() } as never,
     );
 
     officeId = await seedOffice('Reminders office');
