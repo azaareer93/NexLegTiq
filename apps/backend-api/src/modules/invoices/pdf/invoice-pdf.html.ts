@@ -102,7 +102,7 @@ export const esc = (value: string) => value.replace(/[&<>"']/g, (c) => ESCAPES[c
 const fromCwd = createRequire(join(process.cwd(), 'noop.js'));
 let fonts: string | undefined;
 /** Self-hosted fonts (D-088) embedded as data URIs: Chromium needs no network and no system fonts. */
-function fontFaces(): string {
+export function fontFaces(): string {
   fonts ??= [
     [
       'NexArabic',

@@ -182,6 +182,11 @@
     "PALESTINE": "فلسطين",
     "GLOBAL": "عالمي"
   },
+  "platformPaymentMethod": {
+    "CASH": "نقدًا",
+    "BANK_TRANSFER": "تحويل بنكي",
+    "OTHER": "أخرى"
+  },
   "priority": {
     "LOW": "منخفضة",
     "MEDIUM": "متوسطة",

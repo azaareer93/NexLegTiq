@@ -14,6 +14,7 @@ export const TENANT_MODELS = [
   'EmailVerificationToken',
   'LegalAcceptance',
   'Subscription',
+  'PlatformPayment',
   'AuditLog',
   'Notification',
   // Parents before children: tests clean up in reverse order.

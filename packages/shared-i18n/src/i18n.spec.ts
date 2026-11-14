@@ -38,6 +38,7 @@ const ENUM_LABELS = {
   FOLDER_SYSTEM_KEYS: 'folderSystemKey',
   REMINDER_STATUSES: 'reminderStatus',
   SUBSCRIPTION_STATUSES: 'subscriptionStatus',
+  PLATFORM_PAYMENT_METHODS: 'platformPaymentMethod',
   PLAN_MARKETS: 'planMarket',
   DIGIT_STYLES: 'digitStyle',
   NOTIFICATION_CATEGORIES: 'notificationCategory',

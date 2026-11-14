@@ -32,6 +32,7 @@
   "nextSessionBefore": "The next hearing must start after this one.",
   "nextSessionExists": "The next hearing has already been scheduled.",
   "noClientEmail": "The client has no email address. Add one to the client or its primary contact.",
+  "noOfficeEmail": "The office has no email address. Add one to the office or turn off emailing the receipt.",
   "notPast": "Choose today or a later date.",
   "nothingToInvoice": "There is no unbilled time or extra item to invoice.",
   "oneCode": "Enter either the app code or a recovery code, not both.",

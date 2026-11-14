@@ -42,6 +42,7 @@
   "BIZ-021": "An invoice can cover one currency only. Invoice the files with different currencies separately.",
   "BIZ-022": "This plan is in use by an office subscription. Deactivate it instead of deleting it.",
   "BIZ-023": "A paid subscription cannot be put on trial. Extend its period instead.",
+  "BIZ-024": "This payment is already voided.",
   "DB-001": "Something went wrong while saving. Try again.",
   "EXT-001": "The email could not be sent. Try again later.",
   "EXT-002": "Text recognition is unavailable right now. Try again later.",
