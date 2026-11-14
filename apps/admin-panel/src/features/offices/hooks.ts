@@ -1,10 +1,11 @@
 import { ApiError, adminOfficesApi } from '@nexlegtiq/shared-api-client';
 import type { AdminOfficeListParams } from '@nexlegtiq/shared-api-client';
-import type { AdminOfficeDetail } from '@nexlegtiq/shared-contracts';
+import type { AdminOfficeDetail, SubscriptionActionRequest } from '@nexlegtiq/shared-contracts';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { officeKeys } from './keys';
 import { apiClient } from '../auth/session';
+import { planKeys } from '../plans/keys';
 
 const offices = adminOfficesApi(apiClient);
 
@@ -23,6 +24,21 @@ export const useOffice = (id: string) =>
     retry: (count, error) =>
       !(error instanceof ApiError && error.status >= 400 && error.status < 500) && count < 1,
   });
+
+/** Change plan / extend / set trial; the answer replaces the cached detail. */
+export function useSubscriptionAction(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: SubscriptionActionRequest): Promise<AdminOfficeDetail> =>
+      offices.changeSubscription(id, body),
+    gcTime: 0,
+    onSuccess: (office) => {
+      queryClient.setQueryData(officeKeys.detail(id), office);
+      void queryClient.invalidateQueries({ queryKey: officeKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: planKeys.all });
+    },
+  });
+}
 
 /** Suspend (reason required) or reactivate; the answer replaces the cached detail and lists refetch. */
 export function useOfficeAction(id: string, kind: 'suspend' | 'reactivate') {

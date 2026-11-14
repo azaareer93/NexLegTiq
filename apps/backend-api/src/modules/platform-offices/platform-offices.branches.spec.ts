@@ -274,13 +274,22 @@ describe('PlatformOfficesController', () => {
       view: jest.fn().mockResolvedValue('detail'),
       suspend: jest.fn().mockResolvedValue('s'),
       reactivate: jest.fn().mockResolvedValue('r'),
+      get: jest.fn().mockResolvedValue('after'),
     };
+    const subscription = { apply: jest.fn().mockResolvedValue(undefined) };
     const cls = { isActive: jest.fn().mockReturnValue(false), getId: jest.fn() };
-    const c = new PlatformOfficesController(offices as never, cls as never);
-    return { c, offices };
+    const c = new PlatformOfficesController(offices as never, subscription as never, cls as never);
+    return { c, offices, subscription };
   }
   const req = (id?: string) =>
     ({ platformAdminId: id, ip: '1.2.3.4', get: () => undefined }) as never;
+
+  it('should apply a subscription action and answer with the fresh detail', async () => {
+    const { c, subscription } = controller();
+    const body = { action: 'EXTEND_PERIOD' as const, until: '2027-01-31' };
+    await expect(c.changeSubscription('o1', body, req('a1'))).resolves.toBe('after');
+    expect(subscription.apply).toHaveBeenCalledWith('o1', body, 'a1', expect.anything());
+  });
 
   it('should audit the detail view through the service with the admin id', async () => {
     const { c, offices } = controller();

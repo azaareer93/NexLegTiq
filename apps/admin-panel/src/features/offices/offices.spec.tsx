@@ -323,3 +323,75 @@ describe('office detail', () => {
     await expectAccessible();
   });
 });
+
+describe('office subscription action', () => {
+  const PLAN_ID = '01920000-0000-7000-8000-0000000000b1';
+  const PLAN = {
+    id: PLAN_ID,
+    code: 'PS_FREE',
+    name: 'Free',
+    market: 'PALESTINE',
+    priceMonthly: '0.00',
+    currency: 'ILS',
+    maxUsers: null,
+    aiQuotaMonthly: null,
+    ocrPagesMonthly: 0,
+    storageQuotaMb: 1,
+    trialDays: null,
+    features: {},
+    isActive: true,
+    sortOrder: 0,
+    subscriptionCount: 1,
+    createdAt: meta.timestamp,
+    updatedAt: meta.timestamp,
+  };
+  const extended = {
+    ...DETAIL,
+    subscriptions: [{ ...DETAIL.subscriptions[0], currentPeriodEnd: '2027-12-15T12:00:00.000Z' }],
+  };
+  const setup = (respond: () => Response) => {
+    const posts: unknown[] = [];
+    server.use(
+      http.get(api('admin/offices'), () => page([ITEM])),
+      http.get(api(`admin/offices/${ID}`), () => ok(DETAIL)),
+      http.get(api('admin/plans'), () => ok([PLAN])),
+      http.post(api(`admin/offices/${ID}/subscription`), async ({ request }) => {
+        posts.push(await request.json());
+        return respond();
+      }),
+    );
+    return posts;
+  };
+  const pickDate = async () => {
+    const input = await screen.findByTestId('subscription-until');
+    fireEvent.change(input, { target: { value: '15/12/2027' } });
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', keyCode: 13 });
+  };
+
+  it('should extend the period and show the updated detail', { timeout: 30_000 }, async () => {
+    const posts = setup(() => ok(extended));
+    renderAt(`/offices/${ID}`);
+    fireEvent.click(await screen.findByTestId('office-subscription'));
+    await pickDate();
+    fireEvent.click(screen.getByTestId('subscription-confirm'));
+    await waitFor(() => expect(posts).toEqual([{ action: 'EXTEND_PERIOD', until: '2027-12-15' }]));
+    await waitFor(() =>
+      expect(screen.getByTestId('office-subscriptions').textContent).toContain('15/12/2027'),
+    );
+  });
+
+  it(
+    'should show the server error when a paid subscription is put on trial',
+    { timeout: 30_000 },
+    async () => {
+      const posts = setup(() => fail(422, 'BIZ-023'));
+      renderAt(`/offices/${ID}`);
+      fireEvent.click(await screen.findByTestId('office-subscription'));
+      fireEvent.click(await screen.findByTestId('subscription-action-SET_TRIAL'));
+      await pickDate();
+      fireEvent.click(screen.getByTestId('subscription-confirm'));
+      expect((await screen.findByRole('alert')).textContent).toContain('paid subscription');
+      expect(posts).toEqual([{ action: 'SET_TRIAL', until: '2027-12-15' }]);
+    },
+  );
+});

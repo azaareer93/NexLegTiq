@@ -31,6 +31,7 @@ import { OfficesModule } from '../modules/offices/offices.module';
 import { PartiesModule } from '../modules/parties/parties.module';
 import { PlatformAuthModule } from '../modules/platform-auth/platform-auth.module';
 import { PlatformOfficesModule } from '../modules/platform-offices/platform-offices.module';
+import { PlatformPlansModule } from '../modules/platform-plans/platform-plans.module';
 import { PortalAuthModule } from '../modules/portal-auth/portal-auth.module';
 import { SearchModule } from '../modules/search/search.module';
 import { SessionsModule } from '../modules/sessions/sessions.module';
@@ -58,6 +59,7 @@ import { WitnessesModule } from '../modules/witnesses/witnesses.module';
     AuthModule,
     PlatformAuthModule,
     PlatformOfficesModule,
+    PlatformPlansModule,
     PortalAuthModule,
     SubscriptionsModule,
     NotificationsModule,

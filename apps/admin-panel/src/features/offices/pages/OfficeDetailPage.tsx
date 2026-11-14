@@ -24,6 +24,7 @@ import { useNavigate, useParams } from 'react-router';
 
 import { AtRiskTag } from '../components/AtRiskTag';
 import { OfficeActionModal } from '../components/OfficeActionModal';
+import { SubscriptionActionModal } from '../components/SubscriptionActionModal';
 import { useOffice } from '../hooks';
 
 function Subscriptions({ rows }: { readonly rows: AdminSubscriptionRow[] }): React.JSX.Element {
@@ -132,6 +133,7 @@ function Detail({ office }: { readonly office: AdminOfficeDetail }): React.JSX.E
   const format = useFormat();
   const navigate = useNavigate();
   const [action, setAction] = useState<'suspend' | 'reactivate' | null>(null);
+  const [changing, setChanging] = useState(false);
   const suspended = office.status === 'SUSPENDED';
   const none = t('admin.offices.none');
 
@@ -142,13 +144,18 @@ function Detail({ office }: { readonly office: AdminOfficeDetail }): React.JSX.E
         title={<Bdi>{office.name}</Bdi>}
         subtitle={<OfficeStatus office={office} />}
         extra={
-          <Button
-            danger={!suspended}
-            onClick={() => setAction(suspended ? 'reactivate' : 'suspend')}
-            data-testid="office-action"
-          >
-            {t(suspended ? 'admin.offices.actions.reactivate' : 'admin.offices.actions.suspend')}
-          </Button>
+          <Space>
+            <Button onClick={() => setChanging(true)} data-testid="office-subscription">
+              {t('admin.offices.subscriptionAction.open')}
+            </Button>
+            <Button
+              danger={!suspended}
+              onClick={() => setAction(suspended ? 'reactivate' : 'suspend')}
+              data-testid="office-action"
+            >
+              {t(suspended ? 'admin.offices.actions.reactivate' : 'admin.offices.actions.suspend')}
+            </Button>
+          </Space>
         }
       />
       {suspended && office.suspension ? (
@@ -225,6 +232,9 @@ function Detail({ office }: { readonly office: AdminOfficeDetail }): React.JSX.E
       <Card title={t('admin.offices.detail.subscriptions')}>
         <Subscriptions rows={office.subscriptions} />
       </Card>
+      {changing ? (
+        <SubscriptionActionModal officeId={office.id} onClose={() => setChanging(false)} />
+      ) : null}
       {action ? (
         <OfficeActionModal officeId={office.id} kind={action} onClose={() => setAction(null)} />
       ) : null}

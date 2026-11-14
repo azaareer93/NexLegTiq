@@ -5,6 +5,16 @@ import { z } from 'zod';
 export const PLAN_FEATURES = ['ai', 'clientPortal', 'googleVisionOcr'] as const;
 export type PlanFeature = (typeof PLAN_FEATURES)[number];
 
+/**
+ * A flag a plan's `features` does not set (D-122). AI and the client portal are MVP features of every plan (D-002); the
+ * paid Google Vision OCR fallback must be switched on per plan. Shared so the admin form shows what a plan really grants.
+ */
+export const PLAN_FEATURE_DEFAULTS: Readonly<Record<PlanFeature, boolean>> = {
+  ai: true,
+  clientPortal: true,
+  googleVisionOcr: false,
+};
+
 const count = z.number().int().nonnegative();
 
 /**

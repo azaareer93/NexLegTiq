@@ -116,6 +116,22 @@
       "off": "Off",
       "statusCount": "{{status}}: {{count}}",
       "separator": ", "
+    },
+    "subscriptionAction": {
+      "open": "Change subscription",
+      "title": "Change subscription",
+      "action": "Action",
+      "plan": "New plan",
+      "periodUntil": "Paid until",
+      "trialUntil": "Trial ends on",
+      "hint": "Recording a payment does not change the subscription. Use this to change it.",
+      "untilHint": "The last day included, in the office's time zone.",
+      "success": "The subscription was updated.",
+      "actions": {
+        "CHANGE_PLAN": "Change plan",
+        "EXTEND_PERIOD": "Extend the period",
+        "SET_TRIAL": "Set trial end"
+      }
     }
   },
   "recovery": {
@@ -127,5 +143,47 @@
     "saved": "I have saved these codes somewhere safe",
     "subtitle": "Each code signs you in once if you lose access to your authenticator. They will not be shown again.",
     "title": "Save your recovery codes"
+  },
+  "plans": {
+    "title": "Plans",
+    "new": "New plan",
+    "empty": "No plans yet",
+    "unlimited": "Unlimited",
+    "noTrial": "No trial",
+    "active": "Active",
+    "inactive": "Inactive",
+    "inUse": "This plan has subscriptions. Deactivate it instead of deleting it.",
+    "confirmDelete": "Delete this plan?",
+    "deleted": "The plan was deleted.",
+    "columns": {
+      "code": "Code",
+      "name": "Name",
+      "market": "Market",
+      "price": "Monthly price",
+      "users": "Users",
+      "ai": "AI per month",
+      "storage": "Storage",
+      "status": "Status",
+      "subscriptions": "Subscriptions",
+      "actions": "Actions"
+    },
+    "fields": {
+      "price": "Monthly price",
+      "currency": "Currency",
+      "maxUsers": "Users limit",
+      "aiQuota": "AI operations per month",
+      "ocrPages": "OCR pages per month",
+      "storageMb": "Storage (MB)",
+      "trialDays": "Trial days",
+      "sortOrder": "Display order",
+      "features": "Features",
+      "isActive": "Active (offices can be moved to it)"
+    },
+    "modal": {
+      "createTitle": "New plan",
+      "editTitle": "Edit plan",
+      "created": "The plan was created.",
+      "updated": "The plan was updated."
+    }
   }
 }

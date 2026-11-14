@@ -101,6 +101,18 @@ describe('adminOfficesApi', () => {
     expect(bodies).toEqual([{ reason: 'Unpaid' }, {}]);
   });
 
+  it('should send a subscription action', async () => {
+    let body: unknown;
+    server.use(
+      http.post(url(`admin/offices/${ID}/subscription`), async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json({ success: true, data: detail, meta });
+      }),
+    );
+    await api().changeSubscription(ID, { action: 'SET_TRIAL', until: '2027-01-31' });
+    expect(body).toEqual({ action: 'SET_TRIAL', until: '2027-01-31' });
+  });
+
   it('should reject a 404 as an ApiError', async () => {
     server.use(
       http.get(url(`admin/offices/${ID}`), () =>

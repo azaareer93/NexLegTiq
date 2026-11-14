@@ -39,6 +39,17 @@ describe('EnvelopeInterceptor', () => {
     });
   });
 
+  it('should answer null data for a handler that returns nothing, outside a request context too', async () => {
+    const idle = new EnvelopeInterceptor(
+      { isActive: () => false, getId: () => 'unused' } as unknown as ClsService,
+      new Reflector(),
+    );
+    const value = await lastValueFrom(
+      idle.intercept(contextFor('plain'), { handle: () => of(undefined) } as CallHandler),
+    );
+    expect(value).toMatchObject({ success: true, data: null });
+  });
+
   it('should leave @RawResponse handlers untouched', async () => {
     await expect(run(contextFor('raw'), { exact: true })).resolves.toEqual({ exact: true });
   });

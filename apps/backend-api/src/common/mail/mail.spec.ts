@@ -260,6 +260,16 @@ describe('MailTransport', () => {
     expect(JSON.stringify((error as Error).cause)).not.toContain('a@b.test');
   });
 
+  it('should still map an SMTP failure that carries no error object', async () => {
+    jest
+      .spyOn(nodemailer, 'createTransport')
+      .mockReturnValue({ sendMail: jest.fn().mockRejectedValue(null) } as never);
+    const error = await new MailTransport(config())
+      .send('a@b.test', mail)
+      .catch((caught: unknown) => caught);
+    expect(error).toMatchObject({ code: 'EXT-001' });
+  });
+
   it('should send through the Resend API with the key and an idempotency key', async () => {
     const fetchMock = jest
       .spyOn(globalThis, 'fetch')

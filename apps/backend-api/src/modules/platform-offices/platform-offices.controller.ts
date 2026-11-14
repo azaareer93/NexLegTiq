@@ -18,6 +18,7 @@ import {
   AdminOfficeListItemSchema,
   AdminOfficeQuerySchema,
   ReactivateOfficeSchema,
+  SubscriptionActionSchema,
   SuspendOfficeSchema,
 } from '@nexlegtiq/shared-contracts';
 import type {
@@ -25,11 +26,13 @@ import type {
   AdminOfficeListItem,
   AdminOfficeQuery,
   ReactivateOfficeRequest,
+  SubscriptionActionRequest,
   SuspendOfficeRequest,
 } from '@nexlegtiq/shared-contracts';
 import type { Request } from 'express';
 import { ClsService } from 'nestjs-cls';
 
+import { OfficeSubscriptionService } from './office-subscription.service';
 import { PlatformOfficesService } from './platform-offices.service';
 import { Public } from '../../common/auth/public.decorator';
 import type { RequestContext } from '../../common/context/request-context';
@@ -54,6 +57,7 @@ type AdminRequest = Request & { platformAdminId?: string };
 export class PlatformOfficesController {
   constructor(
     private readonly offices: PlatformOfficesService,
+    private readonly subscription: OfficeSubscriptionService,
     private readonly cls: ClsService<RequestContext>,
   ) {}
 
@@ -101,6 +105,24 @@ export class PlatformOfficesController {
   ): Promise<AdminOfficeDetail> {
     const reason = body.reason?.trim() || undefined;
     return this.offices.reactivate(id, reason, this.adminId(req), this.client(req));
+  }
+
+  @Post(':id/subscription')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 30, ttl: MINUTE_MS } })
+  @ApiOperation({
+    summary:
+      'Change plan, extend the paid period or start/extend a trial; entitlements apply at once (audited)',
+  })
+  @ApiZodBody(SubscriptionActionSchema)
+  @ApiZodResponse(HttpStatus.OK, AdminOfficeDetailSchema)
+  async changeSubscription(
+    @Param('id', uuid()) id: string,
+    @Body(new ZodValidationPipe(SubscriptionActionSchema)) body: SubscriptionActionRequest,
+    @Req() req: AdminRequest,
+  ): Promise<AdminOfficeDetail> {
+    await this.subscription.apply(id, body, this.adminId(req), this.client(req));
+    return this.offices.get(id);
   }
 
   private adminId(req: AdminRequest): string {

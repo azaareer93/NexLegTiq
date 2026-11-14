@@ -178,6 +178,10 @@
     "INTERESTED_PARTY": "Interested party",
     "PROSECUTION": "Prosecution"
   },
+  "planMarket": {
+    "PALESTINE": "Palestine",
+    "GLOBAL": "Global"
+  },
   "priority": {
     "LOW": "Low",
     "MEDIUM": "Medium",
