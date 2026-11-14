@@ -5,6 +5,7 @@ import {
   AiSummaryListItemSchema,
   AiSummarySchema,
   AiUsageSummarySchema,
+  TaskSchema,
 } from '@nexlegtiq/shared-contracts';
 import type {
   AiFeedbackCreated,
@@ -15,6 +16,8 @@ import type {
   AiSummaryListItem,
   AiUsageSummary,
   CreateAiSummaryRequest,
+  CreateTasksFromSummaryRequest,
+  Task,
 } from '@nexlegtiq/shared-contracts';
 import { z } from 'zod';
 
@@ -41,6 +44,27 @@ export function aiApi(client: ApiClient) {
           signal,
         },
         AiSummarySchema.array(),
+      ),
+    /** The current summaries of a session's minutes, one per language (D-179). */
+    bySession: (sessionId: string, signal?: AbortSignal): Promise<AiSummary[]> =>
+      client.request(
+        {
+          method: 'GET',
+          path: 'ai/summaries',
+          query: { sourceType: 'SESSION', sourceId: sessionId },
+          signal,
+        },
+        AiSummarySchema.array(),
+      ),
+    /** Tasks from the next steps the user picked (D-179): all or none. */
+    createTasks: (summaryId: string, body: CreateTasksFromSummaryRequest): Promise<Task[]> =>
+      client.request(
+        {
+          method: 'POST',
+          path: `ai/summaries/${encodeURIComponent(summaryId)}/create-tasks`,
+          body,
+        },
+        TaskSchema.array(),
       ),
     /** A stored summary comes back as is; otherwise a job to follow (`GET /jobs/:id`, `ai.job.*`). `force` regenerates. */
     request: (body: CreateAiSummaryRequest): Promise<AiSummary | AiJobAccepted> =>
