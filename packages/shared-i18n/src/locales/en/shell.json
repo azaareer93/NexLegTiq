@@ -24,7 +24,21 @@
   "search": {
     "open": "Search",
     "placeholder": "Search cases, clients, documents…",
-    "comingSoon": "Search across your office is coming soon."
+    "minChars": "Type at least 2 characters to search.",
+    "recent": "Recent searches",
+    "groups": {
+      "cases": "Cases",
+      "clients": "Clients",
+      "documents": "Documents",
+      "tasks": "Tasks"
+    },
+    "seeAll": "See all in {{group}}",
+    "back": "Back to all results",
+    "personalTask": "Personal task",
+    "noResults": "Nothing found for “{{q}}”.",
+    "results_one": "One result",
+    "results_other": "{{count}} results",
+    "resultsLabel": "Search results"
   },
   "notifications": {
     "open": "Notifications",

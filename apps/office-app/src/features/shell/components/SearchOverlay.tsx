@@ -1,8 +1,9 @@
 import { SearchOutlined } from '@ant-design/icons';
-import { EmptyState } from '@nexlegtiq/shared-ui';
-import { Button, Flex, Input, Modal, theme } from 'antd';
+import { Button, Flex, Modal, theme } from 'antd';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+
+import { SearchPanel } from '../../search';
 
 /** The shortcut as the platform writes it; key names are not translated. */
 const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
@@ -21,7 +22,7 @@ export const isSearchShortcut = (event: KeyboardEvent): boolean =>
   !event.isComposing &&
   event.code === 'KeyK';
 
-/** The global search entry (header button and shortcut). A placeholder until the search feature fills it. */
+/** The global search entry (header button and shortcut); the overlay is the search feature's panel (D-172). */
 export function SearchOverlay({
   compact = false,
 }: {
@@ -66,15 +67,9 @@ export function SearchOverlay({
         footer={null}
         title={t('shell.search.open')}
         destroyOnHidden
+        width={640}
       >
-        <Input
-          autoFocus
-          prefix={<SearchOutlined />}
-          placeholder={t('shell.search.placeholder')}
-          aria-label={t('shell.search.open')}
-          data-testid="search-input"
-        />
-        <EmptyState description={t('shell.search.comingSoon')} />
+        <SearchPanel onClose={() => setOpen(false)} />
       </Modal>
     </>
   );

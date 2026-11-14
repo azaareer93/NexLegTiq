@@ -24,7 +24,25 @@
   "search": {
     "open": "بحث",
     "placeholder": "ابحث في الملفات والموكلين والمستندات…",
-    "comingSoon": "سيتوفّر البحث في جميع بيانات مكتبك قريبًا."
+    "minChars": "اكتب حرفين على الأقل للبحث.",
+    "recent": "عمليات البحث الأخيرة",
+    "groups": {
+      "cases": "الملفات",
+      "clients": "الموكلون",
+      "documents": "المستندات",
+      "tasks": "المهام"
+    },
+    "seeAll": "عرض جميع نتائج {{group}}",
+    "back": "العودة إلى جميع النتائج",
+    "personalTask": "مهمة شخصية",
+    "noResults": "لا توجد نتائج لعبارة «{{q}}».",
+    "results_zero": "لا نتائج",
+    "results_one": "نتيجة واحدة",
+    "results_two": "نتيجتان",
+    "results_few": "{{count}} نتائج",
+    "results_many": "{{count}} نتيجة",
+    "results_other": "{{count}} نتيجة",
+    "resultsLabel": "نتائج البحث"
   },
   "notifications": {
     "open": "الإشعارات",
