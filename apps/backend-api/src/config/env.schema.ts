@@ -100,13 +100,10 @@ const EnvObject = z.object({
     .optional()
     .transform((value, ctx) => {
       const entries = (value ?? '').split(/[\s,]+/).filter(Boolean);
-      for (const entry of entries) {
-        if (!parseIpEntry(entry)) {
-          ctx.addIssue({ code: 'custom', message: `not an IP address or CIDR: ${entry}` });
-          return z.NEVER;
-        }
-      }
-      return entries;
+      const bad = entries.find((entry) => !parseIpEntry(entry));
+      if (bad === undefined) return entries;
+      ctx.addIssue({ code: 'custom', message: `not an IP address or CIDR: ${bad}` });
+      return z.NEVER;
     }),
   // AES-256-GCM key of the field cipher (D-056, ops-security.md): 32 random bytes as 64 hex characters.
   ENCRYPTION_KEY: z
@@ -165,6 +162,8 @@ const EnvObject = z.object({
   OCR_VISION_MIN_CONFIDENCE: z.coerce.number().min(0).max(100).default(70),
   // USD per 1,000 pages, for the cost logged per document.
   GOOGLE_VISION_PRICE_PER_1000_PAGES: z.coerce.number().min(0).default(1.5),
+  // Headless Chromium that prints invoice PDFs in the worker (D-171): the worker image installs `chromium`.
+  PDF_CHROMIUM_PATH: z.string().trim().min(1).default('chromium'),
   // Ask for a summary after extraction (ai-ocr.md OCR step 6); off until the document-summary story enqueues it.
   AI_AUTO_SUMMARY: z.stringbool().default(false),
 });

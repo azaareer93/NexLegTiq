@@ -10,31 +10,41 @@ import {
   Patch,
   Post,
   Query,
+  Res,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiNoContentResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import {
   CreateInvoiceSchema,
   InvoiceListItemSchema,
+  InvoicePdfQuerySchema,
+  InvoicePdfSchema,
   InvoiceQuerySchema,
   InvoiceSchema,
   InvoiceSummaryQuerySchema,
   InvoiceSummarySchema,
   MarkInvoicePaidSchema,
+  SendInvoiceSchema,
   UpdateInvoiceSchema,
 } from '@nexlegtiq/shared-contracts';
 import type {
   CreateInvoiceBody,
   Invoice,
   InvoiceListItem,
+  InvoicePdf,
+  InvoicePdfQuery,
   InvoiceQuery,
   InvoiceSummary,
   InvoiceSummaryQuery,
   MarkInvoicePaidRequest,
+  SendInvoiceRequest,
   UpdateInvoiceRequest,
 } from '@nexlegtiq/shared-contracts';
+import type { Response } from 'express';
 
 import { InvoiceLifecycle } from './invoice-lifecycle.service';
 import { InvoicesService } from './invoices.service';
+import { InvoicePdfService } from './pdf/invoice-pdf.service';
 import { ResourceNotFoundException } from '../../common/errors/app.exception';
 import type { PaginatedResult } from '../../common/http/paginated-result';
 import { ZodValidationPipe } from '../../common/http/zod-validation.pipe';
@@ -51,6 +61,7 @@ export class InvoicesController {
   constructor(
     private readonly invoices: InvoicesService,
     private readonly lifecycle: InvoiceLifecycle,
+    private readonly pdfs: InvoicePdfService,
   ) {}
 
   @Get()
@@ -120,10 +131,38 @@ export class InvoicesController {
   @Post(':id/send')
   @RequirePermissions('generate:invoice')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Send a draft: assigns its number, issue and due dates' })
+  @ApiOperation({
+    summary:
+      'Send a draft: assigns its number, issue and due dates, renders its PDF and, with emailClient, emails it to the client (no address → 400 validation.noClientEmail)',
+  })
+  @ApiZodBody(SendInvoiceSchema, { required: false })
   @ApiZodResponse(HttpStatus.OK, InvoiceSchema)
-  send(@Param('id', invoiceId) id: string): Promise<Invoice> {
-    return this.lifecycle.send(id);
+  send(
+    @Param('id', invoiceId) id: string,
+    @Body(new ZodValidationPipe(SendInvoiceSchema)) body: SendInvoiceRequest,
+  ): Promise<Invoice> {
+    return this.lifecycle.send(id, body);
+  }
+
+  @Get(':id/pdf')
+  @RequireAnyPermission('view:all:invoices', 'view:assigned:invoices')
+  // Each ask may queue a Chromium print on the shared report queue (D-171).
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @ApiOperation({
+    summary:
+      'The invoice PDF: 200 with a 5-minute link when it shows the invoice as it is now, else 202 while the worker renders it (ask again)',
+  })
+  @ApiZodQuery(InvoicePdfQuerySchema)
+  @ApiZodResponse(200, InvoicePdfSchema)
+  @ApiZodResponse(202, InvoicePdfSchema)
+  async pdf(
+    @Param('id', invoiceId) id: string,
+    @Query(new ZodValidationPipe(InvoicePdfQuerySchema)) query: InvoicePdfQuery,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<InvoicePdf> {
+    const answer = await this.pdfs.link(id, query.language);
+    res.status(answer.status === 'READY' ? HttpStatus.OK : HttpStatus.ACCEPTED);
+    return answer;
   }
 
   @Post(':id/mark-paid')

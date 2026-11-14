@@ -14,6 +14,8 @@ export interface SendOptions {
   readonly signal?: AbortSignal;
   /** Resend de-duplicates requests with the same key: a retried job whose first answer was lost sends once. */
   readonly idempotencyKey?: string;
+  /** Files sent with the message (an invoice PDF, D-171). */
+  readonly attachments?: readonly { filename: string; content: Buffer; contentType: string }[];
 }
 
 /**
@@ -39,6 +41,7 @@ export class MailTransport implements OnModuleDestroy {
           subject: mail.subject,
           html: mail.html,
           text: mail.text,
+          ...(options.attachments ? { attachments: [...options.attachments] } : {}),
         });
     } catch (error) {
       if (error instanceof AppException || error instanceof UnrecoverableError) throw error;
@@ -88,6 +91,14 @@ export class MailTransport implements OnModuleDestroy {
         subject: mail.subject,
         html: mail.html,
         text: mail.text,
+        ...(options.attachments
+          ? {
+              attachments: options.attachments.map((a) => ({
+                filename: a.filename,
+                content: a.content.toString('base64'),
+              })),
+            }
+          : {}),
       }),
       ...(options.signal ? { signal: options.signal } : {}),
     });

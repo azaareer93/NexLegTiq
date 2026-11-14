@@ -15,6 +15,7 @@ import { TENANT_MODELS } from '../../database/tenant-models';
 import type { PrismaClient } from '../../generated/prisma/client';
 import { bearerFor } from '../../modules/auth/auth.test-helper';
 import { InvoiceOverdueSweep } from '../../modules/invoices/invoice-overdue.sweep';
+import { InvoicePdfRenderer } from '../../modules/invoices/pdf/invoice-pdf.renderer';
 import { liveSubscription } from '../../modules/subscriptions/subscription.test-helper';
 
 const DAY_MS = 86_400_000;
@@ -64,7 +65,7 @@ describe('audit log (HTTP + PostgreSQL)', () => {
     Object.assign(process.env, integrationEnv(), { EMAIL_VERIFICATION_ENFORCED: 'false' });
     const module = await Test.createTestingModule({
       imports: [AppModule],
-      providers: [AuditRetentionProcessor, InvoiceOverdueSweep],
+      providers: [AuditRetentionProcessor, InvoiceOverdueSweep, InvoicePdfRenderer],
     })
       .overrideProvider(ThrottlerGuard)
       .useValue({ canActivate: () => true })

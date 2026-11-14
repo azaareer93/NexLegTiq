@@ -2,6 +2,7 @@ import Handlebars from 'handlebars';
 import { z } from 'zod';
 
 import { CLIENT_INVITE_COPY } from './client-invite-copy';
+import { INVOICE_COPY, INVOICE_VARS } from './invoice-copy';
 
 /** Email locales: the user's `uiLanguage` (D-016). Bilingual offices write to each user in that user's language. */
 export type MailLocale = 'AR' | 'EN';
@@ -42,6 +43,7 @@ export const MAIL_TEMPLATE_SCHEMAS = {
     court: shortText(300),
     courtRoom: shortText(100),
   }),
+  invoice: INVOICE_VARS,
 } as const;
 export type MailTemplateName = keyof typeof MAIL_TEMPLATE_SCHEMAS;
 export type MailTemplates = { [K in MailTemplateName]: z.input<(typeof MAIL_TEMPLATE_SCHEMAS)[K]> };
@@ -218,6 +220,7 @@ View the hearing:
 {{link}}`,
     },
   },
+  invoice: INVOICE_COPY,
 };
 
 /** Templates whose copy says how long a link lasts (`{{period}}`). */
@@ -322,11 +325,7 @@ const compiled = Object.fromEntries(
   ]),
 ) as Record<MailTemplateName, Record<MailLocale, Compiled>>;
 
-export interface RenderedMail {
-  readonly subject: string;
-  readonly html: string;
-  readonly text: string;
-}
+export type RenderedMail = Readonly<Record<'subject' | 'html' | 'text', string>>;
 
 /** Renders a template in a locale inside the base layout. `officeAppUrl` has no trailing slash. */
 export function renderMail<T extends MailTemplateName>(
