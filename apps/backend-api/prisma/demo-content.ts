@@ -1,7 +1,7 @@
 import { createBilling, createSessions, createTasks } from './demo-activity';
-import { createDocuments, createPortalClient } from './demo-documents';
-import { COURT_TYPES, CURRENCY, DOMAIN, RATE, at, day } from './demo-shared';
-import type { DemoFile, PutObject, Staff } from './demo-shared';
+import { createDocuments } from './demo-documents';
+import { COURT_TYPES, CURRENCY, DAY, DOMAIN, RATE, at, day } from './demo-shared';
+import type { Db, DemoFile, PutObject, Staff } from './demo-shared';
 import { uuidV7 } from '../src/common/ids/uuid-v7';
 import type { Prisma, PrismaClient } from '../src/generated/prisma/client';
 import { FILE_TYPE_CODES, parseFileNumberFormat } from '../src/modules/legal-files/file-number';
@@ -64,21 +64,36 @@ const FILE_TYPES = Object.keys(TITLES) as (keyof typeof TITLES)[];
 export async function seedDemoContent(
   prisma: PrismaClient,
   officeId: string,
-  staff: Staff,
+  staff: Staff & { readonly portalUserId: string },
   put: PutObject,
 ): Promise<boolean> {
   if ((await prisma.client.count({ where: { officeId } })) > 0) return false;
-  const clients = await createClients(prisma, officeId, staff);
-  const files = await createFiles(prisma, officeId, staff, clients);
-  await createSessions(prisma, officeId, staff, files);
-  await createTasks(prisma, officeId, staff, files);
-  await createBilling(prisma, officeId, staff, files);
-  if (put) await createDocuments(prisma, officeId, staff, files, put);
-  await createPortalClient(prisma, officeId, staff, clients[0]?.id ?? '');
+  // All or nothing: a failure part-way (storage down) leaves no half-built demo that "already has content".
+  await prisma.$transaction(
+    async (db) => {
+      const clients = await createClients(db, officeId, staff);
+      const files = await createFiles(db, officeId, staff, clients);
+      await createSessions(db, officeId, staff, files);
+      await createTasks(db, officeId, staff, files);
+      await createBilling(db, officeId, staff, files);
+      const first = clients[0];
+      if (!first) throw new Error('Demo clients missing');
+      await db.clientPortalAccess.create({
+        data: {
+          officeId,
+          clientUserId: staff.portalUserId,
+          clientId: first.id,
+          grantedById: staff.managerId,
+        },
+      });
+      if (put) await createDocuments(db, officeId, staff, files, put);
+    },
+    { timeout: 120_000 },
+  );
   return true;
 }
 
-async function createClients(prisma: PrismaClient, officeId: string, staff: Staff) {
+async function createClients(prisma: Db, officeId: string, staff: Staff) {
   const rows: Prisma.ClientCreateManyInput[] = [];
   const contacts: Prisma.ContactPersonCreateManyInput[] = [];
   for (let i = 0; i < 20; i++) {
@@ -148,7 +163,11 @@ function fileRow(
     status,
     priority: at(['MEDIUM', 'HIGH', 'LOW', 'URGENT'] as const, i),
     openingDate: opened,
-    closingDate: status === 'CLOSED' ? new Date(opened.getTime() + 60 * 86_400_000) : null,
+    // Closed sixty days after opening, but never in the future.
+    closingDate:
+      status === 'CLOSED'
+        ? new Date(Math.min(opened.getTime() + 60 * DAY, day(-1).getTime()))
+        : null,
     responsibleLawyerId: at(staff.lawyers, i),
     responsibleParalegalId: i % 3 === 0 ? staff.paralegalId : null,
     jurisdiction: 'PALESTINE' as const,
@@ -161,7 +180,7 @@ function fileRow(
 }
 
 async function createFiles(
-  prisma: PrismaClient,
+  prisma: Db,
   officeId: string,
   staff: Staff,
   clients: readonly { id: string }[],
@@ -198,6 +217,7 @@ async function createFiles(
       type,
       status: row.status,
       lawyerId: row.responsibleLawyerId,
+      paralegalId: row.responsibleParalegalId,
       clientId: at(clients, i).id,
       openedDaysAgo: 400 - i * 6,
     });
@@ -242,6 +262,18 @@ async function createFiles(
       occurredAt: r.openingDate as Date,
       payload: { fileNumber: r.fileNumber },
     })),
+  });
+  await prisma.caseTimelineEvent.createMany({
+    data: rows
+      .filter((r) => r.closingDate)
+      .map((r) => ({
+        officeId,
+        fileId: r.id as string,
+        eventType: 'FILE_CLOSED' as const,
+        actorId: staff.managerId,
+        occurredAt: r.closingDate as Date,
+        payload: {},
+      })),
   });
   return files;
 }

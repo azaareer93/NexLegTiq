@@ -1,5 +1,5 @@
 import { DEMO_STAFF, samplePdf } from '../../prisma/demo-content';
-import { demoAllowed } from '../../prisma/seed-demo';
+import { assertDemoDatabase, demoAllowed } from '../../prisma/seed-demo';
 
 describe('demo seed (D-175)', () => {
   it('should write a well-formed one-page PDF whose xref points at its objects', () => {
@@ -27,5 +27,18 @@ describe('demo seed (D-175)', () => {
   it('should name every demo person as a demo', () => {
     expect(DEMO_STAFF.every(([, , name]) => /تجريبي|Demo/.test(name))).toBe(true);
     expect(new Set(DEMO_STAFF.map(([role]) => role)).size).toBe(6);
+  });
+
+  it('should refuse a demo seed outside development/test on a database with real offices', async () => {
+    const db = (others: number) =>
+      ({ office: { count: jest.fn().mockResolvedValue(others) } }) as never;
+    await expect(
+      assertDemoDatabase(db(3), { NODE_ENV: 'production', SEED_DEMO: 'true' }),
+    ).rejects.toThrow('refused');
+    await expect(
+      assertDemoDatabase(db(0), { NODE_ENV: 'production', SEED_DEMO: 'true' }),
+    ).resolves.toBeUndefined();
+    await expect(assertDemoDatabase(db(3), { NODE_ENV: 'development' })).resolves.toBeUndefined();
+    expect(demoAllowed({ NODE_ENV: 'production', SEED_DEMO: '1' })).toBe(false);
   });
 });

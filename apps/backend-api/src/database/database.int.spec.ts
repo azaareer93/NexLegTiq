@@ -1,8 +1,16 @@
 import { normalizeArabic } from '@nexlegtiq/shared-utils';
 
+import { TENANT_MODELS } from './tenant-models';
 import { createSeedClient, PLANS, seedPlans } from '../../prisma/seed';
-import { DEMO_OFFICE_ID, resetDemo, s3Put, seedDemo } from '../../prisma/seed-demo';
+import {
+  DEMO_OFFICE_ID,
+  DEMO_USER_EMAILS,
+  resetDemo,
+  s3Put,
+  seedDemo,
+} from '../../prisma/seed-demo';
 import type { PrismaClient } from '../generated/prisma/client';
+import { PasswordHasher } from '../modules/auth/password-hasher';
 
 /** Runs `body` in a transaction that is always rolled back, so tests leave no rows behind. */
 async function inRollback(
@@ -123,6 +131,96 @@ describe('database (migrations + seeds, real PostgreSQL)', () => {
     // The numbering continues where the demo left it: the next file number is not taken.
     const sequences = await prisma.fileNumberSequence.findMany({ where });
     expect(sequences.reduce((sum, s) => sum + s.lastValue, 0)).toBe(60);
+  });
+
+  it('should empty only the demo office on reset, drop users added during a demo and keep the seeded ones', async () => {
+    await seedDemo(prisma);
+    const other = await prisma.office.create({
+      data: { name: 'Other office (reset test)', jurisdiction: 'PALESTINE', currency: 'ILS' },
+    });
+    try {
+      await prisma.client.create({
+        data: { officeId: other.id, clientType: 'INDIVIDUAL', displayName: 'Kept client' },
+      });
+      await prisma.user.create({
+        data: {
+          officeId: DEMO_OFFICE_ID,
+          fullName: 'Added during a demo',
+          email: 'visitor@example.test',
+          passwordHash: '!',
+          role: 'OFFICE_MANAGER',
+        },
+      });
+      await resetDemo(prisma);
+
+      const kept = new Set(['OfficeSettings', 'User', 'Subscription', 'LegalAcceptance']);
+      for (const model of TENANT_MODELS.filter((m) => !kept.has(m))) {
+        const delegate = (
+          prisma as unknown as Record<string, { count(a: object): Promise<number> }>
+        )[model.charAt(0).toLowerCase() + model.slice(1)];
+        await expect(delegate?.count({ where: { officeId: DEMO_OFFICE_ID } })).resolves.toBe(0);
+      }
+      const users = await prisma.user.findMany({
+        where: { officeId: DEMO_OFFICE_ID },
+        select: { email: true },
+      });
+      expect(users.map((u) => u.email).sort()).toEqual([...DEMO_USER_EMAILS].sort());
+      await expect(prisma.client.count({ where: { officeId: other.id } })).resolves.toBe(1);
+    } finally {
+      await prisma.client.deleteMany({ where: { officeId: other.id } });
+      await prisma.office.delete({ where: { id: other.id } });
+    }
+  });
+
+  it('should let every demo account sign in with DEMO_PASSWORD and keep invoices coherent with their dates', async () => {
+    await resetDemo(prisma);
+    await seedDemo(prisma, { password: 'Demo-Pass-2026' });
+    const hasher = new PasswordHasher();
+    const users = await prisma.user.findMany({ where: { officeId: DEMO_OFFICE_ID } });
+    for (const user of users) {
+      expect(user.email.endsWith('@demo.nexlegtiq.test')).toBe(true);
+      expect(user).toMatchObject({ isActive: true });
+      expect(user.emailVerifiedAt).not.toBeNull();
+      await expect(hasher.verify(user.passwordHash, 'Demo-Pass-2026')).resolves.toBe(true);
+    }
+    const portal = await prisma.clientUser.findUniqueOrThrow({
+      where: { email: 'client@demo.nexlegtiq.test' },
+    });
+    await expect(hasher.verify(portal.passwordHash, 'Demo-Pass-2026')).resolves.toBe(true);
+    const contacts = await prisma.contactPerson.findMany({ where: { officeId: DEMO_OFFICE_ID } });
+    expect(contacts.every((c) => c.email?.endsWith('@demo.nexlegtiq.test'))).toBe(true);
+
+    const now = Date.now();
+    const invoices = await prisma.invoice.findMany({
+      where: { officeId: DEMO_OFFICE_ID, invoiceNumber: { not: null } },
+      orderBy: { issueDate: 'asc' },
+    });
+    // Numbers grow with the issue date; only OVERDUE is past its due date (as the overdue job would leave it).
+    expect(invoices.map((i) => i.invoiceNumber)).toEqual(
+      [...invoices.map((i) => i.invoiceNumber)].sort(),
+    );
+    for (const invoice of invoices) {
+      const due = invoice.dueDate?.getTime() ?? 0;
+      expect(
+        invoice.status === 'OVERDUE' ? due < now : invoice.status !== 'SENT' || due > now,
+      ).toBe(true);
+    }
+    // A paralegal task is only on a file the paralegal is on.
+    const paralegal = users.find((u) => u.role === 'PARALEGAL');
+    const tasks = await prisma.task.findMany({
+      where: { assignedToId: paralegal?.id },
+      select: { fileId: true },
+    });
+    const teams = await prisma.fileTeamMember.findMany({
+      where: { userId: paralegal?.id },
+      select: { fileId: true },
+    });
+    expect(tasks.every((t) => teams.some((m) => m.fileId === t.fileId))).toBe(true);
+    await expect(
+      prisma.legalFile.count({
+        where: { officeId: DEMO_OFFICE_ID, closingDate: { gt: new Date() } },
+      }),
+    ).resolves.toBe(0);
   });
 
   it.each([

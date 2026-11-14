@@ -1,9 +1,8 @@
 import { createHash } from 'node:crypto';
 
 import { DOMAIN } from './demo-shared';
-import type { DemoFile, PutObject, Staff } from './demo-shared';
+import type { Db, DemoFile, PutObject, Staff } from './demo-shared';
 import { uuidV7 } from '../src/common/ids/uuid-v7';
-import type { PrismaClient } from '../src/generated/prisma/client';
 
 /** A one-page PDF with an ASCII caption: enough for the viewer, the download link and the storage quota. */
 export function samplePdf(caption: string): Buffer {
@@ -64,7 +63,7 @@ const DOCS = [
 ] as const;
 
 export async function createDocuments(
-  prisma: PrismaClient,
+  prisma: Db,
   officeId: string,
   staff: Staff,
   files: readonly DemoFile[],
@@ -119,24 +118,3 @@ export async function createDocuments(
 }
 
 export const DEMO_PORTAL_EMAIL = `client@${DOMAIN}`;
-
-export async function createPortalClient(
-  prisma: PrismaClient,
-  officeId: string,
-  staff: Staff,
-  clientId: string,
-) {
-  const user = await prisma.clientUser.upsert({
-    where: { email: DEMO_PORTAL_EMAIL },
-    create: {
-      email: DEMO_PORTAL_EMAIL,
-      fullName: 'أحمد النموذج (تجريبي)',
-      passwordHash: '!',
-      emailVerifiedAt: new Date(),
-    },
-    update: {},
-  });
-  await prisma.clientPortalAccess.create({
-    data: { officeId, clientUserId: user.id, clientId, grantedById: staff.managerId },
-  });
-}

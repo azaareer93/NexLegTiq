@@ -1,3 +1,5 @@
+import type { Prisma } from '../src/generated/prisma/client';
+
 /** Where the demo PDFs go; null = skip documents (no storage configured). */
 export type PutObject = ((key: string, body: Buffer) => Promise<void>) | null;
 
@@ -27,6 +29,10 @@ export interface DemoFile {
   readonly type: string;
   readonly status: string;
   readonly lawyerId: string;
+  readonly paralegalId: string | null;
   readonly clientId: string;
   readonly openedDaysAgo: number;
 }
+
+/** The seed client or the transaction the content is written in. */
+export type Db = Prisma.TransactionClient;

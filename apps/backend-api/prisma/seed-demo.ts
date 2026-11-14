@@ -8,20 +8,27 @@ import {
 import { seedCourts } from './courts.seed';
 import { DEMO_PORTAL_EMAIL, DEMO_STAFF, seedDemoContent } from './demo-content';
 import type { PutObject } from './demo-content';
+import { DAY, DOMAIN } from './demo-shared';
 import { createSeedClient, seedPlans } from './seed';
 import { TENANT_MODELS } from '../src/database/tenant-models';
 import type { PrismaClient } from '../src/generated/prisma/client';
+import type { Role } from '../src/generated/prisma/enums';
 import { PasswordHasher } from '../src/modules/auth/password-hasher';
 
 /** Fixed ids so re-running updates the same rows instead of creating new ones. */
 export const DEMO_OFFICE_ID = '01920000-0000-7000-8000-000000000001';
-export const DEMO_MANAGER_EMAIL = 'manager@demo.nexlegtiq.test';
-const DOMAIN = 'demo.nexlegtiq.test';
+export const DEMO_MANAGER_EMAIL = `manager@${DOMAIN}`;
+/** Every account the seed owns; reset removes any other user of the demo office (added during a demo). */
+export const DEMO_USER_EMAILS = [
+  DEMO_MANAGER_EMAIL,
+  ...DEMO_STAFF.map(([, key]) => `${key}@${DOMAIN}`),
+];
 
 /**
- * The demo office (MVP-118, D-175) for local work, tests, sales demos and E2E: the office, one user per role, an active
- * Professional subscription and — once — its content (`demo-content.ts`). Users sign in with `DEMO_PASSWORD` when it is
- * set; without it their hash matches no password. `put` uploads the sample PDFs (null: no documents).
+ * The demo office (MVP-118, D-175) for local work, tests, sales demos and E2E: the office, one user per role, the
+ * portal client's account, an active Professional subscription and — once — its content (`demo-content.ts`). Every
+ * demo account signs in with `DEMO_PASSWORD` when it is set; without it their hash matches no password. Each run puts
+ * the accounts back as seeded (role, active, verified, password). `put` uploads the sample PDFs (null: none).
  */
 export async function seedDemo(
   prisma: PrismaClient,
@@ -42,35 +49,48 @@ export async function seedDemo(
     update: office,
   });
   const passwordHash = options.password ? await new PasswordHasher().hash(options.password) : '!';
-  const user = async (email: string, fullName: string, role: string) =>
-    (
-      await prisma.user.upsert({
-        where: { email },
-        create: {
-          officeId: DEMO_OFFICE_ID,
-          fullName,
-          email,
-          passwordHash,
-          role: role as never,
-          emailVerifiedAt: new Date(),
-        },
-        // A changed DEMO_PASSWORD takes effect on the next run; names and roles stay as they are.
-        update: options.password ? { passwordHash } : {},
-      })
-    ).id;
+  const user = async (email: string, fullName: string, role: Role): Promise<string> => {
+    const existing = await prisma.user.findUnique({ where: { email }, select: { officeId: true } });
+    // Emails are unique across offices: never take over an account someone else registered.
+    if (existing && existing.officeId !== DEMO_OFFICE_ID) {
+      throw new Error(`${email} belongs to another office; the demo seed will not touch it`);
+    }
+    const state = { role, isActive: true, emailVerifiedAt: new Date(), passwordHash };
+    const row = await prisma.user.upsert({
+      where: { email },
+      create: { officeId: DEMO_OFFICE_ID, fullName, email, ...state },
+      update: state,
+    });
+    return row.id;
+  };
   const managerId = await user(DEMO_MANAGER_EMAIL, 'مدير المكتب التجريبي', 'OFFICE_MANAGER');
-  const ids: Record<string, string> = {};
-  for (const [role, key, fullName] of DEMO_STAFF) {
-    ids[key] = await user(`${key}@${DOMAIN}`, fullName, role);
-  }
+  const ids = new Map<string, string>();
+  for (const [role, key, fullName] of DEMO_STAFF)
+    ids.set(key, await user(`${key}@${DOMAIN}`, fullName, role));
+  const id = (key: string) => {
+    const value = ids.get(key);
+    if (!value) throw new Error(`Demo user ${key} missing`);
+    return value;
+  };
+  const portal = await prisma.clientUser.upsert({
+    where: { email: DEMO_PORTAL_EMAIL },
+    create: {
+      email: DEMO_PORTAL_EMAIL,
+      fullName: 'أحمد النموذج (تجريبي)',
+      passwordHash,
+      emailVerifiedAt: new Date(),
+    },
+    update: { passwordHash, isActive: true },
+  });
   await liveSubscription(prisma);
   const content = await seedDemoContent(
     prisma,
     DEMO_OFFICE_ID,
     {
       managerId,
-      lawyers: [ids['senior'], ids['lawyer1'], ids['lawyer2']] as string[],
-      paralegalId: ids['paralegal'] as string,
+      lawyers: [id('senior'), id('lawyer1'), id('lawyer2')],
+      paralegalId: id('paralegal'),
+      portalUserId: portal.id,
     },
     options.put ?? null,
   );
@@ -93,30 +113,48 @@ async function liveSubscription(prisma: PrismaClient): Promise<void> {
       planId: plan.id,
       status: 'ACTIVE',
       currentPeriodStart: now,
-      currentPeriodEnd: new Date(now.getTime() + 365 * 86_400_000),
+      currentPeriodEnd: new Date(now.getTime() + 365 * DAY),
       paymentMethod: 'NONE',
     },
   });
 }
 
+/** Kept by a reset: the office's settings and subscription, and the seed's own users with their terms acceptances. */
+const KEPT_ON_RESET = new Set(['OfficeSettings', 'User', 'Subscription', 'LegalAcceptance']);
+
 /**
- * Empties the demo office (never another): every tenant row of DEMO_OFFICE_ID, children first, and the portal user;
- * the office, its settings, users and subscription are kept for the next seed. Audit rows can only be deleted by the
+ * Empties the demo office (never another): every other tenant row of DEMO_OFFICE_ID, children first, and any user of
+ * the office the seed does not own (someone added or renamed during a demo). Audit rows can only be deleted by the
  * owner role (the app role may not, D-060): run it with the migration database URL.
  */
 export async function resetDemo(prisma: PrismaClient): Promise<void> {
-  const keep = new Set(['OfficeSettings', 'User', 'Subscription']);
-  await prisma.$transaction(async (tx) => {
-    for (const model of [...TENANT_MODELS].reverse()) {
-      if (keep.has(model)) continue;
-      const delegate = (
-        tx as unknown as Record<string, { deleteMany(a: object): Promise<unknown> }>
-      )[model.charAt(0).toLowerCase() + model.slice(1)];
-      await delegate?.deleteMany({ where: { officeId: DEMO_OFFICE_ID } });
+  const where = { officeId: DEMO_OFFICE_ID };
+  try {
+    await prisma.$transaction(
+      async (tx) => {
+        for (const model of [...TENANT_MODELS].reverse()) {
+          if (KEPT_ON_RESET.has(model)) continue;
+          const delegate = (
+            tx as unknown as Record<string, { deleteMany?(a: object): Promise<unknown> }>
+          )[model.charAt(0).toLowerCase() + model.slice(1)];
+          if (!delegate?.deleteMany) throw new Error(`No Prisma delegate for ${model}`);
+          await delegate.deleteMany({ where });
+        }
+        const strangers = { ...where, email: { notIn: DEMO_USER_EMAILS } };
+        await tx.legalAcceptance.deleteMany({ where: { ...where, user: strangers } });
+        await tx.user.deleteMany({ where: strangers });
+      },
+      { timeout: 120_000 },
+    );
+  } catch (error) {
+    // 42501 insufficient_privilege: the app role may not delete audit rows.
+    if (String((error as { message?: unknown }).message).includes('permission denied')) {
+      throw new Error(
+        'demo-reset needs the owner (migration) database URL: the app role may not delete audit rows (D-060)',
+      );
     }
-    await tx.fileNumberSequence.deleteMany({ where: { officeId: DEMO_OFFICE_ID } });
-    await tx.clientUser.deleteMany({ where: { email: DEMO_PORTAL_EMAIL } });
-  });
+    throw error;
+  }
 }
 
 /** Uploads to the configured bucket, or null when no storage is configured (documents are then left out). */
@@ -159,9 +197,11 @@ export function s3Put(env: NodeJS.ProcessEnv = process.env): {
         );
         const keys = (page.Contents ?? []).flatMap((o) => (o.Key ? [{ Key: o.Key }] : []));
         if (keys.length) {
-          await client.send(
+          const result = await client.send(
             new DeleteObjectsCommand({ Bucket: S3_BUCKET, Delete: { Objects: keys } }),
           );
+          if (result.Errors?.length)
+            throw new Error(`${result.Errors.length} demo objects not deleted`);
         }
         token = page.NextContinuationToken;
       } while (token);
@@ -175,6 +215,21 @@ export function demoAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
   return nodeEnv === 'development' || nodeEnv === 'test' || env['SEED_DEMO'] === 'true';
 }
 
+/**
+ * Outside development and test (`SEED_DEMO=true`), the database must be a demo deployment of its own: one with an
+ * office other than the demo office is refused, so a stray flag on production cannot add publicly known accounts.
+ */
+export async function assertDemoDatabase(
+  prisma: PrismaClient,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<void> {
+  const nodeEnv = env['NODE_ENV'];
+  if (nodeEnv === 'development' || nodeEnv === 'test') return;
+  const others = await prisma.office.count({ where: { id: { not: DEMO_OFFICE_ID } } });
+  if (others > 0)
+    throw new Error('SEED_DEMO=true on a database with real offices: refused (D-175)');
+}
+
 async function main(): Promise<void> {
   if (!demoAllowed()) {
     throw new Error(
@@ -184,6 +239,7 @@ async function main(): Promise<void> {
   const prisma = createSeedClient();
   const storage = s3Put();
   try {
+    await assertDemoDatabase(prisma);
     if (process.argv.includes('--reset')) {
       await resetDemo(prisma);
       await storage.clear();
