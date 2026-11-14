@@ -31,6 +31,7 @@
   "mustAcceptTerms": "You must accept the Terms of Service.",
   "nextSessionBefore": "The next hearing must start after this one.",
   "nextSessionExists": "The next hearing has already been scheduled.",
+  "nextStep": "Choose one of the suggested next steps.",
   "noClientEmail": "The client has no email address. Add one to the client or its primary contact.",
   "noOfficeEmail": "The office has no email address. Add one to the office or turn off emailing the receipt.",
   "notPast": "Choose today or a later date.",

@@ -335,6 +335,13 @@ enum FolderSystemKey {
 }
 
 /// What an AI job or output is about (D-039 AiSummarySourceType; D-130).
+/// The risk a session summary reads in the hearing (MVP-87, D-179).
+enum AiRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
 enum AiSourceType {
   DOCUMENT
   SESSION
@@ -1904,6 +1911,10 @@ model AiSummary {
   keyLegalIssues Json         @default("[]") @map("key_legal_issues")
   parties        Json         @default("[]")
   dates          Json         @default("[]")
+  /// A session summary's suggested follow-ups `[{action, dueInDays?}]` (MVP-87, D-179); `[]` for a document.
+  nextSteps      Json         @default("[]") @map("next_steps")
+  /// A session summary's risk reading (D-179); null for a document.
+  riskAssessment AiRiskLevel? @map("risk_assessment")
   provider       String
   model          String
   promptVersion  String       @map("prompt_version")

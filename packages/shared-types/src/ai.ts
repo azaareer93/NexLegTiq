@@ -21,3 +21,7 @@ export const AI_FEEDBACK_REASONS = [
   'OTHER',
 ] as const;
 export type AiFeedbackReason = (typeof AI_FEEDBACK_REASONS)[number];
+
+/** The risk a session summary reads in a hearing (D-179). Mirrors the Prisma enum; labels: `enums.aiRiskLevel.<VALUE>`. */
+export const AI_RISK_LEVELS = ['LOW', 'MEDIUM', 'HIGH'] as const;
+export type AiRiskLevel = (typeof AI_RISK_LEVELS)[number];
