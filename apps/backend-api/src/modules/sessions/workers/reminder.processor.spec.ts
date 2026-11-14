@@ -41,6 +41,10 @@ function setup() {
     return Promise.resolve(batch.length);
   });
   const upsertJobScheduler = jest.fn().mockResolvedValue({});
+  const tasks = {
+    tick: jest.fn().mockResolvedValue({ queued: 1 }),
+    daily: jest.fn().mockResolvedValue({ users: 2 }),
+  };
   const logger = { warn: jest.fn(), info: jest.fn(), error: jest.fn() } as unknown as PinoLogger;
   const processor = new ReminderProcessor(
     new TenantRunner(cls),
@@ -49,6 +53,7 @@ function setup() {
     { deliver, markFailed } as unknown as ReminderDelivery,
     { enqueue } as unknown as ReminderScheduler,
     { get: () => ({ upsertJobScheduler }) } as never,
+    tasks as never,
   );
   const job = (name: string, data: object, extra: object = {}) =>
     ({
@@ -60,7 +65,18 @@ function setup() {
       data: { officeId: OFFICE_A, requestId: null, ...data },
       ...extra,
     }) as unknown as Job<never>;
-  return { processor, raw, deliver, markFailed, enqueue, offices, upsertJobScheduler, job, logger };
+  return {
+    processor,
+    raw,
+    deliver,
+    markFailed,
+    enqueue,
+    offices,
+    upsertJobScheduler,
+    job,
+    logger,
+    tasks,
+  };
 }
 
 describe('ReminderProcessor', () => {
@@ -82,6 +98,33 @@ describe('ReminderProcessor', () => {
       processor.process(job('send-session-reminder', { reminderId: REMINDER })),
     ).resolves.toEqual({ sent: 'u1' });
     expect(deliver).toHaveBeenCalledWith(REMINDER);
+  });
+
+  it('should run the hourly task tick for the scheduler only, and the daily task job in its office (D-177)', async () => {
+    const { processor, job, tasks, upsertJobScheduler } = setup();
+    await processor.onApplicationBootstrap();
+    expect(upsertJobScheduler).toHaveBeenCalledWith('task-reminders-tick', expect.anything(), {
+      name: 'task-reminders-tick',
+      data: {},
+    });
+    await expect(
+      processor.process({ id: 't', name: 'task-reminders-tick', data: {} } as never),
+    ).resolves.toEqual({ queued: 1 });
+    await expect(processor.process(job('task-daily', { date: '2026-11-14' }))).resolves.toEqual({
+      users: 2,
+    });
+    expect(tasks.daily).toHaveBeenCalledWith({ date: '2026-11-14' }, expect.any(AbortSignal));
+    // A tick carrying an office is not the scheduler's: it goes through the office checks and is refused.
+    await expect(processor.process(job('task-reminders-tick', {}))).rejects.toBeInstanceOf(
+      UnrecoverableError,
+    );
+    await expect(processor.process(job('task-daily', { date: 'x' }))).rejects.toBeInstanceOf(
+      UnrecoverableError,
+    );
+    // A session payload under the task job name is refused, not retried.
+    await expect(
+      processor.process(job('task-daily', { reminderId: REMINDER })),
+    ).rejects.toBeInstanceOf(UnrecoverableError);
   });
 
   it('should refuse an unknown job or a malformed payload without retries', async () => {

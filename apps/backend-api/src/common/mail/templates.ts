@@ -2,8 +2,7 @@ import Handlebars from 'handlebars';
 import { z } from 'zod';
 
 import { CLIENT_INVITE_COPY } from './client-invite-copy';
-import { INVOICE_COPY, INVOICE_VARS } from './invoice-copy';
-import { RECEIPT_COPY, RECEIPT_VARS } from './receipt-copy';
+import { EXTRA_COPY, EXTRA_VARS } from './extra-copy';
 
 /** Email locales: the user's `uiLanguage` (D-016). Bilingual offices write to each user in that user's language. */
 export type MailLocale = 'AR' | 'EN';
@@ -44,8 +43,7 @@ export const MAIL_TEMPLATE_SCHEMAS = {
     court: shortText(300),
     courtRoom: shortText(100),
   }),
-  invoice: INVOICE_VARS,
-  'payment-receipt': RECEIPT_VARS,
+  ...EXTRA_VARS,
 } as const;
 export type MailTemplateName = keyof typeof MAIL_TEMPLATE_SCHEMAS;
 export type MailTemplates = { [K in MailTemplateName]: z.input<(typeof MAIL_TEMPLATE_SCHEMAS)[K]> };
@@ -222,8 +220,7 @@ View the hearing:
 {{link}}`,
     },
   },
-  invoice: INVOICE_COPY,
-  'payment-receipt': RECEIPT_COPY,
+  ...EXTRA_COPY,
 };
 
 /** Templates whose copy says how long a link lasts (`{{period}}`). */

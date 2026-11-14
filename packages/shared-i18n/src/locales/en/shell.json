@@ -62,7 +62,9 @@
     "openWithCount_one": "Notifications, {{count}} unread",
     "openWithCount_other": "Notifications, {{count}} unread",
     "markReadOf": "Mark “⁨{{title}}⁩” as read",
-    "fileReassignedAway": "File ⁨{{fileNumber}}⁩ was reassigned to another lawyer"
+    "fileReassignedAway": "File ⁨{{fileNumber}}⁩ was reassigned to another lawyer",
+    "taskDue": "Task due on ⁨{{dueDate}}⁩: ⁨{{title}}⁩",
+    "taskDigest": "Your tasks: overdue {{overdue}}, due today {{today}}"
   },
   "profile": {
     "menu": "Account menu",

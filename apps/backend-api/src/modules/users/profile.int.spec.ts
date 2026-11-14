@@ -156,13 +156,15 @@ describe('profile and notification preferences (HTTP + PostgreSQL)', () => {
     const lawyer = await seed('LAWYER');
     const prefs = await http().get('/api/v1/notifications/preferences').set(as(lawyer)).expect(200);
     expect(prefs.body.data).toContainEqual({ category: 'HEARINGS', inApp: true, email: true });
-    expect(prefs.body.data).toContainEqual({ category: 'TASKS', inApp: true, email: null });
+    expect(prefs.body.data).toContainEqual({ category: 'TASKS', inApp: true, email: true });
+    // A category without email has none to show.
+    expect(prefs.body.data).toContainEqual({ category: 'FILES', inApp: true, email: null });
     const updated = await http()
       .patch('/api/v1/notifications/preferences')
       .set(as(lawyer))
       .send({ TASKS: { inApp: false, email: false }, HEARINGS: { email: false } })
       .expect(200);
-    expect(updated.body.data).toContainEqual({ category: 'TASKS', inApp: false, email: null });
+    expect(updated.body.data).toContainEqual({ category: 'TASKS', inApp: false, email: false });
     expect(updated.body.data).toContainEqual({ category: 'HEARINGS', inApp: true, email: false });
     await http()
       .patch('/api/v1/notifications/preferences')

@@ -31,6 +31,7 @@ import { ReminderDelivery } from '../modules/sessions/reminder-delivery';
 import { ReminderScheduler } from '../modules/sessions/reminder-scheduler';
 import { ReminderProcessor } from '../modules/sessions/workers/reminder.processor';
 import { SubscriptionsModule } from '../modules/subscriptions/subscriptions.module';
+import { TaskReminders } from '../modules/tasks/task-reminders';
 import { TimelineModule } from '../modules/timeline/timeline.module';
 
 /**
@@ -65,6 +66,7 @@ import { TimelineModule } from '../modules/timeline/timeline.module';
     ReminderProcessor,
     ReminderDelivery,
     ReminderScheduler,
+    TaskReminders,
     AiProcessor,
     DocumentSummarizer,
     OcrProcessor,
