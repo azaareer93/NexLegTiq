@@ -17,7 +17,7 @@
  *
  * Namespaces:
  *   nexlegtiq-spec  one entry per "## section" of each docs/context file (key: <file>/<section-slug>; the MCP tools reject "#" in keys)
- *   decisions       one entry per D-### in decisions.md (key: D-###)
+ *   decisions       one entry per docs/context/decisions/D-###.md (key: D-###)
  * Re-running is safe: `memory store` upserts by (namespace, key).
  *
  * Why no `npx` / shell: values are multi-line markdown containing `|`, `<`, `>`, `&` and quotes.
@@ -57,7 +57,12 @@ const targets = files.length
   ? files.map((f) => resolve(f))
   : readdirSync(ctxDir)
       .filter((f) => f.endsWith('.md'))
-      .map((f) => join(ctxDir, f));
+      .map((f) => join(ctxDir, f))
+      .concat(
+        readdirSync(join(ctxDir, 'decisions'))
+          .filter((f) => /^D-\d+\.md$/.test(f))
+          .map((f) => join(ctxDir, 'decisions', f)),
+      );
 
 const slug = (s) =>
   s
@@ -239,14 +244,11 @@ const track = (res) => {
   }
 };
 
-/** Memory entries of one docs/context file: one per D-### in decisions.md, one per "## section" elsewhere. */
+/** Memory entries of one docs/context file: a decision file is one entry, any other file one per "## section". */
 function entriesOf(name, raw) {
   const text = raw.replace(/\r\n/g, '\n');
-  if (name === 'decisions') {
-    return text
-      .split(/\n(?=\*\*D-\d{3})/)
-      .filter((e) => /^\*\*D-\d{3}/.test(e))
-      .map((e) => ({ namespace: 'decisions', key: e.match(/^\*\*(D-\d{3})/)[1], value: e.trim() }));
+  if (/^D-\d+$/.test(name)) {
+    return text.trim() ? [{ namespace: 'decisions', key: name, value: text.trim() }] : [];
   }
   const sections = text.split(/\n(?=## )/);
   const intro = sections.shift() ?? '';

@@ -15,7 +15,7 @@
 - [ ] Audit/timeline events for case-data changes
 - [ ] Swagger/contracts updated; error codes documented
 - [ ] Migrations reviewed (label `needs-human-review`)
-- [ ] `docs/context` / `decisions.md` updated if behavior changed
+- [ ] `docs/context` / a `decisions/D-NNN.md` added if behavior changed
 
 ## Screenshots (AR / EN)
 

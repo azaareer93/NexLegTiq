@@ -24,5 +24,5 @@ Ship the current branch. Args: $ARGUMENTS
 6. Jira: comment with a 3–5 line summary + PR link (`addCommentToJiraIssue`), transition to *In Review* (or the closest status the
    workflow offers; list transitions first). Don't move to Done — merge does that.
 7. Memory: store durable, reusable learnings (patterns, gotchas) in Ruflo (`memory_store`, namespace `patterns` or `lessons`,
-   key `MVP-<n>-<topic>`). If a new decision was made, ensure `decisions.md` has it.
+   key `MVP-<n>-<topic>`). If a new decision was made, ensure its `docs/context/decisions/D-###.md` exists.
 8. Output the PR URL. Never merge it here — `/autopilot` merges green PRs without `needs-human-review` (D-147).

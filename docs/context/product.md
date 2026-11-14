@@ -1,7 +1,7 @@
 # Product Context
 
 > Distilled from Notion (Root, Roadmap, Business Strategy, Personas, RICE, FAQ, ToS). Conflicts resolved in
-> `decisions.md`. Source links: `00-index.md`.
+> `decisions/`. Source links: `00-index.md`.
 
 ## What NexLegTiq is
 An AI-native, bilingual (Arabic/English, RTL/LTR) workspace for law offices in MENA — case files, court

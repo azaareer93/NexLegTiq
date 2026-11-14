@@ -1,7 +1,7 @@
 # Architecture
 
 > From: Technical Architecture, Backend Deep Dive, Flow Charts, Dev Guidelines, Performance, Deployment.
-> Resolutions: `decisions.md` (D-010…D-021).
+> Resolutions: `decisions/` (D-010…D-021).
 
 ## Monorepo (Nx + pnpm, Node 22)
 Tooling (MVP-28): Nx 23 with TS project references, pnpm 10 workspaces, **TypeScript 6.0** (TS 7 is not yet supported by
