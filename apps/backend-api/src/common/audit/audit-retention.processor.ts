@@ -5,6 +5,7 @@ import { ModuleRef } from '@nestjs/core';
 import { UnrecoverableError } from 'bullmq';
 import type { Job } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
+import { z } from 'zod';
 
 import { PrismaService } from '../../database/prisma.service';
 import { InvoiceOverdueSweep } from '../../modules/invoices/invoice-overdue.sweep';
@@ -14,6 +15,12 @@ import {
   RENDER_INVOICE_PDF_JOB,
 } from '../../modules/invoices/pdf/invoice-pdf.renderer';
 import type { InvoicePdfJob } from '../../modules/invoices/pdf/invoice-pdf.renderer';
+import {
+  ReceiptJobSchema,
+  ReceiptPdfRenderer,
+  RENDER_PAYMENT_RECEIPT_JOB,
+} from '../../modules/platform-payments/receipt-pdf.renderer';
+import type { ReceiptJob } from '../../modules/platform-payments/receipt-pdf.renderer';
 import { getQueue, QUEUE, workerOptions } from '../queue/queues';
 import type { TenantJobData } from '../queue/tenant-job';
 import { TenantProcessor } from '../queue/tenant-processor';
@@ -30,15 +37,16 @@ export const PURGE_SCHEDULE = { pattern: '0 3 * * *', tz: 'UTC' } as const;
  * The `report` queue's single consumer for now (BullMQ gives every job of a queue to its workers — report jobs join this
  * processor when they arrive). `purge-audit-logs` (daily scheduler, no office) removes audit rows older than each office's
  * retention (D-060, D-136) through `nlq_purge_audit_logs`, the only DELETE the app role may cause on the log;
- * `mark-overdue-invoices` (daily, D-162); `render-invoice-pdf` (an office's job, MVP-92, D-171).
+ * `mark-overdue-invoices` (daily, D-162); `render-invoice-pdf` (an office's job, MVP-92, D-171); `render-payment-receipt` (an office's job, MVP-170, D-174).
+ * Office jobs pass when they match one of the job schemas; `handle` parses each by its job name.
  */
 @Injectable()
 @Processor(QUEUE.REPORT, workerOptions(QUEUE.REPORT))
 export class AuditRetentionProcessor
-  extends TenantProcessor<InvoicePdfJob>
+  extends TenantProcessor<InvoicePdfJob | ReceiptJob>
   implements OnApplicationBootstrap
 {
-  protected readonly schema = InvoicePdfJobSchema;
+  protected readonly schema = z.union([InvoicePdfJobSchema, ReceiptJobSchema]);
 
   constructor(
     tenant: TenantRunner,
@@ -47,6 +55,7 @@ export class AuditRetentionProcessor
     private readonly moduleRef: ModuleRef,
     private readonly overdue: InvoiceOverdueSweep,
     private readonly pdfs: InvoicePdfRenderer,
+    private readonly receipts: ReceiptPdfRenderer,
   ) {
     super(tenant, prisma, logger);
   }
@@ -69,7 +78,7 @@ export class AuditRetentionProcessor
   }
 
   /** The purge spans every office, so it runs before the tenant checks of `TenantProcessor.process`. */
-  override async process(job: Job<InvoicePdfJob & TenantJobData>): Promise<unknown> {
+  override async process(job: Job<(InvoicePdfJob | ReceiptJob) & TenantJobData>): Promise<unknown> {
     if (job.name === PURGE_AUDIT_LOGS_JOB) return this.purge();
     // A platform job: only the scheduler's (no office in its data) may run it, never a job someone queued for an office.
     if (job.name === MARK_OVERDUE_INVOICES_JOB && !('officeId' in (job.data ?? {}))) {
@@ -78,8 +87,17 @@ export class AuditRetentionProcessor
     return super.process(job);
   }
 
-  protected handle(job: Job<InvoicePdfJob & TenantJobData>, signal: AbortSignal): Promise<unknown> {
-    if (job.name === RENDER_INVOICE_PDF_JOB) return this.pdfs.run(job.data, String(job.id), signal);
+  protected handle(
+    job: Job<(InvoicePdfJob | ReceiptJob) & TenantJobData>,
+    signal: AbortSignal,
+  ): Promise<unknown> {
+    const id = String(job.id);
+    if (job.name === RENDER_INVOICE_PDF_JOB) {
+      return this.pdfs.run(InvoicePdfJobSchema.parse(job.data), id, signal);
+    }
+    if (job.name === RENDER_PAYMENT_RECEIPT_JOB) {
+      return this.receipts.run(ReceiptJobSchema.parse(job.data), id, signal);
+    }
     throw new UnrecoverableError(`Unknown report job ${job.name}`);
   }
 
