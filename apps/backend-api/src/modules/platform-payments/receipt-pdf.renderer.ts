@@ -53,8 +53,9 @@ export class ReceiptPdfRenderer {
   async run(job: ReceiptJob, jobId: string, signal: AbortSignal): Promise<Record<string, unknown>> {
     const row = await this.prisma.db.platformPayment.findFirst({ where: { id: job.paymentId } });
     if (!row) return { skipped: 'NOT_FOUND' };
+    // Where the receipt is mailed now; what it shows is the payer as recorded.
     const office = await this.prisma.db.office.findFirstOrThrow({
-      select: { name: true, address: true, email: true },
+      select: { name: true, email: true },
     });
     let pdf: Buffer | null = null;
     const current = receiptIsCurrent(row, job.language) ? row.pdfStorageKey : null;
@@ -71,7 +72,7 @@ export class ReceiptPdfRenderer {
           reference: row.reference,
           voided: row.voidedAt !== null,
           issuer: this.config.receiptIssuer,
-          office,
+          office: { name: row.payerName, address: row.payerAddress, email: row.payerEmail },
         }),
         signal,
       );
@@ -102,7 +103,7 @@ export class ReceiptPdfRenderer {
       attachments: [
         {
           filename: `${row.receiptNumber}.pdf`,
-          content: pdf ?? (await this.read(current ?? '')),
+          content: pdf ?? (await this.read(row.pdfStorageKey ?? '')),
           contentType: 'application/pdf',
         },
       ],

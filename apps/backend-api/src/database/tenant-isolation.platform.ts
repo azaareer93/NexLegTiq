@@ -20,6 +20,7 @@ export const PLATFORM_RESOURCES: readonly TenantResource[] = [
           method: 'CASH',
           paidAt: new Date('2026-11-01'),
           recordedById: admin.id,
+          payerName: 'Isolation office',
         },
       });
     },

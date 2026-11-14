@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { JwtService } from '@nestjs/jwt';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import { ThrottlerGuard } from '@nestjs/throttler';
@@ -12,6 +13,7 @@ import { getQueue, QUEUE } from '../../common/queue/queues';
 import { integrationEnv } from '../../config/env.fixture';
 import { PrismaService } from '../../database/prisma.service';
 import type { PrismaClient } from '../../generated/prisma/client';
+import { bearerFor } from '../auth/auth.test-helper';
 import { PasswordHasher } from '../auth/password-hasher';
 import { totpCode, totpStep } from '../platform-auth/totp';
 
@@ -257,5 +259,83 @@ describe('platform admin payments (HTTP + PostgreSQL)', () => {
         THEN has_table_privilege('nexlegtiq_app', 'platform_payments', 'DELETE') END AS allowed`;
     // Null where the role does not exist (a bare local database); false wherever it does.
     expect(grant?.allowed).not.toBe(true);
+  });
+
+  it('should refuse every payment route without an admin session or with an office token', async () => {
+    const id = await office();
+    const paid = (await record(id, payment({ emailOffice: false })).expect(201)).body.data;
+    const officeToken = bearerFor(app.get(JwtService), {
+      userId: randomUUID(),
+      officeId: id,
+      role: 'OFFICE_MANAGER',
+    });
+    const calls = [
+      () => http().get(`/api/v1/admin/offices/${id}/payments`),
+      () => http().post(`/api/v1/admin/offices/${id}/payments`).send(payment()),
+      () =>
+        http()
+          .post(`/api/v1/admin/payments/${paid.id as string}/void`)
+          .send({ reason: 'nope' }),
+      () => http().get(`/api/v1/admin/payments/${paid.id as string}/receipt`),
+    ];
+    for (const call of calls) {
+      await call().expect(401);
+      await call().set(officeToken).expect(401);
+    }
+    const row = await raw.platformPayment.findUniqueOrThrow({ where: { id: paid.id } });
+    expect(row.voidedAt).toBeNull();
+  });
+
+  it('should keep the payer as recorded, refuse a void without a reason and number on after a void', async () => {
+    const id = await office();
+    const first = (await record(id, payment({ emailOffice: false })).expect(201)).body.data;
+    await raw.office.update({ where: { id }, data: { name: 'Renamed office' } });
+    const row = await raw.platformPayment.findUniqueOrThrow({ where: { id: first.id } });
+    expect(row.payerName).toMatch(/^pay-/);
+    expect(row.payerEmail).toBe('office@example.test');
+
+    for (const reason of ['', '   ', 'x'.repeat(501)]) {
+      const res = await http()
+        .post(`/api/v1/admin/payments/${first.id as string}/void`)
+        .set(auth)
+        .send({ reason })
+        .expect(400);
+      expect(res.body.error.details[0].field).toBe('reason');
+    }
+    await http()
+      .post(`/api/v1/admin/payments/${first.id as string}/void`)
+      .set(auth)
+      .send({ reason: 'recorded twice' })
+      .expect(200);
+    const second = (await record(id, payment({ emailOffice: false })).expect(201)).body.data;
+    expect(second.receiptNumber).not.toBe(first.receiptNumber);
+    expect(seq(second.receiptNumber as string)).toBeGreaterThan(seq(first.receiptNumber as string));
+    const list = await http().get(`/api/v1/admin/offices/${id}/payments`).set(auth).expect(200);
+    const voided = list.body.data.find((p: { id: string }) => p.id === first.id);
+    expect(voided.voidedAt).not.toBeNull();
+  });
+
+  it('should render the receipt again after a void, the stored one being stale', async () => {
+    const id = await office();
+    const paid = (await record(id, payment({ emailOffice: false })).expect(201)).body.data;
+    const before = await raw.platformPayment.findUniqueOrThrow({ where: { id: paid.id } });
+    await raw.platformPayment.update({
+      where: { id: paid.id },
+      data: {
+        pdfStorageKey: `${id}/receipts/${paid.id as string}/r.pdf`,
+        pdfLanguage: 'EN',
+        pdfRenderedFor: before.updatedAt,
+        updatedAt: before.updatedAt,
+      },
+    });
+    const url = `/api/v1/admin/payments/${paid.id as string}/receipt`;
+    await http().get(`${url}?language=EN`).set(auth).expect(200);
+    await http().get(`${url}?language=AR`).set(auth).expect(202);
+    await http()
+      .post(`/api/v1/admin/payments/${paid.id as string}/void`)
+      .set(auth)
+      .send({ reason: 'wrong office' })
+      .expect(200);
+    await http().get(`${url}?language=EN`).set(auth).expect(202);
   });
 });

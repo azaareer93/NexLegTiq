@@ -15,6 +15,17 @@ import { useTranslation } from 'react-i18next';
 import { RecordPaymentModal, VoidPaymentModal } from './PaymentModals';
 import { usePaymentMutations, usePayments } from '../hooks';
 
+/**
+ * Follows the download link: storage serves an attachment (D-085), so the page stays; a link click, unlike
+ * `window.open` after an await, is not stopped by popup blockers. Same as the office app's helper.
+ */
+function openDownload(url: string): void {
+  const link = window.document.createElement('a');
+  link.href = url;
+  link.rel = 'noopener noreferrer';
+  link.click();
+}
+
 /** The office's manual payments (MVP-170, D-174): record, void, open the receipt PDF. */
 export function PaymentsCard({
   officeId,
@@ -35,7 +46,7 @@ export function PaymentsCard({
   const openReceipt = async (id: string): Promise<void> => {
     try {
       const answer = await receipt.mutateAsync(id);
-      if (answer.status === 'READY') window.open(answer.downloadUrl, '_blank', 'noopener');
+      if (answer.status === 'READY') openDownload(answer.downloadUrl);
       else void message.info(t('admin.offices.payments.receiptRendering'));
     } catch (error) {
       notify(error);

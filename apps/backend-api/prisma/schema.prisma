@@ -538,8 +538,8 @@ model PlatformAdmin {
   sessions          PlatformSession[]
   recoveryCodes     PlatformRecoveryCode[]
   platformAuditLogs PlatformAuditLog[]
-  paymentsRecorded  PlatformPayment[] @relation("PaymentRecordedBy")
-  paymentsVoided    PlatformPayment[] @relation("PaymentVoidedBy")
+  paymentsRecorded  PlatformPayment[]      @relation("PaymentRecordedBy")
+  paymentsVoided    PlatformPayment[]      @relation("PaymentVoidedBy")
 
   @@map("platform_admins")
 }
@@ -791,6 +791,10 @@ model PlatformPayment {
   method         PlatformPaymentMethod
   reference      String?
   paidAt         DateTime              @map("paid_at") @db.Date
+  /// The payer as it was when the receipt was issued: a re-print never shows later office edits.
+  payerName      String                @map("payer_name")
+  payerAddress   String?               @map("payer_address")
+  payerEmail     String?               @map("payer_email")
   recordedById   String                @map("recorded_by_id") @db.Uuid
   voidedAt       DateTime?             @map("voided_at") @db.Timestamptz(3)
   voidedById     String?               @map("voided_by_id") @db.Uuid

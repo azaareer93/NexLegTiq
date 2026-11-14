@@ -16,14 +16,14 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import {
   AdminPaymentSchema,
-  InvoicePdfQuerySchema,
+  PaymentReceiptQuerySchema,
   PaymentReceiptSchema,
   RecordPaymentSchema,
   VoidPaymentSchema,
 } from '@nexlegtiq/shared-contracts';
 import type {
   AdminPayment,
-  InvoicePdfQuery,
+  PaymentReceiptQuery,
   PaymentReceipt,
   RecordPaymentRequest,
   VoidPaymentRequest,
@@ -98,11 +98,11 @@ export class PlatformPaymentsController {
   @Get('payments/:id/receipt')
   @Throttle({ default: { limit: 30, ttl: MINUTE_MS } })
   @ApiOperation({ summary: 'A short-lived link to the receipt PDF (200), or 202 while it renders' })
-  @ApiZodQuery(InvoicePdfQuerySchema)
+  @ApiZodQuery(PaymentReceiptQuerySchema)
   @ApiZodResponse(HttpStatus.OK, PaymentReceiptSchema)
   async receipt(
     @Param('id', uuid()) id: string,
-    @Query(new ZodValidationPipe(InvoicePdfQuerySchema)) query: InvoicePdfQuery,
+    @Query(new ZodValidationPipe(PaymentReceiptQuerySchema)) query: PaymentReceiptQuery,
     @Req() req: AdminRequest,
     @Res({ passthrough: true }) res: Response,
   ): Promise<PaymentReceipt> {

@@ -26,6 +26,13 @@ import type { TenantJobData } from '../queue/tenant-job';
 import { TenantProcessor } from '../queue/tenant-processor';
 import { TenantRunner } from '../tenancy/tenant-runner';
 
+/** The payload under its own job's schema; another job's payload fails at once, as any bad payload (D-084). */
+function payload<T>(schema: z.ZodType<T>, data: unknown): T {
+  const parsed = schema.safeParse(data);
+  if (!parsed.success) throw new UnrecoverableError('Invalid job payload');
+  return parsed.data;
+}
+
 export const PURGE_AUDIT_LOGS_JOB = 'purge-audit-logs';
 /** Daily at 03:00 UTC, an hour after the reminder reconciliation. */
 export const MARK_OVERDUE_INVOICES_JOB = 'mark-overdue-invoices';
@@ -93,10 +100,10 @@ export class AuditRetentionProcessor
   ): Promise<unknown> {
     const id = String(job.id);
     if (job.name === RENDER_INVOICE_PDF_JOB) {
-      return this.pdfs.run(InvoicePdfJobSchema.parse(job.data), id, signal);
+      return this.pdfs.run(payload(InvoicePdfJobSchema, job.data), id, signal);
     }
     if (job.name === RENDER_PAYMENT_RECEIPT_JOB) {
-      return this.receipts.run(ReceiptJobSchema.parse(job.data), id, signal);
+      return this.receipts.run(payload(ReceiptJobSchema, job.data), id, signal);
     }
     throw new UnrecoverableError(`Unknown report job ${job.name}`);
   }

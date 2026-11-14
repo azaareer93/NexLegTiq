@@ -98,7 +98,7 @@ describe('AuditRetentionProcessor', () => {
     });
     expect(receipts.run).toHaveBeenCalledWith(receipt, 'j1', expect.any(AbortSignal));
     // A receipt payload under the invoice job name is refused by the invoice schema.
-    expect(() => handle(RENDER_INVOICE_PDF_JOB, receipt)).toThrow();
+    expect(() => handle(RENDER_INVOICE_PDF_JOB, receipt)).toThrow(UnrecoverableError);
     expect(() => handle('nope', invoice)).toThrow(UnrecoverableError);
   });
 });

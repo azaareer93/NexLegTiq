@@ -24,6 +24,7 @@ describe('admin payments contracts', () => {
     ['an unknown currency', { currency: 'XYZ' }],
     ['a card payment', { method: 'CARD' }],
     ['a date in another format', { paidAt: '14/11/2026' }],
+    ['a typo year', { paidAt: '0202-11-14' }],
   ])('should refuse %s', (_label, over) => {
     expect(RecordPaymentSchema.safeParse({ ...payment, ...over }).success).toBe(false);
   });

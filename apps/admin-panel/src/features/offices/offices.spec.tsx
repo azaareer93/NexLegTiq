@@ -466,7 +466,12 @@ describe('office payments (D-174)', () => {
       const bodies = setup();
       let receipt: unknown = { status: 'RENDERING' };
       server.use(http.get(api(`admin/payments/${PAYMENT.id}/receipt`), () => ok(receipt)));
-      const open = vi.spyOn(window, 'open').mockReturnValue(null);
+      const clicked: string[] = [];
+      const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+        this: HTMLAnchorElement,
+      ) {
+        clicked.push(this.href);
+      });
       renderAt(`/offices/${ID}`);
       expect(await screen.findByText('RCT-2026-0007')).toBeTruthy();
 
@@ -474,10 +479,8 @@ describe('office payments (D-174)', () => {
       expect(await screen.findByText(/being prepared/)).toBeTruthy();
       receipt = { status: 'READY', downloadUrl: 'https://s3.test/r.pdf', expiresIn: 300 };
       fireEvent.click(screen.getByTestId(`payment-receipt-${PAYMENT.id}`));
-      await waitFor(() =>
-        expect(open).toHaveBeenCalledWith('https://s3.test/r.pdf', '_blank', 'noopener'),
-      );
-      open.mockRestore();
+      await waitFor(() => expect(clicked).toEqual(['https://s3.test/r.pdf']));
+      click.mockRestore();
 
       fireEvent.click(screen.getByTestId(`payment-void-${PAYMENT.id}`));
       fireEvent.change(await screen.findByTestId('payment-void-reason'), {

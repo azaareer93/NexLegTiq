@@ -84,6 +84,7 @@ export function RecordPaymentModal({
         <Form.Item
           name="amount"
           label={t('admin.offices.payments.modal.amount')}
+          extra={t('admin.offices.payments.modal.amountHint')}
           rules={[required]}
         >
           <Input dir="ltr" inputMode="decimal" data-testid="payment-amount" />

@@ -2,7 +2,7 @@ import { PLATFORM_PAYMENT_METHODS } from '@nexlegtiq/shared-types';
 import { z } from 'zod';
 
 import { CurrencySchema, longText, plainText } from './fields.js';
-import { InvoicePdfSchema } from './invoice.contract.js';
+import { InvoicePdfQuerySchema, InvoicePdfSchema } from './invoice.contract.js';
 
 /**
  * `POST /admin/offices/:id/payments` (MVP-170, D-174): a cash or bank payment an office made. Up to 3 decimals (JOD);
@@ -17,8 +17,8 @@ export const RecordPaymentSchema = z.object({
   currency: CurrencySchema,
   method: z.enum(PLATFORM_PAYMENT_METHODS),
   reference: plainText(100).nullish(),
-  /** The day the money was received. */
-  paidAt: z.iso.date('validation.date'),
+  /** The day the money was received; a year before the platform existed is a typo. */
+  paidAt: z.iso.date('validation.date').refine((day) => day >= '2020-01-01', 'validation.date'),
   /** Email the receipt to the office's address (default on). */
   emailOffice: z.boolean().default(true),
 });
@@ -48,4 +48,7 @@ export type AdminPayment = z.infer<typeof AdminPaymentSchema>;
 
 /** `GET /admin/payments/:id/receipt`: a short-lived link (200) or a render queued (202), as invoice PDFs (D-171). */
 export const PaymentReceiptSchema = InvoicePdfSchema;
+/** `?language=AR|EN`; default the office's language. */
+export const PaymentReceiptQuerySchema = InvoicePdfQuerySchema;
+export type PaymentReceiptQuery = z.infer<typeof PaymentReceiptQuerySchema>;
 export type PaymentReceipt = z.infer<typeof PaymentReceiptSchema>;

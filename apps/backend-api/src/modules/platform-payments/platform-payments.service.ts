@@ -68,7 +68,8 @@ function present(row: Row): AdminPayment {
   };
 }
 
-const decimals = (amount: string) => amount.split('.')[1]?.length ?? 0;
+/** Significant decimals: `10.500` has one, so it is fine in ILS. */
+const decimals = (amount: string) => amount.split('.')[1]?.replace(/0+$/, '').length ?? 0;
 
 /**
  * Manual payments to the platform (MVP-170, D-174): recorded by a platform admin with a gap-free receipt number
@@ -97,6 +98,8 @@ export class PlatformPaymentsService {
     const rows = await raw.platformPayment.findMany({
       where: { officeId },
       orderBy: [{ paidAt: 'desc' }, { createdAt: 'desc' }],
+      // shortcut: newest 100 only; paginate when an office has more payments than that.
+      take: 100,
       select: SELECT,
     });
     return rows.map(present);
@@ -115,7 +118,7 @@ export class PlatformPaymentsService {
     const raw = this.prisma.unscoped();
     const office = await raw.office.findUnique({
       where: { id: officeId },
-      select: { timezone: true, email: true, defaultLanguage: true },
+      select: { name: true, address: true, timezone: true, email: true, defaultLanguage: true },
     });
     if (!office) throw new ResourceNotFoundException();
     if (body.paidAt > wallClock(new Date(), office.timezone).date) {
@@ -149,6 +152,9 @@ export class PlatformPaymentsService {
           reference: body.reference ?? null,
           paidAt: new Date(`${body.paidAt}T00:00:00Z`),
           recordedById: adminId,
+          payerName: office.name,
+          payerAddress: office.address,
+          payerEmail: office.email,
         },
         select: SELECT,
       });
