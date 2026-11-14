@@ -21,9 +21,9 @@ const MIB = 1024n * 1024n;
  */
 @Injectable()
 export class EntitlementsService {
-  // shortcut: per-process cache (one API container, D-020) without invalidation from other processes; a plan change
-  // applies within 30 s. Move to Redis (`o:{officeId}:entitlements`, D-058) when the admin panel edits plans or a second
-  // API instance runs.
+  // shortcut: per-process cache (one API container, D-020). The admin panel runs in that process, so its plan and
+  // subscription changes apply at once there (D-173) and within 30 s in the worker. Move to Redis
+  // (`o:{officeId}:entitlements`, D-058) when a second API instance runs.
   private readonly cache = new Map<string, { value: Entitlements; until: number }>();
   private readonly zones = new Map<string, { value: string; until: number }>();
 
@@ -48,6 +48,11 @@ export class EntitlementsService {
   /** Drops the cached entitlements, e.g. after the office's subscription changed in this process. */
   invalidate(officeId: OfficeId): void {
     this.cache.delete(officeId);
+  }
+
+  /** Drops every office's cached entitlements: a plan's limits changed (D-173). */
+  invalidateAll(): void {
+    this.cache.clear();
   }
 
   current(): Promise<Entitlements> {

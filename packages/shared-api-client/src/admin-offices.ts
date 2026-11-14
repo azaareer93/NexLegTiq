@@ -4,6 +4,7 @@ import type {
   AdminOfficeListItem,
   AdminOfficeQuerySchema,
   ReactivateOfficeRequest,
+  SubscriptionActionRequest,
   SuspendOfficeRequest,
 } from '@nexlegtiq/shared-contracts';
 import type { z } from 'zod';
@@ -15,7 +16,7 @@ export type AdminOfficeListParams = Partial<
   Record<keyof z.input<typeof AdminOfficeQuerySchema>, string>
 >;
 
-/** Platform admin: offices and their suspension (MVP-102). */
+/** Platform admin: offices, their suspension (MVP-102) and subscription actions (MVP-151). */
 export function adminOfficesApi(client: ApiClient) {
   const path = (id: string) => `admin/offices/${encodeURIComponent(id)}`;
   return {
@@ -37,6 +38,12 @@ export function adminOfficesApi(client: ApiClient) {
     reactivate: (id: string, body: ReactivateOfficeRequest): Promise<AdminOfficeDetail> =>
       client.request(
         { method: 'POST', path: `${path(id)}/reactivate`, body },
+        AdminOfficeDetailSchema,
+      ),
+    /** Change plan, extend the paid period or start/extend a trial (MVP-151). */
+    changeSubscription: (id: string, body: SubscriptionActionRequest): Promise<AdminOfficeDetail> =>
+      client.request(
+        { method: 'POST', path: `${path(id)}/subscription`, body },
         AdminOfficeDetailSchema,
       ),
   };
