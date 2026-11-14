@@ -123,7 +123,8 @@
     "CASH": "Cash",
     "BANK_TRANSFER": "Bank transfer",
     "CARD": "Card",
-    "OTHER": "Other"
+    "OTHER": "Other",
+    "RETAINER": "From retainer"
   },
   "invoiceStatus": {
     "DRAFT": "Draft",
@@ -182,6 +183,11 @@
     "PALESTINE": "Palestine",
     "GLOBAL": "Global"
   },
+  "platformPaymentMethod": {
+    "CASH": "Cash",
+    "BANK_TRANSFER": "Bank transfer",
+    "OTHER": "Other"
+  },
   "priority": {
     "LOW": "Low",
     "MEDIUM": "Medium",
@@ -193,6 +199,10 @@
     "SENT": "Sent",
     "FAILED": "Failed",
     "CANCELLED": "Cancelled"
+  },
+  "retainerEntryKind": {
+    "DEPOSIT": "Deposit",
+    "INVOICE_PAYMENT": "Invoice payment"
   },
   "role": {
     "OFFICE_MANAGER": "Office manager",
@@ -255,6 +265,7 @@
     "WITNESS_STATEMENT_ADDED": "Testimony added",
     "SUMMARY_GENERATED": "AI summary",
     "INVOICE_SENT": "Invoice sent",
-    "INVOICE_PAID": "Invoice paid"
+    "INVOICE_PAID": "Invoice paid",
+    "RETAINER_DEPOSITED": "Retainer deposit"
   }
 }

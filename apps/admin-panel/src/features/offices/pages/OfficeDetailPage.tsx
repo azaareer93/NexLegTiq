@@ -24,6 +24,7 @@ import { useNavigate, useParams } from 'react-router';
 
 import { AtRiskTag } from '../components/AtRiskTag';
 import { OfficeActionModal } from '../components/OfficeActionModal';
+import { PaymentsCard } from '../components/PaymentsCard';
 import { SubscriptionActionModal } from '../components/SubscriptionActionModal';
 import { useOffice } from '../hooks';
 
@@ -229,9 +230,10 @@ function Detail({ office }: { readonly office: AdminOfficeDetail }): React.JSX.E
         </Descriptions>
       </Card>
       <Statistics stats={office.statistics} />
-      <Card title={t('admin.offices.detail.subscriptions')}>
+      <Card title={t('admin.offices.detail.subscriptions')} style={{ marginBlockEnd: 16 }}>
         <Subscriptions rows={office.subscriptions} />
       </Card>
+      <PaymentsCard officeId={office.id} currency={office.currency} />
       {changing ? (
         <SubscriptionActionModal officeId={office.id} onClose={() => setChanging(false)} />
       ) : null}
@@ -242,7 +244,7 @@ function Detail({ office }: { readonly office: AdminOfficeDetail }): React.JSX.E
   );
 }
 
-/** `/offices/:id`: profile, usage, subscriptions and the suspend / reactivate action. */
+/** `/offices/:id`: profile, usage, subscriptions, payments and the suspend / reactivate action. */
 export function OfficeDetailPage(): React.JSX.Element {
   const { t } = useTranslation();
   const { id = '' } = useParams();

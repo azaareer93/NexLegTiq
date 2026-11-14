@@ -63,7 +63,8 @@ const SUSPENDED = {
   suspension: { at: '2026-11-08T10:00:00.000Z', reason: 'Unpaid invoices' },
 };
 
-const ok = (data: unknown) => HttpResponse.json({ success: true, data, meta });
+const ok = (data: unknown, status = 200) =>
+  HttpResponse.json({ success: true, data, meta }, { status });
 const page = (items: unknown[]) =>
   HttpResponse.json({
     success: true,
@@ -82,7 +83,8 @@ const page = (items: unknown[]) =>
 const fail = (status: number, code: string) =>
   HttpResponse.json({ success: false, error: { code, message: code }, meta }, { status });
 
-const server = setupServer();
+// The detail page also lists payments; a test that is not about them sees none.
+const server = setupServer(http.get(api(`admin/offices/${ID}/payments`), () => ok([])));
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
 afterEach(() => {
   cleanup();
@@ -157,7 +159,8 @@ describe('offices list', () => {
     expect(error.textContent).toContain('req-12345678');
   });
 
-  it('should be accessible in Arabic and English', { timeout: 60_000 }, async () => {
+  // Two full renders plus axe each: CI runners take over 60 s (the payments card added a table).
+  it('should be accessible in Arabic and English', { timeout: 120_000 }, async () => {
     server.use(http.get(api('admin/offices'), () => page([ITEM])));
     renderAt('/offices', 'ar');
     await screen.findByTestId(`office-link-${ID}`);
@@ -312,7 +315,8 @@ describe('office detail', () => {
     expect(await screen.findByTestId('office-not-found')).toBeTruthy();
   });
 
-  it('should be accessible in Arabic and English', { timeout: 60_000 }, async () => {
+  // Two full renders plus axe each: CI runners take over 60 s (the payments card added a table).
+  it('should be accessible in Arabic and English', { timeout: 120_000 }, async () => {
     detailServer(SUSPENDED);
     renderAt(`/offices/${ID}`, 'ar');
     await screen.findByTestId('office-suspension');
@@ -394,4 +398,106 @@ describe('office subscription action', () => {
       expect(posts).toEqual([{ action: 'SET_TRIAL', until: '2027-12-15' }]);
     },
   );
+});
+
+describe('office payments (D-174)', () => {
+  const PAYMENT = {
+    id: '01920000-0000-7000-8000-0000000000c1',
+    officeId: ID,
+    receiptNumber: 'RCT-2026-0007',
+    amount: '150.50',
+    currency: 'ILS',
+    method: 'BANK_TRANSFER',
+    reference: 'TRX-1',
+    paidAt: '2026-11-14',
+    recordedBy: { id: ID, fullName: 'Founder' },
+    voidedAt: null,
+    voidReason: null,
+    createdAt: meta.timestamp,
+  };
+  const setup = (rows: unknown[] = [PAYMENT]) => {
+    const bodies: unknown[] = [];
+    server.use(
+      http.get(api(`admin/offices/${ID}`), () => ok(DETAIL)),
+      http.get(api(`admin/offices/${ID}/payments`), () => ok(rows)),
+      http.post(api(`admin/offices/${ID}/payments`), async ({ request }) => {
+        bodies.push(await request.json());
+        return ok(PAYMENT, 201);
+      }),
+      http.post(api(`admin/payments/${PAYMENT.id}/void`), async ({ request }) => {
+        bodies.push(await request.json());
+        return ok({ ...PAYMENT, voidedAt: meta.timestamp, voidReason: 'recorded twice' });
+      }),
+    );
+    return bodies;
+  };
+
+  it(
+    'should record a payment with today as the paid date and the receipt emailed',
+    { timeout: 30_000 },
+    async () => {
+      const bodies = setup([]);
+      renderAt(`/offices/${ID}`);
+      fireEvent.click(await screen.findByTestId('payment-new'));
+      fireEvent.change(await screen.findByTestId('payment-amount'), {
+        target: { value: '150.50' },
+      });
+      fireEvent.change(screen.getByTestId('payment-reference'), { target: { value: 'TRX-1' } });
+      fireEvent.click(screen.getByTestId('payment-confirm'));
+      const today = new Date();
+      const local = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      await waitFor(() =>
+        expect(bodies).toEqual([
+          {
+            amount: '150.50',
+            currency: DETAIL.currency,
+            method: 'BANK_TRANSFER',
+            reference: 'TRX-1',
+            paidAt: local,
+            emailOffice: true,
+          },
+        ]),
+      );
+    },
+  );
+
+  it(
+    'should void a payment with a reason and open a ready receipt',
+    { timeout: 30_000 },
+    async () => {
+      const bodies = setup();
+      let receipt: unknown = { status: 'RENDERING' };
+      server.use(http.get(api(`admin/payments/${PAYMENT.id}/receipt`), () => ok(receipt)));
+      const clicked: string[] = [];
+      const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+        this: HTMLAnchorElement,
+      ) {
+        clicked.push(this.href);
+      });
+      renderAt(`/offices/${ID}`);
+      expect(await screen.findByText('RCT-2026-0007')).toBeTruthy();
+
+      fireEvent.click(screen.getByTestId(`payment-receipt-${PAYMENT.id}`));
+      expect(await screen.findByText(/being prepared/)).toBeTruthy();
+      receipt = { status: 'READY', downloadUrl: 'https://s3.test/r.pdf', expiresIn: 300 };
+      fireEvent.click(screen.getByTestId(`payment-receipt-${PAYMENT.id}`));
+      await waitFor(() => expect(clicked).toEqual(['https://s3.test/r.pdf']));
+      click.mockRestore();
+
+      fireEvent.click(screen.getByTestId(`payment-void-${PAYMENT.id}`));
+      fireEvent.change(await screen.findByTestId('payment-void-reason'), {
+        target: { value: 'recorded twice' },
+      });
+      fireEvent.click(screen.getByTestId('payment-void-confirm'));
+      await waitFor(() => expect(bodies).toEqual([{ reason: 'recorded twice' }]));
+    },
+  );
+
+  it('should be accessible in Arabic with payments listed', { timeout: 60_000 }, async () => {
+    setup();
+    renderAt(`/offices/${ID}`, 'ar');
+    expect(await screen.findByText('تحويل بنكي')).toBeTruthy();
+    expect(document.documentElement.dir).toBe('rtl');
+    await expectAccessible();
+  });
 });

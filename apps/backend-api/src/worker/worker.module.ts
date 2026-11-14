@@ -22,6 +22,7 @@ import { InvoiceOverdueSweep } from '../modules/invoices/invoice-overdue.sweep';
 import { InvoicePdfRenderer } from '../modules/invoices/pdf/invoice-pdf.renderer';
 import { NotificationsModule } from '../modules/notifications/notifications.module';
 import { NotificationProcessor } from '../modules/notifications/workers/notification.processor';
+import { ReceiptPdfRenderer } from '../modules/platform-payments/receipt-pdf.renderer';
 import {
   PortalInvitationLinks,
   PortalPasswordResetLinks,
@@ -55,6 +56,7 @@ import { TimelineModule } from '../modules/timeline/timeline.module';
     AuditRetentionProcessor,
     InvoiceOverdueSweep,
     InvoicePdfRenderer,
+    ReceiptPdfRenderer,
     VerificationLinks,
     PasswordResetLinks,
     InvitationLinks,

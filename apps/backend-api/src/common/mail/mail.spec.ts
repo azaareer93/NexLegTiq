@@ -39,6 +39,9 @@ const VARS = {
   courtRoom: '',
   invoiceNumber: 'INV-2026-0007',
   dueDate: '14/12/2026',
+  issuerName: 'NexLegTiq',
+  receiptNumber: 'RCT-2026-0001',
+  amount: '150.00 ₪',
 };
 const varsFor = (template: (typeof MAIL_TEMPLATE_NAMES)[number]) =>
   MAIL_TEMPLATE_SCHEMAS[template].parse(VARS) as never;
@@ -66,6 +69,17 @@ describe('duration', () => {
 });
 
 describe('renderMail', () => {
+  it('should write the payment receipt email as a receipt, not a tax invoice, in both languages', () => {
+    const ar = renderMail('payment-receipt', 'AR', varsFor('payment-receipt'), APP);
+    const en = renderMail('payment-receipt', 'EN', varsFor('payment-receipt'), APP);
+    expect(ar.subject).toContain('RCT-2026-0001');
+    expect(ar.html).toContain('dir="rtl"');
+    expect(ar.text).toContain('ليس فاتورة ضريبية');
+    expect(en.html).toContain('<bdi dir="ltr">RCT-2026-0001</bdi>');
+    expect(en.text).toContain('not a tax invoice');
+    expect(en.html).not.toContain('If the button does not work');
+  });
+
   it('should write the daily task email by file in Arabic and English, overdue and due-today marked', () => {
     const ar = renderMail('task-digest', 'AR', varsFor('task-digest'), APP);
     const en = renderMail('task-digest', 'EN', varsFor('task-digest'), APP);
@@ -90,8 +104,8 @@ describe('renderMail', () => {
     expect(renderMail('invoice', 'EN', noDue, APP).text).not.toContain('Due date');
   });
 
-  // Every template with a button (the invoice email has none, D-171).
-  it.each(MAIL_TEMPLATE_NAMES.filter((name) => name !== 'invoice'))(
+  // Every template with a button (the invoice and receipt emails have none, D-171, D-174).
+  it.each(MAIL_TEMPLATE_NAMES.filter((name) => name !== 'invoice' && name !== 'payment-receipt'))(
     'should render %s in Arabic (rtl) and English (ltr) with fallback and legal links',
     (template) => {
       const ar = renderMail(template, 'AR', varsFor(template), APP);

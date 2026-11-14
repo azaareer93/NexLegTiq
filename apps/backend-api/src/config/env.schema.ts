@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { parseIpEntry } from './ip-entry';
+import { RECEIPT_ENV } from './receipt-env';
 
 const port = z.coerce.number().int().min(1).max(65_535);
 const csv = z.string().transform((value) =>
@@ -164,6 +165,7 @@ const EnvObject = z.object({
   GOOGLE_VISION_PRICE_PER_1000_PAGES: z.coerce.number().min(0).default(1.5),
   // Headless Chromium that prints invoice PDFs in the worker (D-171): the worker image installs `chromium`.
   PDF_CHROMIUM_PATH: z.string().trim().min(1).default('chromium'),
+  ...RECEIPT_ENV,
   // Ask for a summary after extraction (ai-ocr.md OCR step 6); off until the document-summary story enqueues it.
   AI_AUTO_SUMMARY: z.stringbool().default(false),
 });
