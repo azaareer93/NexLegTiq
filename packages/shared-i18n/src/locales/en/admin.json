@@ -165,10 +165,11 @@
         "reference": "Reference (optional)",
         "paidAt": "Paid on",
         "emailOffice": "Email the receipt to the office",
-        "success": "The payment was recorded."
+        "success": "The payment was recorded.",
+        "amountHint": "Enter the amount in Western digits, for example 150.00"
       },
       "void": {
-        "title": "Void payment",
+        "title": "Void payment no.",
         "hint": "The payment keeps its receipt number and is marked void. This cannot be undone.",
         "reason": "Reason",
         "success": "The payment was voided."

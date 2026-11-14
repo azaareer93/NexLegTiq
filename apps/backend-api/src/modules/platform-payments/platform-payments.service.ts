@@ -7,6 +7,7 @@ import type {
 import type { OfficeId } from '@nexlegtiq/shared-types';
 import { currencyDigits, roundMoney, wallClock } from '@nexlegtiq/shared-utils';
 import { ClsService } from 'nestjs-cls';
+import { PinoLogger } from 'nestjs-pino';
 
 import { RENDER_PAYMENT_RECEIPT_JOB, receiptIsCurrent } from './receipt-pdf.renderer';
 import type { ReceiptJob } from './receipt-pdf.renderer';
@@ -83,7 +84,10 @@ export class PlatformPaymentsService {
     private readonly tenant: TenantRunner,
     private readonly storage: StorageService,
     private readonly cls: ClsService<RequestContext>,
-  ) {}
+    private readonly logger: PinoLogger,
+  ) {
+    this.logger.setContext(PlatformPaymentsService.name);
+  }
 
   async list(officeId: string): Promise<AdminPayment[]> {
     // unscoped: platform admin code reads any office's payments (D-080).
@@ -162,11 +166,15 @@ export class PlatformPaymentsService {
       );
       return created;
     });
+    // The payment and its number are committed: a queue outage must not answer 500 and invite a duplicate record. The
+    // receipt can still be rendered from GET …/receipt; the email is then not sent (D-174).
     await this.enqueue(officeId, {
       paymentId: row.id,
       language: pdfLanguageOf(office.defaultLanguage),
       email: body.emailOffice,
-    });
+    }).catch((err: unknown) =>
+      this.logger.error({ err, paymentId: row.id }, 'Receipt job not queued'),
+    );
     return present(row);
   }
 

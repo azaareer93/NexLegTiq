@@ -35,7 +35,7 @@ const COPY = {
     amount: 'المبلغ المستلم',
     method: 'طريقة الدفع',
     reference: 'المرجع',
-    taxId: 'رقم التسجيل / الرقم الضريبي',
+    taxId: 'رقم التسجيل أو الرقم الضريبي',
     VOID: 'ملغى',
     methods: { CASH: 'نقدًا', BANK_TRANSFER: 'تحويل بنكي', OTHER: 'أخرى' },
   },
