@@ -182,6 +182,11 @@
     "PALESTINE": "Palestine",
     "GLOBAL": "Global"
   },
+  "platformPaymentMethod": {
+    "CASH": "Cash",
+    "BANK_TRANSFER": "Bank transfer",
+    "OTHER": "Other"
+  },
   "priority": {
     "LOW": "Low",
     "MEDIUM": "Medium",
