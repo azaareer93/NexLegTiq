@@ -172,7 +172,8 @@ describe('cases API (HTTP + PostgreSQL)', () => {
         jurisdiction: 'PALESTINE',
         billingMethod: 'HOURLY',
         hourlyRate: '150.00',
-        retainerBalance: '0.00',
+        // JOD has three decimals (D-162, D-176).
+        retainerBalance: '0.000',
         primaryClient: { id: clientB, displayName: 'شركة القدس للتجارة' },
         responsibleLawyer: { id: lawyer.userId },
         responsibleParalegal: { id: users['paralegal']?.userId },

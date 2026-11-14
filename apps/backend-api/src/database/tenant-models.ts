@@ -39,6 +39,8 @@ export const TENANT_MODELS = [
   'TimeEntry',
   'TimeTimer',
   'InvoiceLineItem',
+  // After the files, invoices and users it points at: cleanup deletes it first.
+  'RetainerEntry',
   'PublicProsecutor',
   'Session',
   'SessionReminder',

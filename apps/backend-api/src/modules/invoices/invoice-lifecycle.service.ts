@@ -13,6 +13,7 @@ import { InvoiceNumberService } from './invoice-number.service';
 import { day, plusDays } from './invoice-presenter';
 import { InvoicesService } from './invoices.service';
 import { enqueuePdf, pdfLanguageOf } from './pdf/invoice-pdf.service';
+import { RetainerService } from './retainer.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { ValidationException } from '../../common/errors/app.exception';
 import { QueueProducer } from '../../common/queue/queue-producer';
@@ -36,6 +37,7 @@ export class InvoiceLifecycle {
     private readonly audit: AuditService,
     private readonly timeline: TimelineService,
     private readonly queues: QueueProducer,
+    private readonly retainers: RetainerService,
   ) {}
 
   /** A draft's notes, due date, tax inclusion and extra items; time lines stay (delete and re-draft to re-pull entries). */
@@ -187,6 +189,17 @@ export class InvoiceLifecycle {
     await this.uow.run(async (tx) => {
       const row = await this.access.locked(tx, id, ['SENT', 'OVERDUE']);
       await this.assertPaymentDate(tx, row, input.paidAt);
+      // Paid from the file's retainer: the ledger debit is part of this transaction (D-176).
+      if (input.method === 'RETAINER') {
+        await this.retainers.payInvoice(tx, {
+          invoiceId: id,
+          invoiceNumber: row.invoiceNumber,
+          fileId: row.fileId,
+          currency: row.currency,
+          total: row.total.toFixed(),
+          paidAt: input.paidAt,
+        });
+      }
       await tx.invoice.update({
         where: { id },
         data: {

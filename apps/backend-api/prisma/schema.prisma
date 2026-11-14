@@ -112,6 +112,14 @@ enum InvoicePaymentMethod {
   BANK_TRANSFER
   CARD
   OTHER
+  /// Paid from the file's retainer (MVP-147, D-176): a ledger debit in the same transaction.
+  RETAINER
+}
+
+/// A retainer ledger entry (D-176): money in, or an invoice paid from it.
+enum RetainerEntryKind {
+  DEPOSIT
+  INVOICE_PAYMENT
 }
 
 enum PaymentMethod {
@@ -272,6 +280,7 @@ enum TimelineEventType {
   SUMMARY_GENERATED
   INVOICE_SENT
   INVOICE_PAID
+  RETAINER_DEPOSITED
 }
 
 enum DocumentType {
@@ -403,6 +412,7 @@ model Office {
   taskTemplates          TaskTemplate[]
   tasks                  Task[]
   timeEntries            TimeEntry[]
+  retainerEntries        RetainerEntry[]
   timeTimers             TimeTimer[]
   invoices               Invoice[]
   invoiceLineItems       InvoiceLineItem[]
@@ -508,10 +518,11 @@ model User {
   documentVersions      DocumentVersion[]        @relation("DocumentVersionCreator")
 
   /// Target of the composite (user_id, office_id) FKs: a child row can never name a user of another office (D-079).
-  aiJobs      AiJob[]
-  aiUsages    AiUsage[]
-  aiSummaries AiSummary[]
-  aiFeedbacks AiFeedback[]
+  aiJobs          AiJob[]
+  aiUsages        AiUsage[]
+  aiSummaries     AiSummary[]
+  aiFeedbacks     AiFeedback[]
+  retainerEntries RetainerEntry[]
 
   @@unique([id, officeId])
   @@index([officeId, role])
@@ -924,7 +935,7 @@ model LegalFile {
   billingMethod          BillingMethod            @default(HOURLY) @map("billing_method")
   hourlyRate             Decimal?                 @map("hourly_rate") @db.Decimal(14, 2)
   fixedFee               Decimal?                 @map("fixed_fee") @db.Decimal(14, 2)
-  retainerBalance        Decimal                  @default(0) @map("retainer_balance") @db.Decimal(14, 2)
+  retainerBalance        Decimal                  @default(0) @map("retainer_balance") @db.Decimal(14, 3)
   /// ISO-4217 code of every amount on the file (D-017).
   currency               String                   @db.Char(3)
   isConfidential         Boolean                  @default(false) @map("is_confidential")
@@ -961,6 +972,7 @@ model LegalFile {
   sessions             Session[]
   documentFolders      DocumentFolder[]
   documents            Document[]
+  retainerEntries      RetainerEntry[]
 
   @@unique([officeId, fileNumber])
   @@unique([id, officeId])
@@ -1621,6 +1633,36 @@ model Task {
 
 /// Work logged on a file (MVP-90, D-152). Money as Decimal (D-017); the rate and currency are a snapshot taken when the
 /// entry is made. `invoiceId` locks the entry once invoiced (BIZ-006); its FK arrives with the invoices table.
+/// The file's retainer ledger (MVP-147, D-176): append-only; the file's `retainerBalance` is the sum of its amounts, kept
+/// in the same transaction (a CHECK keeps it from going below zero).
+model RetainerEntry {
+  id          String                @id @default(uuid(7)) @db.Uuid
+  officeId    String                @map("office_id") @db.Uuid
+  fileId      String                @map("file_id") @db.Uuid
+  kind        RetainerEntryKind
+  /// Signed: a deposit adds, an invoice payment subtracts; rounded to the file currency's digits (D-162).
+  amount      Decimal               @db.Decimal(14, 3)
+  currency    String                @db.Char(3)
+  /// The day the money came in, or the invoice was paid.
+  paidAt      DateTime              @map("paid_at") @db.Timestamptz(3)
+  method      InvoicePaymentMethod?
+  reference   String?
+  invoiceId   String?               @map("invoice_id") @db.Uuid
+  createdById String                @map("created_by_id") @db.Uuid
+  createdAt   DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  office    Office    @relation(fields: [officeId], references: [id])
+  file      LegalFile @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  invoice   Invoice?  @relation(fields: [invoiceId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
+  createdBy User      @relation(fields: [createdById, officeId], references: [id, officeId], onUpdate: Restrict)
+
+  // An invoice is paid from the retainer once at most.
+  @@unique([invoiceId, officeId])
+  // The ledger of a file, newest first.
+  @@index([officeId, fileId, paidAt])
+  @@map("retainer_entries")
+}
+
 model TimeEntry {
   id            String   @id @default(uuid(7)) @db.Uuid
   officeId      String   @map("office_id") @db.Uuid
@@ -1699,12 +1741,13 @@ model Invoice {
   pdfLanguage      OfficeLanguage?       @map("pdf_language")
   pdfRenderedFor   DateTime?             @map("pdf_rendered_for") @db.Timestamptz(3)
 
-  office      Office            @relation(fields: [officeId], references: [id])
-  client      Client            @relation(fields: [clientId, officeId], references: [id, officeId], onUpdate: Restrict)
-  file        LegalFile?        @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
-  createdBy   User              @relation(fields: [createdById, officeId], references: [id, officeId], onUpdate: Restrict)
-  lines       InvoiceLineItem[]
-  timeEntries TimeEntry[]
+  office        Office            @relation(fields: [officeId], references: [id])
+  client        Client            @relation(fields: [clientId, officeId], references: [id, officeId], onUpdate: Restrict)
+  file          LegalFile?        @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
+  createdBy     User              @relation(fields: [createdById, officeId], references: [id, officeId], onUpdate: Restrict)
+  lines         InvoiceLineItem[]
+  timeEntries   TimeEntry[]
+  retainerEntry RetainerEntry?
 
   @@unique([id, officeId])
   @@unique([officeId, invoiceNumber])

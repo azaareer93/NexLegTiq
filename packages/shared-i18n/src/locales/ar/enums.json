@@ -123,7 +123,8 @@
     "CASH": "نقدًا",
     "BANK_TRANSFER": "تحويل بنكي",
     "CARD": "بطاقة",
-    "OTHER": "أخرى"
+    "OTHER": "أخرى",
+    "RETAINER": "من الدفعة المقدمة"
   },
   "invoiceStatus": {
     "DRAFT": "مسودة",
@@ -199,6 +200,10 @@
     "FAILED": "تعذّر الإرسال",
     "CANCELLED": "أُلغي"
   },
+  "retainerEntryKind": {
+    "DEPOSIT": "إيداع",
+    "INVOICE_PAYMENT": "تسديد فاتورة"
+  },
   "role": {
     "OFFICE_MANAGER": "مدير المكتب",
     "SENIOR_LAWYER": "المحامي الأول",
@@ -260,6 +265,7 @@
     "WITNESS_STATEMENT_ADDED": "إضافة شهادة",
     "SUMMARY_GENERATED": "ملخص بالذكاء الاصطناعي",
     "INVOICE_SENT": "إرسال فاتورة",
-    "INVOICE_PAID": "تسديد فاتورة"
+    "INVOICE_PAID": "تسديد فاتورة",
+    "RETAINER_DEPOSITED": "دفعة مقدمة"
   }
 }
