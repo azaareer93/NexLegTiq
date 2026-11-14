@@ -1,6 +1,7 @@
 // One line per contract file, sorted: a new contract adds one line, so open PRs rarely meet here (D-147).
 export * from './admin-auth.contract.js';
 export * from './admin-offices.contract.js';
+export * from './admin-payments.contract.js';
 export * from './admin-plans.contract.js';
 export * from './ai.contract.js';
 export * from './auth.contract.js';

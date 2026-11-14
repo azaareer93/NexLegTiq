@@ -121,6 +121,13 @@ enum PaymentMethod {
   NONE
 }
 
+/// How an office paid the platform (MVP-170, D-174).
+enum PlatformPaymentMethod {
+  CASH
+  BANK_TRANSFER
+  OTHER
+}
+
 enum AuditAction {
   CREATE
   UPDATE
@@ -373,6 +380,7 @@ model Office {
   emailVerifications     EmailVerificationToken[]
   legalAcceptances       LegalAcceptance[]
   subscriptions          Subscription[]
+  platformPayments       PlatformPayment[]
   auditLogs              AuditLog[]
   notifications          Notification[]
   aiJobs                 AiJob[]
@@ -530,6 +538,8 @@ model PlatformAdmin {
   sessions          PlatformSession[]
   recoveryCodes     PlatformRecoveryCode[]
   platformAuditLogs PlatformAuditLog[]
+  paymentsRecorded  PlatformPayment[] @relation("PaymentRecordedBy")
+  paymentsVoided    PlatformPayment[] @relation("PaymentVoidedBy")
 
   @@map("platform_admins")
 }
@@ -766,6 +776,49 @@ model Subscription {
 
   @@index([officeId, status])
   @@map("subscriptions")
+}
+
+/// A payment an office made to the platform, recorded by a platform admin (MVP-170, D-174). It never changes the
+/// subscription (owner 3A) and is never deleted: a mistaken one is voided and keeps its receipt number (owner 2A).
+model PlatformPayment {
+  id             String                @id @default(uuid(7)) @db.Uuid
+  officeId       String                @map("office_id") @db.Uuid
+  /// RCT-{YEAR}-{SEQ:4}, gap-free per year across the platform (ReceiptNumberSequence).
+  receiptNumber  String                @unique @map("receipt_number")
+  /// Rounded to the currency's minor digits (D-162).
+  amount         Decimal               @db.Decimal(14, 3)
+  currency       String                @db.Char(3)
+  method         PlatformPaymentMethod
+  reference      String?
+  paidAt         DateTime              @map("paid_at") @db.Date
+  recordedById   String                @map("recorded_by_id") @db.Uuid
+  voidedAt       DateTime?             @map("voided_at") @db.Timestamptz(3)
+  voidedById     String?               @map("voided_by_id") @db.Uuid
+  voidReason     String?               @map("void_reason")
+  /// The stored receipt PDF; current while pdfRenderedFor equals updatedAt (as invoices, D-171).
+  pdfStorageKey  String?               @map("pdf_storage_key")
+  pdfLanguage    OfficeLanguage?       @map("pdf_language")
+  pdfRenderedFor DateTime?             @map("pdf_rendered_for") @db.Timestamptz(3)
+  createdAt      DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office     Office         @relation(fields: [officeId], references: [id])
+  recordedBy PlatformAdmin  @relation("PaymentRecordedBy", fields: [recordedById], references: [id])
+  voidedBy   PlatformAdmin? @relation("PaymentVoidedBy", fields: [voidedById], references: [id])
+
+  @@index([officeId, paidAt])
+  @@map("platform_payments")
+}
+
+/// The platform receipt counter per year (D-174): locked by the transaction that records a payment.
+model ReceiptNumberSequence {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  year      Int      @unique
+  lastValue Int      @map("last_value")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("receipt_number_sequences")
 }
 
 // ─── Clients, legal files & parties (MVP-56, D-095) ─────────────────────────────────────────────────────────────
