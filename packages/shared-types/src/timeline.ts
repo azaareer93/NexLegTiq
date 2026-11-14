@@ -21,6 +21,7 @@ export const TIMELINE_EVENT_TYPES = [
   'SUMMARY_GENERATED',
   'INVOICE_SENT',
   'INVOICE_PAID',
+  'RETAINER_DEPOSITED',
 ] as const;
 export type TimelineEventType = (typeof TIMELINE_EVENT_TYPES)[number];
 

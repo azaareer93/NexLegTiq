@@ -7,7 +7,7 @@ import {
   FOLDER_SYSTEM_KEYS,
   OCR_STATUSES,
 } from './document.js';
-import { INVOICE_PAYMENT_METHODS, INVOICE_STATUSES } from './invoice.js';
+import { INVOICE_PAYMENT_METHODS, INVOICE_STATUSES, RETAINER_ENTRY_KINDS } from './invoice.js';
 import {
   BILLING_METHODS,
   CLIENT_TYPES,
@@ -46,6 +46,7 @@ describe('enum value lists', () => {
       TASK_STATUSES,
       INVOICE_STATUSES,
       INVOICE_PAYMENT_METHODS,
+      RETAINER_ENTRY_KINDS,
       DOCUMENT_TYPES,
       DOCUMENT_STATUSES,
       OCR_STATUSES,
