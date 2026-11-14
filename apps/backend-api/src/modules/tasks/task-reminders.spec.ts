@@ -147,4 +147,14 @@ describe('TaskReminders (D-177)', () => {
       'aborted',
     );
   });
+
+  it('should mail in English with English dates, and skip a user whose visible tasks are none', async () => {
+    const en = build({ tasks: [row('a', '2026-11-10')], users: [{ ...USER, uiLanguage: 'EN' }] });
+    await en.reminders.daily({ date: TODAY });
+    expect(en.mail.send.mock.calls[0][2]).toBe('EN');
+    expect(en.mail.send.mock.calls[0][3].files[0].tasks[0].dueDate).toBe('10/11/2026');
+    const none = build({ tasks: [{ ...row('x', TODAY), dueDate: null }] });
+    await expect(none.reminders.daily({ date: TODAY })).resolves.toEqual({ users: 0 });
+    expect(none.notifications.notify).not.toHaveBeenCalled();
+  });
 });

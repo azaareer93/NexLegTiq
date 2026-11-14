@@ -172,6 +172,11 @@ describe('ReminderProcessor', () => {
     expect(markFailed).toHaveBeenCalledTimes(2);
     await processor.onFailed(job(RECONCILE_REMINDERS_JOB, {}, { attemptsMade: 3 }), new Error('x'));
     await processor.onFailed(undefined, new Error('x'));
+    // A failed task job has no row to mark.
+    await processor.onFailed(
+      job('task-daily', { date: '2026-11-14' }, { attemptsMade: 3 }),
+      new Error('x'),
+    );
     expect(markFailed).toHaveBeenCalledTimes(2);
   });
 });
