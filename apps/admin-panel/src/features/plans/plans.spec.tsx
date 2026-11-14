@@ -98,7 +98,8 @@ describe('plans page', () => {
     type('plan-name', 'New plan');
     type('plan-price', '25.50');
     type('plan-storage', '1000');
-    fireEvent.click(screen.getByTestId('plan-feature-ai'));
+    // A new plan starts from the feature defaults (ai + clientPortal on).
+    fireEvent.click(screen.getByTestId('plan-feature-clientPortal'));
     fireEvent.click(screen.getByTestId('plan-confirm'));
     await waitFor(() => expect(posts).toHaveLength(1));
     expect(posts[0]).toMatchObject({
@@ -129,15 +130,17 @@ describe('plans page', () => {
     fireEvent.click(await screen.findByTestId(`plan-edit-${PLAN.id}`));
     expect(screen.getByTestId('plan-code').hasAttribute('disabled')).toBe(true);
     type('plan-name', 'Renamed');
+    fireEvent.click(screen.getByTestId('plan-feature-googleVisionOcr'));
     fireEvent.click(screen.getByTestId('plan-confirm'));
     await waitFor(() => expect(patches).toHaveLength(1));
     const body = patches[0] as Record<string, unknown>;
     expect(body).not.toHaveProperty('code');
     expect(body.name).toBe('Renamed');
+    expect(body).not.toHaveProperty('storageQuotaMb');
     expect(body.features).toEqual({
       ai: true,
       clientPortal: false,
-      googleVisionOcr: false,
+      googleVisionOcr: true,
       customPricing: true,
     });
   });
