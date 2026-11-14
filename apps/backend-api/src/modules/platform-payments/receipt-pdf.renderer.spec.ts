@@ -159,4 +159,14 @@ describe('ReceiptPdfRenderer', () => {
     expect(ReceiptJobSchema.safeParse({ paymentId: 'x', language: 'EN' }).success).toBe(false);
     expect(ReceiptJobSchema.safeParse({ paymentId: ID, language: 'FR' }).success).toBe(false);
   });
+
+  it('should keep going when the old file cannot be deleted', async () => {
+    const { renderer, storage } = build(
+      payment({ pdfStorageKey: 'o1/receipts/old.pdf', pdfLanguage: 'AR', pdfRenderedFor: UPDATED }),
+    );
+    storage.delete.mockRejectedValue(new Error('storage down'));
+    await expect(
+      renderer.run({ paymentId: ID, language: 'EN', email: false }, 'j6', signal),
+    ).resolves.toEqual({ rendered: true });
+  });
 });

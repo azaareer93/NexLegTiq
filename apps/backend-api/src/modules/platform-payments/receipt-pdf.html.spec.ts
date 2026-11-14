@@ -42,4 +42,14 @@ describe('receiptHtml', () => {
     expect(html).toContain('class="stamp">Void<');
     expect(html).toContain('Registration / tax no.');
   });
+
+  it("should show the payer's email left to right and the reference when set", () => {
+    const html = receiptHtml({
+      ...data,
+      reference: 'TRX-1',
+      office: { name: 'Office', address: null, email: 'o@example.test' },
+    });
+    expect(html).toContain('<bdi dir="ltr">o@example.test</bdi>');
+    expect(html).toContain('<bdi dir="ltr">TRX-1</bdi>');
+  });
 });
