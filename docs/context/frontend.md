@@ -58,7 +58,7 @@ Implementation, menu permissions and placeholder/403/404 pages: D-091 (`apps/off
   & usage, security (idle timeout, audit retention), data export. **Profile**: name, phone, language, timezone, password, notification prefs.
 - **Notifications** dropdown + page; actionable links.
 - **Client portal**: login, my files (status, next hearing, public timeline), shared documents, upload requested docs, invoices.
-- **Admin panel**: offices, subscriptions/plans, usage, platform audit, queue dashboard link.
+- **Admin panel**: offices, subscriptions/plans, payments (record, void, receipt PDF — D-174), usage, platform audit, queue dashboard link.
 
 ## Feedback and errors (D-093)
 Success of an action → short toast (`message.success`), never for page loads. Failed action without its own form → `notify(error)`

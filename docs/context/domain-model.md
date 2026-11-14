@@ -12,6 +12,7 @@
   taskReminderDays, defaultBillingRate, defaultBillingMethod, taxRatePercent, enableAI, enableOCR, enableVisionOcr (D-142),
   fileNumberFormat, sessionIdleMinutes, auditRetentionDays (≥365).
 - **Plan** (platform; limits incl. `ocrPagesMonthly`, the Google Vision page budget, D-142) / **Subscription** 🔒 — D-005.
+- **PlatformPayment** 🔒 (a manual payment to the platform with its `RCT-{YEAR}-{SEQ:4}` receipt; voided, never deleted) / **ReceiptNumberSequence** (platform, per year) — D-174.
 - **User** 🔒 — fullName, email (citext, unique global D-032), passwordHash, `role: Role`, phone, avatarUrl, isActive,
   lastLoginAt, emailVerifiedAt? (signup verification, D-083), uiLanguage, timezone (own; reminder emails only, D-146), digitStyle, notificationPrefs (JSON per category, D-146), mfaSecret? (encrypted), mfaEnabled.
   `Role` = OFFICE_MANAGER, SENIOR_LAWYER, LAWYER, PARALEGAL, ADMIN (office admin/finance), TRAINEE, EXTERNAL_COLLABORATOR.
@@ -43,6 +44,7 @@
   `status: OPEN|SUSPENDED|CLOSED|ARCHIVED`, `priority: LOW|MEDIUM|HIGH|URGENT`, openingDate, closingDate?,
   responsibleLawyerId, responsibleParalegalId?, courtId?, judgeId?, courtCaseNumber?, jurisdiction,
   `billingMethod: HOURLY|FIXED_FEE|RETAINER|CONTINGENCY`, hourlyRate?, fixedFee?, retainerBalance Decimal,
+  (`retainerBalance` = the sum of the file's **RetainerEntry** 🔒 ledger: DEPOSIT / INVOICE_PAYMENT, signed, append-only — D-176)
   currency, isConfidential, embedding vector(1536)? (Phase 2). courtId/judgeId: D-115 (a visible court, a judge of it), embedding
   with the similar-cases story (D-095).
 - **FileClient** 🔒 (fileId, clientId, isPrimary; exactly one primary, at least one client) · **FileTeamMember** 🔒 (fileId, userId, role; one RESPONSIBLE_LAWYER and at most one PARALEGAL per file, mirrored by `responsibleLawyerId` / `responsibleParalegalId` — D-140).

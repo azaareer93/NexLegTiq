@@ -123,7 +123,8 @@
     "CASH": "نقدًا",
     "BANK_TRANSFER": "تحويل بنكي",
     "CARD": "بطاقة",
-    "OTHER": "أخرى"
+    "OTHER": "أخرى",
+    "RETAINER": "من الدفعة المقدمة"
   },
   "invoiceStatus": {
     "DRAFT": "مسودة",
@@ -182,6 +183,11 @@
     "PALESTINE": "فلسطين",
     "GLOBAL": "عالمي"
   },
+  "platformPaymentMethod": {
+    "CASH": "نقدًا",
+    "BANK_TRANSFER": "تحويل بنكي",
+    "OTHER": "أخرى"
+  },
   "priority": {
     "LOW": "منخفضة",
     "MEDIUM": "متوسطة",
@@ -193,6 +199,10 @@
     "SENT": "أُرسل",
     "FAILED": "تعذّر الإرسال",
     "CANCELLED": "أُلغي"
+  },
+  "retainerEntryKind": {
+    "DEPOSIT": "إيداع",
+    "INVOICE_PAYMENT": "تسديد فاتورة"
   },
   "role": {
     "OFFICE_MANAGER": "مدير المكتب",
@@ -255,6 +265,7 @@
     "WITNESS_STATEMENT_ADDED": "إضافة شهادة",
     "SUMMARY_GENERATED": "ملخص بالذكاء الاصطناعي",
     "INVOICE_SENT": "إرسال فاتورة",
-    "INVOICE_PAID": "تسديد فاتورة"
+    "INVOICE_PAID": "تسديد فاتورة",
+    "RETAINER_DEPOSITED": "دفعة مقدمة"
   }
 }

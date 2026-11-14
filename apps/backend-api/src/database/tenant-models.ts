@@ -14,6 +14,7 @@ export const TENANT_MODELS = [
   'EmailVerificationToken',
   'LegalAcceptance',
   'Subscription',
+  'PlatformPayment',
   'AuditLog',
   'Notification',
   // Parents before children: tests clean up in reverse order.
@@ -38,6 +39,8 @@ export const TENANT_MODELS = [
   'TimeEntry',
   'TimeTimer',
   'InvoiceLineItem',
+  // After the files, invoices and users it points at: cleanup deletes it first.
+  'RetainerEntry',
   'PublicProsecutor',
   'Session',
   'SessionReminder',

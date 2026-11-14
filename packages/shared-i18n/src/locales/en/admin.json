@@ -132,6 +132,48 @@
         "EXTEND_PERIOD": "Extend the period",
         "SET_TRIAL": "Set trial end"
       }
+    },
+    "payments": {
+      "title": "Payments",
+      "record": "Record payment",
+      "empty": "No payments recorded yet.",
+      "hint": "Recording a payment does not change the subscription.",
+      "columns": {
+        "receipt": "Receipt no.",
+        "paidAt": "Paid on",
+        "amount": "Amount",
+        "method": "Method",
+        "reference": "Reference",
+        "status": "Status",
+        "recordedBy": "Recorded by",
+        "actions": "Actions"
+      },
+      "status": {
+        "VALID": "Recorded",
+        "VOIDED": "Voided"
+      },
+      "actions": {
+        "receipt": "Receipt",
+        "void": "Void"
+      },
+      "receiptRendering": "The receipt is being prepared. Try again in a few seconds.",
+      "modal": {
+        "title": "Record payment",
+        "amount": "Amount",
+        "currency": "Currency",
+        "method": "Payment method",
+        "reference": "Reference (optional)",
+        "paidAt": "Paid on",
+        "emailOffice": "Email the receipt to the office",
+        "success": "The payment was recorded.",
+        "amountHint": "Enter the amount in Western digits, for example 150.00"
+      },
+      "void": {
+        "title": "Void payment no.",
+        "hint": "The payment keeps its receipt number and is marked void. This cannot be undone.",
+        "reason": "Reason",
+        "success": "The payment was voided."
+      }
     }
   },
   "recovery": {

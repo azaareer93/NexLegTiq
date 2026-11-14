@@ -6,6 +6,7 @@ import {
   PURGE_AUDIT_LOGS_JOB,
 } from './audit-retention.processor';
 import { RENDER_INVOICE_PDF_JOB } from '../../modules/invoices/pdf/invoice-pdf.renderer';
+import { RENDER_PAYMENT_RECEIPT_JOB } from '../../modules/platform-payments/receipt-pdf.renderer';
 import { TenantProcessor } from '../queue/tenant-processor';
 
 function build(queue: unknown = { upsertJobScheduler: jest.fn() }) {
@@ -25,6 +26,7 @@ function build(queue: unknown = { upsertJobScheduler: jest.fn() }) {
   };
   const overdue = { run: jest.fn().mockResolvedValue({ marked: 1 }) };
   const pdfs = { run: jest.fn().mockResolvedValue({ rendered: true }) };
+  const receipts = { run: jest.fn().mockResolvedValue({ rendered: true, emailed: true }) };
   const processor = new AuditRetentionProcessor(
     {} as never,
     { unscoped: () => raw } as never,
@@ -32,10 +34,12 @@ function build(queue: unknown = { upsertJobScheduler: jest.fn() }) {
     moduleRef as never,
     overdue as never,
     pdfs as never,
+    receipts as never,
   );
-  return { processor, logger, overdue, pdfs };
+  return { processor, logger, overdue, pdfs, receipts };
 }
 
+const ID = '01920000-0000-7000-8000-000000000001';
 const job = (name: string, data: object = {}) => ({ name, data, id: 'j1' }) as never;
 
 describe('AuditRetentionProcessor', () => {
@@ -73,16 +77,28 @@ describe('AuditRetentionProcessor', () => {
     tenant.mockRestore();
   });
 
-  it('should render an invoice PDF and refuse an unknown office job', async () => {
-    const { processor, pdfs } = build();
-    const handle = (name: string) =>
+  it('should render an invoice PDF or a payment receipt by job name, and refuse an unknown office job', async () => {
+    const { processor, pdfs, receipts } = build();
+    const handle = (name: string, data: object) =>
       (
         processor as unknown as {
           handle: (j: unknown, s: AbortSignal) => Promise<unknown>;
         }
-      ).handle(job(name, { invoiceId: 'i1' }), new AbortController().signal);
-    await expect(handle(RENDER_INVOICE_PDF_JOB)).resolves.toEqual({ rendered: true });
-    expect(pdfs.run).toHaveBeenCalledWith({ invoiceId: 'i1' }, 'j1', expect.any(AbortSignal));
-    expect(() => handle('nope')).toThrow(UnrecoverableError);
+      ).handle(job(name, data), new AbortController().signal);
+    const invoice = { invoiceId: ID, language: 'AR' };
+    await expect(handle(RENDER_INVOICE_PDF_JOB, invoice)).resolves.toEqual({ rendered: true });
+    expect(pdfs.run).toHaveBeenCalledWith(
+      { ...invoice, email: false },
+      'j1',
+      expect.any(AbortSignal),
+    );
+    const receipt = { paymentId: ID, language: 'EN', email: true };
+    await expect(handle(RENDER_PAYMENT_RECEIPT_JOB, receipt)).resolves.toMatchObject({
+      emailed: true,
+    });
+    expect(receipts.run).toHaveBeenCalledWith(receipt, 'j1', expect.any(AbortSignal));
+    // A receipt payload under the invoice job name is refused by the invoice schema.
+    expect(() => handle(RENDER_INVOICE_PDF_JOB, receipt)).toThrow(UnrecoverableError);
+    expect(() => handle('nope', invoice)).toThrow(UnrecoverableError);
   });
 });

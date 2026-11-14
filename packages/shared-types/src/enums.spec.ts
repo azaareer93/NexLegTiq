@@ -7,7 +7,7 @@ import {
   FOLDER_SYSTEM_KEYS,
   OCR_STATUSES,
 } from './document.js';
-import { INVOICE_PAYMENT_METHODS, INVOICE_STATUSES } from './invoice.js';
+import { INVOICE_PAYMENT_METHODS, INVOICE_STATUSES, RETAINER_ENTRY_KINDS } from './invoice.js';
 import {
   BILLING_METHODS,
   CLIENT_TYPES,
@@ -20,7 +20,7 @@ import { ACCOUNT_TYPES, JURISDICTIONS, OFFICE_LANGUAGES } from './office.js';
 import { PRIORITIES } from './priority.js';
 import { DIGIT_STYLES, NOTIFICATION_CATEGORIES, NOTIFICATION_TYPES } from './profile.js';
 import { REMINDER_STATUSES, SESSION_OUTCOMES, SESSION_STATUSES, SESSION_TYPES } from './session.js';
-import { SUBSCRIPTION_STATUSES } from './subscription.js';
+import { PLATFORM_PAYMENT_METHODS, SUBSCRIPTION_STATUSES } from './subscription.js';
 import { TASK_STATUSES } from './task.js';
 import { TIMELINE_EVENT_TYPES } from './timeline.js';
 
@@ -46,12 +46,14 @@ describe('enum value lists', () => {
       TASK_STATUSES,
       INVOICE_STATUSES,
       INVOICE_PAYMENT_METHODS,
+      RETAINER_ENTRY_KINDS,
       DOCUMENT_TYPES,
       DOCUMENT_STATUSES,
       OCR_STATUSES,
       DOCUMENT_LANGUAGES,
       FOLDER_SYSTEM_KEYS,
       SUBSCRIPTION_STATUSES,
+      PLATFORM_PAYMENT_METHODS,
       DIGIT_STYLES,
       NOTIFICATION_CATEGORIES,
       NOTIFICATION_TYPES,

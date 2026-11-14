@@ -25,6 +25,7 @@ import {
   statementIn,
   witnessIn,
 } from './tenant-isolation.fixtures';
+import { PLATFORM_RESOURCES } from './tenant-isolation.platform';
 import type { TenantModel } from './tenant-models';
 import type { PrismaClient } from '../generated/prisma/client';
 
@@ -52,6 +53,7 @@ export interface TenantResource {
 export const TENANT_ISOLATION_MATRIX: readonly TenantResource[] = [
   ...PORTAL_RESOURCES,
   ...INVOICE_RESOURCES,
+  ...PLATFORM_RESOURCES,
   {
     model: 'OfficeSettings',
     create: (db, { officeId }) => db.officeSettings.create({ data: { officeId } }),

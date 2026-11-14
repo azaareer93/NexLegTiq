@@ -241,6 +241,23 @@ export const INVOICE_RESOURCES: readonly TenantResource[] = [
   },
   { model: 'InvoiceLineItem', create: invoiceLineIn, update: { description: 'Renamed' } },
   {
+    model: 'RetainerEntry',
+    create: async (db, office) =>
+      db.retainerEntry.create({
+        data: {
+          officeId: office.officeId,
+          fileId: (await fileIn(db, office)).id,
+          kind: 'DEPOSIT',
+          amount: '100.00',
+          currency: 'ILS',
+          paidAt: new Date(),
+          method: 'CASH',
+          createdById: office.userId,
+        },
+      }),
+    update: { reference: 'changed' },
+  },
+  {
     model: 'InvoiceNumberSequence',
     create: (db, { officeId }) =>
       db.invoiceNumberSequence.create({ data: { officeId, year: 2026, lastValue: 1 } }),

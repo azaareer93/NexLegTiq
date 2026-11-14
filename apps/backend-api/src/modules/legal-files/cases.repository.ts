@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { Case, CaseListItem, CaseQuery } from '@nexlegtiq/shared-contracts';
+import { roundMoney } from '@nexlegtiq/shared-utils';
 
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
@@ -159,7 +160,7 @@ function toCase(row: DetailRow): Case {
     billingMethod: row.billingMethod,
     hourlyRate: money(row.hourlyRate),
     fixedFee: money(row.fixedFee),
-    retainerBalance: row.retainerBalance.toFixed(2),
+    retainerBalance: roundMoney(row.retainerBalance.toFixed(), row.currency),
     currency: row.currency,
     clients: row.clients.map(({ isPrimary, client }) => ({ ...client, isPrimary })),
     team: row.teamMembers.map(({ role, user }) => ({ ...user, role })),

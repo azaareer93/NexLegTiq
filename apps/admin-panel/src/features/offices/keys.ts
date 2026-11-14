@@ -5,4 +5,5 @@ export const officeKeys = {
   lists: () => [...officeKeys.all, 'list'] as const,
   list: (query: AdminOfficeListParams) => [...officeKeys.lists(), query] as const,
   detail: (id: string) => [...officeKeys.all, 'detail', id] as const,
+  payments: (id: string) => [...officeKeys.all, 'payments', id] as const,
 };

@@ -44,7 +44,8 @@
     "WITNESS_STATEMENT_ADDED": "إضافة شهادة",
     "SUMMARY_GENERATED": "إعداد ملخص بالذكاء الاصطناعي لمستند",
     "INVOICE_SENT": "إرسال فاتورة",
-    "INVOICE_PAID": "تسديد فاتورة"
+    "INVOICE_PAID": "تسديد فاتورة",
+    "RETAINER_DEPOSITED": "استلام دفعة مقدمة"
   },
   "separator": " · ",
   "unknownPerson": "زميل",

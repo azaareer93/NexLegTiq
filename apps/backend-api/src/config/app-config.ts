@@ -167,6 +167,15 @@ export class AppConfig {
     return this.#env.PDF_CHROMIUM_PATH;
   }
 
+  /** The company named on payment receipts (D-174). */
+  get receiptIssuer(): { name: string; address: string | null; taxId: string | null } {
+    return {
+      name: this.#env.RECEIPT_ISSUER_NAME,
+      address: this.#env.RECEIPT_ISSUER_ADDRESS ?? null,
+      taxId: this.#env.RECEIPT_ISSUER_TAX_ID ?? null,
+    };
+  }
+
   /** Google Vision fallback (D-142); null when no credentials are configured. */
   get vision(): {
     readonly apiKey: string;

@@ -35,7 +35,7 @@ export { PRIORITIES } from './priority.js';
 export type { Priority } from './priority.js';
 export { COURT_TYPES } from './court.js';
 export type { CourtType } from './court.js';
-export { PLAN_MARKETS, SUBSCRIPTION_STATUSES } from './subscription.js';
+export { PLAN_MARKETS, PLATFORM_PAYMENT_METHODS, SUBSCRIPTION_STATUSES } from './subscription.js';
 export {
   DIGIT_STYLES,
   EMAIL_CATEGORIES,
@@ -49,10 +49,15 @@ export type {
   NotificationChannel,
   NotificationType,
 } from './profile.js';
-export type { PlanMarket, SubscriptionStatus } from './subscription.js';
+export type { PlanMarket, PlatformPaymentMethod, SubscriptionStatus } from './subscription.js';
 export { TASK_STATUSES } from './task.js';
-export { INVOICE_PAYMENT_METHODS, INVOICE_STATUSES } from './invoice.js';
-export type { InvoicePaymentMethod, InvoiceStatus } from './invoice.js';
+export {
+  INVOICE_PAYMENT_METHODS,
+  INVOICE_STATUSES,
+  RETAINER_DEPOSIT_METHODS,
+  RETAINER_ENTRY_KINDS,
+} from './invoice.js';
+export type { InvoicePaymentMethod, InvoiceStatus, RetainerEntryKind } from './invoice.js';
 export { AI_FEEDBACK_REASONS, AI_JOB_STATUSES, AI_SOURCE_TYPES } from './ai.js';
 export type { AiFeedbackReason, AiJobStatus, AiSourceType } from './ai.js';
 export type { TaskStatus } from './task.js';
