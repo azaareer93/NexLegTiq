@@ -49,8 +49,11 @@ Cloudflare Pages. Nothing in the repo names a VPS provider or region (D-021 is s
    the admin panel and scan the authenticator QR code **within a day** (later, re-create the admin); keep the ten recovery
    codes offline. Run it in an interactive terminal on your machine (never in CI or on the host): the password is printed.
    Set `ADMIN_ORIGINS` to the admin panel's https origin (and add it to `CORS_ORIGINS`).
-8. **Reference data** — the migrate job seeds the plans (create-only). Demo data is not seeded: `seed-demo` refuses
-   `NODE_ENV=production` and its user has no usable password; sign up on staging instead.
+8. **Reference data** — the migrate job seeds the plans (create-only). Demo data is never seeded in production:
+   `seed-demo` refuses `NODE_ENV=production` unless `SEED_DEMO=true`, and even then refuses a database that holds any
+   office but the demo one (D-175). For a sales demo, use a **separate demo deployment** with its own database: set
+   `SEED_DEMO=true` and `DEMO_PASSWORD`, run `seed-demo`; rebuild it with `demo-reset` using the migration (owner)
+   database URL, since the app role may not delete audit rows.
 
 ## Normal deploy
 

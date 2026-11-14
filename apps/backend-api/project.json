@@ -111,6 +111,13 @@
         "cwd": "apps/backend-api"
       }
     },
+    "demo-reset": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsx prisma/seed-demo.ts --reset",
+        "cwd": "apps/backend-api"
+      }
+    },
     "integration": {
       "executor": "nx:run-commands",
       "options": {
