@@ -178,6 +178,10 @@
     "INTERESTED_PARTY": "صاحب مصلحة",
     "PROSECUTION": "النيابة العامة"
   },
+  "planMarket": {
+    "PALESTINE": "فلسطين",
+    "GLOBAL": "عالمي"
+  },
   "priority": {
     "LOW": "منخفضة",
     "MEDIUM": "متوسطة",
