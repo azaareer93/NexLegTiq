@@ -9,13 +9,14 @@ import {
   useApiErrorHandler,
   useCan,
 } from '@nexlegtiq/shared-ui';
-import { Button, Flex, Typography } from 'antd';
+import { Button, Card, Flex, Typography } from 'antd';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { EntriesTable, Totals } from './EntriesTable';
 import { EntryModal } from './EntryModal';
 import { StartTimerButton } from './StartTimerButton';
+import { InvoiceWizard, InvoicesTable, RetainerCard, useInvoices } from '../../invoices';
 import {
   PAGE_SIZE,
   useTimeEntries,
@@ -142,13 +143,71 @@ function EntriesSection({
   );
 }
 
+interface FileClient {
+  readonly id: string;
+  readonly displayName: string;
+  readonly isPrimary: boolean;
+}
+
+/** The file's invoices and the wizard that drafts one (MVP-148); only for those who may see invoices. */
+function InvoicesSection({
+  fileId,
+  archived,
+  clients,
+}: {
+  readonly fileId: string;
+  readonly archived: boolean;
+  readonly clients: readonly FileClient[];
+}) {
+  const { t } = useTranslation();
+  const mayGenerate = useCan('generate:invoice');
+  const [page, setPage] = useState(1);
+  const [drafting, setDrafting] = useState(false);
+  const list = useInvoices({ fileId, page: String(page) });
+  return (
+    <Card
+      title={t('billing.invoices.title')}
+      data-testid="file-invoices"
+      extra={
+        mayGenerate && !archived && clients.length > 0 ? (
+          <Button type="primary" onClick={() => setDrafting(true)} data-testid="invoice-generate">
+            {t('billing.invoicing.generate')}
+          </Button>
+        ) : null
+      }
+    >
+      {list.isError ? (
+        <LoadError error={list.error} onRetry={() => void list.refetch()} />
+      ) : !list.data ? (
+        <LoadingSkeleton rows={2} />
+      ) : list.data.items.length > 0 ? (
+        <InvoicesTable
+          invoices={list.data.items}
+          total={list.data.pagination.total}
+          page={page}
+          onPage={setPage}
+          loading={list.isFetching}
+          showFile={false}
+        />
+      ) : (
+        <Typography.Text type="secondary">{t('billing.invoices.empty')}</Typography.Text>
+      )}
+      {drafting ? (
+        <InvoiceWizard fileId={fileId} clients={clients} onClose={() => setDrafting(false)} />
+      ) : null}
+    </Card>
+  );
+}
+
 /** `?tab=billing` (MVP-93, D-152): the file's totals, and the time entries for those who may log time. */
 export function BillingTab({
   fileId,
   archived,
+  clients = [],
 }: {
   readonly fileId: string;
   readonly archived: boolean;
+  readonly clients?: readonly FileClient[];
 }) {
   const { t } = useTranslation();
   const mayLog = useCan('log:time');
@@ -163,6 +222,12 @@ export function BillingTab({
         <Typography.Text type="secondary" data-testid="totals-hint">
           {t('billing.totals.hint')}
         </Typography.Text>
+      ) : null}
+      {allInvoices || assignedInvoices ? (
+        <>
+          <RetainerCard fileId={fileId} archived={archived} />
+          <InvoicesSection fileId={fileId} archived={archived} clients={clients} />
+        </>
       ) : null}
       {mayLog ? (
         <EntriesSection

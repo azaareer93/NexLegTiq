@@ -196,7 +196,9 @@ function FileView({
     if (key === 'timeline') {
       return <TimelineTab fileId={file.id} onOpenHearing={setHearing} onOpenTab={selectTab} />;
     }
-    if (key === 'billing') return <BillingTab fileId={file.id} archived={archived} />;
+    if (key === 'billing') {
+      return <BillingTab fileId={file.id} archived={archived} clients={file.clients} />;
+    }
     if (key === 'notes') {
       return (
         <NotesTab
