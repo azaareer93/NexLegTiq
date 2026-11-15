@@ -72,6 +72,14 @@ function fromEnvelope(
 }
 
 /** Normalises anything a request can throw. Cancellations pass through untouched (TanStack Query ignores them). */
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
 export function toApiError(error: unknown): unknown {
   if (error instanceof ApiError || !isAxiosError(error) || error.code === 'ERR_CANCELED') {
     return error;
@@ -84,7 +92,9 @@ export function toApiError(error: unknown): unknown {
   const headers = response.headers as Record<string, unknown>;
   const headerId = headerIdOf(headers);
   const retryAfter = retryAfterOf(headers);
-  const body: unknown = response.data;
+  // A text request (a CSV export) gets its error envelope as a string.
+  const body: unknown =
+    typeof response.data === 'string' ? parseJson(response.data) : response.data;
   if (isErrorEnvelope(body)) {
     return fromEnvelope(body, response.status, headerId, retryAfter);
   }

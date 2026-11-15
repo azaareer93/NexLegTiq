@@ -2,6 +2,7 @@ import type { Locale } from '@nexlegtiq/shared-types';
 
 import arAdmin from './locales/ar/admin.json' with { type: 'json' };
 import arAiSummary from './locales/ar/aiSummary.json' with { type: 'json' };
+import arAudit from './locales/ar/audit.json' with { type: 'json' };
 import arAuth from './locales/ar/auth.json' with { type: 'json' };
 import arBilling from './locales/ar/billing.json' with { type: 'json' };
 import arCalendar from './locales/ar/calendar.json' with { type: 'json' };
@@ -24,6 +25,7 @@ import arTimeline from './locales/ar/timeline.json' with { type: 'json' };
 import arValidation from './locales/ar/validation.json' with { type: 'json' };
 import enAdmin from './locales/en/admin.json' with { type: 'json' };
 import enAiSummary from './locales/en/aiSummary.json' with { type: 'json' };
+import enAudit from './locales/en/audit.json' with { type: 'json' };
 import enAuth from './locales/en/auth.json' with { type: 'json' };
 import enBilling from './locales/en/billing.json' with { type: 'json' };
 import enCalendar from './locales/en/calendar.json' with { type: 'json' };
@@ -69,6 +71,7 @@ const en = {
   admin: enAdmin,
   billing: enBilling,
   aiSummary: enAiSummary,
+  audit: enAudit,
 };
 const ar = {
   common: arCommon,
@@ -93,6 +96,7 @@ const ar = {
   admin: arAdmin,
   billing: arBilling,
   aiSummary: arAiSummary,
+  audit: arAudit,
 };
 
 /** Nested string tree of one namespace file. */

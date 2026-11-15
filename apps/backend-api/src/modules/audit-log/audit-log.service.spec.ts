@@ -1,5 +1,14 @@
+import { StreamableFile } from '@nestjs/common';
+import type { Request } from 'express';
+import type { ClsService } from 'nestjs-cls';
+
 import { auditCsv, BOM, csvCell } from './audit-csv';
-import { toEntry } from './audit-log.service';
+import { AuditLogController } from './audit-log.controller';
+import { AuditLogService, EXPORT_MAX_ROWS, toEntry } from './audit-log.service';
+import type { AuditService } from '../../common/audit/audit.service';
+import type { PrismaService } from '../../database/prisma.service';
+import type { UnitOfWork } from '../../database/unit-of-work';
+import type { CaseAccessService } from '../legal-files/case-access.service';
 
 const ID = '01920000-0000-7000-8000-0000000000a1';
 const row = (extra: object = {}) =>
@@ -50,5 +59,104 @@ describe('audit CSV and entries (D-180)', () => {
     const csv = auditCsv([toEntry(row())], 'Asia/Hebron');
     expect(csv.startsWith(`${BOM}"occurredAt"`)).toBe(true);
     expect(csv).toContain('"2026-11-11 10:00","SYSTEM","","UPDATE","Task","",""');
+  });
+});
+
+describe('AuditLogService (D-180)', () => {
+  const FILE = '01920000-0000-7000-8000-0000000000f1';
+  function setup(rows: unknown[] = [row(), row({ id: '01920000-0000-7000-8000-0000000000a2' })]) {
+    const findMany = jest.fn().mockResolvedValue(rows);
+    const db = {
+      auditLog: { findMany },
+      office: { findFirstOrThrow: jest.fn().mockResolvedValue({ timezone: 'Asia/Hebron' }) },
+    };
+    const files = { assertFileAccess: jest.fn() };
+    const audit = { log: jest.fn() };
+    const service = new AuditLogService(
+      { db } as unknown as PrismaService,
+      files as unknown as CaseAccessService,
+      audit as unknown as AuditService,
+      { run: (work: (tx: unknown) => unknown) => work({}) } as unknown as UnitOfWork,
+    );
+    return { service, findMany, files, audit };
+  }
+
+  it('should apply every filter, office days and the cursor, and page by one extra row', async () => {
+    const { service, findMany } = setup();
+    const page = await service.list({
+      limit: 1,
+      cursor: ID,
+      entityType: 'Task',
+      entityId: ID,
+      userId: ID,
+      action: 'UPDATE',
+      from: '2026-11-01',
+      to: '2026-11-30',
+    });
+    expect(page.items).toHaveLength(1);
+    expect(page.nextCursor).toBe(ID);
+    const args = findMany.mock.calls[0][0];
+    expect(args).toMatchObject({ take: 2, skip: 1, cursor: { id: ID } });
+    expect(args.where).toMatchObject({
+      entityType: 'Task',
+      entityId: ID,
+      userId: ID,
+      action: 'UPDATE',
+    });
+    // Hebron is UTC+2 in November: the office day starts at 22:00 UTC the day before.
+    expect(args.where.occurredAt.gte.toISOString()).toBe('2026-10-31T22:00:00.000Z');
+    expect(args.where.occurredAt.lt.toISOString()).toBe('2026-11-30T22:00:00.000Z');
+    const open = await service.list({ limit: 5, from: '2026-11-01' });
+    expect(open.nextCursor).toBeNull();
+    expect(findMany.mock.calls[1][0].where.occurredAt).toEqual({ gte: expect.any(Date) });
+    await service.list({ limit: 5, to: '2026-11-01' });
+    expect(findMany.mock.calls[2][0].where.occurredAt).toEqual({ lt: expect.any(Date) });
+  });
+
+  it('should check the file and match its rows for a file audit', async () => {
+    const { service, findMany, files } = setup([]);
+    await service.list({ limit: 50 }, FILE);
+    expect(files.assertFileAccess).toHaveBeenCalledWith(FILE, 'read');
+    expect(findMany.mock.calls[0][0].where.OR).toHaveLength(3);
+  });
+
+  it('should export the rows and audit the export, refusing more than the cap', async () => {
+    const { service, audit } = setup();
+    const csv = await service.exportCsv({ format: 'csv', action: 'UPDATE' }, { ip: '127.0.0.1' });
+    expect(csv.split('\r\n')).toHaveLength(4);
+    expect(audit.log).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({
+        action: 'EXPORT',
+        newValues: { format: 'csv', filters: { action: 'UPDATE' }, rows: 2 },
+      }),
+      { ip: '127.0.0.1' },
+    );
+    const big = setup(Array.from({ length: EXPORT_MAX_ROWS + 1 }, () => row()));
+    await expect(big.service.exportCsv({ format: 'csv' }, {})).rejects.toMatchObject({
+      code: 'BIZ-025',
+    });
+  });
+
+  it('should route the controller calls with or without a request context', async () => {
+    const audit = {
+      list: jest.fn().mockResolvedValue({ items: [], nextCursor: null }),
+      exportCsv: jest.fn().mockResolvedValue('csv'),
+    };
+    const make = (active: boolean) =>
+      new AuditLogController(
+        audit as unknown as AuditLogService,
+        { isActive: () => active, getId: () => 'req-1' } as unknown as ClsService,
+      );
+    const req = { ip: '127.0.0.1', get: () => undefined } as unknown as Request;
+    await make(true).list({ limit: 50 });
+    await make(true).file(FILE, { limit: 50 });
+    expect(audit.list).toHaveBeenLastCalledWith({ limit: 50 }, FILE);
+    await expect(make(true).export({ format: 'csv' }, req)).resolves.toBeInstanceOf(StreamableFile);
+    await make(false).export({ format: 'csv' }, req);
+    expect(audit.exportCsv).toHaveBeenLastCalledWith(
+      { format: 'csv' },
+      expect.objectContaining({ requestId: null }),
+    );
   });
 });
