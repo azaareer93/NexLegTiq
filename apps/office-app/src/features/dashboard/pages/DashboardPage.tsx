@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 
 import { useSession } from '../../auth';
 import { openQuickCreateCase } from '../../cases';
+import { OnboardingNudge } from '../../onboarding';
 import { useDashboard } from '../api/use-dashboard';
 import { Activity, Deadlines, Hearings, KpiRow, Team } from '../components/DashboardCards';
 
@@ -59,6 +60,7 @@ export function DashboardPage() {
   return (
     <Flex vertical gap={16} component="section" data-testid="page-dashboard">
       {header}
+      <OnboardingNudge />
       {fresh && canCreate ? (
         <EmptyState
           title={t('dashboard.start.title')}

@@ -77,7 +77,8 @@
   "profile": {
     "menu": "قائمة الحساب",
     "profile": "حسابي",
-    "language": "اللغة"
+    "language": "اللغة",
+    "setupGuide": "دليل الإعداد"
   },
   "comingSoon": {
     "title": "قريبًا",

@@ -62,6 +62,9 @@ const LABELLED_ELSEWHERE = [
   'PORTAL_TIMELINE_EVENT_TYPES',
   // A subset of INVOICE_PAYMENT_METHODS (labels `enums.invoicePaymentMethod.*`).
   'RETAINER_DEPOSIT_METHODS',
+  // The wizard's steps are labelled `onboarding.steps.*`; its statuses are never shown (D-181).
+  'ONBOARDING_STEPS',
+  'ONBOARDING_STATUSES',
 ];
 
 describe('findMissingKeys', () => {

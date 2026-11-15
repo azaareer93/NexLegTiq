@@ -1,5 +1,11 @@
-import { GlobalOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons';
-import { Bdi, DirectionalIcon, useApiErrorHandler, useLanguage } from '@nexlegtiq/shared-ui';
+import { GlobalOutlined, LogoutOutlined, RocketOutlined, UserOutlined } from '@ant-design/icons';
+import {
+  Bdi,
+  DirectionalIcon,
+  useApiErrorHandler,
+  useCan,
+  useLanguage,
+} from '@nexlegtiq/shared-ui';
 import { isolate } from '@nexlegtiq/shared-utils';
 import { Avatar, Button, Dropdown } from 'antd';
 import type { MenuProps } from 'antd';
@@ -32,6 +38,8 @@ export function ProfileMenu({
 }): React.JSX.Element {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  // The setup wizard can be reopened by whoever may set up the office (D-181).
+  const maySetUp = useCan('manage:office');
   const { locale, setLocale } = useLanguage();
   const { notify } = useApiErrorHandler();
   const user = useSession((state) => state.user);
@@ -70,6 +78,16 @@ export function ProfileMenu({
         },
       ],
     },
+    ...(maySetUp
+      ? [
+          {
+            key: 'onboarding',
+            icon: <RocketOutlined />,
+            label: t('shell.profile.setupGuide'),
+            'data-testid': 'menu-onboarding',
+          },
+        ]
+      : []),
     { type: 'divider' },
     // The sign-out arrow points out of the page, so it follows the reading direction.
     {
@@ -83,6 +101,7 @@ export function ProfileMenu({
 
   const onClick: MenuProps['onClick'] = ({ key }) => {
     if (key === 'profile') void navigate('/profile');
+    else if (key === 'onboarding') void navigate('/onboarding');
     else if (key === 'lang-ar') pick('ar');
     else if (key === 'lang-en') pick('en');
     else if (key === 'logout') void signOut();
