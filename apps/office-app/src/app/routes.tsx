@@ -1,6 +1,7 @@
 import { LoadingSkeleton } from '@nexlegtiq/shared-ui';
 import type { RouteObject } from 'react-router';
 
+import { auditRoutes } from '../features/audit';
 import { authRoutes, RequireAuth } from '../features/auth';
 import { calendarRoutes } from '../features/calendar';
 import { casesRoutes } from '../features/cases';
@@ -38,6 +39,8 @@ const FEATURE_ROUTES: Partial<Record<NavKey, RouteObject[]>> = {
   dashboard: dashboardRoutes,
   invoices: invoicesRoutes,
   settings: settingsRoutes,
+  // Under Settings, with its own right: an Admin reads it without managing the office (D-180).
+  audit: auditRoutes,
   tasks: tasksRoutes,
   team: teamRoutes,
 };

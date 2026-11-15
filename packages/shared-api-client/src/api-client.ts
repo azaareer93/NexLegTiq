@@ -36,6 +36,8 @@ export interface ApiRequest {
   readonly query?: Readonly<Record<string, string | number | boolean | undefined>>;
   readonly headers?: Readonly<Record<string, string>>;
   readonly signal?: AbortSignal;
+  /** `text`: keep the body as sent (a CSV), never parsed as JSON. */
+  readonly responseType?: 'text';
   /** Upload progress of the request body (multipart uploads), as a fraction 0–1. */
   readonly onUploadProgress?: (fraction: number) => void;
 }
@@ -47,6 +49,8 @@ export interface ApiClient {
   request(request: ApiRequest): Promise<void>;
   /** A paginated list (api-conventions.md): every item checked against `itemSchema`, plus `meta.pagination`. */
   requestPage<S extends z.ZodType>(request: ApiRequest, itemSchema: S): Promise<Page<z.output<S>>>;
+  /** A file the API sends as text (a CSV export, D-180) instead of an envelope; errors still come as `ApiError`. */
+  requestText(request: ApiRequest): Promise<string>;
   /**
    * For the public endpoints that start or end a session (login, register, logout): sent after any refresh in flight and
    * under the cross-tab refresh lock, never refreshed or retried.
@@ -181,18 +185,7 @@ export function createApiClient(config: ApiClientConfig): ApiClient {
   async function send(request: ApiRequest, retried = false): Promise<AxiosResponse> {
     const token = config.getToken();
     try {
-      return await http.request({
-        method: request.method,
-        url: request.path.replace(/^\/+/, ''),
-        data: request.body,
-        params: request.query,
-        signal: request.signal,
-        ...(request.onUploadProgress && {
-          onUploadProgress: (event: { loaded: number; total?: number }) =>
-            request.onUploadProgress?.(event.total ? Math.min(event.loaded / event.total, 1) : 0),
-        }),
-        headers: { ...request.headers, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      });
+      return await http.request(axiosConfig(request, token));
     } catch (error) {
       const apiError = toApiError(error);
       // Expired access token: refresh once (joining a refresh already running) and retry once. A request that was sent
@@ -251,6 +244,11 @@ export function createApiClient(config: ApiClientConfig): ApiClient {
     return { items, pagination };
   }
 
+  async function requestText(apiRequest: ApiRequest): Promise<string> {
+    const response = await send({ ...apiRequest, responseType: 'text' });
+    return String(response.data);
+  }
+
   async function sessionRequest(apiRequest: ApiRequest, schema?: z.ZodType): Promise<unknown> {
     // Wait for this tab's refresh, then hold the cross-tab refresh lock: a rotation finishing during a logout would
     // otherwise leave a live refresh cookie behind (the old cookie logs nothing out), or overwrite a new login's cookie.
@@ -262,9 +260,27 @@ export function createApiClient(config: ApiClientConfig): ApiClient {
   return {
     request: request as ApiClient['request'],
     requestPage: requestPage as ApiClient['requestPage'],
+    requestText,
     sessionRequest: sessionRequest as ApiClient['sessionRequest'],
     refresh: () => refresh(),
     setToken: config.setToken,
+  };
+}
+
+/** The axios call of one request, with the bearer token when there is one. */
+function axiosConfig(request: ApiRequest, token: string | null) {
+  return {
+    method: request.method,
+    url: request.path.replace(/^\/+/, ''),
+    data: request.body,
+    params: request.query,
+    signal: request.signal,
+    ...(request.responseType && { responseType: request.responseType }),
+    ...(request.onUploadProgress && {
+      onUploadProgress: (event: { loaded: number; total?: number }) =>
+        request.onUploadProgress?.(event.total ? Math.min(event.loaded / event.total, 1) : 0),
+    }),
+    headers: { ...request.headers, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
   };
 }
 

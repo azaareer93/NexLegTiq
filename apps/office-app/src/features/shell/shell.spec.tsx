@@ -55,6 +55,7 @@ const EXPECTED: Record<Role, string[]> = {
     'invoices',
     'reports',
     'team',
+    'audit',
     'settings',
   ],
   SENIOR_LAWYER: [
@@ -69,7 +70,17 @@ const EXPECTED: Record<Role, string[]> = {
   ],
   LAWYER: ['dashboard', 'cases', 'clients', 'calendar', 'tasks', 'documents', 'invoices'],
   PARALEGAL: ['dashboard', 'cases', 'clients', 'calendar', 'tasks', 'documents', 'invoices'],
-  ADMIN: ['dashboard', 'cases', 'clients', 'calendar', 'tasks', 'documents', 'invoices', 'reports'],
+  ADMIN: [
+    'dashboard',
+    'cases',
+    'clients',
+    'calendar',
+    'tasks',
+    'documents',
+    'invoices',
+    'reports',
+    'audit',
+  ],
   TRAINEE: ['dashboard', 'cases', 'calendar', 'tasks', 'documents'],
   EXTERNAL_COLLABORATOR: ['dashboard', 'cases', 'calendar', 'tasks', 'documents'],
 };
@@ -687,6 +698,7 @@ describe('right-to-left', () => {
       'الفواتير',
       'التقارير',
       'الفريق',
+      'سجل التدقيق',
       'الإعدادات',
     ]);
   });

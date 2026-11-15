@@ -60,6 +60,8 @@ export {
 export type { InvoicePaymentMethod, InvoiceStatus, RetainerEntryKind } from './invoice.js';
 export { ONBOARDING_STATUSES, ONBOARDING_STEPS } from './onboarding.js';
 export type { OnboardingStatus, OnboardingStep } from './onboarding.js';
+export { AUDIT_ACTIONS } from './audit.js';
+export type { AuditAction } from './audit.js';
 export { AI_FEEDBACK_REASONS, AI_JOB_STATUSES, AI_RISK_LEVELS, AI_SOURCE_TYPES } from './ai.js';
 export type { AiFeedbackReason, AiJobStatus, AiRiskLevel, AiSourceType } from './ai.js';
 export type { TaskStatus } from './task.js';
