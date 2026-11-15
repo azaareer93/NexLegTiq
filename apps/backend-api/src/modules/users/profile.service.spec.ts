@@ -1,5 +1,6 @@
 import { Readable } from 'node:stream';
 
+import type { OnboardingState } from '@nexlegtiq/shared-contracts';
 import type { ClsService } from 'nestjs-cls';
 import type { PinoLogger } from 'nestjs-pino';
 
@@ -33,7 +34,10 @@ function setup(user: Partial<typeof USER> = {}) {
     },
   };
   const db = {
-    user: { findUniqueOrThrow: jest.fn().mockResolvedValue(row) },
+    user: {
+      findUniqueOrThrow: jest.fn().mockResolvedValue(row),
+      update: jest.fn().mockResolvedValue({ id: 'u1' }),
+    },
     $transaction: jest.fn((work: (t: unknown) => unknown) => work(tx)),
   };
   const storage = {
@@ -53,7 +57,7 @@ function setup(user: Partial<typeof USER> = {}) {
     } as unknown as ClsService<RequestContext>,
     logger as unknown as PinoLogger,
   );
-  return { service, tx, storage, audit, logger };
+  return { service, tx, storage, audit, logger, db };
 }
 
 const file = (content: Buffer, filename: string, truncated = false) => ({
@@ -189,5 +193,20 @@ describe('ProfileService (D-146)', () => {
     expect(audit.log).not.toHaveBeenCalled();
     expect(prefs).toContainEqual({ category: 'DOCUMENTS', inApp: false, email: null });
     expect(prefs).toContainEqual({ category: 'TEAM', inApp: true, email: null });
+  });
+
+  it('should read the wizard progress, null when unset or malformed, and save it as sent (D-181)', async () => {
+    const { service, db } = setup();
+    db.user.findUniqueOrThrow.mockResolvedValueOnce({ onboardingState: null });
+    await expect(service.onboarding()).resolves.toEqual({ state: null });
+    db.user.findUniqueOrThrow.mockResolvedValueOnce({ onboardingState: { step: 'NOPE' } });
+    await expect(service.onboarding()).resolves.toEqual({ state: null });
+    const state: OnboardingState = { status: 'ACTIVE', step: 'TOUR', done: ['ACCOUNT'] };
+    db.user.findUniqueOrThrow.mockResolvedValueOnce({ onboardingState: state });
+    await expect(service.onboarding()).resolves.toEqual({ state });
+    await expect(service.saveOnboarding(state)).resolves.toEqual({ state });
+    expect(db.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { onboardingState: state } }),
+    );
   });
 });

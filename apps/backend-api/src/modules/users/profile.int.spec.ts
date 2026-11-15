@@ -80,6 +80,36 @@ describe('profile and notification preferences (HTTP + PostgreSQL)', () => {
     process.env = savedEnv;
   });
 
+  it('should keep the setup wizard progress per user, null until offered, and refuse a bad state', async () => {
+    const me = await seed('OFFICE_MANAGER');
+    const colleague = await seed('LAWYER', me.officeId);
+    const read = (user: typeof me) => http().get('/api/v1/users/me/onboarding').set(as(user));
+    expect((await read(me)).body.data).toEqual({ state: null });
+    const state = { status: 'ACTIVE', step: 'CASE', done: ['ACCOUNT', 'OFFICE', 'TOUR'] };
+    const saved = await http().put('/api/v1/users/me/onboarding').set(as(me)).send(state);
+    expect([saved.status, saved.body.data]).toEqual([200, { state }]);
+    expect((await read(me)).body.data).toEqual({ state });
+    // Another user of the office keeps their own (none), and so does a user of another office.
+    expect((await read(colleague)).body.data).toEqual({ state: null });
+    const outsider = await seed('OFFICE_MANAGER');
+    expect((await read(outsider)).body.data).toEqual({ state: null });
+    await http()
+      .put('/api/v1/users/me/onboarding')
+      .set(as(outsider))
+      .send({ status: 'DISMISSED', step: 'ACCOUNT', done: [] });
+    expect((await read(me)).body.data).toEqual({ state });
+    const bad = await http()
+      .put('/api/v1/users/me/onboarding')
+      .set(as(me))
+      .send({ status: 'ACTIVE', step: 'NOPE', done: [] });
+    expect(bad.status).toBe(400);
+    const twice = await http()
+      .put('/api/v1/users/me/onboarding')
+      .set(as(me))
+      .send({ status: 'DISMISSED', step: 'CASE', done: ['TOUR', 'TOUR'] });
+    expect(twice.status).toBe(400);
+  });
+
   it('should show and change only the fields sent, audited, and refuse bad values', async () => {
     const me = await seed();
     const shown = await http().get('/api/v1/users/me').set(as(me)).expect(200);

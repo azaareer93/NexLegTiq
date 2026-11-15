@@ -50,7 +50,8 @@ export function SignupPage(): React.JSX.Element {
     onSuccess: (session) => {
       startSession(session);
       broadcast({ type: 'signedIn' });
-      void navigate('/', { replace: true });
+      // A new office starts with the setup wizard (D-181).
+      void navigate('/onboarding', { replace: true });
     },
     onError: (error) => applyToForm(form, error, FIELDS),
   });
