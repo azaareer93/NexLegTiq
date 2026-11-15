@@ -46,6 +46,7 @@ const ENUM_LABELS = {
   AI_SOURCE_TYPES: 'aiSourceType',
   AI_FEEDBACK_REASONS: 'aiFeedbackReason',
   AI_RISK_LEVELS: 'aiRiskLevel',
+  AUDIT_ACTIONS: 'auditAction',
   AI_JOB_STATUSES: 'aiJobStatus',
   TIMELINE_EVENT_TYPES: 'timelineEventType',
 } as const;

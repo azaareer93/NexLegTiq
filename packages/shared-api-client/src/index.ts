@@ -33,6 +33,7 @@ export { casesApi } from './cases.js';
 export type { CaseListParams } from './cases.js';
 export { aiApi } from './ai.js';
 export { exportsApi } from './exports.js';
+export { auditApi } from './audit.js';
 export { notificationsApi } from './notifications.js';
 export { searchApi } from './search.js';
 export type { SearchParams } from './search.js';

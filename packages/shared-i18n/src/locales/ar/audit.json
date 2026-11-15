@@ -1,0 +1,54 @@
+{
+  "title": "سجل التدقيق",
+  "fileTitle": "سجل تدقيق هذه القضية",
+  "empty": "لا توجد سجلات مطابقة.",
+  "loadMore": "عرض السجلات الأقدم",
+  "export": "تصدير CSV",
+  "changed_zero": "{{count}} حقل:",
+  "changed_one": "حقل واحد:",
+  "changed_two": "حقلان:",
+  "changed_few": "{{count}} حقول:",
+  "changed_many": "{{count}} حقلًا:",
+  "changed_other": "{{count}} حقل:",
+  "columns": {
+    "time": "الوقت",
+    "actor": "بواسطة",
+    "action": "الإجراء",
+    "entity": "العنصر",
+    "changes": "التغييرات"
+  },
+  "filters": {
+    "action": "الإجراء",
+    "user": "المستخدم",
+    "entity": "نوع العنصر",
+    "from": "من",
+    "to": "إلى"
+  },
+  "actor": {
+    "USER": "مستخدم",
+    "PLATFORM_ADMIN": "دعم NexLegTiq",
+    "CLIENT": "موكل (البوابة)",
+    "SYSTEM": "النظام"
+  },
+  "entity": {
+    "LegalFile": "قضية",
+    "Document": "مستند",
+    "Task": "مهمة",
+    "Session": "جلسة",
+    "Client": "موكل",
+    "Invoice": "فاتورة",
+    "User": "مستخدم",
+    "Party": "طرف",
+    "TimeEntry": "قيد وقت",
+    "AuditLog": "سجل التدقيق",
+    "Office": "المكتب",
+    "FileNote": "ملاحظة",
+    "FileClient": "موكل القضية",
+    "FileTeamMember": "فريق القضية",
+    "Witness": "شاهد",
+    "WitnessStatement": "شهادة",
+    "RetainerEntry": "دفعة مقدمة"
+  },
+  "settingsLink": "فتح سجل التدقيق",
+  "settingsHint": "من فعل ماذا في المكتب، مع عوامل تصفية وتصدير CSV."
+}

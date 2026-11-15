@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { useBlocker } from 'react-router';
 
 import { useOfficeProfile, useOfficeSettings } from '../api/use-office';
+import { AuditLink } from '../components/AuditLink';
 import { DataSection } from '../components/DataSection';
 import { DefaultsSection, SecuritySection } from '../components/DefaultsSections';
 import { PreferencesSection, ProfileSection } from '../components/ProfileSections';
@@ -102,6 +103,7 @@ export function SettingsPage(): React.JSX.Element {
       {sections()}
       <SubscriptionSection />
       <DataSection />
+      <AuditLink />
       <ConfirmModal
         open={blocker.state === 'blocked'}
         title={t('settings.unsaved.title')}
