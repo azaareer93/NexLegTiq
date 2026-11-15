@@ -1,4 +1,5 @@
 import {
+  AuditOutlined,
   BarChartOutlined,
   CalendarOutlined,
   CheckSquareOutlined,
@@ -46,6 +47,7 @@ export const NAV_ITEMS = [
   },
   { key: 'reports', path: '/reports', icon: <BarChartOutlined />, perform: 'view:reports' },
   { key: 'team', path: '/team', icon: <TeamOutlined />, perform: 'manage:users' },
+  { key: 'audit', path: '/settings/audit', icon: <AuditOutlined />, perform: 'view:audit' },
   { key: 'settings', path: '/settings', icon: <SettingOutlined />, perform: 'manage:office' },
 ] as const satisfies readonly NavItemShape[];
 
@@ -67,12 +69,14 @@ export function useNavItems(): readonly NavItem[] {
     'view:reports': useCan('view:reports'),
     'manage:users': useCan('manage:users'),
     'manage:office': useCan('manage:office'),
+    'view:audit': useCan('view:audit'),
   };
   return NAV_ITEMS.filter((item) => allowed[item.perform]);
 }
 
 /** The menu key of a path (`/cases/123` → `cases`); `undefined` off the menu (`/profile`, unknown pages). */
 export function navKeyOf(pathname: string): NavKey | undefined {
+  if (pathname.startsWith('/settings/audit')) return 'audit';
   const segment = pathname.split('/')[1] ?? '';
   return segment === '' ? 'dashboard' : NAV_ITEMS.find((item) => item.path === `/${segment}`)?.key;
 }

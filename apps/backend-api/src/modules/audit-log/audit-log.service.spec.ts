@@ -68,9 +68,16 @@ describe('AuditLogService (D-180)', () => {
     const findMany = jest.fn().mockResolvedValue(rows);
     const db = {
       auditLog: { findMany },
+      legalFile: { findMany: jest.fn().mockResolvedValue([]) },
+      task: { findMany: jest.fn().mockResolvedValue([{ id: 't1' }]) },
+      document: { findMany: jest.fn().mockResolvedValue([]) },
+      session: { findMany: jest.fn().mockResolvedValue([]) },
+      fileNote: { findMany: jest.fn().mockResolvedValue([]) },
+      timeEntry: { findMany: jest.fn().mockResolvedValue([]) },
+      witness: { findMany: jest.fn().mockResolvedValue([]) },
       office: { findFirstOrThrow: jest.fn().mockResolvedValue({ timezone: 'Asia/Hebron' }) },
     };
-    const files = { assertFileAccess: jest.fn() };
+    const files = { assertFileAccess: jest.fn(), visibleWhere: () => ({ deletedAt: null }) };
     const audit = { log: jest.fn() };
     const service = new AuditLogService(
       { db } as unknown as PrismaService,
@@ -78,7 +85,7 @@ describe('AuditLogService (D-180)', () => {
       audit as unknown as AuditService,
       { run: (work: (tx: unknown) => unknown) => work({}) } as unknown as UnitOfWork,
     );
-    return { service, findMany, files, audit };
+    return { service, findMany, files, audit, db };
   }
 
   it('should apply every filter, office days and the cursor, and page by one extra row', async () => {
@@ -97,27 +104,40 @@ describe('AuditLogService (D-180)', () => {
     expect(page.nextCursor).toBe(ID);
     const args = findMany.mock.calls[0][0];
     expect(args).toMatchObject({ take: 2, skip: 1, cursor: { id: ID } });
-    expect(args.where).toMatchObject({
+    expect(args.where.AND[0]).toMatchObject({
       entityType: 'Task',
       entityId: ID,
       userId: ID,
       action: 'UPDATE',
     });
     // Hebron is UTC+2 in November: the office day starts at 22:00 UTC the day before.
-    expect(args.where.occurredAt.gte.toISOString()).toBe('2026-10-31T22:00:00.000Z');
-    expect(args.where.occurredAt.lt.toISOString()).toBe('2026-11-30T22:00:00.000Z');
+    expect(args.where.AND[0].occurredAt.gte.toISOString()).toBe('2026-10-31T22:00:00.000Z');
+    expect(args.where.AND[0].occurredAt.lt.toISOString()).toBe('2026-11-30T22:00:00.000Z');
     const open = await service.list({ limit: 5, from: '2026-11-01' });
     expect(open.nextCursor).toBeNull();
-    expect(findMany.mock.calls[1][0].where.occurredAt).toEqual({ gte: expect.any(Date) });
+    expect(findMany.mock.calls[1][0].where.AND[0].occurredAt).toEqual({ gte: expect.any(Date) });
     await service.list({ limit: 5, to: '2026-11-01' });
-    expect(findMany.mock.calls[2][0].where.occurredAt).toEqual({ lt: expect.any(Date) });
+    expect(findMany.mock.calls[2][0].where.AND[0].occurredAt).toEqual({ lt: expect.any(Date) });
   });
 
   it('should check the file and match its rows for a file audit', async () => {
     const { service, findMany, files } = setup([]);
     await service.list({ limit: 50 }, FILE);
     expect(files.assertFileAccess).toHaveBeenCalledWith(FILE, 'read');
-    expect(findMany.mock.calls[0][0].where.OR).toHaveLength(3);
+    // The file, its task, and the two value matches.
+    expect(findMany.mock.calls[0][0].where.AND[1].OR[0]).toEqual({
+      entityId: { in: [FILE, 't1'] },
+    });
+    expect(findMany.mock.calls[0][0].where.AND[1].OR).toHaveLength(3);
+  });
+
+  it('should leave out the rows of files the caller may not see', async () => {
+    const { service, findMany, db } = setup([]);
+    db.legalFile.findMany.mockResolvedValueOnce([{ id: FILE }]).mockResolvedValueOnce([]);
+    await service.list({ limit: 50 });
+    expect(findMany.mock.calls[0][0].where.AND[1].OR[1]).toEqual({
+      entityId: { notIn: [FILE, 't1'] },
+    });
   });
 
   it('should export the rows and audit the export, refusing more than the cap', async () => {

@@ -38,11 +38,16 @@
     "Client": "موكل",
     "Invoice": "فاتورة",
     "User": "مستخدم",
-    "Note": "ملاحظة",
     "Party": "طرف",
     "TimeEntry": "قيد وقت",
     "AuditLog": "سجل التدقيق",
-    "Office": "المكتب"
+    "Office": "المكتب",
+    "FileNote": "ملاحظة",
+    "FileClient": "موكل القضية",
+    "FileTeamMember": "فريق القضية",
+    "Witness": "شاهد",
+    "WitnessStatement": "شهادة",
+    "RetainerEntry": "دفعة مقدمة"
   },
   "settingsLink": "فتح سجل التدقيق",
   "settingsHint": "من فعل ماذا في المكتب، مع عوامل تصفية وتصدير CSV."

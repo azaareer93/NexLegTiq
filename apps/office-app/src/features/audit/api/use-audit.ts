@@ -41,11 +41,16 @@ export const useAuditExport = () =>
   useMutation({
     mutationFn: async (filters: AuditFilters) => {
       const csv = await audit.exportCsv(filters);
-      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+      // The browser drops the BOM when it decodes the text; Excel needs it to read Arabic as UTF-8.
+      const bom = csv.startsWith('﻿') ? '' : '﻿';
+      const url = URL.createObjectURL(new Blob([bom, csv], { type: 'text/csv;charset=utf-8' }));
       const link = document.createElement('a');
       link.href = url;
       link.download = 'audit-log.csv';
+      // In the page, and revoked after the click is handled (Firefox ignores a detached link).
+      document.body.append(link);
       link.click();
-      URL.revokeObjectURL(url);
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 0);
     },
   });

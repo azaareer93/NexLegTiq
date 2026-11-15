@@ -8,6 +8,7 @@ import type {
 import { zonedDateTime } from '@nexlegtiq/shared-utils';
 
 import { auditCsv } from './audit-csv';
+import { fileEntityIds, fileRowsWhere } from './file-rows';
 import { AuditService } from '../../common/audit/audit.service';
 import type { AuditClient } from '../../common/audit/audit.service';
 import { BusinessRuleException } from '../../common/errors/app.exception';
@@ -70,8 +71,9 @@ export class AuditLogService {
   /** The filtered rows as CSV; the export is recorded with its filters and row count (never the rows). */
   async exportCsv(query: AuditExportQuery, client: AuditClient): Promise<string> {
     const { format, ...filters } = query;
+    const zone = await this.timeZone();
     const rows = await this.prisma.db.auditLog.findMany({
-      where: await this.where(filters),
+      where: await this.where(filters, undefined, zone),
       orderBy: NEWEST,
       take: EXPORT_MAX_ROWS + 1,
       select: ROW_SELECT,
@@ -91,29 +93,61 @@ export class AuditLogService {
         client,
       ),
     );
-    return auditCsv(rows.map(toEntry), await this.timeZone());
+    return auditCsv(rows.map(toEntry), zone);
   }
 
-  private async where(filters: Filters, fileId?: string): Promise<Prisma.AuditLogWhereInput> {
+  private async where(
+    filters: Filters,
+    fileId?: string,
+    zone?: string,
+  ): Promise<Prisma.AuditLogWhereInput> {
     const { entityType, entityId, userId, action, from, to } = filters;
+    const hidden = await this.hiddenFiles();
     return {
-      ...(entityType ? { entityType } : {}),
-      ...(entityId ? { entityId } : {}),
-      ...(userId ? { userId } : {}),
-      ...(action ? { action } : {}),
-      ...(from || to ? { occurredAt: dayRange(from, to, await this.timeZone()) } : {}),
-      // A file's rows: the file itself, or a row whose values name the file (its tasks, sessions, documents …).
-      // shortcut: a JSON scan within the office's rows, no index; a file_id column if a file's audit grows slow.
-      ...(fileId
-        ? {
-            OR: [
-              { entityType: 'LegalFile', entityId: fileId },
-              { newValues: { path: ['fileId'], equals: fileId } },
-              { oldValues: { path: ['fileId'], equals: fileId } },
-            ],
-          }
-        : {}),
+      AND: [
+        {
+          ...(entityType ? { entityType } : {}),
+          ...(entityId ? { entityId } : {}),
+          ...(userId ? { userId } : {}),
+          ...(action ? { action } : {}),
+          ...(from || to
+            ? { occurredAt: dayRange(from, to, zone ?? (await this.timeZone())) }
+            : {}),
+        },
+        ...(fileId ? [await fileRowsWhere(this.prisma.db, fileId)] : []),
+        // Never the rows of a file the caller may not see (D-096: an Admin is not on confidential files), by id.
+        // shortcut: a row naming a hidden file only in its values (a client or team link) is not caught.
+        ...(hidden.length
+          ? [
+              {
+                OR: [
+                  { entityId: null },
+                  { entityId: { notIn: await fileEntityIds(this.prisma.db, hidden) } },
+                ],
+              },
+            ]
+          : []),
+      ],
     };
+  }
+
+  /**
+   * Confidential files the caller may not see, deleted ones included (D-096). Audit readers see every file in scope
+   * (`view:all:cases`), so only confidentiality can hide one. Two reads and a difference: `NOT (…)` over nullable
+   * columns would drop rows (SQL NULL logic).
+   */
+  private async hiddenFiles(): Promise<string[]> {
+    const { deletedAt: _live, ...visible } = this.files.visibleWhere();
+    const select = { id: true } as const;
+    const [all, seen] = await Promise.all([
+      this.prisma.db.legalFile.findMany({ where: { isConfidential: true }, select }),
+      this.prisma.db.legalFile.findMany({
+        where: { AND: [{ isConfidential: true }, visible] },
+        select,
+      }),
+    ]);
+    const shown = new Set(seen.map((row) => row.id));
+    return all.flatMap((row) => (shown.has(row.id) ? [] : [row.id]));
   }
 
   private async timeZone(): Promise<string> {

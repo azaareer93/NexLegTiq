@@ -13,7 +13,8 @@
     "settings": "Settings",
     "more": "Menu",
     "collapse": "Collapse menu",
-    "expand": "Expand menu"
+    "expand": "Expand menu",
+    "audit": "Audit log"
   },
   "quick": {
     "label": "Create",

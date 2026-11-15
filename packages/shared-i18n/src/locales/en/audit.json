@@ -34,11 +34,16 @@
     "Client": "Client",
     "Invoice": "Invoice",
     "User": "User",
-    "Note": "Note",
     "Party": "Party",
     "TimeEntry": "Time entry",
     "AuditLog": "Audit log",
-    "Office": "Office"
+    "Office": "Office",
+    "FileNote": "Note",
+    "FileClient": "Case client",
+    "FileTeamMember": "Case team",
+    "Witness": "Witness",
+    "WitnessStatement": "Testimony",
+    "RetainerEntry": "Retainer"
   },
   "settingsLink": "Open the audit log",
   "settingsHint": "Who did what in the office, with filters and a CSV export."

@@ -29,6 +29,7 @@ describe('audit log (HTTP + PostgreSQL)', () => {
   let other: Person;
   let fileId: string;
   let taskId: string;
+  let secretId: string;
   const officeIds: string[] = [];
   const savedEnv = { ...process.env };
   const http = () => request(app.getHttpServer());
@@ -83,7 +84,29 @@ describe('audit log (HTTP + PostgreSQL)', () => {
       },
     });
     fileId = file.id;
-    taskId = randomUUID();
+    const task = await raw.task.create({
+      data: {
+        officeId: manager.officeId,
+        fileId,
+        title: 'Draft',
+        assignedToId: lawyer.userId,
+        createdById: manager.userId,
+      },
+    });
+    taskId = task.id;
+    const secret = await raw.legalFile.create({
+      data: {
+        officeId: manager.officeId,
+        fileNumber: `AUD-${randomUUID()}`,
+        title: 'Confidential settlement',
+        fileType: 'LITIGATION',
+        responsibleLawyerId: lawyer.userId,
+        jurisdiction: 'PALESTINE',
+        currency: 'ILS',
+        isConfidential: true,
+      },
+    });
+    secretId = secret.id;
     const at = (iso: string) => new Date(iso);
     await raw.auditLog.createMany({
       data: [
@@ -105,6 +128,26 @@ describe('audit log (HTTP + PostgreSQL)', () => {
           action: 'CREATE',
           newValues: { title: '=HYPERLINK("x")', fileId },
           occurredAt: at('2026-11-11T08:00:00.000Z'),
+        },
+        // A task edit as the tasks module writes it: only the changed field, no file id.
+        {
+          officeId: manager.officeId,
+          userId: lawyer.userId,
+          entityType: 'Task',
+          entityId: taskId,
+          action: 'UPDATE',
+          oldValues: { status: 'TODO' },
+          newValues: { status: 'DONE' },
+          occurredAt: at('2026-11-09T08:00:00.000Z'),
+        },
+        {
+          officeId: manager.officeId,
+          userId: manager.userId,
+          entityType: 'LegalFile',
+          entityId: secretId,
+          action: 'CREATE',
+          newValues: { title: 'Confidential settlement' },
+          occurredAt: at('2026-10-05T08:00:00.000Z'),
         },
         {
           officeId: manager.officeId,
@@ -142,15 +185,19 @@ describe('audit log (HTTP + PostgreSQL)', () => {
       changes: [{ field: 'title', old: 'Rent', new: 'Rent claim' }],
     });
     const second = await get(admin, `audit?limit=2&cursor=${nextCursor}`);
-    expect(second.body.data.items.map((i: { action: string }) => i.action)).toEqual(['LOGIN']);
+    // The Admin is not on the confidential file: its row is left out.
+    expect(second.body.data.items.map((i: { action: string }) => i.action)).toEqual([
+      'UPDATE',
+      'LOGIN',
+    ]);
     expect(second.body.data.nextCursor).toBeNull();
   });
 
   it('should filter by action, user and office days, and refuse a range over a year', async () => {
     const created = await get(manager, 'audit?action=CREATE');
-    expect(created.body.data.items).toHaveLength(1);
+    expect(created.body.data.items).toHaveLength(2);
     const byUser = await get(manager, `audit?userId=${lawyer.userId}`);
-    expect(byUser.body.data.items).toHaveLength(1);
+    expect(byUser.body.data.items).toHaveLength(2);
     const days = await get(manager, 'audit?from=2026-11-11&to=2026-11-11');
     expect(days.body.data.items.map((i: { action: string }) => i.action)).toEqual(['CREATE']);
     const wide = await get(manager, 'audit?from=2025-01-01&to=2026-11-11');
@@ -166,13 +213,23 @@ describe('audit log (HTTP + PostgreSQL)', () => {
     expect(ofFile.body.data.items.map((i: { entityType: string }) => i.entityType)).toEqual([
       'Task',
       'LegalFile',
+      // The task edit that does not repeat the file id, found by the task's id.
+      'Task',
     ]);
     expect((await get(other, `cases/${fileId}/audit`)).status).toBe(404);
     expect((await get(other, 'audit')).body.data.items).toHaveLength(1);
   });
 
+  it('should hide the rows of a confidential file from an Admin who is not on it, in the list and the export', async () => {
+    expect((await get(manager, `audit?entityId=${secretId}`)).body.data.items).toHaveLength(1);
+    expect((await get(admin, `audit?entityId=${secretId}`)).body.data.items).toHaveLength(0);
+    const csv = await get(admin, 'audit/export?entityType=LegalFile');
+    expect(csv.text).not.toContain(secretId);
+    expect(csv.text).toContain(fileId);
+  });
+
   it('should export the filtered rows as CSV, defuse formulas and audit the export', async () => {
-    const csv = await get(manager, 'audit/export?format=csv&entityType=Task');
+    const csv = await get(manager, 'audit/export?format=csv&entityType=Task&action=CREATE');
     expect(csv.status).toBe(200);
     expect(csv.headers['content-type']).toContain('text/csv');
     const lines = csv.text.replace(BOM, '').trim().split('\r\n');
@@ -183,7 +240,7 @@ describe('audit log (HTTP + PostgreSQL)', () => {
     // No cell starts with a formula character.
     expect(lines[1]).not.toMatch(/(^|,)"[=+@-]/);
     const exported = await raw.auditLog.findFirstOrThrow({
-      where: { officeId: manager.officeId, action: 'EXPORT' },
+      where: { officeId: manager.officeId, action: 'EXPORT', userId: manager.userId },
     });
     expect(exported).toMatchObject({ userId: manager.userId, entityType: 'AuditLog' });
     expect(exported.newValues).toMatchObject({ format: 'csv', rows: 1 });

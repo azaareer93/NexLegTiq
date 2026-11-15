@@ -36,6 +36,8 @@ const FEATURE_ROUTES: Partial<Record<NavKey, RouteObject[]>> = {
   clients: clientsRoutes,
   dashboard: dashboardRoutes,
   settings: settingsRoutes,
+  // Under Settings, with its own right: an Admin reads it without managing the office (D-180).
+  audit: auditRoutes,
   tasks: tasksRoutes,
   team: teamRoutes,
 };
@@ -68,12 +70,6 @@ export const routes: RouteObject[] = [
                 // Errors of a page stay inside the shell: the menu remains usable.
                 errorElement: <RouteError />,
                 children: [
-                  // Audit lives under Settings but has its own right (an Admin may read it without managing the office).
-                  {
-                    path: 'settings/audit',
-                    element: <RequirePermission perform="view:audit" />,
-                    children: auditRoutes,
-                  },
                   ...menuRoutes,
                   { path: 'profile', children: profileRoutes },
                   { path: 'notifications', children: notificationsRoutes },

@@ -71,7 +71,7 @@ function fromEnvelope(
   );
 }
 
-/** Normalises anything a request can throw. Cancellations pass through untouched (TanStack Query ignores them). */
+/** A text body as JSON when it is (an error envelope of a text request), else the text itself. */
 function parseJson(text: string): unknown {
   try {
     return JSON.parse(text);
@@ -80,6 +80,7 @@ function parseJson(text: string): unknown {
   }
 }
 
+/** Normalises anything a request can throw. Cancellations pass through untouched (TanStack Query ignores them). */
 export function toApiError(error: unknown): unknown {
   if (error instanceof ApiError || !isAxiosError(error) || error.code === 'ERR_CANCELED') {
     return error;
