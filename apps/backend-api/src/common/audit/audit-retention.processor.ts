@@ -8,6 +8,12 @@ import { PinoLogger } from 'nestjs-pino';
 import { z } from 'zod';
 
 import { PrismaService } from '../../database/prisma.service';
+import {
+  OFFICE_EXPORT_JOB,
+  OfficeExportBuilder,
+  OfficeExportJobSchema,
+} from '../../modules/data-export/office-export.builder';
+import type { OfficeExportJob } from '../../modules/data-export/office-export.builder';
 import { InvoiceOverdueSweep } from '../../modules/invoices/invoice-overdue.sweep';
 import {
   InvoicePdfJobSchema,
@@ -63,6 +69,7 @@ export class AuditRetentionProcessor
     private readonly overdue: InvoiceOverdueSweep,
     private readonly pdfs: InvoicePdfRenderer,
     private readonly receipts: ReceiptPdfRenderer,
+    private readonly exports: OfficeExportBuilder,
   ) {
     super(tenant, prisma, logger);
   }
@@ -95,7 +102,7 @@ export class AuditRetentionProcessor
   }
 
   protected handle(
-    job: Job<(InvoicePdfJob | ReceiptJob) & TenantJobData>,
+    job: Job<(InvoicePdfJob | ReceiptJob | OfficeExportJob) & TenantJobData>,
     signal: AbortSignal,
   ): Promise<unknown> {
     const id = String(job.id);
@@ -105,6 +112,8 @@ export class AuditRetentionProcessor
     if (job.name === RENDER_PAYMENT_RECEIPT_JOB) {
       return this.receipts.run(payload(ReceiptJobSchema, job.data), id, signal);
     }
+    if (job.name === OFFICE_EXPORT_JOB)
+      return this.exports.run(payload(OfficeExportJobSchema, job.data));
     throw new UnrecoverableError(`Unknown report job ${job.name}`);
   }
 

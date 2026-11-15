@@ -35,6 +35,7 @@ function build(queue: unknown = { upsertJobScheduler: jest.fn() }) {
     overdue as never,
     pdfs as never,
     receipts as never,
+    { run: jest.fn() } as never,
   );
   return { processor, logger, overdue, pdfs, receipts };
 }

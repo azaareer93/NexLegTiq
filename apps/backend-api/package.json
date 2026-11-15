@@ -49,12 +49,14 @@
     "socket.io": "4.8.3",
     "tslib": "^2.3.0",
     "unpdf": "1.8.1",
+    "yazl": "3.3.1",
     "zod": "^4.6.6"
   },
   "devDependencies": {
     "@nestjs/testing": "^11.0.0",
     "@types/busboy": "1.5.4",
     "@types/cookie-parser": "^1.4.10",
+    "@types/yazl": "3.3.0",
     "socket.io-client": "4.8.3"
   }
 }

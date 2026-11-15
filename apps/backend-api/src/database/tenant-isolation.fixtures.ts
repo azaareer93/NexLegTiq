@@ -258,6 +258,12 @@ export const INVOICE_RESOURCES: readonly TenantResource[] = [
     update: { reference: 'changed' },
   },
   {
+    model: 'OfficeExport',
+    create: (db, { officeId, userId }) =>
+      db.officeExport.create({ data: { officeId, requestedById: userId } }),
+    update: { status: 'FAILED' },
+  },
+  {
     model: 'InvoiceNumberSequence',
     create: (db, { officeId }) =>
       db.invoiceNumberSequence.create({ data: { officeId, year: 2026, lastValue: 1 } }),

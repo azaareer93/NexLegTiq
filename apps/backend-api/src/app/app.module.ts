@@ -21,6 +21,7 @@ import { JwtAuthGuard } from '../modules/auth/jwt-auth.guard';
 import { ClientsModule } from '../modules/clients/clients.module';
 import { CourtsModule } from '../modules/courts/courts.module';
 import { DashboardModule } from '../modules/dashboard/dashboard.module';
+import { DataExportModule } from '../modules/data-export/data-export.module';
 import { DocumentsModule } from '../modules/documents/documents.module';
 import { FileParticipantsModule } from '../modules/file-participants/file-participants.module';
 import { InvoicesModule } from '../modules/invoices/invoices.module';
@@ -81,6 +82,7 @@ import { WitnessesModule } from '../modules/witnesses/witnesses.module';
     SessionsModule,
     DocumentsModule,
     TasksModule,
+    DataExportModule,
     PartiesModule,
     FileParticipantsModule,
     UsersModule,
