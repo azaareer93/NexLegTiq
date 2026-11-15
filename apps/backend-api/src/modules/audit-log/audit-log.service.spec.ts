@@ -142,6 +142,8 @@ describe('AuditLogService (D-180)', () => {
 
   it('should export the rows and audit the export, refusing more than the cap', async () => {
     const { service, audit } = setup();
+    // A dated export reads the office zone once and filters by its days.
+    await service.exportCsv({ format: 'csv', from: '2026-11-01', to: '2026-11-02' }, {});
     const csv = await service.exportCsv({ format: 'csv', action: 'UPDATE' }, { ip: '127.0.0.1' });
     expect(csv.split('\r\n')).toHaveLength(4);
     expect(audit.log).toHaveBeenCalledWith(
@@ -178,5 +180,17 @@ describe('AuditLogService (D-180)', () => {
       { format: 'csv' },
       expect.objectContaining({ requestId: null }),
     );
+  });
+});
+
+describe('audit entry edges (D-180)', () => {
+  it('should name no one for a user row without its user, and write the changes into the CSV', () => {
+    expect(toEntry(row({ userId: ID, user: null })).actor).toEqual({
+      type: 'USER',
+      id: ID,
+      name: null,
+    });
+    const csv = auditCsv([toEntry(row({ oldValues: { a: 1 }, newValues: { a: 2 } }))], 'UTC');
+    expect(csv).toContain('""field"":""a""');
   });
 });

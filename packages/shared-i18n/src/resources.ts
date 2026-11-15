@@ -14,6 +14,7 @@ import arDocuments from './locales/ar/documents.json' with { type: 'json' };
 import arEnums from './locales/ar/enums.json' with { type: 'json' };
 import arErrors from './locales/ar/errors.json' with { type: 'json' };
 import arLegal from './locales/ar/legal.json' with { type: 'json' };
+import arOnboarding from './locales/ar/onboarding.json' with { type: 'json' };
 import arParties from './locales/ar/parties.json' with { type: 'json' };
 import arProfile from './locales/ar/profile.json' with { type: 'json' };
 import arSessions from './locales/ar/sessions.json' with { type: 'json' };
@@ -37,6 +38,7 @@ import enDocuments from './locales/en/documents.json' with { type: 'json' };
 import enEnums from './locales/en/enums.json' with { type: 'json' };
 import enErrors from './locales/en/errors.json' with { type: 'json' };
 import enLegal from './locales/en/legal.json' with { type: 'json' };
+import enOnboarding from './locales/en/onboarding.json' with { type: 'json' };
 import enParties from './locales/en/parties.json' with { type: 'json' };
 import enProfile from './locales/en/profile.json' with { type: 'json' };
 import enSessions from './locales/en/sessions.json' with { type: 'json' };
@@ -71,6 +73,7 @@ const en = {
   admin: enAdmin,
   billing: enBilling,
   aiSummary: enAiSummary,
+  onboarding: enOnboarding,
   audit: enAudit,
 };
 const ar = {
@@ -96,6 +99,7 @@ const ar = {
   admin: arAdmin,
   billing: arBilling,
   aiSummary: arAiSummary,
+  onboarding: arOnboarding,
   audit: arAudit,
 };
 

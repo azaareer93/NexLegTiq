@@ -27,6 +27,25 @@ export const routes: RouteObject[] = [
             }),
           },
           {
+            path: 'usage',
+            lazy: async () => ({
+              Component: (await import('../features/usage/pages/UsagePage')).UsagePage,
+            }),
+          },
+          {
+            path: 'queues',
+            lazy: async () => ({
+              Component: (await import('../features/usage/pages/QueuesPage')).QueuesPage,
+            }),
+          },
+          {
+            path: 'audit',
+            lazy: async () => ({
+              Component: (await import('../features/usage/pages/PlatformAuditPage'))
+                .PlatformAuditPage,
+            }),
+          },
+          {
             path: 'offices/:id',
             lazy: async () => ({
               Component: (await import('../features/offices/pages/OfficeDetailPage'))

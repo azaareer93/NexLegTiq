@@ -41,8 +41,7 @@
     "nonBillableHours": "Non-billable hours",
     "unbilledHours": "Unbilled hours",
     "billableAmount": "Billable amount",
-    "unbilledAmount": "Unbilled amount",
-    "hint": "Totals include everyone's hours on this case; the list may show only your own entries."
+    "unbilledAmount": "Unbilled amount"
   },
   "timer": {
     "running": "Timer running on case {{file}}",

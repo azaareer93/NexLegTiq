@@ -1,0 +1,84 @@
+{
+  "title": "Set up your office",
+  "progress": "Step {{n}} of {{total}}",
+  "back": "Back",
+  "skip": "Skip",
+  "next": "Next",
+  "finish": "Finish",
+  "dismiss": "Don't show again",
+  "nudge": "Your office setup isn't finished yet.",
+  "continue": "Continue setup",
+  "pickCase": "Choose a case",
+  "noCases": "No cases yet: create one in the previous step.",
+  "steps": {
+    "ACCOUNT": "Your account",
+    "OFFICE": "Office setup",
+    "INVITE": "Invite your team",
+    "TOUR": "A quick tour",
+    "CASE": "Your first case",
+    "HEARING": "Your first hearing",
+    "DOCUMENT": "Your first document",
+    "DONE": "All set"
+  },
+  "ACCOUNT": {
+    "title": "Your account is ready",
+    "hint": "A few short steps set up your office. You can skip any of them and come back later from the profile menu."
+  },
+  "OFFICE": {
+    "hint": "These defaults apply to new cases, invoices and dates."
+  },
+  "office": {
+    "jurisdiction": "Jurisdiction",
+    "language": "Office language",
+    "currency": "Currency",
+    "timezone": "Time zone",
+    "save": "Save",
+    "saved": "Office setup saved."
+  },
+  "INVITE": {
+    "hint": "Invite colleagues by email. Each gets a role and a link valid for 7 days.",
+    "action": "Invite a colleague"
+  },
+  "TOUR": {
+    "cases": {
+      "title": "Cases",
+      "body": "Each case holds its clients, parties, documents, hearings, tasks and billing."
+    },
+    "calendar": {
+      "title": "Calendar",
+      "body": "Hearings with reminders 7, 3 and 1 days before, for the office and each lawyer."
+    },
+    "tasks": {
+      "title": "Tasks",
+      "body": "A board per person and per case, with due dates and a daily digest."
+    },
+    "ai": {
+      "title": "AI assistant",
+      "body": "Summaries of documents and hearing minutes, always to be checked by a lawyer."
+    }
+  },
+  "CASE": {
+    "hint": "Open a case with its client and the responsible lawyer.",
+    "action": "Create a case"
+  },
+  "HEARING": {
+    "hint": "Pick a case and schedule its next hearing; reminders follow the office defaults.",
+    "added": "Hearing scheduled."
+  },
+  "DOCUMENT": {
+    "hint": "Pick a case and upload a document to it.",
+    "action": "Upload a document"
+  },
+  "DONE": {
+    "finished": "Done",
+    "skipped": "Skipped",
+    "next": "Next steps",
+    "links": {
+      "cases": "Cases",
+      "calendar": "Calendar",
+      "team": "Team",
+      "settings": "Settings"
+    }
+  },
+  "unsaved": "Save the office setup, or skip this step."
+}

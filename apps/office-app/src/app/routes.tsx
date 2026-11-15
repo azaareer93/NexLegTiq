@@ -9,6 +9,7 @@ import { clientsRoutes } from '../features/clients';
 import { dashboardRoutes } from '../features/dashboard';
 import { invoicesRoutes } from '../features/invoices';
 import { notificationsRoutes } from '../features/notifications';
+import { onboardingRoutes } from '../features/onboarding';
 import { profileRoutes } from '../features/profile';
 import { settingsRoutes } from '../features/settings';
 import {
@@ -72,6 +73,12 @@ export const routes: RouteObject[] = [
                 // Errors of a page stay inside the shell: the menu remains usable.
                 errorElement: <RouteError />,
                 children: [
+                  // The setup wizard (D-181): its steps set up the office.
+                  {
+                    path: 'onboarding',
+                    element: <RequirePermission perform="manage:office" />,
+                    children: onboardingRoutes,
+                  },
                   ...menuRoutes,
                   { path: 'profile', children: profileRoutes },
                   { path: 'notifications', children: notificationsRoutes },

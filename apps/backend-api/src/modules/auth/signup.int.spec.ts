@@ -245,6 +245,11 @@ describe('office signup (HTTP + PostgreSQL)', () => {
       include: { plan: true },
     });
     expect(subscription.plan.code).toBe('GLOBAL_SMALL_FIRM');
+    // A firm starts its setup wizard by inviting its team (D-181).
+    const manager = await prisma
+      .unscoped()
+      .user.findFirstOrThrow({ where: { email: payload.email } });
+    expect(manager.onboardingState).toMatchObject({ step: 'INVITE' });
     expect(Math.round(((subscription.trialEndsAt?.getTime() ?? 0) - Date.now()) / 86_400_000)).toBe(
       30,
     );

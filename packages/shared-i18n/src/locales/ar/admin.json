@@ -227,5 +227,73 @@
       "created": "تم إنشاء الخطة.",
       "updated": "تم تحديث الخطة."
     }
+  },
+  "usage": {
+    "title": "الاستخدام",
+    "days_zero": "{{count}} يوم",
+    "days_one": "يوم واحد",
+    "days_two": "يومان",
+    "days_few": "{{count}} أيام",
+    "days_many": "{{count}} يومًا",
+    "days_other": "{{count}} يوم",
+    "dau": "المستخدمون النشطون اليوم",
+    "wau": "المستخدمون النشطون هذا الأسبوع",
+    "funnel": {
+      "offices": "مكاتب جديدة",
+      "verified": "بريد مؤكد",
+      "withCase": "فتحت قضية"
+    },
+    "costByDay": "تكلفة الذكاء الاصطناعي يوميًا",
+    "costByOffice": "تكلفة الذكاء الاصطناعي حسب المكتب والنموذج",
+    "storage": "التخزين حسب المكتب",
+    "noCost": "لا استخدام للذكاء الاصطناعي في هذه الفترة.",
+    "costChart": "مخطط أعمدة لتكلفة الذكاء الاصطناعي يوميًا؛ أعلى يوم {{max}}.",
+    "peak": "أعلى يوم: {{max}}",
+    "asTable": "عرض كجدول",
+    "megabytes": "{{value}} ميغابايت",
+    "columns": {
+      "date": "اليوم",
+      "cost": "التكلفة (دولار)",
+      "operations": "العمليات",
+      "office": "المكتب",
+      "model": "النموذج",
+      "size": "الحجم"
+    }
+  },
+  "queues": {
+    "title": "الطوابير",
+    "boardHint": "تفاصيل المهام في Bull Board، وتقدمه الواجهة البرمجية حيث يكون مفعّلًا (ليس في الإنتاج).",
+    "failed_zero": "{{formatted}} فاشلة",
+    "failed_one": "واحدة فاشلة",
+    "failed_two": "اثنتان فاشلتان",
+    "failed_few": "{{formatted}} فاشلة",
+    "failed_many": "{{formatted}} فاشلة",
+    "failed_other": "{{formatted}} فاشلة",
+    "columns": {
+      "name": "الطابور",
+      "waiting": "بالانتظار",
+      "active": "قيد التشغيل",
+      "delayed": "مؤجلة",
+      "failed": "فاشلة"
+    }
+  },
+  "audit": {
+    "title": "تدقيق المنصة",
+    "export": "تصدير CSV",
+    "empty": "لا توجد سجلات مطابقة.",
+    "loadMore": "عرض السجلات الأقدم",
+    "unknownAdmin": "غير معروف (دخول مرفوض)",
+    "filters": {
+      "action": "الإجراء، مثل OFFICE_SUSPENDED",
+      "from": "من",
+      "to": "إلى"
+    },
+    "columns": {
+      "time": "الوقت",
+      "admin": "المشرف",
+      "action": "الإجراء",
+      "office": "المكتب",
+      "changes": "التغييرات"
+    }
   }
 }

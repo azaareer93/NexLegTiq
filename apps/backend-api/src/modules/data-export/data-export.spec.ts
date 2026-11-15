@@ -84,10 +84,13 @@ describe('DataExportService (D-184)', () => {
     const findFirst = jest.fn().mockResolvedValue(ready);
     const presigned = jest.fn().mockResolvedValue('https://s3.test/x');
     const { svc, audit } = service(
-      { officeExport: { findFirst, findMany: jest.fn().mockResolvedValue([ready]) } },
+      { officeExport: { findFirst, findMany: jest.fn().mockResolvedValue([ready, row()]) } },
       { presignedGetUrl: presigned },
     );
-    await expect(svc.list()).resolves.toEqual([expect.objectContaining({ sizeBytes: '10' })]);
+    await expect(svc.list()).resolves.toEqual([
+      expect.objectContaining({ sizeBytes: '10' }),
+      expect.objectContaining({ sizeBytes: null, expiresAt: null, completedAt: null }),
+    ]);
     await expect(svc.download(ID, {})).resolves.toEqual({
       downloadUrl: 'https://s3.test/x',
       expiresIn: 900,
@@ -151,6 +154,9 @@ describe('export CSV', () => {
     expect(csvCell(NOW)).toBe('"2026-11-15T10:00:00.000Z"');
     expect(csvCell({ a: 1 })).toBe('"{""a"":1}"');
     expect(csvCell(null)).toBe('""');
+    // A Prisma Decimal prints as its value, not as JSON.
+    expect(csvCell({ toFixed: () => '1.50', toString: () => '1.50' })).toBe('"1.50"');
+    expect(csvCell(7)).toBe('"7"');
     expect(csvTable(['a'], [{ a: 'x' }]).endsWith('"a"\r\n"x"\r\n')).toBe(true);
   });
 });
@@ -352,5 +358,47 @@ describe('DataExportService without a caller', () => {
     );
     await expect(svc.request({})).rejects.toThrow('No office');
     await expect(svc.userExport({})).rejects.toThrow('No user');
+  });
+});
+
+describe('OfficeExportBuilder folders (D-184)', () => {
+  it('should stop a folder path at ten levels, even on a cycle', async () => {
+    const db = {
+      document: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'd1aaaaaaaa',
+            fileId: 'f1',
+            folderId: 'a',
+            originalFilename: 'x.pdf',
+            storageKey: 'o1/f1/d1',
+            checksumSha256: 'c'.repeat(64),
+            sizeBytes: 1n,
+          },
+        ]),
+      },
+      documentFolder: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'a', parentId: 'b', name: 'A', systemKey: null },
+          { id: 'b', parentId: 'a', name: 'B', systemKey: null },
+        ]),
+      },
+      legalFile: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const b = new OfficeExportBuilder(
+      { db } as unknown as PrismaService,
+      {} as StorageService,
+      {} as MailService,
+      {} as AppConfig,
+      cls(),
+      { setContext: jest.fn() } as unknown as PinoLogger,
+    );
+    const manifest: { path: string }[] = [];
+    const zip = { addReadStreamLazy: jest.fn() };
+    await (b as unknown as { documents: (z: unknown, m: unknown[]) => Promise<void> }).documents(
+      zip,
+      manifest,
+    );
+    expect(manifest[0]?.path.split('/')).toHaveLength(13);
   });
 });

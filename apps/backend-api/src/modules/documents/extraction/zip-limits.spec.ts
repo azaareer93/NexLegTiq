@@ -27,6 +27,21 @@ describe('assertZipWithinLimits (D-132)', () => {
     );
   });
 
+  it('should refuse ZIP64 archives and too many entries, as declared in the end record', () => {
+    const withEntries = (count: number) => {
+      const copy = Buffer.from(docx);
+      const end = copy.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+      copy.writeUInt16LE(count, end + 10);
+      return copy;
+    };
+    expect(() => assertZipWithinLimits(withEntries(0xffff))).toThrow(
+      'ZIP64 archives are not accepted',
+    );
+    expect(() => assertZipWithinLimits(withEntries(ZIP_LIMITS.maxEntries + 1))).toThrow(
+      'Too many entries',
+    );
+  });
+
   it('should refuse what is not a sound ZIP', () => {
     expect(() => assertZipWithinLimits(Buffer.from('not a zip at all'))).toThrow('Not a ZIP');
     const damaged = Buffer.from(docx);

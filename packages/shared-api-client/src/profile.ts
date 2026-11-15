@@ -1,6 +1,12 @@
-import { NotificationPreferencesSchema, ProfileSchema } from '@nexlegtiq/shared-contracts';
+import {
+  NotificationPreferencesSchema,
+  OnboardingAnswerSchema,
+  ProfileSchema,
+} from '@nexlegtiq/shared-contracts';
 import type {
   NotificationPreferences,
+  OnboardingAnswer,
+  OnboardingState,
   Profile,
   UpdateNotificationPreferencesRequest,
   UpdateProfileRequest,
@@ -36,5 +42,13 @@ export function profileApi(client: ApiClient) {
         { method: 'PATCH', path: 'notifications/preferences', body },
         NotificationPreferencesSchema,
       ),
+    /** The setup wizard's progress (D-181); `state` null when it was never offered. */
+    onboarding: (signal?: AbortSignal): Promise<OnboardingAnswer> =>
+      client.request(
+        { method: 'GET', path: 'users/me/onboarding', signal },
+        OnboardingAnswerSchema,
+      ),
+    saveOnboarding: (body: OnboardingState): Promise<OnboardingAnswer> =>
+      client.request({ method: 'PUT', path: 'users/me/onboarding', body }, OnboardingAnswerSchema),
   };
 }

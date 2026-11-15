@@ -2,8 +2,11 @@ import { randomUUID } from 'node:crypto';
 import type { Readable } from 'node:stream';
 
 import { Injectable } from '@nestjs/common';
+import { OnboardingStateSchema } from '@nexlegtiq/shared-contracts';
 import type {
   NotificationPreferences,
+  OnboardingAnswer,
+  OnboardingState,
   Profile,
   UpdateNotificationPreferencesRequest,
   UpdateProfileRequest,
@@ -107,6 +110,26 @@ export class ProfileService {
 
   async removeAvatar(): Promise<Profile> {
     return this.present(await this.saveAvatar(null));
+  }
+
+  /** The setup wizard's progress (D-181); null when it was never offered. */
+  async onboarding(): Promise<OnboardingAnswer> {
+    const row = await this.prisma.db.user.findUniqueOrThrow({
+      where: { id: this.userId() },
+      select: { onboardingState: true },
+    });
+    const parsed = OnboardingStateSchema.safeParse(row.onboardingState);
+    return { state: parsed.success ? parsed.data : null };
+  }
+
+  /** Saves the wizard's progress as sent (UI progress, not office data: not audited, D-181). */
+  async saveOnboarding(state: OnboardingState): Promise<OnboardingAnswer> {
+    await this.prisma.db.user.update({
+      where: { id: this.userId() },
+      data: { onboardingState: state },
+      select: { id: true },
+    });
+    return { state };
   }
 
   async preferences(): Promise<NotificationPreferences> {
