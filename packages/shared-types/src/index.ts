@@ -58,7 +58,7 @@ export {
   RETAINER_ENTRY_KINDS,
 } from './invoice.js';
 export type { InvoicePaymentMethod, InvoiceStatus, RetainerEntryKind } from './invoice.js';
- export { ONBOARDING_STATUSES, ONBOARDING_STEPS } from './onboarding.js';
+export { ONBOARDING_STATUSES, ONBOARDING_STEPS } from './onboarding.js';
 export type { OnboardingStatus, OnboardingStep } from './onboarding.js';
 export { AI_FEEDBACK_REASONS, AI_JOB_STATUSES, AI_RISK_LEVELS, AI_SOURCE_TYPES } from './ai.js';
 export type { AiFeedbackReason, AiJobStatus, AiRiskLevel, AiSourceType } from './ai.js';
