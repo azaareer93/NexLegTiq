@@ -108,6 +108,8 @@ const summary = (n: number, extra: Partial<AiSummaryListItem> = {}): AiSummaryLi
   keyLegalIssues: ['Eviction grounds'],
   parties: ['Omar Khalil'],
   dates: [{ date: '2026-01-01', event: 'Lease start' }],
+  nextSteps: [],
+  riskAssessment: null,
   provider: 'fake',
   model: 'fake-model-1',
   promptVersion: 'document-summary.v1',

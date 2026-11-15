@@ -11,6 +11,7 @@ import { PinoLogger } from 'nestjs-pino';
 import request from 'supertest';
 
 import { DocumentSummarizer } from './document-summarizer';
+import { SessionSummarizer } from './session-summarizer';
 import { PART_CHARS } from './split-text';
 import { AppModule } from '../../app/app.module';
 import { configureApp } from '../../app/configure-app';
@@ -42,6 +43,15 @@ const SUMMARY = {
   keyLegalIssues: ['Whether the notice period was respected.'],
   parties: ['[PARTY_1] (plaintiff)'],
   dates: [{ date: '1 March 2024', event: 'Lease signed' }],
+};
+const SESSION_SUMMARY = {
+  summary: 'The court appointed an expert and adjourned the hearing.',
+  keyFacts: ['An expert was appointed.'],
+  nextSteps: [
+    { action: 'Pay the expert fee', dueInDays: 7 },
+    { action: 'Brief the client on the expert visit' },
+  ],
+  riskAssessment: 'MEDIUM',
 };
 const NOTES = { summary: 'Notes on one part.', keyFacts: ['A fact.'], keyLegalIssues: [] };
 
@@ -189,6 +199,15 @@ describe('Document AI summaries (integration)', () => {
       app.get(ClsService),
       app.get(TimelineService, { strict: false }),
     ).onModuleInit();
+    new SessionSummarizer(
+      app.get(AiExecutor, { strict: false }),
+      app.get(PrismaService),
+      app.get(UnitOfWork),
+      app.get(RealtimePublisher),
+      registry,
+      app.get(ClsService),
+      app.get(TimelineService, { strict: false }),
+    ).onModuleInit();
     processor = new AiProcessor(
       app.get(TenantRunner),
       app.get(PrismaService),
@@ -204,6 +223,7 @@ describe('Document AI summaries (integration)', () => {
     senior = await person('SENIOR_LAWYER');
     outsider = await person('EXTERNAL_COLLABORATOR');
     [b1] = await seedOffice('Summary office B');
+    providers.fake.define('session-summary', () => SESSION_SUMMARY);
     providers.fake.define('document-summary', (req: AiRequest) =>
       req.system.includes('The material is part') ? NOTES : SUMMARY,
     );
@@ -214,6 +234,7 @@ describe('Document AI summaries (integration)', () => {
   afterAll(async () => {
     if (!raw) return;
     for (const table of [
+      'task',
       'aiFeedback',
       'aiSummary',
       'aiUsage',
@@ -222,6 +243,7 @@ describe('Document AI summaries (integration)', () => {
       'documentText',
       'documentVersion',
       'document',
+      'session',
     ] as const) {
       await (raw[table] as unknown as { deleteMany(a: object): Promise<unknown> }).deleteMany({
         where: { officeId: { in: officeIds } },
@@ -311,7 +333,9 @@ describe('Document AI summaries (integration)', () => {
     expect((await post(a2, body(quarantined.id))).body.error.code).toBe('STO-004');
     const other = await post(b1, body(empty.id));
     expect([other.status, other.body.error.code]).toEqual([404, 'RES-001']);
-    expect((await post(a2, { ...body(empty.id), sourceType: 'SESSION' })).status).toBe(400);
+    expect((await post(a2, { ...body(empty.id), sourceType: 'WITNESS_STATEMENT' })).status).toBe(
+      400,
+    );
     await raw.officeSettings.update({
       where: { officeId: a2.officeId },
       data: { enableAi: false },
@@ -515,5 +539,96 @@ describe('Document AI summaries (integration)', () => {
     expect(
       (await send(a2, summary.id, { reason: 'OTHER', comment: 'x'.repeat(1001) })).status,
     ).toBe(400);
+  });
+
+  describe('session summaries and tasks from next steps (D-179)', () => {
+    async function sessionWith(lawyer: Person, minutes: string | null) {
+      const file = await raw.legalFile.create({
+        data: {
+          officeId: lawyer.officeId,
+          fileNumber: `SES-${randomUUID()}`,
+          title: 'Expert dispute',
+          fileType: 'LITIGATION',
+          responsibleLawyerId: lawyer.userId,
+          jurisdiction: 'PALESTINE',
+          currency: 'ILS',
+        },
+      });
+      return raw.session.create({
+        data: {
+          officeId: lawyer.officeId,
+          fileId: file.id,
+          startsAt: new Date('2026-11-10T08:00:00.000Z'),
+          attendingLawyerId: lawyer.userId,
+          reminderDays: [],
+          outcome: 'ADJOURNED',
+          minutes,
+          createdById: lawyer.userId,
+        },
+      });
+    }
+    const createTasks = (person: Person, id: string, body: object) =>
+      request(app.getHttpServer())
+        .post(`/api/v1/ai/summaries/${id}/create-tasks`)
+        .set(bearerFor(jwt, person))
+        .send(body);
+
+    it('should summarise the minutes, answer from the stored summary, and refuse empty minutes', async () => {
+      const session = await sessionWith(a2, 'Layla Haddad asked for an expert. The court agreed.');
+      const body = { sourceType: 'SESSION', sourceId: session.id, language: 'EN' };
+      const queued = await post(a2, body);
+      expect(queued.status).toBe(202);
+      await runQueued(a2, queued.body.data.jobId);
+      expect(providers.fake.requests.map((r) => r.user).join()).not.toContain('Layla Haddad');
+      const listed = await request(app.getHttpServer())
+        .get(`/api/v1/ai/summaries?sourceType=SESSION&sourceId=${session.id}`)
+        .set(bearerFor(jwt, a2));
+      expect(listed.status).toBe(200);
+      expect(listed.body.data[0]).toMatchObject({
+        sourceType: 'SESSION',
+        riskAssessment: 'MEDIUM',
+        nextSteps: [
+          { action: 'Pay the expert fee', dueInDays: 7 },
+          { action: 'Brief the client on the expert visit', dueInDays: null },
+        ],
+      });
+      expect((await post(a2, body)).status).toBe(200);
+      expect((await post(b1, body)).status).toBe(404);
+      const empty = await sessionWith(a2, null);
+      expect((await post(a2, { ...body, sourceId: empty.id })).body.error.code).toBe('BIZ-020');
+    });
+
+    it('should create tasks only for the picked steps, with create:task, never across offices', async () => {
+      const session = await sessionWith(a2, 'The court appointed an expert.');
+      await runQueued(
+        a2,
+        (await post(a2, { sourceType: 'SESSION', sourceId: session.id, language: 'AR' })).body.data
+          .jobId,
+      );
+      const summary = await raw.aiSummary.findFirstOrThrow({ where: { sourceId: session.id } });
+      expect((await createTasks(b1, summary.id, { selected: [{ index: 0 }] })).status).toBe(404);
+      expect((await createTasks(outsider, summary.id, { selected: [{ index: 0 }] })).status).toBe(
+        403,
+      );
+      expect((await createTasks(a2, summary.id, { selected: [{ index: 9 }] })).status).toBe(400);
+      expect((await createTasks(a2, summary.id, { selected: [] })).status).toBe(400);
+      expect(await raw.task.count({ where: { sourceId: summary.id } })).toBe(0);
+
+      const created = await createTasks(a2, summary.id, {
+        selected: [{ index: 1, title: 'Call the client' }],
+      });
+      expect(created.status).toBe(201);
+      expect(created.body.data).toHaveLength(1);
+      const tasks = await raw.task.findMany({ where: { sourceId: summary.id } });
+      expect(tasks).toEqual([
+        expect.objectContaining({
+          title: 'Call the client',
+          sourceType: 'AI_NEXT_STEP',
+          fileId: session.fileId,
+          assignedToId: a2.userId,
+          dueDate: null,
+        }),
+      ]);
+    });
   });
 });

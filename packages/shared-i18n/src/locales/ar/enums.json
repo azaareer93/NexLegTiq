@@ -17,6 +17,11 @@
     "SUCCEEDED": "مكتملة",
     "FAILED": "فشلت"
   },
+  "aiRiskLevel": {
+    "LOW": "منخفض",
+    "MEDIUM": "متوسط",
+    "HIGH": "مرتفع"
+  },
   "aiSourceType": {
     "DOCUMENT": "مستند",
     "SESSION": "جلسة",

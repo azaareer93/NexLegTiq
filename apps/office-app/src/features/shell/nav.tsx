@@ -4,6 +4,7 @@ import {
   CalendarOutlined,
   CheckSquareOutlined,
   DashboardOutlined,
+  DollarOutlined,
   FileTextOutlined,
   FolderOpenOutlined,
   SettingOutlined,
@@ -24,7 +25,8 @@ interface NavItemShape {
 
 /**
  * The main menu (frontend.md#shell) and who sees what (D-091). Every role holds `view:assigned:cases`, so the items behind it
- * are everyone's; Clients needs `manage:clients` (not trainees or external collaborators); Reports, Team and Settings follow
+ * are everyone's; Clients needs `manage:clients` (not trainees or external collaborators); Invoices needs the invoice view
+ * right (MVP-148); Reports, Team and Settings follow
  * the matrix (OM/SL/A, OM, OM). The routes in `app/routes.tsx` are generated from this list, so a menu item and its page can
  * never require different permissions.
  */
@@ -44,6 +46,12 @@ export const NAV_ITEMS = [
     path: '/documents',
     icon: <FileTextOutlined />,
     perform: 'view:assigned:cases',
+  },
+  {
+    key: 'invoices',
+    path: '/invoices',
+    icon: <DollarOutlined />,
+    perform: 'view:assigned:invoices',
   },
   { key: 'reports', path: '/reports', icon: <BarChartOutlined />, perform: 'view:reports' },
   { key: 'team', path: '/team', icon: <TeamOutlined />, perform: 'manage:users' },
@@ -66,6 +74,7 @@ export function useNavItems(): readonly NavItem[] {
   const allowed: Record<NavPermission, boolean> = {
     'view:assigned:cases': useCan('view:assigned:cases'),
     'manage:clients': useCan('manage:clients'),
+    'view:assigned:invoices': useCan('view:assigned:invoices'),
     'view:reports': useCan('view:reports'),
     'manage:users': useCan('manage:users'),
     'manage:office': useCan('manage:office'),

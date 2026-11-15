@@ -3,6 +3,7 @@ import {
   AiSummaryQuerySchema,
   AiSummarySchema,
   CreateAiSummarySchema,
+  CreateTasksFromSummarySchema,
 } from './ai.contract.js';
 import { REALTIME_EVENTS, RealtimePayloadSchemas } from './realtime.contract.js';
 
@@ -24,6 +25,10 @@ describe('AI summary contracts (D-148)', () => {
     ).toBe(false);
     expect(
       CreateAiSummarySchema.safeParse({ sourceType: 'SESSION', sourceId: ID, language: 'EN' })
+        .success,
+    ).toBe(true);
+    expect(
+      CreateAiSummarySchema.safeParse({ sourceType: 'COURT_RULING', sourceId: ID, language: 'EN' })
         .success,
     ).toBe(false);
   });
@@ -59,6 +64,8 @@ describe('AI summary contracts (D-148)', () => {
       keyLegalIssues: ['Breach of lease'],
       parties: ['Plaintiff'],
       dates: [{ date: '1 March 2026', event: 'First missed payment' }],
+      nextSteps: [],
+      riskAssessment: null,
       provider: 'fake',
       model: 'fake-1',
       promptVersion: 'document-summary.v1',
@@ -76,5 +83,20 @@ describe('document.summary.ready (D-148, D-129)', () => {
     const schema = RealtimePayloadSchemas['document.summary.ready'];
     expect(schema.parse({ documentId: ID, fileId: ID })).toEqual({ documentId: ID, fileId: ID });
     expect(schema.safeParse({ documentId: ID }).success).toBe(false);
+  });
+
+  it('should take 1 to 20 distinct next steps to turn into tasks (D-179)', () => {
+    expect(
+      CreateTasksFromSummarySchema.safeParse({
+        selected: [{ index: 0 }, { index: 2, dueDate: '2026-12-01' }],
+      }).success,
+    ).toBe(true);
+    expect(CreateTasksFromSummarySchema.safeParse({ selected: [] }).success).toBe(false);
+    expect(
+      CreateTasksFromSummarySchema.safeParse({ selected: [{ index: 1 }, { index: 1 }] }).success,
+    ).toBe(false);
+    expect(CreateTasksFromSummarySchema.safeParse({ selected: [{ index: -1 }] }).success).toBe(
+      false,
+    );
   });
 });
