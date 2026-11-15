@@ -12,6 +12,6 @@ import { LegalFilesModule } from '../legal-files/legal-files.module';
   imports: [LegalFilesModule],
   controllers: [TasksController, TaskTemplatesController],
   providers: [TasksService, TaskAccessService, TasksRepository, TaskTemplatesService],
-  exports: [TaskAccessService],
+  exports: [TaskAccessService, TasksService],
 })
 export class TasksModule {}

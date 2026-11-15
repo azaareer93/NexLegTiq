@@ -58,6 +58,19 @@ export class TasksRepository {
     return { items: rows.map(toTask), total };
   }
 
+  /** Several tasks by id, in the order asked (rows just created by the caller, inside its access checks). */
+  async getMany(ids: readonly string[]): Promise<Task[]> {
+    const rows = await this.prisma.db.task.findMany({
+      where: { id: { in: [...ids] } },
+      select: TASK_SELECT,
+    });
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    return ids.flatMap((id) => {
+      const row = byId.get(id);
+      return row ? [toTask(row)] : [];
+    });
+  }
+
   async get(id: string): Promise<Task> {
     return toTask(
       await this.prisma.db.task.findFirstOrThrow({ where: { id }, select: TASK_SELECT }),

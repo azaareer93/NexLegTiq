@@ -26,6 +26,7 @@ export function RealtimeBridge(): null {
     ['documents', 'detail', documentId],
     ['ai'],
   ]);
+  useInvalidateOn('session.summary.ready', () => [['ai']]);
   useInvalidateOn('ai.job.completed', () => [['ai']]);
   useInvalidateOn('ai.job.failed', () => [['ai']]);
   useInvalidateOn('notification', () => [['notifications']]);

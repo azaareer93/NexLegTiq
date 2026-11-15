@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AiSummaryListItemSchema, AiSummarySchema } from '@nexlegtiq/shared-contracts';
+import { AiSummaryListItemSchema } from '@nexlegtiq/shared-contracts';
 import type {
   AiFeedbackCreated,
   AiFeedbackRequest,
@@ -11,6 +11,7 @@ import type {
 } from '@nexlegtiq/shared-contracts';
 import { ClsService } from 'nestjs-cls';
 
+import { present, SessionSummariesService, SUMMARY_SELECT } from './session-summaries.service';
 import { SUMMARIZE_DOCUMENT_JOB, summaryDedupeKey } from './summary-job';
 import { AuditService } from '../../common/audit/audit.service';
 import type { RequestContext } from '../../common/context/request-context';
@@ -27,25 +28,6 @@ import { AiJobs } from '../ai/ai-jobs';
 import { DOCUMENT_SUMMARY_V1 } from '../ai/prompts/document-summary.v1';
 import { DocumentAccessService } from '../documents/document-access.service';
 import { CaseAccessService } from '../legal-files/case-access.service';
-
-const SUMMARY_SELECT = {
-  id: true,
-  sourceType: true,
-  sourceId: true,
-  fileId: true,
-  versionNumber: true,
-  language: true,
-  summary: true,
-  keyFacts: true,
-  keyLegalIssues: true,
-  parties: true,
-  dates: true,
-  provider: true,
-  model: true,
-  promptVersion: true,
-  chunks: true,
-  createdAt: true,
-} as const;
 
 /** Newest first: a regeneration beats the row it replaced, then creation time, then id. */
 const NEWEST: Prisma.AiSummaryOrderByWithRelationInput[] = [
@@ -74,10 +56,17 @@ export class AiSummariesService {
     private readonly audit: AuditService,
     private readonly uow: UnitOfWork,
     private readonly cls: ClsService<RequestContext>,
+    private readonly sessions: SessionSummariesService,
   ) {}
 
-  async request({ sourceId, language, force }: CreateAiSummaryRequest): Promise<SummaryAnswer> {
+  async request({
+    sourceType,
+    sourceId,
+    language,
+    force,
+  }: CreateAiSummaryRequest): Promise<SummaryAnswer> {
     await this.access.assertEnabled();
+    if (sourceType === 'SESSION') return this.sessions.request(sourceId, language, force === true);
     const document = await this.readable(sourceId);
     if (document.status === 'QUARANTINED') {
       throw new AppException('STO-004', 'The document failed its malware scan');
@@ -113,6 +102,7 @@ export class AiSummariesService {
   async list(query: AiSummaryQuery): Promise<AiSummary[] | AiSummaryListItem[]> {
     await this.access.assertEnabled();
     if (query.fileId) return this.listForFile(query.fileId);
+    if (query.sourceType === 'SESSION') return this.sessions.list(query.sourceId ?? '');
     const sourceId = query.sourceId ?? '';
     const document = await this.readable(sourceId);
     const rows = await this.latest(sourceId, document.currentVersion);
@@ -207,9 +197,4 @@ export class AiSummariesService {
       select: SUMMARY_SELECT,
     });
   }
-}
-
-/** The stored row in the contract's shape; its JSON columns were written from the validated model answer. */
-function present(row: Prisma.AiSummaryGetPayload<{ select: typeof SUMMARY_SELECT }>): AiSummary {
-  return AiSummarySchema.parse({ ...row, createdAt: row.createdAt.toISOString() });
 }

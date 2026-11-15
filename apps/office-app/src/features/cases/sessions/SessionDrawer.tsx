@@ -9,6 +9,7 @@ import type { SessionRights } from './session-rights';
 import { CreateSessionForm, EditSessionForm } from './SessionForms';
 import { SessionSummary } from './SessionSummary';
 import { useHearing, useOfficeTimeZone } from './use-sessions';
+import { SessionAiSummary } from '../../ai/SessionAiSummary';
 
 function ExistingSession({
   session,
@@ -27,6 +28,7 @@ function ExistingSession({
     return (
       <>
         <SessionSummary session={session} />
+        <SessionAiSummary session={session} />
         {rights.edit ? (
           <Alert
             type="info"
@@ -41,6 +43,7 @@ function ExistingSession({
   return (
     <>
       <SessionSummary session={session} />
+      <SessionAiSummary session={session} />
       {scheduled ? (
         <>
           <Divider />
