@@ -227,5 +227,65 @@
       "created": "The plan was created.",
       "updated": "The plan was updated."
     }
+  },
+  "usage": {
+    "title": "Usage",
+    "days_one": "{{count}} day",
+    "days_other": "{{count}} days",
+    "dau": "Active users today",
+    "wau": "Active users this week",
+    "funnel": {
+      "offices": "New offices",
+      "verified": "Verified email",
+      "withCase": "Opened a case"
+    },
+    "costByDay": "AI cost per day",
+    "costByOffice": "AI cost by office and model",
+    "storage": "Storage by office",
+    "noCost": "No AI use in this period.",
+    "costChart": "Bar chart of AI cost per day; the highest day is {{max}}.",
+    "peak": "Highest day: {{max}}",
+    "asTable": "Show as a table",
+    "megabytes": "{{value}} MB",
+    "columns": {
+      "date": "Day",
+      "cost": "Cost (USD)",
+      "operations": "Operations",
+      "office": "Office",
+      "model": "Model",
+      "size": "Size"
+    }
+  },
+  "queues": {
+    "title": "Queues",
+    "boardHint": "Job details are in Bull Board, served by the API where it is enabled (not in production).",
+    "failed_one": "{{formatted}} failed",
+    "failed_other": "{{formatted}} failed",
+    "columns": {
+      "name": "Queue",
+      "waiting": "Waiting",
+      "active": "Running",
+      "delayed": "Delayed",
+      "failed": "Failed"
+    }
+  },
+  "audit": {
+    "title": "Platform audit",
+    "export": "Export CSV",
+    "empty": "No entries match.",
+    "loadMore": "Show older entries",
+    "unknownAdmin": "Unknown (refused sign-in)",
+    "filters": {
+      "action": "Action, e.g. OFFICE_SUSPENDED",
+      "from": "From",
+      "to": "To"
+    },
+    "columns": {
+      "time": "Time",
+      "admin": "Admin",
+      "action": "Action",
+      "office": "Office",
+      "changes": "Changes"
+    }
   }
 }
