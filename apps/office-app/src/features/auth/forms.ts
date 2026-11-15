@@ -41,7 +41,8 @@ export function parseForm<S extends z.ZodType>(
   }
   form.setFields(
     result.error.issues.map((issue) => ({
-      name: issue.path.map(String),
+      // Numbers stay numbers: a Form.List field is named by its index (["extraLines", 0, "unitPrice"]).
+      name: issue.path.map((part) => (typeof part === 'number' ? part : String(part))),
       errors: [message(keyOf(issue))],
     })),
   );

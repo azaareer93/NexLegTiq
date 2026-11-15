@@ -63,6 +63,8 @@ function useSessionWrite<B>(write: (body: B) => ReturnType<typeof sessions.get>,
       void queryClient.invalidateQueries({ queryKey: sessionKeys.file(fileId) });
       // Every hearing write adds an event to the file's timeline (D-150).
       void queryClient.invalidateQueries({ queryKey: ['cases', 'detail', fileId, 'timeline'] });
+      // Edited minutes make the hearing's AI summary stale (D-179).
+      void queryClient.invalidateQueries({ queryKey: ['ai', 'summaries', 'session', session.id] });
     },
   });
 }

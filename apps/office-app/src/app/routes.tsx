@@ -6,6 +6,7 @@ import { calendarRoutes } from '../features/calendar';
 import { casesRoutes } from '../features/cases';
 import { clientsRoutes } from '../features/clients';
 import { dashboardRoutes } from '../features/dashboard';
+import { invoicesRoutes } from '../features/invoices';
 import { notificationsRoutes } from '../features/notifications';
 import { onboardingRoutes } from '../features/onboarding';
 import { profileRoutes } from '../features/profile';
@@ -35,6 +36,7 @@ const FEATURE_ROUTES: Partial<Record<NavKey, RouteObject[]>> = {
   cases: casesRoutes,
   clients: clientsRoutes,
   dashboard: dashboardRoutes,
+  invoices: invoicesRoutes,
   settings: settingsRoutes,
   tasks: tasksRoutes,
   team: teamRoutes,

@@ -45,6 +45,7 @@ const ENUM_LABELS = {
   NOTIFICATION_CATEGORIES: 'notificationCategory',
   AI_SOURCE_TYPES: 'aiSourceType',
   AI_FEEDBACK_REASONS: 'aiFeedbackReason',
+  AI_RISK_LEVELS: 'aiRiskLevel',
   AI_JOB_STATUSES: 'aiJobStatus',
   TIMELINE_EVENT_TYPES: 'timelineEventType',
 } as const;
