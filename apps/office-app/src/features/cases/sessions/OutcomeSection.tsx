@@ -1,4 +1,3 @@
-import { RobotOutlined } from '@ant-design/icons';
 import type { Session } from '@nexlegtiq/shared-contracts';
 import { SESSION_OUTCOMES } from '@nexlegtiq/shared-types';
 import type { SessionOutcome } from '@nexlegtiq/shared-types';
@@ -15,7 +14,6 @@ import {
   Input,
   Select,
   TimePicker,
-  Tooltip,
   Typography,
 } from 'antd';
 import type { Dayjs } from 'dayjs';
@@ -137,12 +135,7 @@ export function OutcomeSection({
             </Form.Item>
           </Flex>
         ) : null}
-        <Flex gap={8} justify="space-between" wrap>
-          <Tooltip title={t('sessions.outcome.aiSoon')}>
-            <Button icon={<RobotOutlined />} disabled data-testid="session-ai-summary">
-              {t('sessions.outcome.aiSummary')}
-            </Button>
-          </Tooltip>
+        <Flex gap={8} justify="end" wrap>
           <Button
             type="primary"
             htmlType="submit"

@@ -17,6 +17,11 @@
     "SUCCEEDED": "Completed",
     "FAILED": "Failed"
   },
+  "aiRiskLevel": {
+    "LOW": "Low",
+    "MEDIUM": "Medium",
+    "HIGH": "High"
+  },
   "aiSourceType": {
     "DOCUMENT": "Document",
     "SESSION": "Hearing",

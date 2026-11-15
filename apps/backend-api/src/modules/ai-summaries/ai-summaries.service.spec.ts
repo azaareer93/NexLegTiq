@@ -3,6 +3,7 @@ import type { ClsService } from 'nestjs-cls';
 
 import { AiSummariesController } from './ai-summaries.controller';
 import { AiSummariesService } from './ai-summaries.service';
+import type { SessionSummariesService } from './session-summaries.service';
 import type { AuditService } from '../../common/audit/audit.service';
 import type { RequestContext } from '../../common/context/request-context';
 import type { PrismaService } from '../../database/prisma.service';
@@ -23,6 +24,8 @@ const row = (language: string, id: string) => ({
   summary: 'A summary.',
   keyFacts: [],
   keyLegalIssues: [],
+  nextSteps: [],
+  riskAssessment: null,
   parties: [],
   dates: [],
   provider: 'fake',
@@ -53,6 +56,10 @@ function setup({
   const audit = { log: jest.fn() };
   const assertDocumentAccess = jest.fn();
   const assertFileAccess = jest.fn();
+  const sessions = {
+    request: jest.fn().mockResolvedValue({ status: 202 }),
+    list: jest.fn().mockResolvedValue([]),
+  };
   const jobs = { enqueue: jest.fn().mockResolvedValue({ jobId: DOC, status: 'QUEUED' }) };
   const service = new AiSummariesService(
     { assertEnabled: jest.fn() } as unknown as AiAccess,
@@ -65,8 +72,9 @@ function setup({
     {
       get: (key: string) => (key === 'userId' ? 'u1' : 'o1'),
     } as unknown as ClsService<RequestContext>,
+    sessions as unknown as SessionSummariesService,
   );
-  return { service, jobs, audit, tx, db, assertDocumentAccess, assertFileAccess };
+  return { sessions, service, jobs, audit, tx, db, assertDocumentAccess, assertFileAccess };
 }
 
 const BODY = { sourceType: 'DOCUMENT', sourceId: DOC, language: 'AR' } as const;
@@ -190,12 +198,24 @@ describe('AiSummariesService (D-148)', () => {
 
   it('should answer with the status the service chose', async () => {
     const { service } = setup();
-    const controller = new AiSummariesController(service);
+    const controller = new AiSummariesController(
+      service,
+      {} as SessionSummariesService,
+      { isActive: () => false } as unknown as ClsService,
+    );
     const res = { status: jest.fn() };
     await expect(controller.create(BODY, res as unknown as Response)).resolves.toMatchObject({
       status: 'QUEUED',
     });
     expect(res.status).toHaveBeenCalledWith(202);
     await expect(controller.list({ sourceType: 'DOCUMENT', sourceId: DOC })).resolves.toEqual([]);
+  });
+
+  it('should hand a session to the session summaries', async () => {
+    const { service, sessions } = setup();
+    await service.request({ sourceType: 'SESSION', sourceId: DOC, language: 'AR' });
+    expect(sessions.request).toHaveBeenCalledWith(DOC, 'AR', false);
+    await service.list({ sourceType: 'SESSION', sourceId: DOC });
+    expect(sessions.list).toHaveBeenCalledWith(DOC);
   });
 });

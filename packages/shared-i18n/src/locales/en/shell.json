@@ -14,7 +14,8 @@
     "more": "Menu",
     "collapse": "Collapse menu",
     "expand": "Expand menu",
-    "audit": "Audit log"
+    "audit": "Audit log",
+    "invoices": "Invoices"
   },
   "quick": {
     "label": "Create",

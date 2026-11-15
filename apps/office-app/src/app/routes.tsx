@@ -7,6 +7,7 @@ import { calendarRoutes } from '../features/calendar';
 import { casesRoutes } from '../features/cases';
 import { clientsRoutes } from '../features/clients';
 import { dashboardRoutes } from '../features/dashboard';
+import { invoicesRoutes } from '../features/invoices';
 import { notificationsRoutes } from '../features/notifications';
 import { profileRoutes } from '../features/profile';
 import { settingsRoutes } from '../features/settings';
@@ -35,6 +36,7 @@ const FEATURE_ROUTES: Partial<Record<NavKey, RouteObject[]>> = {
   cases: casesRoutes,
   clients: clientsRoutes,
   dashboard: dashboardRoutes,
+  invoices: invoicesRoutes,
   settings: settingsRoutes,
   // Under Settings, with its own right: an Admin reads it without managing the office (D-180).
   audit: auditRoutes,

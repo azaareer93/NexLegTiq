@@ -198,7 +198,7 @@ function FileView({
       timeline: () => (
         <TimelineTab fileId={file.id} onOpenHearing={setHearing} onOpenTab={selectTab} />
       ),
-      billing: () => <BillingTab fileId={file.id} archived={archived} />,
+      billing: () => <BillingTab fileId={file.id} archived={archived} clients={file.clients} />,
       notes: () => (
         <NotesTab
           subject={{ fileId: file.id }}

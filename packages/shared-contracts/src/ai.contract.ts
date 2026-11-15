@@ -1,7 +1,12 @@
-import { AI_FEEDBACK_REASONS, AI_JOB_STATUSES, AI_SOURCE_TYPES } from '@nexlegtiq/shared-types';
+import {
+  AI_FEEDBACK_REASONS,
+  AI_JOB_STATUSES,
+  AI_RISK_LEVELS,
+  AI_SOURCE_TYPES,
+} from '@nexlegtiq/shared-types';
 import { z } from 'zod';
 
-import { longText } from './fields.js';
+import { longText, plainText } from './fields.js';
 
 /** Answer of AI endpoints that queue work: 202 `{ jobId, status }` (api-conventions.md). */
 export const AiJobAcceptedSchema = z.object({
@@ -41,9 +46,12 @@ export type AiJob = z.infer<typeof AiJobSchema>;
 
 const SummaryLanguageSchema = z.enum(['AR', 'EN']);
 
-/** `POST /ai/summaries` (D-148): summarise a document in a language — 202 `{jobId}`, or 200 with a stored summary. */
+/** The sources that can be summarised: a document (D-148) or a session's minutes (D-179). */
+const SummarySourceSchema = z.enum(['DOCUMENT', 'SESSION']);
+
+/** `POST /ai/summaries` (D-148, D-179): summarise a document or a session's minutes — 202 `{jobId}`, or 200 when stored. */
 export const CreateAiSummarySchema = z.object({
-  sourceType: z.literal('DOCUMENT'),
+  sourceType: SummarySourceSchema,
   sourceId: z.uuid(),
   language: SummaryLanguageSchema,
   /** Regenerate although a summary of this version, language and prompt is stored (counts against the quota). */
@@ -57,7 +65,7 @@ export type CreateAiSummaryRequest = z.input<typeof CreateAiSummarySchema>;
  */
 export const AiSummaryQuerySchema = z
   .object({
-    sourceType: z.literal('DOCUMENT').optional(),
+    sourceType: SummarySourceSchema.optional(),
     sourceId: z.uuid().optional(),
     fileId: z.uuid().optional(),
   })
@@ -83,6 +91,12 @@ export const AiSummarySchema = z.object({
   keyLegalIssues: z.array(z.string()),
   parties: z.array(z.string()),
   dates: z.array(z.object({ date: z.string(), event: z.string() })),
+  /** A session summary's suggested follow-ups (D-179); empty for a document. */
+  nextSteps: z.array(
+    z.object({ action: z.string(), dueInDays: z.number().int().nonnegative().nullable() }),
+  ),
+  /** A session summary's risk reading (D-179); null for a document. */
+  riskAssessment: z.enum(AI_RISK_LEVELS).nullable(),
   provider: z.string(),
   model: z.string(),
   promptVersion: z.string(),
@@ -111,3 +125,25 @@ export const AiFeedbackSchema = z.object({
 export type AiFeedbackRequest = z.infer<typeof AiFeedbackSchema>;
 export const AiFeedbackCreatedSchema = z.object({ id: z.uuid() });
 export type AiFeedbackCreated = z.infer<typeof AiFeedbackCreatedSchema>;
+
+/**
+ * `POST /ai/summaries/:id/create-tasks` (D-179): the next steps the user picked, by index, each optionally retitled,
+ * dated or assigned — tasks are made only from this choice, never from the model alone.
+ */
+export const CreateTasksFromSummarySchema = z.object({
+  selected: z
+    .array(
+      z.object({
+        index: z.number().int().nonnegative(),
+        title: plainText(300).optional(),
+        dueDate: z.iso.date().optional(),
+        assigneeId: z.uuid().optional(),
+      }),
+    )
+    .min(1)
+    .max(20)
+    .refine((items) => new Set(items.map((i) => i.index)).size === items.length, {
+      message: 'validation.duplicate',
+    }),
+});
+export type CreateTasksFromSummaryRequest = z.infer<typeof CreateTasksFromSummarySchema>;

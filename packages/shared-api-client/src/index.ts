@@ -43,6 +43,7 @@ export type { AdminOfficeListParams } from './admin-offices.js';
 export { adminPaymentsApi } from './admin-payments.js';
 export { adminPlansApi } from './admin-plans.js';
 export { adminUsageApi } from './admin-usage.js';
+export { invoicesApi } from './invoices.js';
 export { adminAuthApi } from './admin-auth.js';
 export type { AdminClientSession } from './admin-auth.js';
 export { timeEntriesApi } from './time-entries.js';

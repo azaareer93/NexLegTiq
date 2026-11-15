@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Res } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Req, Res } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import {
@@ -9,6 +9,8 @@ import {
   AiSummaryQuerySchema,
   AiSummarySchema,
   CreateAiSummarySchema,
+  CreateTasksFromSummarySchema,
+  TaskSchema,
 } from '@nexlegtiq/shared-contracts';
 import type {
   AiFeedbackCreated,
@@ -18,14 +20,19 @@ import type {
   AiSummaryListItem,
   AiSummaryQuery,
   CreateAiSummaryRequest,
+  CreateTasksFromSummaryRequest,
+  Task,
 } from '@nexlegtiq/shared-contracts';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
+import { ClsService } from 'nestjs-cls';
 
 import { AiSummariesService } from './ai-summaries.service';
+import { SessionSummariesService } from './session-summaries.service';
 import { ResourceNotFoundException } from '../../common/errors/app.exception';
 import { ZodValidationPipe } from '../../common/http/zod-validation.pipe';
 import { ApiZodBody, ApiZodResponse } from '../../common/openapi/api-zod.decorators';
 import { RequirePermissions } from '../../common/rbac/permissions.decorator';
+import { clientFromRequest } from '../auth/client-info';
 
 const summaryId = new ParseUUIDPipe({ exceptionFactory: () => new ResourceNotFoundException() });
 
@@ -34,7 +41,11 @@ const summaryId = new ParseUUIDPipe({ exceptionFactory: () => new ResourceNotFou
 @ApiBearerAuth('JWT')
 @Controller('ai/summaries')
 export class AiSummariesController {
-  constructor(private readonly summaries: AiSummariesService) {}
+  constructor(
+    private readonly summaries: AiSummariesService,
+    private readonly sessions: SessionSummariesService,
+    private readonly cls: ClsService,
+  ) {}
 
   @Post()
   @RequirePermissions('use:ai')
@@ -79,5 +90,25 @@ export class AiSummariesController {
     @Body(new ZodValidationPipe(AiFeedbackSchema)) body: AiFeedbackRequest,
   ): Promise<AiFeedbackCreated> {
     return this.summaries.feedback(id, body);
+  }
+
+  @Post(':id/create-tasks')
+  @RequirePermissions('create:task')
+  @ApiOperation({
+    summary:
+      'Turn the next steps picked from a session summary into tasks (all or none; 404 unless the session is visible, someone else as assignee needs assign:task)',
+  })
+  @ApiZodBody(CreateTasksFromSummarySchema)
+  @ApiZodResponse(201, TaskSchema.array())
+  createTasks(
+    @Param('id', summaryId) id: string,
+    @Body(new ZodValidationPipe(CreateTasksFromSummarySchema)) body: CreateTasksFromSummaryRequest,
+    @Req() req: Request,
+  ): Promise<Task[]> {
+    return this.sessions.createTasks(
+      id,
+      body,
+      clientFromRequest(req, this.cls.isActive() ? this.cls.getId() : null),
+    );
   }
 }

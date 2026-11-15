@@ -10,6 +10,7 @@ export const REALTIME_NAMESPACE = '/ws';
 export const RealtimePayloadSchemas = {
   'document.processed': z.object({ documentId: z.uuid(), fileId: z.uuid() }),
   'document.summary.ready': z.object({ documentId: z.uuid(), fileId: z.uuid() }),
+  'session.summary.ready': z.object({ sessionId: z.uuid(), fileId: z.uuid() }),
   'session.scheduled': z.object({ sessionId: z.uuid(), fileId: z.uuid() }),
   'session.reminder': z.object({ sessionId: z.uuid(), reminderId: z.uuid() }),
   'task.assigned': z.object({ taskId: z.uuid(), fileId: z.uuid().nullable() }),

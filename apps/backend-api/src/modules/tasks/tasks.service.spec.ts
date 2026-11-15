@@ -119,6 +119,32 @@ function setup(role: Role = 'LAWYER', row = accessRow()) {
 
 describe('TasksService', () => {
   describe('create', () => {
+    it('should create several tasks in one transaction with their AI source, checking each file once (D-179)', async () => {
+      const { service, tx, files } = setup();
+      const ids = await service.createAll(
+        [
+          { title: 'A', fileId: FILE, priority: 'MEDIUM' },
+          { title: 'B', fileId: FILE, priority: 'MEDIUM', dueDate: '2026-11-20' },
+        ],
+        CLIENT,
+        { type: 'AI_NEXT_STEP', id: TASK },
+      );
+      expect(ids).toEqual([TASK, TASK]);
+      expect(files.assertFileAccess).toHaveBeenCalledTimes(1);
+      expect(tx.task.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ sourceType: 'AI_NEXT_STEP', sourceId: TASK }),
+        }),
+      );
+      // Assigning to someone else needs assign:task, which a trainee lacks.
+      await expect(
+        setup('TRAINEE').service.createAll(
+          [{ title: 'C', priority: 'MEDIUM', assignedToId: OTHER }],
+          CLIENT,
+        ),
+      ).rejects.toMatchObject({ code: 'AUTH-100' });
+    });
+
     it('should create a task last in TODO, check the file and the assignee, audit and notify', async () => {
       const { service, tx, files, realtime } = setup();
       await service.create(

@@ -23,6 +23,8 @@ const SUMMARY = {
   keyLegalIssues: ['Eviction'],
   parties: ['Omar'],
   dates: [{ date: '2026-01-01', event: 'Lease start' }],
+  nextSteps: [],
+  riskAssessment: null,
   provider: 'fake',
   model: 'fake-1',
   promptVersion: 'document-summary.v1',
@@ -120,5 +122,22 @@ describe('aiApi (D-148)', () => {
     expect(feedback).toEqual({ reason: 'INACCURATE', comment: 'x' });
     await expect(api().job(JOB)).resolves.toMatchObject({ errorCode: 'AI-001' });
     await expect(api().usage()).resolves.toMatchObject({ remaining: 3 });
+  });
+
+  it('should read the summaries of a session and send the picked next steps (D-179)', async () => {
+    const seen: string[] = [];
+    server.use(
+      http.get(url('ai/summaries'), ({ request }) => {
+        seen.push(new URL(request.url).search);
+        return ok([SUMMARY]);
+      }),
+      http.post(url(`ai/summaries/${SUMMARY.id}/create-tasks`), async ({ request }) => {
+        seen.push(await request.text());
+        return ok([], 201);
+      }),
+    );
+    await expect(api().bySession(DOC)).resolves.toEqual([SUMMARY]);
+    await expect(api().createTasks(SUMMARY.id, { selected: [{ index: 1 }] })).resolves.toEqual([]);
+    expect(seen).toEqual([`?sourceType=SESSION&sourceId=${DOC}`, '{"selected":[{"index":1}]}']);
   });
 });
