@@ -24,6 +24,19 @@
     "COURT_RULING": "حكم المحكمة",
     "OPPOSING_BRIEF": "مذكرة الخصم"
   },
+  "auditAction": {
+    "CREATE": "إنشاء",
+    "UPDATE": "تعديل",
+    "DELETE": "حذف",
+    "VIEW": "عرض",
+    "DOWNLOAD": "تنزيل",
+    "SHARE": "مشاركة",
+    "LOGIN": "تسجيل دخول",
+    "LOGOUT": "تسجيل خروج",
+    "EXPORT": "تصدير",
+    "PERMISSION_DENIED": "رفض وصول",
+    "SECURITY": "تغيير أمني"
+  },
   "billingMethod": {
     "HOURLY": "بالساعة",
     "FIXED_FEE": "أتعاب مقطوعة",

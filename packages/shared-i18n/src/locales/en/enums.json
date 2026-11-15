@@ -24,6 +24,19 @@
     "COURT_RULING": "Court ruling",
     "OPPOSING_BRIEF": "Opposing brief"
   },
+  "auditAction": {
+    "CREATE": "Created",
+    "UPDATE": "Updated",
+    "DELETE": "Deleted",
+    "VIEW": "Viewed",
+    "DOWNLOAD": "Downloaded",
+    "SHARE": "Shared",
+    "LOGIN": "Signed in",
+    "LOGOUT": "Signed out",
+    "EXPORT": "Exported",
+    "PERMISSION_DENIED": "Access denied",
+    "SECURITY": "Security change"
+  },
   "billingMethod": {
     "HOURLY": "Hourly",
     "FIXED_FEE": "Fixed fee",
