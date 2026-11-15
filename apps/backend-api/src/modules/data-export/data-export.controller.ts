@@ -7,11 +7,14 @@ import {
   ParseUUIDPipe,
   Post,
   Req,
-  StreamableFile,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiProduces, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { OfficeExportDownloadSchema, OfficeExportSchema } from '@nexlegtiq/shared-contracts';
+import {
+  OfficeExportDownloadSchema,
+  OfficeExportSchema,
+  UserExportSchema,
+} from '@nexlegtiq/shared-contracts';
 import type { OfficeExport, OfficeExportDownload } from '@nexlegtiq/shared-contracts';
 import type { Request } from 'express';
 import { ClsService } from 'nestjs-cls';
@@ -73,17 +76,12 @@ export class DataExportController {
   @Get('users/me/export')
   @Throttle({ default: { limit: 5, ttl: 3_600_000 } })
   @ApiOperation({
-    summary: 'Your own data (profile, tasks, time, notes, audit rows) as a JSON file',
+    summary:
+      'Your own data (profile, tasks, time, notes, audit rows); the app saves it as a JSON file',
   })
-  @ApiProduces('application/json')
-  async userExport(@Req() req: Request): Promise<StreamableFile> {
-    return new StreamableFile(
-      Buffer.from(await this.exports.userExport(this.client(req)), 'utf8'),
-      {
-        type: 'application/json; charset=utf-8',
-        disposition: 'attachment; filename="my-nexlegtiq-data.json"',
-      },
-    );
+  @ApiZodResponse(HttpStatus.OK, UserExportSchema)
+  userExport(@Req() req: Request): Promise<Record<string, unknown>> {
+    return this.exports.userExport(this.client(req));
   }
 
   private client(req: Request) {

@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { useBlocker } from 'react-router';
 
 import { useOfficeProfile, useOfficeSettings } from '../api/use-office';
+import { DataSection } from '../components/DataSection';
 import { DefaultsSection, SecuritySection } from '../components/DefaultsSections';
 import { PreferencesSection, ProfileSection } from '../components/ProfileSections';
 import { SubscriptionSection } from '../components/SubscriptionSection';
@@ -100,6 +101,7 @@ export function SettingsPage(): React.JSX.Element {
       <PageHeader title={t('settings.title')} />
       {sections()}
       <SubscriptionSection />
+      <DataSection />
       <ConfirmModal
         open={blocker.state === 'blocked'}
         title={t('settings.unsaved.title')}

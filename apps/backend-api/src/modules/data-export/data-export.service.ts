@@ -125,7 +125,7 @@ export class DataExportService {
   }
 
   /** The caller's own data (profile, their tasks, time, notes and audit rows) as one JSON document. */
-  async userExport(client: AuditClient): Promise<string> {
+  async userExport(client: AuditClient): Promise<Record<string, unknown>> {
     const db = this.prisma.db;
     const userId = this.userId();
     const [profile, tasks, timeEntries, notes, audit] = await Promise.all([
@@ -161,19 +161,22 @@ export class DataExportService {
         client,
       ),
     );
-    return JSON.stringify(
-      {
-        format: 'nexlegtiq-user-export/1',
-        createdAt: new Date(),
-        profile,
-        tasks,
-        timeEntries,
-        notes,
-        audit,
-      },
-      (_key, v: unknown) => (typeof v === 'bigint' ? v.toString() : v),
-      2,
-    );
+    // Round-tripped so BigInt and Decimal values travel as text in the envelope.
+    return JSON.parse(
+      JSON.stringify(
+        {
+          format: 'nexlegtiq-user-export/1',
+          createdAt: new Date(),
+          profile,
+          tasks,
+          timeEntries,
+          notes,
+          audit,
+        },
+        (_key, v: unknown) => (typeof v === 'bigint' ? v.toString() : v),
+        2,
+      ),
+    ) as Record<string, unknown>;
   }
 
   private officeId(): string {

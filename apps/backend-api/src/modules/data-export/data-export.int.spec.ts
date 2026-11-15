@@ -123,7 +123,11 @@ describe('data export (HTTP + PostgreSQL + storage)', () => {
     const queued = await raw.officeExport.findFirstOrThrow({
       where: { officeId: manager.officeId },
     });
-    const context = tenantContextFor(manager.officeId, manager.userId, { requestId: null });
+    const context = tenantContextFor(manager.officeId, manager.userId, {
+      ip: '127.0.0.1',
+      userAgent: null,
+      requestId: null,
+    });
     const tenant = app.get(TenantRunner);
     const data = await tenant.run(context, () => builder.datasets());
     for (const name of [
@@ -180,9 +184,7 @@ describe('data export (HTTP + PostgreSQL + storage)', () => {
   it("should give any user their own data as JSON, without anyone else's", async () => {
     const res = await http().get('/api/v1/users/me/export').set(bearerFor(jwt, lawyer));
     expect(res.status).toBe(200);
-    expect(res.headers['content-disposition']).toContain('attachment');
-    const body = JSON.parse(res.text) as { profile: { fullName: string } };
-    expect(body.profile.fullName).toBe('Omar Lawyer');
+    expect(res.body.data.profile.fullName).toBe('Omar Lawyer');
     expect(res.text).not.toContain('Layla Manager');
     expect(res.text).not.toContain('argon2-secret-hash');
   });

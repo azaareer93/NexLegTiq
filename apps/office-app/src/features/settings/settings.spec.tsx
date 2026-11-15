@@ -351,3 +351,54 @@ describe('Settings → office profile, preferences, defaults and security (D-125
     SLOW,
   );
 });
+
+describe('Settings → Data (MVP-106)', () => {
+  const EXPORT = {
+    id: '01920000-0000-7000-8000-0000000000e1',
+    status: 'READY',
+    requestedBy: { id: '01920000-0000-7000-8000-0000000000a1', fullName: 'Layla' },
+    sizeBytes: String(3 * 1024 * 1024),
+    checksum: 'a'.repeat(64),
+    errorCode: null,
+    expiresAt: '2099-01-01T00:00:00.000Z',
+    createdAt: '2026-11-15T08:00:00.000Z',
+    completedAt: '2026-11-15T08:05:00.000Z',
+  };
+
+  it(
+    'should ask for an export and download a ready one through a short link',
+    async () => {
+      setViewport(1280);
+      signedIn();
+      serve(subscription());
+      let requested = 0;
+      const clicked: string[] = [];
+      const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+        this: HTMLAnchorElement,
+      ) {
+        clicked.push(this.href);
+      });
+      server.use(
+        http.get(api('offices/me/exports'), () => ok([EXPORT])),
+        http.post(api('offices/me/export'), () => {
+          requested += 1;
+          return ok({ ...EXPORT, status: 'QUEUED', expiresAt: null }, 202);
+        }),
+        http.get(api(`offices/me/exports/${EXPORT.id}/download`), () =>
+          ok({ downloadUrl: 'https://s3.test/export.zip', expiresIn: 900 }),
+        ),
+      );
+      renderApp('/settings');
+      const section = await screen.findByTestId('settings-data', {}, { timeout: COLD });
+      expect((await within(section).findByTestId(`export-${EXPORT.id}`)).textContent).toContain(
+        '3 MB',
+      );
+      fireEvent.click(within(section).getByTestId('export-request'));
+      await waitFor(() => expect(requested).toBe(1));
+      fireEvent.click(within(section).getByTestId(`export-download-${EXPORT.id}`));
+      await waitFor(() => expect(clicked).toEqual(['https://s3.test/export.zip']));
+      click.mockRestore();
+    },
+    SLOW,
+  );
+});

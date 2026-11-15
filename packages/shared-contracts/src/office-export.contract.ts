@@ -21,3 +21,17 @@ export const OfficeExportDownloadSchema = z.object({
   expiresIn: z.number().int().positive(),
 });
 export type OfficeExportDownload = z.infer<typeof OfficeExportDownloadSchema>;
+
+/** `GET /users/me/export` (D-184): the caller's own data, saved by the app as a JSON file. */
+export const UserExportSchema = z
+  .object({
+    format: z.literal('nexlegtiq-user-export/1'),
+    createdAt: z.iso.datetime(),
+    profile: z.record(z.string(), z.unknown()),
+    tasks: z.array(z.unknown()),
+    timeEntries: z.array(z.unknown()),
+    notes: z.array(z.unknown()),
+    audit: z.array(z.unknown()),
+  })
+  .loose();
+export type UserExport = z.infer<typeof UserExportSchema>;

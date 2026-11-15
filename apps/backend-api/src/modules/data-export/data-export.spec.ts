@@ -1,4 +1,3 @@
-import { StreamableFile } from '@nestjs/common';
 import type { Request } from 'express';
 import type { ClsService } from 'nestjs-cls';
 import type { PinoLogger } from 'nestjs-pino';
@@ -114,8 +113,7 @@ describe('DataExportService (D-184)', () => {
       fileNote: { findMany: jest.fn().mockResolvedValue([]) },
       auditLog: { findMany: jest.fn().mockResolvedValue([]) },
     });
-    const text = await svc.userExport({});
-    expect(JSON.parse(text)).toMatchObject({
+    expect(await svc.userExport({})).toMatchObject({
       profile: { fullName: 'Omar' },
       tasks: [{ big: '5' }],
     });
@@ -131,7 +129,7 @@ describe('DataExportService (D-184)', () => {
       request: jest.fn().mockResolvedValue(row()),
       list: jest.fn().mockResolvedValue([]),
       download: jest.fn().mockResolvedValue({}),
-      userExport: jest.fn().mockResolvedValue('{}'),
+      userExport: jest.fn().mockResolvedValue({}),
     };
     const make = (active: boolean) =>
       new DataExportController(
@@ -142,7 +140,7 @@ describe('DataExportService (D-184)', () => {
     await make(true).request(req);
     await make(false).list();
     await make(true).download(ID, req);
-    await expect(make(false).userExport(req)).resolves.toBeInstanceOf(StreamableFile);
+    await expect(make(false).userExport(req)).resolves.toEqual({});
     expect(exports.request).toHaveBeenCalledWith(expect.objectContaining({ requestId: 'r1' }));
   });
 });
