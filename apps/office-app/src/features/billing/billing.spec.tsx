@@ -161,11 +161,12 @@ function serve(rows: TimeEntry[], options: { timer?: boolean } = {}) {
 async function openBilling(
   locale: 'en' | 'ar' = 'en',
   permissions = permissionsFor('OFFICE_MANAGER'),
+  role = USER.role,
 ) {
   setViewport(1280);
   signedIn({
     id: LAWYER,
-    role: USER.role,
+    role,
     uiLanguage: locale === 'ar' ? 'AR' : 'EN',
     permissions: [...permissions],
   });
@@ -309,14 +310,17 @@ describe('Billing tab without log:time or case-wide reading', () => {
   );
 
   it(
-    'should explain the totals to someone who does not read every case',
+    'should list the entries of colleagues too, with edit and delete on the own rows only (D-182)',
     async () => {
-      serve([entry(1)]);
-      const tab = await openBilling(
-        'en',
-        permissionsFor('OFFICE_MANAGER').filter((p) => p !== 'view:all:cases'),
-      );
-      expect(await within(tab).findByTestId('totals-hint')).toBeTruthy();
+      serve([
+        entry(1),
+        entry(2, { user: { id: '01920000-0000-7000-8000-0000000000c9', fullName: 'Hana Haddad' } }),
+      ]);
+      const tab = await openBilling('en', permissionsFor('LAWYER'), 'LAWYER');
+      expect(await within(tab).findByText('Hana Haddad', {}, { timeout: COLD })).toBeTruthy();
+      expect(within(tab).getByTestId(`entry-edit-${entry(1).id}`)).toBeTruthy();
+      expect(within(tab).queryByTestId(`entry-edit-${entry(2).id}`)).toBeNull();
+      expect(within(tab).queryByTestId('totals-hint')).toBeNull();
     },
     SLOW,
   );

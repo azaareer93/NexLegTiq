@@ -14,6 +14,7 @@ import { changes } from '../../common/audit/changes';
 import type { RequestContext } from '../../common/context/request-context';
 import {
   BusinessRuleException,
+  PermissionDeniedException,
   ResourceNotFoundException,
   ValidationException,
 } from '../../common/errors/app.exception';
@@ -69,8 +70,9 @@ export class TimeEntriesService {
     const permissions = this.cls.get('permissions') ?? [];
     return {
       userId,
-      // "Users edit their own entries unless OM/SL": the office manager and senior lawyers see and change everyone's.
-      seesAll: role === 'OFFICE_MANAGER' || role === 'SENIOR_LAWYER',
+      // Everyone who sees a file reads all its entries; each changes their own, the office manager and senior lawyers
+      // anyone's (they correct timesheets; owner answer 9B, D-182).
+      changesAll: role === 'OFFICE_MANAGER' || role === 'SENIOR_LAWYER',
       // Rates and amounts are billing terms (D-096).
       seesRates:
         permissions.includes('view:all:invoices') || permissions.includes('view:assigned:invoices'),
@@ -96,10 +98,9 @@ export class TimeEntriesService {
     };
   }
 
-  /** Entries the caller may see: on files they see, their own unless they are OM/SL. */
+  /** Entries the caller may see: all of the files they see (D-182). */
   private visibleWhere(): Prisma.TimeEntryWhereInput {
-    const { userId, seesAll } = this.caller();
-    return { file: this.files.visibleWhere(), ...(seesAll ? {} : { userId }) };
+    return { file: this.files.visibleWhere() };
   }
 
   async list(query: TimeEntryQuery): Promise<PaginatedResult<TimeEntry>> {
@@ -219,7 +220,10 @@ export class TimeEntriesService {
     return this.get(id);
   }
 
-  /** The entry for a change: visible to the caller (their own unless OM/SL), its file open to work, not invoiced. */
+  /**
+   * The entry for a change: visible (404 otherwise), the caller's own unless OM/SL (403 AUTH-100: a visible entry they
+   * may not change, D-182), its file open to work, not invoiced.
+   */
   private async changeable(tx: ScopedTransaction, id: string) {
     // Locked first, so two changes of one entry (or an invoice claiming it) queue and see each other.
     await tx.$queryRaw`SELECT 1 FROM time_entries WHERE id = ${id}::uuid AND office_id = ${this.cls.get('officeId')}::uuid FOR UPDATE`;
@@ -228,6 +232,8 @@ export class TimeEntriesService {
       select: ENTRY,
     });
     if (!row) throw new ResourceNotFoundException();
+    const { userId, changesAll } = this.caller();
+    if (!changesAll && row.userId !== userId) throw new PermissionDeniedException();
     await this.files.assertFileAccess(row.fileId, 'contribute');
     await lockFile(tx, this.cls.get('officeId') as string, row.fileId);
     if (row.invoiceId) {

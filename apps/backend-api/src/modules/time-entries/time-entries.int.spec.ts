@@ -212,17 +212,24 @@ describe('time entries (HTTP + PostgreSQL)', () => {
     ).toBe(404);
   });
 
-  it("should let people change their own entries, the OM/SL anyone's, and nobody an invoiced one", async () => {
+  it("should show a file's entries to all its readers, let each change their own, the OM/SL anyone's, and nobody an invoiced one (D-182)", async () => {
     const entry = (
       await log(lawyer, { fileId: ratedFile, durationHours: '1', description: 'Mine' })
     ).body.data as { id: string };
     const patch = (person: Person, body: object) =>
       http().patch(`/api/v1/time-entries/${entry.id}`).set(bearerFor(jwt, person)).send(body);
-    expect((await patch(paralegal, { description: 'Not yours' })).status).toBe(404);
+    // The paralegal is on the file: reads the lawyer's entry, may not change it (403); another office never sees it.
+    const notYours = await patch(paralegal, { description: 'Not yours' });
+    expect([notYours.status, notYours.body.error.code]).toEqual([403, 'AUTH-100']);
+    expect((await patch(other, { description: 'Elsewhere' })).status).toBe(404);
     const listed = await http().get('/api/v1/time-entries').set(bearerFor(jwt, paralegal));
     const authors = listed.body.data.map((e: { user: { id: string } }) => e.user.id);
     expect(authors).toContain(paralegal.userId);
-    expect(authors).not.toContain(lawyer.userId);
+    expect(authors).toContain(lawyer.userId);
+    const removed = await http()
+      .delete(`/api/v1/time-entries/${entry.id}`)
+      .set(bearerFor(jwt, paralegal));
+    expect(removed.status).toBe(403);
     expect((await patch(manager, { durationHours: '1.5' })).body.data).toMatchObject({
       durationHours: '1.50',
       amount: '225.00',

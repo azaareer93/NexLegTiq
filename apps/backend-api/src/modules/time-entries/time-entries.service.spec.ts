@@ -109,7 +109,7 @@ describe('time entries (D-152)', () => {
     expect(db.timeEntry.findMany.mock.calls[1]?.[0].where.AND[1]).toEqual({});
   });
 
-  it('should hide rates from readers without invoice rights and narrow others to their own entries', async () => {
+  it('should hide rates from readers without invoice rights, and show them every entry of the files they see (D-182)', async () => {
     const { entries, db } = setup();
     const page = await entries.list({
       page: 1,
@@ -121,7 +121,6 @@ describe('time entries (D-152)', () => {
     expect(page.items[0]).toMatchObject({ hourlyRate: null, amount: null, durationHours: '1.25' });
     expect(db.timeEntry.findMany.mock.calls[0]?.[0].where.AND[0]).toEqual({
       file: { visible: true },
-      userId: ID(7),
     });
     expect(db.timeEntry.findMany.mock.calls[0]?.[0].where.AND[1]).toMatchObject({
       isBillable: true,

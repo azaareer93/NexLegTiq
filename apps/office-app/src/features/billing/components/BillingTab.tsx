@@ -213,16 +213,10 @@ export function BillingTab({
   const mayLog = useCan('log:time');
   const allInvoices = useCan('view:all:invoices');
   const assignedInvoices = useCan('view:assigned:invoices');
-  const readsAll = useCan('view:all:cases');
   const totals = useTimeTotals(fileId);
   return (
     <Flex vertical gap={16} data-testid="billing-tab">
       {totals.data ? <Totals totals={totals.data} /> : null}
-      {totals.data && !readsAll ? (
-        <Typography.Text type="secondary" data-testid="totals-hint">
-          {t('billing.totals.hint')}
-        </Typography.Text>
-      ) : null}
       {allInvoices || assignedInvoices ? (
         <>
           <RetainerCard fileId={fileId} archived={archived} />
