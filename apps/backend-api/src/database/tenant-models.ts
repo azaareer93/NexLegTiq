@@ -55,6 +55,7 @@ export const TENANT_MODELS = [
   'AiFeedback',
   'Witness',
   'WitnessStatement',
+  'OfficeExport',
 ] as const satisfies readonly Prisma.ModelName[];
 
 export type TenantModel = (typeof TENANT_MODELS)[number];

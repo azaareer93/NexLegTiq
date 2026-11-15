@@ -14,6 +14,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { TENANT_MODELS } from '../../database/tenant-models';
 import type { PrismaClient } from '../../generated/prisma/client';
 import { bearerFor } from '../../modules/auth/auth.test-helper';
+import { OfficeExportBuilder } from '../../modules/data-export/office-export.builder';
 import { InvoiceOverdueSweep } from '../../modules/invoices/invoice-overdue.sweep';
 import { InvoicePdfRenderer } from '../../modules/invoices/pdf/invoice-pdf.renderer';
 import { ReceiptPdfRenderer } from '../../modules/platform-payments/receipt-pdf.renderer';
@@ -71,6 +72,7 @@ describe('audit log (HTTP + PostgreSQL)', () => {
         InvoiceOverdueSweep,
         InvoicePdfRenderer,
         ReceiptPdfRenderer,
+        OfficeExportBuilder,
       ],
     })
       .overrideProvider(ThrottlerGuard)

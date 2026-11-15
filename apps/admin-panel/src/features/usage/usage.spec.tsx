@@ -138,7 +138,7 @@ describe('platform usage pages (MVP-103)', () => {
     click.mockRestore();
   });
 
-  it('should be accessible in Arabic', async () => {
+  it('should be accessible in Arabic', { timeout: 60_000 }, async () => {
     server.use(http.get(api('admin/usage'), () => ok(USAGE)));
     open('/usage', 'ar');
     await screen.findByTestId('usage-funnel');

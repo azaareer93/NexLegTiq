@@ -420,6 +420,7 @@ model Office {
   tasks                  Task[]
   timeEntries            TimeEntry[]
   retainerEntries        RetainerEntry[]
+  officeExports          OfficeExport[]
   timeTimers             TimeTimer[]
   invoices               Invoice[]
   invoiceLineItems       InvoiceLineItem[]
@@ -532,6 +533,7 @@ model User {
   aiSummaries     AiSummary[]
   aiFeedbacks     AiFeedback[]
   retainerEntries RetainerEntry[]
+  officeExports   OfficeExport[]
 
   @@unique([id, officeId])
   @@index([officeId, role])
@@ -2092,4 +2094,36 @@ model ClientPasswordResetToken {
 
   @@index([clientUserId, createdAt])
   @@map("client_password_reset_tokens")
+}
+
+/// An export of the office's data (MVP-106, D-184): a ZIP built by the report worker, kept encrypted in storage and
+/// downloadable by the office manager through short links until it expires (7 days).
+model OfficeExport {
+  id            String             @id @default(uuid(7)) @db.Uuid
+  officeId      String             @map("office_id") @db.Uuid
+  requestedById String             @map("requested_by_id") @db.Uuid
+  status        OfficeExportStatus @default(QUEUED)
+  /// `{officeId}/exports/{id}.zip`, set when READY.
+  storageKey    String?            @map("storage_key")
+  sizeBytes     BigInt?            @map("size_bytes")
+  /// SHA-256 of the ZIP, hex.
+  checksum      String?
+  errorCode     String?            @map("error_code")
+  expiresAt     DateTime?          @map("expires_at") @db.Timestamptz(3)
+  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  completedAt   DateTime?          @map("completed_at") @db.Timestamptz(3)
+
+  office      Office @relation(fields: [officeId], references: [id])
+  requestedBy User   @relation(fields: [requestedById, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([id, officeId])
+  @@index([officeId, createdAt(sort: Desc)])
+  @@map("office_exports")
+}
+
+enum OfficeExportStatus {
+  QUEUED
+  RUNNING
+  READY
+  FAILED
 }

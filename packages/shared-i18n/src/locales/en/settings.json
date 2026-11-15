@@ -97,5 +97,20 @@
     "actions": "Actions",
     "deleteTitle": "Delete this template?",
     "deleteBody": "New cases will no longer get this task. Tasks already created stay."
+  },
+  "data": {
+    "title": "Data",
+    "hint": "Export everything the office holds: its cases, clients, documents, invoices and time as JSON and CSV files, in one ZIP. It is prepared in the background; we email you when it is ready, and it can be downloaded for 7 days.",
+    "request": "Export office data",
+    "requested": "The export is being prepared. We will email you when it is ready.",
+    "download": "Download",
+    "expired": "Expired",
+    "until": "Available until {{date}} · {{size}} MB",
+    "status": {
+      "QUEUED": "Waiting",
+      "RUNNING": "Being prepared",
+      "READY": "Ready",
+      "FAILED": "Failed"
+    }
   }
 }

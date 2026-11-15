@@ -44,6 +44,7 @@
   "BIZ-023": "A paid subscription cannot be put on trial. Extend its period instead.",
   "BIZ-024": "This payment is already voided.",
   "BIZ-025": "Too many entries to export at once. Narrow the dates or filters.",
+  "BIZ-026": "This export is not available: it is still being prepared, it failed or it has expired.",
   "DB-001": "Something went wrong while saving. Try again.",
   "EXT-001": "The email could not be sent. Try again later.",
   "EXT-002": "Text recognition is unavailable right now. Try again later.",

@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 
 import { useNotificationPreferences, useProfile } from '../api/use-profile';
 import { AvatarCard } from '../components/AvatarCard';
+import { MyDataCard } from '../components/MyDataCard';
 import { NotificationsCard } from '../components/NotificationsCard';
 import { PasswordCard } from '../components/PasswordCard';
 import { DisplayForm, PersonalForm } from '../components/ProfileForms';
@@ -44,6 +45,7 @@ export function ProfilePage(): React.JSX.Element {
         <PersonalForm profile={profile.data} />
         <DisplayForm profile={profile.data} />
         <PasswordCard />
+        <MyDataCard />
         <NotificationsCard preferences={preferences.data} />
       </>
     );
