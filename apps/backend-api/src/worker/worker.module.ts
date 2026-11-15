@@ -11,6 +11,7 @@ import { DatabaseModule } from '../database/database.module';
 import { AiModule } from '../modules/ai/ai.module';
 import { AiProcessor } from '../modules/ai/workers/ai.processor';
 import { DocumentSummarizer } from '../modules/ai-summaries/document-summarizer';
+import { SessionSummarizer } from '../modules/ai-summaries/session-summarizer';
 import { InvitationLinks } from '../modules/auth/invitation-links';
 import { PasswordResetLinks } from '../modules/auth/password-reset-links';
 import { VerificationLinks } from '../modules/auth/verification-links';
@@ -69,6 +70,7 @@ import { TimelineModule } from '../modules/timeline/timeline.module';
     TaskReminders,
     AiProcessor,
     DocumentSummarizer,
+    SessionSummarizer,
     OcrProcessor,
     DocumentScan,
     DocumentExtraction,

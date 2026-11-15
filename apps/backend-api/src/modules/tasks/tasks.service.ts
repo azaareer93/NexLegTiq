@@ -12,9 +12,10 @@ import type {
 import { ClsService } from 'nestjs-cls';
 
 import { assertAssignable, TaskAccessService } from './task-access.service';
+import { changes, dueRange, taskAuditRow, toDbDateOrNull } from './task-fields';
+import type { AuditChange } from './task-fields';
 import { assignedNotification } from './task-notifications';
 import { dateOnly, TasksRepository, toDbDate } from './tasks.repository';
-import { auditRow } from '../../common/audit/audit.service';
 import type { RequestContext } from '../../common/context/request-context';
 import {
   PermissionDeniedException,
@@ -41,18 +42,10 @@ const EDITABLE = {
   assignedToId: true,
 } satisfies Prisma.TaskSelect;
 
-type TaskRef = { readonly id: string; readonly fileId: string | null };
+/** Where an automatic task came from (D-156, D-179). */
+type TaskOrigin = { readonly type: 'AI_NEXT_STEP'; readonly id: string };
 
-/** `dueFrom`/`dueBefore` as a calendar-date range, both days included (D-155). */
-function dueRange({ dueFrom, dueBefore }: TaskQuery): Prisma.TaskWhereInput {
-  if (!dueFrom && !dueBefore) return {};
-  return {
-    dueDate: {
-      ...(dueFrom && { gte: toDbDate(dueFrom) }),
-      ...(dueBefore && { lte: toDbDate(dueBefore) }),
-    },
-  };
-}
+type TaskRef = { readonly id: string; readonly fileId: string | null };
 
 /** Tasks API (MVP-76, D-098). Access rules live in TaskAccessService. */
 @Injectable()
@@ -69,48 +62,83 @@ export class TasksService {
   ) {}
 
   async create(input: CreateTaskRequest, client: ClientInfo): Promise<Task> {
+    const [id] = await this.createAll([input], client);
+    return this.tasks.get(id ?? '');
+  }
+
+  /**
+   * Several tasks in one transaction, all or none (D-179: the next steps a user picked from an AI summary, with their
+   * source). Each follows the rules of a single create: file write access, `assign:task` for someone else, assignable.
+   */
+  async createAll(
+    inputs: readonly CreateTaskRequest[],
+    client: ClientInfo,
+    source?: TaskOrigin,
+  ): Promise<string[]> {
     const me = this.access.actorId();
+    for (const fileId of new Set(inputs.flatMap((i) => (i.fileId ? [i.fileId] : [])))) {
+      await this.files.assertFileAccess(fileId, 'write');
+    }
+    if (inputs.some((i) => (i.assignedToId ?? me) !== me)) this.assertHolds('assign:task');
+    return this.uow.run(async (tx, afterCommit) => {
+      const ids: string[] = [];
+      for (const input of inputs) {
+        ids.push(await this.insert(tx, afterCommit, input, client, me, source));
+      }
+      return ids;
+    });
+  }
+
+  private async insert(
+    tx: ScopedTransaction,
+    afterCommit: AfterCommit,
+    input: CreateTaskRequest,
+    client: ClientInfo,
+    me: string,
+    source?: TaskOrigin,
+  ): Promise<string> {
     const fileId = input.fileId ?? null;
-    if (fileId) await this.files.assertFileAccess(fileId, 'write');
     const assignedToId = input.assignedToId ?? me;
-    if (assignedToId !== me) this.assertHolds('assign:task');
-    const id = await this.uow.run(async (tx, afterCommit) => {
-      await assertAssignable(tx, assignedToId, fileId);
-      const { _max } = await tx.task.aggregate({
-        where: { status: 'TODO' },
-        _max: { sortOrder: true },
-      });
-      const task = await tx.task.create({
-        data: {
-          officeId: this.officeId(),
-          fileId,
-          title: input.title,
-          description: input.description || null,
-          dueDate: input.dueDate ? toDbDate(input.dueDate) : null,
-          priority: input.priority,
-          assignedToId,
-          createdById: me,
-          // ponytail: last in the office's TODO column; concurrent creates may share a position (ties order by due
-          // date). A per-column counter if that ever shows.
-          sortOrder: (_max.sortOrder ?? -1) + 1,
-        },
-        select: { id: true },
-      });
-      await tx.auditLog.create({
-        data: this.audit(client, task.id, 'CREATE', null, {
-          title: input.title,
-          fileId,
-          assignedToId,
-        }),
-      });
-      await this.notifyAssigned(tx, afterCommit, assignedToId, {
-        id: task.id,
+    await assertAssignable(tx, assignedToId, fileId);
+    const { _max } = await tx.task.aggregate({
+      where: { status: 'TODO' },
+      _max: { sortOrder: true },
+    });
+    const task = await tx.task.create({
+      data: {
+        officeId: this.officeId(),
         fileId,
         title: input.title,
-      });
-      return task.id;
+        description: input.description || null,
+        dueDate: input.dueDate ? toDbDate(input.dueDate) : null,
+        priority: input.priority,
+        assignedToId,
+        createdById: me,
+        ...(source ? { sourceType: source.type, sourceId: source.id } : {}),
+        // shortcut: last in the TODO column; concurrent creates may share a position, a per-column counter if it shows.
+        sortOrder: (_max.sortOrder ?? -1) + 1,
+      },
+      select: { id: true },
     });
-    return this.tasks.get(id);
+    await tx.auditLog.create({
+      data: this.audit(client, task.id, 'CREATE', null, {
+        title: input.title,
+        fileId,
+        assignedToId,
+        ...(source ? { sourceType: source.type, sourceId: source.id } : {}),
+      }),
+    });
+    await this.notifyAssigned(tx, afterCommit, assignedToId, {
+      id: task.id,
+      fileId,
+      title: input.title,
+    });
+    return task.id;
+  }
+
+  /** Tasks this request just created (D-179): one read, no second access check. */
+  getCreated(ids: readonly string[]): Promise<Task[]> {
+    return this.tasks.getMany(ids);
   }
 
   async list(query: TaskQuery): Promise<PaginatedResult<Task>> {
@@ -293,25 +321,8 @@ export class TasksService {
     }
   }
 
-  private audit(
-    client: ClientInfo,
-    entityId: string,
-    action: 'CREATE' | 'UPDATE' | 'DELETE',
-    oldValues: object | null,
-    newValues: object | null,
-  ) {
-    return auditRow(
-      {
-        officeId: this.officeId(),
-        userId: this.access.actorId(),
-        entityType: 'Task',
-        entityId,
-        action,
-        oldValues,
-        newValues,
-      },
-      client,
-    );
+  private audit(client: ClientInfo, entityId: string, ...change: AuditChange) {
+    return taskAuditRow(this.officeId(), this.access.actorId(), client, entityId, ...change);
   }
 
   private officeId(): string {
@@ -320,19 +331,3 @@ export class TasksService {
     return officeId;
   }
 }
-
-/** The fields of `wanted` whose value differs from `current` (both plain values: dates as `YYYY-MM-DD`). */
-function changes(current: Record<string, unknown>, wanted: Record<string, unknown>) {
-  const old: Record<string, unknown> = {};
-  const next: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(wanted)) {
-    if (value !== undefined && current[key] !== value) {
-      old[key] = current[key];
-      next[key] = value;
-    }
-  }
-  return { old, next };
-}
-
-const toDbDateOrNull = (value: unknown): Date | null =>
-  typeof value === 'string' ? toDbDate(value) : null;

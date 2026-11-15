@@ -46,7 +46,7 @@ configs: `pnpm lint:root` (CI).
 
 Style: AAA, `describe(Service) › describe(method) › it('should … when …')`. Factories in `test/factories` (fishery), seeded
 tenants A and B in every integration suite. No sleeping — await queues via test helpers (`drainQueue('ocr')`).
-Test data seed `prisma/seed.ts` (reference data: PS/JO/EG courts, folders, task templates) + `seed-demo.ts` (demo office, users per role,
+Test data seed `prisma/seed.ts` (reference data: PS/JO/EG courts, folders, task templates) + `seed-demo.ts` (demo office, users per role, D-175; `demo-reset` rebuilds it;
 bilingual sample cases) — demo seed never runs in prod.
 
 ## Definition of Done (every ticket)

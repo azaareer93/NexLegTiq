@@ -60,8 +60,7 @@
     "title": "Outcome and minutes",
     "save": "Record outcome",
     "notStarted": "The outcome can be recorded once the hearing has started.",
-    "aiSummary": "Summarise with AI",
-    "aiSoon": "Available with the AI features."
+    "aiSummary": "Summarise with AI"
   },
   "reminders": {
     "title": "Reminders",
@@ -72,5 +71,19 @@
   "scheduled": "Hearing scheduled.",
   "cancelled": "Hearing cancelled.",
   "separator": " · ",
-  "listSeparator": ", "
+  "listSeparator": ", ",
+  "ai": {
+    "title": "AI summary",
+    "offer": "These minutes are long. Summarise them and get suggested next steps?",
+    "pending": "Preparing the summary of the minutes…",
+    "risk": "Risk:",
+    "nextSteps": "Suggested next steps",
+    "noSteps": "No next steps were suggested.",
+    "dueIn_one": "within 1 day",
+    "dueIn_other": "within {{count}} days",
+    "createTasks": "Create selected tasks",
+    "created": "Task created",
+    "tasksCreated_one": "1 task created.",
+    "tasksCreated_other": "{{count}} tasks created."
+  }
 }
