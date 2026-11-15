@@ -60,8 +60,7 @@
     "title": "النتيجة والمحضر",
     "save": "تسجيل النتيجة",
     "notStarted": "تُسجَّل النتيجة بعد بدء الجلسة.",
-    "aiSummary": "تلخيص بالذكاء الاصطناعي",
-    "aiSoon": "متاح مع ميزات الذكاء الاصطناعي."
+    "aiSummary": "تلخيص بالذكاء الاصطناعي"
   },
   "reminders": {
     "title": "التذكيرات",
@@ -76,5 +75,27 @@
   "scheduled": "حُدّدت الجلسة.",
   "cancelled": "أُلغيت الجلسة.",
   "separator": " · ",
-  "listSeparator": "، "
+  "listSeparator": "، ",
+  "ai": {
+    "title": "ملخص بالذكاء الاصطناعي",
+    "offer": "هذا المحضر طويل. هل تريد تلخيصه والحصول على خطوات تالية مقترحة؟",
+    "pending": "جارٍ إعداد ملخص المحضر…",
+    "risk": "تقدير المخاطر:",
+    "nextSteps": "الخطوات التالية المقترحة",
+    "noSteps": "لم تُقترح خطوات تالية.",
+    "dueIn_zero": "خلال {{count}} يوم",
+    "dueIn_one": "خلال يوم واحد",
+    "dueIn_two": "خلال يومين",
+    "dueIn_few": "خلال {{count}} أيام",
+    "dueIn_many": "خلال {{count}} يومًا",
+    "dueIn_other": "خلال {{count}} يوم",
+    "createTasks": "إنشاء المهام المحددة",
+    "created": "أُنشئت المهمة",
+    "tasksCreated_zero": "لم تُنشأ أي مهمة.",
+    "tasksCreated_one": "أُنشئت مهمة واحدة.",
+    "tasksCreated_two": "أُنشئت مهمتان.",
+    "tasksCreated_few": "أُنشئت {{count}} مهام.",
+    "tasksCreated_many": "أُنشئت {{count}} مهمة.",
+    "tasksCreated_other": "أُنشئت {{count}} مهمة."
+  }
 }
