@@ -1,14 +1,18 @@
-import { Body, Controller, Delete, Get, Patch, Post, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Patch, Post, Put, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import {
   NotificationPreferencesSchema,
+  OnboardingAnswerSchema,
+  OnboardingStateSchema,
   ProfileSchema,
   UpdateNotificationPreferencesSchema,
   UpdateProfileSchema,
 } from '@nexlegtiq/shared-contracts';
 import type {
   NotificationPreferences,
+  OnboardingAnswer,
+  OnboardingState,
   Profile,
   UpdateNotificationPreferencesRequest,
   UpdateProfileRequest,
@@ -79,6 +83,26 @@ export class ProfileController {
   @ApiZodResponse(200, ProfileSchema)
   removeAvatar(): Promise<Profile> {
     return this.profile.removeAvatar();
+  }
+
+  @Get('users/me/onboarding')
+  @ApiOperation({ summary: 'Your setup wizard progress (null when it was never offered; D-181)' })
+  @ApiZodResponse(200, OnboardingAnswerSchema)
+  onboarding(): Promise<OnboardingAnswer> {
+    return this.profile.onboarding();
+  }
+
+  @AllowWhenReadOnly()
+  @Put('users/me/onboarding')
+  @ApiOperation({
+    summary: 'Save your setup wizard progress: step, steps done, active/dismissed/completed',
+  })
+  @ApiZodBody(OnboardingStateSchema)
+  @ApiZodResponse(200, OnboardingAnswerSchema)
+  saveOnboarding(
+    @Body(new ZodValidationPipe(OnboardingStateSchema)) body: OnboardingState,
+  ): Promise<OnboardingAnswer> {
+    return this.profile.saveOnboarding(body);
   }
 
   @Get('notifications/preferences')

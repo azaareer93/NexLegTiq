@@ -4,6 +4,7 @@ export * from './admin-offices.contract.js';
 export * from './admin-payments.contract.js';
 export * from './admin-plans.contract.js';
 export * from './ai.contract.js';
+export * from './onboarding.contract.js';
 export * from './auth.contract.js';
 export * from './case.contract.js';
 export * from './client-portal.contract.js';
