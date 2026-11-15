@@ -113,7 +113,12 @@ export class SignupRepository {
           role: 'OFFICE_MANAGER',
           uiLanguage: input.uiLanguage,
           // The new manager is offered the setup wizard, the account step already done (D-181).
-          onboardingState: { status: 'ACTIVE', step: 'OFFICE', done: ['ACCOUNT'] },
+          // A firm invites its team first (D-181).
+          onboardingState: {
+            status: 'ACTIVE',
+            step: body.accountType === 'FIRM' ? 'INVITE' : 'OFFICE',
+            done: ['ACCOUNT'],
+          },
           // Same clock as the link expiry: the 7-day deadline and the link end together.
           createdAt: now,
         },

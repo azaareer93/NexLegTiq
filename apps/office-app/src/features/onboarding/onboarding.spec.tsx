@@ -94,9 +94,16 @@ describe('onboarding wizard (MVP-108)', () => {
         (await screen.findByTestId('onboarding-progress', {}, { timeout: COLD })).textContent,
       ).toBe('Step 2 of 8');
       expect(screen.getByTestId('onboarding-step-title').textContent).toBe('Office setup');
+      // An office change not saved yet holds Next back.
+      fireEvent.mouseDown((await screen.findByTestId('onboarding-currency')) as HTMLElement);
+      fireEvent.change(screen.getByTestId('onboarding-currency'), { target: { value: 'JOD' } });
+      expect(screen.getByTestId('onboarding-next').closest('button')?.disabled).toBe(true);
       fireEvent.click(await screen.findByTestId('onboarding-office-save'));
       await waitFor(() => expect(calls.patched).toHaveLength(1));
-      expect(calls.patched[0]).toMatchObject({ jurisdiction: 'PALESTINE', currency: 'ILS' });
+      expect(calls.patched[0]).toMatchObject({ jurisdiction: 'PALESTINE', currency: 'JOD' });
+      await waitFor(() =>
+        expect(screen.getByTestId('onboarding-next').closest('button')?.disabled).toBe(false),
+      );
       fireEvent.click(screen.getByTestId('onboarding-next'));
       await waitFor(() =>
         expect(calls.saved.at(-1)).toEqual({

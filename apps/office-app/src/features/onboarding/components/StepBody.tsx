@@ -8,7 +8,7 @@ import type { OnboardingStep } from '@nexlegtiq/shared-types';
 import { Button, Card, Flex, List, Result, Typography } from 'antd';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router';
+import { useNavigate } from 'react-router';
 
 import { CasePicker } from './CasePicker';
 import { OfficeStep } from './OfficeStep';
@@ -58,7 +58,7 @@ function HearingForm({ fileId }: { readonly fileId: string }) {
   const [added, setAdded] = useState(false);
   if (!file.data) return null;
   if (added) return <Result status="success" title={t('onboarding.HEARING.added')} />;
-  return <CreateSessionForm key={fileId} file={file.data} onDone={() => setAdded(true)} />;
+  return <CreateSessionForm file={file.data} onDone={() => setAdded(true)} />;
 }
 
 function DocumentUpload({ fileId }: { readonly fileId: string }) {
@@ -92,7 +92,7 @@ function OnCase({ step }: { readonly step: 'HEARING' | 'DOCUMENT' }) {
     <Flex vertical gap={12}>
       <Hint step={step} />
       <CasePicker value={fileId} onChange={setFileId} testId={`onboarding-case-${step}`} />
-      {fileId && step === 'HEARING' ? <HearingForm fileId={fileId} /> : null}
+      {fileId && step === 'HEARING' ? <HearingForm key={fileId} fileId={fileId} /> : null}
       {fileId && step === 'DOCUMENT' ? <DocumentUpload fileId={fileId} /> : null}
     </Flex>
   );
@@ -106,6 +106,7 @@ function Done({
   readonly done: readonly OnboardingStep[];
 }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   return (
     <Flex vertical gap={16}>
       <List
@@ -131,9 +132,9 @@ function Done({
       <Typography.Text strong>{t('onboarding.DONE.next')}</Typography.Text>
       <Flex gap={8} wrap>
         {NEXT_LINKS.map((l) => (
-          <Link key={l.key} to={l.to}>
-            <Button>{t(`onboarding.DONE.links.${l.key}`)}</Button>
-          </Link>
+          <Button key={l.key} onClick={() => void navigate(l.to)}>
+            {t(`onboarding.DONE.links.${l.key}`)}
+          </Button>
         ))}
       </Flex>
     </Flex>
@@ -145,10 +146,12 @@ export function StepBody({
   step,
   steps,
   done,
+  onUnsaved,
 }: {
   readonly step: OnboardingStep;
   readonly steps: readonly OnboardingStep[];
   readonly done: readonly OnboardingStep[];
+  readonly onUnsaved: (unsaved: boolean) => void;
 }) {
   const { t } = useTranslation();
   switch (step) {
@@ -164,7 +167,7 @@ export function StepBody({
       return (
         <>
           <Hint step="OFFICE" />
-          <OfficeStep />
+          <OfficeStep onUnsaved={onUnsaved} />
         </>
       );
     case 'INVITE':

@@ -16,7 +16,7 @@ interface Values {
 }
 
 /** Office setup: jurisdiction (Palestine by default), language, currency and time zone, saved to the office (D-125). */
-export function OfficeStep() {
+export function OfficeStep({ onUnsaved }: { readonly onUnsaved: (unsaved: boolean) => void }) {
   const { t } = useTranslation();
   const { message } = App.useApp();
   const { translateKey } = useApiErrorHandler();
@@ -30,6 +30,7 @@ export function OfficeStep() {
     const parsed = parseForm(UpdateOfficeProfileSchema, v, form, translateKey);
     if (!parsed) return;
     await update.mutateAsync(parsed);
+    onUnsaved(false);
     void message.success(t('onboarding.office.saved'));
   };
   return (
@@ -38,6 +39,7 @@ export function OfficeStep() {
       layout="vertical"
       noValidate
       initialValues={{ jurisdiction, defaultLanguage, currency, timezone }}
+      onValuesChange={() => onUnsaved(true)}
       style={{ maxInlineSize: 420 }}
     >
       <Form.Item name="jurisdiction" label={t('onboarding.office.jurisdiction')}>

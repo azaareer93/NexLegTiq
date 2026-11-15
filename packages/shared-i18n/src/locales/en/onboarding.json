@@ -72,12 +72,13 @@
   "DONE": {
     "finished": "Done",
     "skipped": "Skipped",
-    "next": "Where to next",
+    "next": "Next steps",
     "links": {
       "cases": "Cases",
       "calendar": "Calendar",
       "team": "Team",
       "settings": "Settings"
     }
-  }
+  },
+  "unsaved": "Save the office setup, or skip this step."
 }

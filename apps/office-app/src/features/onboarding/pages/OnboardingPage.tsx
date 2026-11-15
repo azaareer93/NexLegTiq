@@ -2,7 +2,7 @@ import type { OnboardingState } from '@nexlegtiq/shared-contracts';
 import type { OnboardingStep } from '@nexlegtiq/shared-types';
 import { ApiErrorAlert, LoadingSkeleton, PageHeader } from '@nexlegtiq/shared-ui';
 import { Button, Card, Flex, Progress, Typography } from 'antd';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 
@@ -11,6 +11,51 @@ import { advance, stepsFor, useOnboarding, useSaveOnboarding } from '../api/use-
 import { StepBody } from '../components/StepBody';
 
 const FRESH: OnboardingState = { status: 'ACTIVE', step: 'ACCOUNT', done: [] };
+
+/** Back, Skip and Next; nothing else is clickable while a save is on its way (saves never overlap). */
+function Footer({
+  first,
+  last,
+  pending,
+  unsaved,
+  onBack,
+  onSkip,
+  onNext,
+}: {
+  readonly first: boolean;
+  readonly last: boolean;
+  readonly pending: boolean;
+  readonly unsaved: boolean;
+  readonly onBack: () => void;
+  readonly onSkip: () => void;
+  readonly onNext: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <Flex gap={8} justify="space-between" wrap>
+      <Button disabled={first || pending} onClick={onBack} data-testid="onboarding-back">
+        {t('onboarding.back')}
+      </Button>
+      <Flex gap={8}>
+        {last ? null : (
+          <Button disabled={pending} onClick={onSkip} data-testid="onboarding-skip">
+            {t('onboarding.skip')}
+          </Button>
+        )}
+        <Button
+          type="primary"
+          loading={pending}
+          // Office changes not saved yet would be marked done without being kept.
+          disabled={unsaved}
+          onClick={onNext}
+          data-testid="onboarding-next"
+        >
+          {last ? t('onboarding.finish') : t('onboarding.next')}
+        </Button>
+      </Flex>
+    </Flex>
+  );
+}
 
 /**
  * `/onboarding` (MVP-108, D-181): the setup wizard, "Step n of N" with back, skip and next. Progress lives on the server,
@@ -25,6 +70,7 @@ export function OnboardingPage() {
   const loaded = onboarding.data;
   const state: OnboardingState = loaded?.state ?? FRESH;
   // Reopened after a dismissal or the end, or never offered: active again, once per visit.
+  const [unsaved, setUnsaved] = useState(false);
   const reopened = useRef(false);
   const { mutate } = save;
   useEffect(() => {
@@ -63,7 +109,12 @@ export function OnboardingPage() {
       <PageHeader
         title={t('onboarding.title')}
         extra={
-          <Button type="link" onClick={dismiss} data-testid="onboarding-dismiss">
+          <Button
+            type="link"
+            disabled={save.isPending}
+            onClick={dismiss}
+            data-testid="onboarding-dismiss"
+          >
             {t('onboarding.dismiss')}
           </Button>
         }
@@ -83,32 +134,25 @@ export function OnboardingPage() {
           <Typography.Title level={2} style={{ margin: 0 }} data-testid="onboarding-step-title">
             {t(`onboarding.steps.${step}`)}
           </Typography.Title>
-          <StepBody step={step} steps={steps} done={state.done} />
+          <StepBody step={step} steps={steps} done={state.done} onUnsaved={setUnsaved} />
+          {unsaved ? (
+            <Typography.Text type="warning" data-testid="onboarding-unsaved">
+              {t('onboarding.unsaved')}
+            </Typography.Text>
+          ) : null}
           {save.isError ? <ApiErrorAlert error={save.error} /> : null}
-          <Flex gap={8} justify="space-between" wrap>
-            <Button
-              disabled={index === 0}
-              onClick={() => go(index - 1, false)}
-              data-testid="onboarding-back"
-            >
-              {t('onboarding.back')}
-            </Button>
-            <Flex gap={8}>
-              {last ? null : (
-                <Button onClick={() => go(index + 1, false)} data-testid="onboarding-skip">
-                  {t('onboarding.skip')}
-                </Button>
-              )}
-              <Button
-                type="primary"
-                loading={save.isPending}
-                onClick={() => (last ? finish() : go(index + 1, true))}
-                data-testid="onboarding-next"
-              >
-                {last ? t('onboarding.finish') : t('onboarding.next')}
-              </Button>
-            </Flex>
-          </Flex>
+          <Footer
+            first={index === 0}
+            last={last}
+            pending={save.isPending}
+            unsaved={unsaved}
+            onBack={() => go(index - 1, false)}
+            onSkip={() => {
+              setUnsaved(false);
+              go(index + 1, false);
+            }}
+            onNext={() => (last ? finish() : go(index + 1, true))}
+          />
         </Flex>
       </Card>
     </section>

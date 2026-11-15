@@ -89,8 +89,15 @@ describe('profile and notification preferences (HTTP + PostgreSQL)', () => {
     const saved = await http().put('/api/v1/users/me/onboarding').set(as(me)).send(state);
     expect([saved.status, saved.body.data]).toEqual([200, { state }]);
     expect((await read(me)).body.data).toEqual({ state });
-    // Another user of the office keeps their own (none).
+    // Another user of the office keeps their own (none), and so does a user of another office.
     expect((await read(colleague)).body.data).toEqual({ state: null });
+    const outsider = await seed('OFFICE_MANAGER');
+    expect((await read(outsider)).body.data).toEqual({ state: null });
+    await http()
+      .put('/api/v1/users/me/onboarding')
+      .set(as(outsider))
+      .send({ status: 'DISMISSED', step: 'ACCOUNT', done: [] });
+    expect((await read(me)).body.data).toEqual({ state });
     const bad = await http()
       .put('/api/v1/users/me/onboarding')
       .set(as(me))
