@@ -23,6 +23,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 
 import { AiTab } from '../../ai';
+import { FileAuditTab } from '../../audit';
 import { useSession } from '../../auth';
 import { BillingTab } from '../../billing';
 import { NotFoundPage } from '../../shell/components/status-pages';
@@ -187,30 +188,29 @@ function FileView({
     if (key === 'details') {
       return <CaseDetailsTab file={file} actions={actions} onOpenHearing={setHearing} />;
     }
-    if (key === 'documents') return <DocumentsTab fileId={file.id} archived={archived} />;
-    if (key === 'tasks') return <TasksView scope={{ fileId: file.id }} readOnly={archived} />;
-    if (key === 'parties') return <PartiesTab fileId={file.id} canEdit={actions.edit} />;
-    if (key === 'sessions') {
-      return <SessionsTab fileId={file.id} canCreate={sessionRights.create} onOpen={setHearing} />;
-    }
-    if (key === 'timeline') {
-      return <TimelineTab fileId={file.id} onOpenHearing={setHearing} onOpenTab={selectTab} />;
-    }
-    if (key === 'billing') {
-      return <BillingTab fileId={file.id} archived={archived} clients={file.clients} />;
-    }
-    if (key === 'notes') {
-      return (
+    const tabs: Partial<Record<string, () => React.ReactNode>> = {
+      documents: () => <DocumentsTab fileId={file.id} archived={archived} />,
+      tasks: () => <TasksView scope={{ fileId: file.id }} readOnly={archived} />,
+      parties: () => <PartiesTab fileId={file.id} canEdit={actions.edit} />,
+      sessions: () => (
+        <SessionsTab fileId={file.id} canCreate={sessionRights.create} onOpen={setHearing} />
+      ),
+      timeline: () => (
+        <TimelineTab fileId={file.id} onOpenHearing={setHearing} onOpenTab={selectTab} />
+      ),
+      billing: () => <BillingTab fileId={file.id} archived={archived} clients={file.clients} />,
+      notes: () => (
         <NotesTab
           subject={{ fileId: file.id }}
           canWrite={actions.edit}
           canConfidential={canWriteConfidentialNotes(file, user)}
           readOnly={archived}
         />
-      );
-    }
-    if (key === 'ai') return <AiTab file={file} user={user} canWriteNotes={actions.edit} />;
-    return <ComingSoonTab />;
+      ),
+      ai: () => <AiTab file={file} user={user} canWriteNotes={actions.edit} />,
+      audit: () => <FileAuditTab fileId={file.id} />,
+    };
+    return tabs[key]?.() ?? <ComingSoonTab />;
   };
 
   const confirmDelete = () =>

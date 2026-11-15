@@ -1,0 +1,50 @@
+{
+  "title": "Audit log",
+  "fileTitle": "Audit of this case",
+  "empty": "No audit entries match.",
+  "loadMore": "Show older entries",
+  "export": "Export CSV",
+  "changed_one": "1 field:",
+  "changed_other": "{{count}} fields:",
+  "columns": {
+    "time": "Time",
+    "actor": "By",
+    "action": "Action",
+    "entity": "Item",
+    "changes": "Changes"
+  },
+  "filters": {
+    "action": "Action",
+    "user": "User",
+    "entity": "Item type",
+    "from": "From",
+    "to": "To"
+  },
+  "actor": {
+    "USER": "A user",
+    "PLATFORM_ADMIN": "NexLegTiq support",
+    "CLIENT": "Client (portal)",
+    "SYSTEM": "System"
+  },
+  "entity": {
+    "LegalFile": "Case",
+    "Document": "Document",
+    "Task": "Task",
+    "Session": "Hearing",
+    "Client": "Client",
+    "Invoice": "Invoice",
+    "User": "User",
+    "Party": "Party",
+    "TimeEntry": "Time entry",
+    "AuditLog": "Audit log",
+    "Office": "Office",
+    "FileNote": "Note",
+    "FileClient": "Case client",
+    "FileTeamMember": "Case team",
+    "Witness": "Witness",
+    "WitnessStatement": "Testimony",
+    "RetainerEntry": "Retainer"
+  },
+  "settingsLink": "Open the audit log",
+  "settingsHint": "Who did what in the office, with filters and a CSV export."
+}
