@@ -5,7 +5,11 @@ import { Button, Card, Descriptions, Flex, Table, Tag } from 'antd';
 import type { TableColumnsType } from 'antd';
 import { useTranslation } from 'react-i18next';
 
+import { useSession } from '../../auth';
 import { PAGE_SIZE } from '../api/use-billing';
+
+/** Each person changes their own entries; the office manager and senior lawyers anyone's (D-182). */
+const CHANGES_ALL = new Set(['OFFICE_MANAGER', 'SENIOR_LAWYER']);
 
 const DASH = '—';
 
@@ -66,6 +70,9 @@ export function EntriesTable({
 }: Props) {
   const { t } = useTranslation();
   const format = useFormat();
+  const me = useSession((state) => state.user);
+  const mayChange = (row: TimeEntry) =>
+    !row.invoiced && (row.user.id === me?.id || CHANGES_ALL.has(me?.role ?? ''));
   const money = (value: string | null, currency: string) =>
     value === null ? DASH : <Bdi>{format.money(value, currency)}</Bdi>;
   const columns: TableColumnsType<TimeEntry> = [
@@ -123,7 +130,7 @@ export function EntriesTable({
       title: t('billing.columns.actions'),
       hidden: !canLog,
       render: (_, row) =>
-        row.invoiced ? null : (
+        !mayChange(row) ? null : (
           <Flex gap={4}>
             <Button
               size="small"
