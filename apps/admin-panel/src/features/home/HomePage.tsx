@@ -13,7 +13,7 @@ export function HomePage(): React.JSX.Element {
     <Layout style={{ minBlockSize: '100vh' }}>
       <Layout.Header style={{ background: 'transparent', paddingInline: 24 }}>
         <Flex justify="space-between" align="center" style={{ blockSize: '100%' }}>
-          <Flex gap={24} align="center">
+          <Flex gap={24} align="center" wrap>
             <Typography.Text strong style={{ fontSize: 18 }}>
               {APP_NAME}
             </Typography.Text>
@@ -22,6 +22,15 @@ export function HomePage(): React.JSX.Element {
             </Link>
             <Link to="/plans" data-testid="nav-plans">
               {t('admin.plans.title')}
+            </Link>
+            <Link to="/usage" data-testid="nav-usage">
+              {t('admin.usage.title')}
+            </Link>
+            <Link to="/queues" data-testid="nav-queues">
+              {t('admin.queues.title')}
+            </Link>
+            <Link to="/audit" data-testid="nav-audit">
+              {t('admin.audit.title')}
             </Link>
           </Flex>
           <Flex gap={12} align="center">

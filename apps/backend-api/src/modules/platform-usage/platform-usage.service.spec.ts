@@ -53,7 +53,7 @@ function setup({
   const counts = { waiting: 1, active: 0, delayed: 2, failed: 3 };
   const moduleRef = {
     get: jest.fn((token: string) => ({
-      getJobCounts: String(token).includes(QUEUE_NAMES[0])
+      getJobCounts: String(token).includes(QUEUE_NAMES[0] ?? '-')
         ? jest.fn().mockRejectedValue(new Error('redis down'))
         : jest.fn().mockResolvedValue(counts),
     })),
