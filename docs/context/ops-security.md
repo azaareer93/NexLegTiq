@@ -43,7 +43,7 @@
   (`docker compose pull && up -d`) → `prisma migrate deploy` (migrator role) as a one-off job → smoke tests `/health/ready` → Sentry release.
   Staging is built (D-103): `apps/backend-api/Dockerfile`, `infra/staging/`, `.github/workflows/deploy-staging.yml`,
   runbook `docs/runbooks/deploy.md`.
-- SPAs → Cloudflare Pages (preview per PR). Env: `VITE_API_URL`, `VITE_WS_URL`, `VITE_SENTRY_DSN`, feature flags.
+- SPAs → Cloudflare Pages (preview per PR). Env: `VITE_API_URL`, `VITE_WS_URL`, `VITE_SENTRY_DSN`, feature flags; office app also `VITE_SUPPORT_EMAIL`, `VITE_SUPPORT_WHATSAPP` (Help Center contact, D-185).
 - Migrations: expand/contract for zero downtime; backup before prod migrate (a provider snapshot, taken by hand until the release pipeline story automates it — D-141); rollback = restore + previous image.
 
 ## Backups & DR (right-sized)

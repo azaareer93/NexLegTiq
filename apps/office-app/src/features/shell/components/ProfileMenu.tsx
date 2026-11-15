@@ -1,4 +1,10 @@
-import { GlobalOutlined, LogoutOutlined, RocketOutlined, UserOutlined } from '@ant-design/icons';
+import {
+  GlobalOutlined,
+  LogoutOutlined,
+  QuestionCircleOutlined,
+  RocketOutlined,
+  UserOutlined,
+} from '@ant-design/icons';
 import {
   Bdi,
   DirectionalIcon,
@@ -88,6 +94,12 @@ export function ProfileMenu({
           },
         ]
       : []),
+    {
+      key: 'help',
+      icon: <QuestionCircleOutlined />,
+      label: t('shell.profile.help'),
+      'data-testid': 'menu-help',
+    },
     { type: 'divider' },
     // The sign-out arrow points out of the page, so it follows the reading direction.
     {
@@ -101,6 +113,7 @@ export function ProfileMenu({
 
   const onClick: MenuProps['onClick'] = ({ key }) => {
     if (key === 'profile') void navigate('/profile');
+    else if (key === 'help') void navigate('/help');
     else if (key === 'onboarding') void navigate('/onboarding');
     else if (key === 'lang-ar') pick('ar');
     else if (key === 'lang-en') pick('en');
