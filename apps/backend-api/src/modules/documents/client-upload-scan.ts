@@ -16,9 +16,10 @@ export type ClientUploadScanOutcome = 'CLEAN' | 'QUARANTINED' | 'SKIPPED';
 /**
  * The malware scan of a client's portal upload (D-187), run by the `ocr` worker in the upload's office:
  * - clean → PENDING_REVIEW, and the file's responsible lawyer is told (CLIENT_UPLOAD);
- * - infected → QUARANTINED, the object deleted and a SECURITY audit row; the client sees the status, the office nothing;
+ * - infected → QUARANTINED, the object deleted and a SECURITY audit row; no notification (both sides see the status);
  * - an upload no longer SCANNING (a retry after the first run finished) changes nothing.
- * A scan that cannot finish throws (retried); after the last attempt the upload is FAILED — fail closed.
+ * A scan that cannot finish throws (retried); after the last attempt the upload is FAILED and its object deleted — fail
+ * closed, and the client can send it again.
  */
 @Injectable()
 export class ClientUploadScan {
@@ -75,12 +76,12 @@ export class ClientUploadScan {
       });
       return 'CLEAN';
     }
-    await this.uow.run(async (tx, afterCommit) => {
+    const quarantined = await this.uow.run(async (tx, afterCommit) => {
       const { count } = await tx.clientUpload.updateMany({
         where: scanning,
         data: { status: 'QUARANTINED' },
       });
-      if (count === 0) return;
+      if (count === 0) return false;
       await tx.auditLog.create({
         data: {
           officeId: this.officeId(),
@@ -91,16 +92,28 @@ export class ClientUploadScan {
         },
       });
       afterCommit(() => this.storage.delete(upload.storageKey), 'delete infected client upload');
+      return true;
     });
+    if (!quarantined) return 'SKIPPED';
     this.logger.warn({ uploadId: job.uploadId }, 'Malware found in a client upload');
     return 'QUARANTINED';
   }
 
   /** After the last failed attempt: never offered for review unscanned. */
   async markFailed(job: ClientUploadJob): Promise<void> {
-    await this.prisma.db.clientUpload.updateMany({
+    const upload = await this.prisma.db.clientUpload.findFirst({
       where: { id: job.uploadId, status: 'SCANNING' },
-      data: { status: 'FAILED' },
+      select: { storageKey: true },
+    });
+    if (!upload) return;
+    await this.uow.run(async (tx, afterCommit) => {
+      const { count } = await tx.clientUpload.updateMany({
+        where: { id: job.uploadId, status: 'SCANNING' },
+        data: { status: 'FAILED' },
+      });
+      if (count > 0) {
+        afterCommit(() => this.storage.delete(upload.storageKey), 'delete unscanned client upload');
+      }
     });
   }
 

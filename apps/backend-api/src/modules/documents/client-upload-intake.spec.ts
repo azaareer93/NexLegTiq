@@ -21,9 +21,10 @@ const STORED = {
   checksumSha256: 'a'.repeat(64),
 };
 
-function setup(pending: bigint | null = null) {
+function setup(pending: bigint | null = null, inTransaction = pending) {
   const after: (() => Promise<unknown>)[] = [];
   const tx = {
+    $queryRaw: jest.fn(),
     clientUpload: {
       create: jest.fn((args: { data: Record<string, unknown> }) => ({
         ...args.data,
@@ -35,6 +36,9 @@ function setup(pending: bigint | null = null) {
     },
     auditLog: { create: jest.fn() },
   };
+  Object.assign(tx.clientUpload, {
+    aggregate: jest.fn().mockResolvedValue({ _sum: { sizeBytes: inTransaction } }),
+  });
   const intake = {
     beforeStoring: jest.fn((_file: unknown, checks: () => Promise<unknown>) => checks()),
     store: jest.fn().mockResolvedValue(STORED),
@@ -81,6 +85,7 @@ describe('ClientUploadIntake (D-187)', () => {
       fileId: 'f1',
     });
     expect(intake.recheck).toHaveBeenCalledWith(tx, { fileId: 'f1' });
+    expect(tx.$queryRaw).toHaveBeenCalled();
     expect(tx.clientUpload.create.mock.calls[0]?.[0].data).toMatchObject({
       officeId: 'o1',
       ...TARGET,
@@ -104,7 +109,8 @@ describe('ClientUploadIntake (D-187)', () => {
     await expect(
       setup(MAX_PENDING_CLIENT_BYTES).service.receive({} as Request, TARGET, NO_CLIENT),
     ).rejects.toMatchObject({ code: 'BIZ-027' });
-    const { service, intake, tx } = setup(MAX_PENDING_CLIENT_BYTES - 5n);
+    // Room before storing, none once the lock shows another upload landed meanwhile.
+    const { service, intake, tx } = setup(null, MAX_PENDING_CLIENT_BYTES - 5n);
     await expect(service.receive({} as Request, TARGET, NO_CLIENT)).rejects.toMatchObject({
       code: 'BIZ-027',
     });

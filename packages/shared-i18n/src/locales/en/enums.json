@@ -60,8 +60,8 @@
     "PENDING_REVIEW": "Waiting for review",
     "ACCEPTED": "Accepted",
     "REJECTED": "Rejected",
-    "QUARANTINED": "Quarantined",
-    "FAILED": "Failed"
+    "QUARANTINED": "Blocked",
+    "FAILED": "Scan failed"
   },
   "courtType": {
     "CIVIL": "Civil",

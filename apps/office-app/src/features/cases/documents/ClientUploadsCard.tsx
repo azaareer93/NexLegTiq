@@ -1,7 +1,7 @@
 import type { ClientUpload, Folder } from '@nexlegtiq/shared-contracts';
 import { DOCUMENT_TYPES } from '@nexlegtiq/shared-types';
 import type { DocumentType } from '@nexlegtiq/shared-types';
-import { Bdi, StatusTag, useApiErrorHandler, useFormat } from '@nexlegtiq/shared-ui';
+import { Bdi, ErrorState, StatusTag, useApiErrorHandler, useFormat } from '@nexlegtiq/shared-ui';
 import { isolate } from '@nexlegtiq/shared-utils';
 import { App, Button, Card, Flex, Input, List, Modal, Select, Typography } from 'antd';
 import { useState } from 'react';
@@ -27,6 +27,8 @@ const TONE = {
 } as const satisfies Record<ClientUpload['status'], 'info' | 'warning' | 'success' | 'error'>;
 
 const REASON_MAX = 500;
+/** The server's limit on a document name (OriginalFilenameSchema). */
+const NAME_MAX = 255;
 
 function AcceptDialog({
   fileId,
@@ -101,6 +103,7 @@ function AcceptDialog({
         />
         <Input
           value={name}
+          maxLength={NAME_MAX}
           onChange={(event) => setName(event.target.value)}
           placeholder={t('documents.clientUploads.name')}
           aria-label={t('documents.clientUploads.name')}
@@ -184,6 +187,7 @@ export function ClientUploadsCard({
   const [dialog, setDialog] = useState<{ kind: 'accept' | 'reject'; upload: ClientUpload } | null>(
     null,
   );
+  if (list.isError && !list.data) return <ErrorState onRetry={() => void list.refetch()} />;
   const items = list.data ?? [];
   if (items.length === 0) return null;
   return (
@@ -204,7 +208,7 @@ export function ClientUploadsCard({
                     <Button
                       key="open"
                       size="small"
-                      loading={open.isPending}
+                      loading={open.isPending && open.variables === upload.id}
                       onClick={() =>
                         open.mutate(upload.id, {
                           onSuccess: (url) => openDownload(url),
@@ -240,7 +244,9 @@ export function ClientUploadsCard({
             <List.Item.Meta
               title={
                 <Flex gap="small" align="center" wrap>
-                  <Bdi>{upload.name}</Bdi>
+                  <Typography.Text style={{ overflowWrap: 'anywhere' }}>
+                    <Bdi>{upload.name}</Bdi>
+                  </Typography.Text>
                   <StatusTag tone={TONE[upload.status]}>
                     {t(`enums.clientUploadStatus.${upload.status}`)}
                   </StatusTag>
@@ -255,7 +261,7 @@ export function ClientUploadsCard({
                     {' · '}
                     <Bdi>{format.dateTime(upload.createdAt)}</Bdi>
                     {' · '}
-                    {size(Number(upload.sizeBytes))}
+                    <Bdi>{size(Number(upload.sizeBytes))}</Bdi>
                   </span>
                   {upload.status === 'REJECTED' && upload.rejectionReason ? (
                     <Typography.Text type="secondary">

@@ -38,8 +38,9 @@ function setup(upload: object | null, infected: boolean, updated = 1) {
       run: async (
         work: (t: typeof tx, a: (f: () => Promise<unknown>) => void) => Promise<void>,
       ) => {
-        await work(tx, (f) => after.push(f));
+        const result = await work(tx, (f) => after.push(f));
         for (const f of after) await f();
+        return result;
       },
     } as unknown as UnitOfWork,
     storage as unknown as StorageService,
@@ -87,13 +88,20 @@ describe('ClientUploadScan (D-187)', () => {
     await raced.scan.run({ uploadId: 'u1' }, signal);
     expect(raced.notifications.notify).not.toHaveBeenCalled();
     const infectedRace = setup(UPLOAD, true, 0);
-    await infectedRace.scan.run({ uploadId: 'u1' }, signal);
+    await expect(infectedRace.scan.run({ uploadId: 'u1' }, signal)).resolves.toBe('SKIPPED');
     expect(infectedRace.storage.delete).not.toHaveBeenCalled();
-    const { scan, db } = setup(UPLOAD, false);
+    const { scan, tx, storage } = setup(UPLOAD, false);
     await scan.markFailed({ uploadId: 'u1' });
-    expect(db.clientUpload.updateMany).toHaveBeenCalledWith({
+    expect(tx.clientUpload.updateMany).toHaveBeenCalledWith({
       where: { id: 'u1', status: 'SCANNING' },
       data: { status: 'FAILED' },
     });
+    expect(storage.delete).toHaveBeenCalledWith(UPLOAD.storageKey);
+    const gone = setup(null, false);
+    await gone.scan.markFailed({ uploadId: 'u1' });
+    expect(gone.tx.clientUpload.updateMany).not.toHaveBeenCalled();
+    const raced = setup(UPLOAD, false, 0);
+    await raced.scan.markFailed({ uploadId: 'u1' });
+    expect(raced.storage.delete).not.toHaveBeenCalled();
   });
 });

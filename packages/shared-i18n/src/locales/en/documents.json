@@ -105,7 +105,6 @@
     "title": "Client uploads",
     "client": "Client",
     "sentBy": "Sent by",
-    "sentAt": "Sent",
     "reason": "Reason: {{reason}}",
     "open": "Open",
     "accept": "Accept",

@@ -7,7 +7,7 @@ import type {
 } from '@nexlegtiq/shared-contracts';
 import { ClsService } from 'nestjs-cls';
 
-import { toPortalUpload } from './client-upload-intake';
+import { toClientUpload, uploadSelect } from './client-upload-presenter';
 import { documentJobId, PROCESS_DOCUMENT_JOB } from './document-jobs';
 import { UploadIntake } from './upload/upload-intake';
 import { auditRow } from '../../common/audit/audit.service';
@@ -24,39 +24,12 @@ import { DEFAULT_URL_TTL_SECONDS, StorageService } from '../../common/storage/st
 import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { ScopedTransaction } from '../../database/unit-of-work';
-import type { Prisma } from '../../generated/prisma/client';
 import type { ClientInfo } from '../auth/client-info';
 import { CaseAccessService } from '../legal-files/case-access.service';
 import { TimelineService } from '../timeline/timeline.service';
 
 /** shortcut: the newest 200 uploads of a file, unpaged; page when a file passes this. */
 const MAX_LISTED = 200;
-
-const uploadSelect = {
-  id: true,
-  fileId: true,
-  originalFilename: true,
-  mimeType: true,
-  sizeBytes: true,
-  status: true,
-  rejectionReason: true,
-  createdAt: true,
-  reviewedAt: true,
-  documentId: true,
-  client: { select: { id: true, displayName: true } },
-  clientUser: { select: { fullName: true } },
-  reviewedBy: { select: { id: true, fullName: true } },
-} satisfies Prisma.ClientUploadSelect;
-type UploadRow = Prisma.ClientUploadGetPayload<{ select: typeof uploadSelect }>;
-
-const toClientUpload = (row: UploadRow): ClientUpload => ({
-  ...toPortalUpload(row),
-  client: row.client,
-  uploaderName: row.clientUser.fullName,
-  reviewedBy: row.reviewedBy,
-  reviewedAt: row.reviewedAt?.toISOString() ?? null,
-  documentId: row.documentId,
-});
 
 /**
  * The office's side of client uploads (MVP-99, D-187): a file's review queue, a look at an upload, and the review — accept
@@ -116,6 +89,8 @@ export class ClientUploadsService {
     const documentId = uuidV7();
     await this.uow.run(async (tx, afterCommit) => {
       const upload = await this.lockPending(tx, id);
+      // Pending uploads are outside the office's storage use (D-187): the quota is checked when one becomes a document.
+      await this.intake.assertRoomFor(upload.sizeBytes);
       const folderId = body.folderId ?? (await this.clientUploadsFolder(tx, fileId));
       await this.intake.recheck(tx, { fileId, folderId });
       const name = body.name ?? upload.originalFilename;
@@ -263,12 +238,13 @@ export class ClientUploadsService {
     return upload;
   }
 
-  private async clientUploadsFolder(tx: ScopedTransaction, fileId: string): Promise<string> {
-    const folder = await tx.documentFolder.findFirstOrThrow({
+  /** The file's Client Uploads system folder (D-119); the file's root should it be missing. */
+  private async clientUploadsFolder(tx: ScopedTransaction, fileId: string): Promise<string | null> {
+    const folder = await tx.documentFolder.findFirst({
       where: { fileId, systemKey: 'CLIENT_UPLOADS' },
       select: { id: true },
     });
-    return folder.id;
+    return folder?.id ?? null;
   }
 
   private audit(

@@ -18,7 +18,8 @@ import { TenantRunner } from '../../common/tenancy/tenant-runner';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
 import type { ClientInfo } from '../auth/client-info';
-import { ClientUploadIntake, toPortalUpload } from '../documents/client-upload-intake';
+import { ClientUploadIntake } from '../documents/client-upload-intake';
+import { portalUploadSelect, toPortalUpload } from '../documents/client-upload-presenter';
 import { discardBody } from '../documents/upload/multipart';
 import { PortalAccounts } from '../portal-auth/portal-accounts';
 
@@ -165,6 +166,7 @@ export class PortalService {
         where: { fileId, clientId: grant.clientId },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         take: MAX_DOCUMENTS,
+        select: portalUploadSelect,
       });
       return rows.map(toPortalUpload);
     });

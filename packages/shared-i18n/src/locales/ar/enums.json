@@ -60,8 +60,8 @@
     "PENDING_REVIEW": "بانتظار المراجعة",
     "ACCEPTED": "مقبول",
     "REJECTED": "مرفوض",
-    "QUARANTINED": "معزول",
-    "FAILED": "فشل"
+    "QUARANTINED": "محجوب",
+    "FAILED": "تعذّر الفحص"
   },
   "courtType": {
     "CIVIL": "مدنية",

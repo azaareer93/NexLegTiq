@@ -335,6 +335,74 @@ describe('client uploads (HTTP + PostgreSQL + ClamAV)', () => {
     expect(await raw.auditLog.count({ where: { entityId: infected.id, action: 'SECURITY' } })).toBe(
       1,
     );
+    await http()
+      .get(`/api/v1/client-uploads/${infected.id}/download`)
+      .set(bearerFor(jwt, o))
+      .expect(404);
+    const blocked = await http()
+      .post(`/api/v1/client-uploads/${infected.id}/accept`)
+      .set(bearerFor(jwt, o))
+      .send({ documentType: 'OTHER' })
+      .expect(422);
+    expect(codeOf(blocked)).toBe('BIZ-015');
+
+    // Neither the rejected nor the quarantined upload ever became an office document; both stay in the review queue.
+    expect(await raw.document.count({ where: { fileId: mine.id } })).toBe(0);
+    const documents = await http()
+      .get(`/api/v1/cases/${mine.id}/documents`)
+      .set(bearerFor(jwt, o))
+      .expect(200);
+    expect(dataOf<unknown[]>(documents)).toEqual([]);
+    const queue = dataOf<ClientUpload[]>(
+      await http()
+        .get(`/api/v1/cases/${mine.id}/client-uploads`)
+        .set(bearerFor(jwt, o))
+        .expect(200),
+    );
+    expect(queue.map((u) => u.status).sort()).toEqual(['QUARANTINED', 'REJECTED']);
+  });
+
+  it('should validate the decision, keep the folder within the file, and let only one of two racing decisions win', async () => {
+    const o = await office();
+    const mine = await file(o, [o.clients[0].id]);
+    const elsewhere = await file(o, [o.clients[0].id]);
+    const layla = await portalUser(o, o.clients[0].id);
+    const upload = dataOf<PortalUpload>(await send(layla, mine.id, pdf()).expect(202));
+    await scan(o, upload.id);
+    const accept = (body: object) =>
+      http().post(`/api/v1/client-uploads/${upload.id}/accept`).set(bearerFor(jwt, o)).send(body);
+
+    await accept({}).expect(400);
+    await accept({ documentType: 'OTHER', folderId: 'not-a-uuid' }).expect(400);
+    await accept({ documentType: 'OTHER', name: 'x'.repeat(300) }).expect(400);
+    await http()
+      .post(`/api/v1/client-uploads/${upload.id}/reject`)
+      .set(bearerFor(jwt, o))
+      .send({ reason: 'x'.repeat(501) })
+      .expect(400);
+    await http()
+      .post('/api/v1/client-uploads/not-a-uuid/accept')
+      .set(bearerFor(jwt, o))
+      .send({ documentType: 'OTHER' })
+      .expect(404);
+    const foreignFolder = await raw.documentFolder.findFirstOrThrow({
+      where: { fileId: elsewhere.id, systemKey: 'EVIDENCE' },
+    });
+    await accept({ documentType: 'OTHER', folderId: foreignFolder.id }).expect(400);
+    expect(await raw.document.count({ where: { fileId: mine.id } })).toBe(0);
+
+    const [first, second] = await Promise.all([
+      accept({ documentType: 'OTHER' }),
+      http()
+        .post(`/api/v1/client-uploads/${upload.id}/reject`)
+        .set(bearerFor(jwt, o))
+        .send({ reason: 'Late' }),
+    ]);
+    expect([first.status, second.status].sort()).toEqual([200, 422]);
+    const final = await raw.clientUpload.findUniqueOrThrow({ where: { id: upload.id } });
+    expect(await raw.document.count({ where: { fileId: mine.id } })).toBe(
+      final.status === 'ACCEPTED' ? 1 : 0,
+    );
   });
 
   it("should keep uploads within the client's files, the office's tenant and the reviewers' permissions", async () => {
@@ -365,6 +433,10 @@ describe('client uploads (HTTP + PostgreSQL + ClamAV)', () => {
       .post(`/api/v1/client-uploads/${upload.id}/accept`)
       .set(bearerFor(jwt, other))
       .send({ documentType: 'OTHER' })
+      .expect(404);
+    await http()
+      .get(`/api/v1/client-uploads/${upload.id}/download`)
+      .set(bearerFor(jwt, other))
       .expect(404);
     const admin = await o.user('ADMIN');
     await http()

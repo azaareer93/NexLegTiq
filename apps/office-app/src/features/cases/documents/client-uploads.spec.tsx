@@ -228,7 +228,7 @@ describe('client uploads on the documents tab (MVP-99)', () => {
         }),
       );
       expect(
-        await screen.findByText('This upload has already been reviewed.', {}, { timeout: COLD }),
+        await screen.findByText('This file has already been reviewed.', {}, { timeout: COLD }),
       ).toBeTruthy();
     },
     SLOW,

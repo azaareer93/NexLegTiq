@@ -35,7 +35,7 @@ function setup(status = 'PENDING_REVIEW') {
   const tx = {
     $queryRaw: jest.fn(),
     clientUpload: { findFirstOrThrow: jest.fn().mockResolvedValue(row(status)), update: jest.fn() },
-    documentFolder: { findFirstOrThrow: jest.fn().mockResolvedValue({ id: 'folder-cu' }) },
+    documentFolder: { findFirst: jest.fn().mockResolvedValue({ id: 'folder-cu' }) },
     document: { create: jest.fn() },
     documentVersion: { create: jest.fn() },
     auditLog: { create: jest.fn(), createMany: jest.fn() },
@@ -48,7 +48,7 @@ function setup(status = 'PENDING_REVIEW') {
     auditLog: { create: jest.fn() },
   };
   const files = { assertFileAccess: jest.fn() };
-  const intake = { recheck: jest.fn() };
+  const intake = { recheck: jest.fn(), assertRoomFor: jest.fn() };
   const storage = {
     presignedGetUrl: jest.fn().mockResolvedValue('https://s3/x'),
     delete: jest.fn(),
@@ -131,6 +131,24 @@ describe('ClientUploadsService (D-187)', () => {
     );
   });
 
+  it("should check the plan's quota on accept, and file into the root when the folder is missing", async () => {
+    const full = setup();
+    full.intake.assertRoomFor.mockRejectedValue(
+      Object.assign(new Error('full'), { code: 'AUTH-103' }),
+    );
+    await expect(
+      full.service.accept('u1', { documentType: 'OTHER' }, NO_CLIENT),
+    ).rejects.toMatchObject({
+      code: 'AUTH-103',
+    });
+    expect(full.intake.assertRoomFor).toHaveBeenCalledWith(10n);
+    expect(full.tx.document.create).not.toHaveBeenCalled();
+    const rootless = setup();
+    rootless.tx.documentFolder.findFirst.mockResolvedValue(null);
+    await rootless.service.accept('u1', { documentType: 'OTHER' }, NO_CLIENT);
+    expect(rootless.tx.document.create.mock.calls[0][0].data.folderId).toBeNull();
+  });
+
   it('should take a chosen folder and name on accept', async () => {
     const { service, tx } = setup();
     await service.accept(
@@ -138,7 +156,7 @@ describe('ClientUploadsService (D-187)', () => {
       { documentType: 'OTHER', folderId: 'folder-x', name: 'Lease' },
       NO_CLIENT,
     );
-    expect(tx.documentFolder.findFirstOrThrow).not.toHaveBeenCalled();
+    expect(tx.documentFolder.findFirst).not.toHaveBeenCalled();
     expect(tx.document.create.mock.calls[0][0].data).toMatchObject({
       folderId: 'folder-x',
       name: 'Lease',

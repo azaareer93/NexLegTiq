@@ -4,6 +4,7 @@ import type { Request } from 'express';
 import { ClsService } from 'nestjs-cls';
 import { z } from 'zod';
 
+import { toPortalUpload } from './client-upload-presenter';
 import { clientUploadJobId, SCAN_CLIENT_UPLOAD_JOB } from './document-jobs';
 import { readUpload } from './upload/multipart';
 import { UploadIntake } from './upload/upload-intake';
@@ -15,10 +16,16 @@ import { QueueProducer } from '../../common/queue/queue-producer';
 import { QUEUE } from '../../common/queue/queues';
 import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
+import type { ScopedTransaction } from '../../database/unit-of-work';
 import type { ClientInfo } from '../auth/client-info';
 
 /** shortcut: a fixed cap on a client's unreviewed uploads (bytes); make it a plan limit if offices ask for more. */
 export const MAX_PENDING_CLIENT_BYTES = 250n * 1024n * 1024n;
+/**
+ * shortcut: an upload still SCANNING after this long lost its scan job (an enqueue that failed after the commit); it stops
+ * counting against the cap rather than locking the client out. Re-enqueue such rows with a sweep if they turn up.
+ */
+const STALE_SCAN_MS = 60 * 60 * 1000;
 const NoFields = z.object({});
 
 /** Who sends an upload, already resolved by the portal (D-158): the grant's client, on one of its files. */
@@ -27,27 +34,6 @@ export interface ClientUploadTarget {
   readonly clientId: string;
   readonly clientUserId: string;
 }
-
-/** The client's view of an upload row. */
-export const toPortalUpload = (row: {
-  id: string;
-  fileId: string;
-  originalFilename: string;
-  mimeType: string;
-  sizeBytes: bigint;
-  status: PortalUpload['status'];
-  rejectionReason: string | null;
-  createdAt: Date;
-}): PortalUpload => ({
-  id: row.id,
-  fileId: row.fileId,
-  name: row.originalFilename,
-  mimeType: row.mimeType,
-  sizeBytes: row.sizeBytes.toString(),
-  status: row.status,
-  rejectionReason: row.rejectionReason,
-  createdAt: row.createdAt.toISOString(),
-});
 
 /**
  * `POST /portal/files/:id/uploads` (MVP-99, D-187), run in the file's office: the document upload's rules (D-126: type
@@ -71,13 +57,17 @@ export class ClientUploadIntake {
     client: ClientInfo,
   ): Promise<PortalUpload> {
     const { file } = await readUpload(req, NoFields);
-    await this.intake.beforeStoring(file, () => this.assertRoom(target.clientId, 1n));
+    await this.intake.beforeStoring(file, () =>
+      this.assertRoom(this.prisma.db, target.clientId, 1n),
+    );
     const id = uuidV7();
     const stored = await this.intake.store(file, target.fileId, id);
     try {
-      await this.assertRoom(target.clientId, BigInt(stored.sizeBytes));
       const row = await this.uow.run(async (tx, afterCommit) => {
         await this.intake.recheck(tx, { fileId: target.fileId });
+        // The client row serialises its uploads: parallel requests cannot pass the cap together.
+        await tx.$queryRaw`SELECT 1 FROM clients WHERE id = ${target.clientId}::uuid AND office_id = ${this.officeId()}::uuid FOR UPDATE`;
+        await this.assertRoom(tx, target.clientId, BigInt(stored.sizeBytes));
         const created = await tx.clientUpload.create({
           data: {
             id,
@@ -132,9 +122,19 @@ export class ClientUploadIntake {
   }
 
   /** The client's unreviewed uploads plus this one stay under the cap. */
-  private async assertRoom(clientId: string, adding: bigint): Promise<void> {
-    const { _sum } = await this.prisma.db.clientUpload.aggregate({
-      where: { clientId, status: { in: ['SCANNING', 'PENDING_REVIEW'] } },
+  private async assertRoom(
+    db: Pick<ScopedTransaction, 'clientUpload'>,
+    clientId: string,
+    adding: bigint,
+  ): Promise<void> {
+    const { _sum } = await db.clientUpload.aggregate({
+      where: {
+        clientId,
+        OR: [
+          { status: 'PENDING_REVIEW' },
+          { status: 'SCANNING', createdAt: { gt: new Date(Date.now() - STALE_SCAN_MS) } },
+        ],
+      },
       _sum: { sizeBytes: true },
     });
     if ((_sum.sizeBytes ?? 0n) + adding > MAX_PENDING_CLIENT_BYTES) {

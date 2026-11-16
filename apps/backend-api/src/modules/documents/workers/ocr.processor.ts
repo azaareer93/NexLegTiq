@@ -70,8 +70,9 @@ export class OcrProcessor
     signal: AbortSignal,
   ): Promise<unknown> {
     if (job.name === SCAN_CLIENT_UPLOAD_JOB) {
-      const { uploadId } = ClientUploadJobSchema.parse(job.data);
-      return { outcome: await this.uploadScan.run({ uploadId }, signal) };
+      const upload = ClientUploadJobSchema.safeParse(job.data);
+      if (!upload.success) throw new UnrecoverableError('Invalid job payload');
+      return { outcome: await this.uploadScan.run(upload.data, signal) };
     }
     const parsed = DocumentJobSchema.safeParse(job.data);
     if (!parsed.success) throw new UnrecoverableError('Invalid job payload');
@@ -103,7 +104,10 @@ export class OcrProcessor
     try {
       await this.tenant.run({ officeId: tenant.officeId }, () => mark(job.data, code));
     } catch (markError) {
-      this.logger.error({ err: markError, job: job.name }, 'Job target not marked FAILED');
+      this.logger.error(
+        { err: markError, job: job.name, jobId: job.id },
+        'Job target not marked FAILED',
+      );
     }
   }
 
