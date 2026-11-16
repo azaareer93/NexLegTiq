@@ -37,6 +37,7 @@ const ENUM_LABELS = {
   OCR_STATUSES: 'ocrStatus',
   DOCUMENT_LANGUAGES: 'documentLanguage',
   FOLDER_SYSTEM_KEYS: 'folderSystemKey',
+  CLIENT_UPLOAD_STATUSES: 'clientUploadStatus',
   REMINDER_STATUSES: 'reminderStatus',
   SUBSCRIPTION_STATUSES: 'subscriptionStatus',
   PLATFORM_PAYMENT_METHODS: 'platformPaymentMethod',

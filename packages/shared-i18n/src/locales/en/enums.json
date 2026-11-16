@@ -55,6 +55,14 @@
     "NGO": "Non-governmental organization",
     "PARTNERSHIP": "Partnership"
   },
+  "clientUploadStatus": {
+    "SCANNING": "Being checked",
+    "PENDING_REVIEW": "Waiting for review",
+    "ACCEPTED": "Accepted",
+    "REJECTED": "Rejected",
+    "QUARANTINED": "Quarantined",
+    "FAILED": "Failed"
+  },
   "courtType": {
     "CIVIL": "Civil",
     "CRIMINAL": "Criminal",

@@ -44,6 +44,6 @@ export type AcceptClientUploadRequest = z.infer<typeof AcceptClientUploadSchema>
 
 /** `POST /client-uploads/:id/reject`: the reason the client will read. */
 export const RejectClientUploadSchema = z.object({
-  reason: z.string().trim().min(1, 'validation.required').max(500, 'validation.maxLength'),
+  reason: z.string().trim().min(1, 'validation.required').max(500, 'validation.tooLong'),
 });
 export type RejectClientUploadRequest = z.infer<typeof RejectClientUploadSchema>;

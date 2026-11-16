@@ -6,6 +6,7 @@ import { Button, Card, Col, Input, Row } from 'antd';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { ClientUploadsCard } from './ClientUploadsCard';
 import { DocumentsTable } from './DocumentsTable';
 import type { DocumentRights } from './DocumentsTable';
 import { FolderTree } from './FolderTree';
@@ -154,6 +155,7 @@ export function DocumentsTab({
         <FolderTree fileId={fileId} selected={selection} onSelect={select} canEdit={canUpload} />
       </Col>
       <Col xs={24} lg={17}>
+        <ClientUploadsCard fileId={fileId} folders={folders} canReview={canUpload} />
         <Card
           title={
             <Input.Search
