@@ -4,6 +4,7 @@ import { CaseDocumentsController, ClientDocumentsController } from './case-docum
 import { DocumentAccessService } from './document-access.service';
 import { DocumentRecordsService } from './document-records.service';
 import { DocumentRetry } from './document-retry';
+import { DocumentSharingService } from './document-sharing.service';
 import { DocumentsController } from './documents.controller';
 import { DocumentsService } from './documents.service';
 import { FoldersController } from './folders.controller';
@@ -30,6 +31,7 @@ import { LegalFilesModule } from '../legal-files/legal-files.module';
     DocumentAccessService,
     UploadIntake,
     DocumentRetry,
+    DocumentSharingService,
   ],
   exports: [DocumentAccessService],
 })

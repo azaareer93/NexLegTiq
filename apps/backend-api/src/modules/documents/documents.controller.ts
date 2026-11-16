@@ -40,6 +40,7 @@ import { ClsService } from 'nestjs-cls';
 
 import { DocumentRecordsService } from './document-records.service';
 import { DocumentRetry } from './document-retry';
+import { DocumentSharingService } from './document-sharing.service';
 import { DocumentsService } from './documents.service';
 import { AuditService } from '../../common/audit/audit.service';
 import type { RequestContext } from '../../common/context/request-context';
@@ -49,6 +50,7 @@ import { ApiZodBody, ApiZodQuery, ApiZodResponse } from '../../common/openapi/ap
 import { RequireAnyPermission, RequirePermissions } from '../../common/rbac/permissions.decorator';
 import { clientFromRequest } from '../auth/client-info';
 import type { ClientInfo } from '../auth/client-info';
+import { AllowWhenReadOnly } from '../subscriptions/subscription.decorators';
 
 /** A malformed id is the same 404 as an unknown one (D-019). */
 const uuid = new ParseUUIDPipe({ exceptionFactory: () => new ResourceNotFoundException() });
@@ -69,6 +71,7 @@ export class DocumentsController {
     private readonly documents: DocumentsService,
     private readonly records: DocumentRecordsService,
     private readonly retries: DocumentRetry,
+    private readonly sharing: DocumentSharingService,
     private readonly cls: ClsService<RequestContext>,
     private readonly audit: AuditService,
   ) {}
@@ -143,6 +146,31 @@ export class DocumentsController {
   })
   async remove(@Param('id', uuid) id: string, @Req() req: Request): Promise<void> {
     await this.records.remove(id, this.client(req));
+  }
+
+  @Post(':id/share')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('share:document')
+  @ApiOperation({
+    summary:
+      "Show the document to the file's clients on the portal (audited; timeline DOCUMENT_SHARED)",
+  })
+  @ApiZodResponse(HttpStatus.OK, DocumentSchema)
+  async share(@Param('id', uuid) id: string, @Req() req: Request): Promise<Document> {
+    await this.sharing.setShared(id, true, this.client(req));
+    return this.records.get(id);
+  }
+
+  @Post(':id/unshare')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('share:document')
+  // A read-only office still serves its portal (D-158), so it must still be able to withdraw a document.
+  @AllowWhenReadOnly()
+  @ApiOperation({ summary: 'Stop showing the document on the portal (audited)' })
+  @ApiZodResponse(HttpStatus.OK, DocumentSchema)
+  async unshare(@Param('id', uuid) id: string, @Req() req: Request): Promise<Document> {
+    await this.sharing.setShared(id, false, this.client(req));
+    return this.records.get(id);
   }
 
   @Post(':id/ocr/retry')

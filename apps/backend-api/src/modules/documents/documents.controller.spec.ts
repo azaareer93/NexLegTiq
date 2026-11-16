@@ -4,6 +4,7 @@ import type { ClsService } from 'nestjs-cls';
 import { CaseDocumentsController, ClientDocumentsController } from './case-documents.controller';
 import type { DocumentRecordsService } from './document-records.service';
 import type { DocumentRetry } from './document-retry';
+import type { DocumentSharingService } from './document-sharing.service';
 import { DocumentsController } from './documents.controller';
 import type { DocumentsService } from './documents.service';
 import type { AuditService } from '../../common/audit/audit.service';
@@ -26,6 +27,7 @@ describe('DocumentsController', () => {
       text: jest.fn().mockResolvedValue('text'),
     };
     const retries = { retry: jest.fn().mockResolvedValue('retried') };
+    const sharing = { setShared: jest.fn().mockResolvedValue(undefined) };
     const req = { ip: '127.0.0.1', get: () => 'jest' } as unknown as Request;
     for (const active of [true, false]) {
       const cls = { isActive: () => active, getId: () => 'req-12345678' };
@@ -33,6 +35,7 @@ describe('DocumentsController', () => {
         service as unknown as DocumentsService,
         records as unknown as DocumentRecordsService,
         retries as unknown as DocumentRetry,
+        sharing as unknown as DocumentSharingService,
         cls as unknown as ClsService<RequestContext>,
         { view: jest.fn() } as unknown as AuditService,
       );
@@ -45,7 +48,11 @@ describe('DocumentsController', () => {
       await expect(controller.download('d1', { version: 2 }, req)).resolves.toBe('link');
       await expect(controller.text('d1', { page: 1 }, req)).resolves.toBe('text');
       await expect(controller.retry('d1', req)).resolves.toBe('retried');
+      await expect(controller.share('d1', req)).resolves.toBe('document');
+      await expect(controller.unshare('d1', req)).resolves.toBe('document');
     }
+    expect(sharing.setShared).toHaveBeenCalledWith('d1', true, expect.anything());
+    expect(sharing.setShared).toHaveBeenLastCalledWith('d1', false, expect.anything());
     expect(service.upload).toHaveBeenCalledWith(
       req,
       'key-12345',
