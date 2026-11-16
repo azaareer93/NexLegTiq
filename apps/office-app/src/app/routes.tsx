@@ -7,6 +7,7 @@ import { calendarRoutes } from '../features/calendar';
 import { casesRoutes } from '../features/cases';
 import { clientsRoutes } from '../features/clients';
 import { dashboardRoutes } from '../features/dashboard';
+import { helpRoutes } from '../features/help';
 import { invoicesRoutes } from '../features/invoices';
 import { notificationsRoutes } from '../features/notifications';
 import { onboardingRoutes } from '../features/onboarding';
@@ -82,6 +83,7 @@ export const routes: RouteObject[] = [
                   ...menuRoutes,
                   { path: 'profile', children: profileRoutes },
                   { path: 'notifications', children: notificationsRoutes },
+                  { path: 'help', children: helpRoutes },
                   { path: '*', element: <NotFoundPage /> },
                 ],
               },

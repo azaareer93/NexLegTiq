@@ -16,6 +16,7 @@ import type { MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate, useNavigate, useSearchParams } from 'react-router';
 
+import { HelpLink } from '../../help';
 import { useCasesList } from '../api/use-cases';
 import { isPlainClick } from '../components/case-cells';
 import { CasesCards } from '../components/CasesCards';
@@ -136,16 +137,19 @@ export function CasesListPage(): React.JSX.Element {
         title={t('cases.list.title')}
         subtitle={pagination ? t('cases.list.total', { count: pagination.total }) : undefined}
         extra={
-          canCreate ? (
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={openQuickCreateCase}
-              data-testid="cases-new"
-            >
-              {t('cases.list.newFile')}
-            </Button>
-          ) : null
+          <>
+            <HelpLink slug="create-case" />
+            {canCreate ? (
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={openQuickCreateCase}
+                data-testid="cases-new"
+              >
+                {t('cases.list.newFile')}
+              </Button>
+            ) : null}
+          </>
         }
       />
       <Flex vertical gap={16}>

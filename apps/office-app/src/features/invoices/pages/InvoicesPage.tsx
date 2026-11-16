@@ -17,6 +17,7 @@ import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 
 import { useClientsList } from '../../clients/api/use-clients';
+import { HelpLink } from '../../help';
 import { useInvoices } from '../api/use-invoices';
 import { InvoicesTable } from '../components/InvoicesTable';
 
@@ -164,7 +165,7 @@ export function InvoicesPage() {
   };
   return (
     <section data-testid="page-invoices">
-      <PageHeader title={t('billing.invoices.title')} />
+      <PageHeader title={t('billing.invoices.title')} extra={<HelpLink slug="invoicing" />} />
       <Filters
         params={params}
         set={set}

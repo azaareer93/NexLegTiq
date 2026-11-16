@@ -1,0 +1,101 @@
+{
+  "title": "Help Center",
+  "subtitle": "Short guides to the main tasks, and how to reach us.",
+  "guides": "Guides",
+  "back": "All guides",
+  "notFound": "This guide does not exist.",
+  "linkLabel": "Help: {{title}}",
+  "contact": {
+    "title": "Contact support",
+    "email": "Email support",
+    "whatsapp": "WhatsApp",
+    "bug": "Report a problem",
+    "bugSubject": "Problem report",
+    "none": "Support contact details have not been set up yet."
+  },
+  "shortcuts": {
+    "title": "Keyboard shortcuts",
+    "search": "Search everything",
+    "newCase": "New case"
+  },
+  "articles": {
+    "gettingStarted": {
+      "title": "Getting started",
+      "summary": "Set up your office in a few minutes.",
+      "body": "After you sign up, the setup guide walks you through the office settings, your team, a first case, a first hearing and a first document. Every step can be skipped and picked up later.\n\nYou can reopen the setup guide at any time from the profile menu.",
+      "steps": "Check the office setup: jurisdiction, language, currency and time zone.\nInvite your colleagues.\nCreate your first case and add its client.\nSchedule its next hearing and upload a document."
+    },
+    "inviteTeam": {
+      "title": "Invite your team",
+      "summary": "Add colleagues by email, each with a role.",
+      "body": "The office manager invites colleagues from the Team page. Each invitation carries a role that decides what the person can see and do, and its link is valid for 7 days.\n\nYou can resend or cancel an invitation that has not been accepted, and change a colleague's role later.",
+      "steps": "Open Team from the menu.\nChoose Invite and enter the email address and role.\nThe colleague opens the link in the email and sets a password."
+    },
+    "createCase": {
+      "title": "Create a case",
+      "summary": "Open a case with its client and responsible lawyer.",
+      "body": "A case holds everything about one matter: its clients, parties, documents, hearings, tasks, notes and billing. Each case gets a file number in the format the office chose.\n\nYou can mark a case as confidential so that only the office manager and the people assigned to it can see it.",
+      "steps": "Choose New case on the Cases page (or press Ctrl + Alt + N).\nEnter the title and the type, and pick or add the client.\nChoose the responsible lawyer and save."
+    },
+    "partiesConflicts": {
+      "title": "Parties and conflicts of interest",
+      "summary": "Record the other parties and catch conflicts early.",
+      "body": "Add the opposing parties, witnesses and other people involved on the case's Parties tab. When a party matches one of your clients or a party in another case, the case shows a conflict warning.\n\nReview each warning and resolve it with a note explaining your decision; the note stays on the record.",
+      "steps": "Open the case and its Parties tab.\nAdd each party with their role.\nReview any conflict warning and resolve it with a note."
+    },
+    "hearings": {
+      "title": "Hearings and reminders",
+      "summary": "Schedule hearings and get reminded before them.",
+      "body": "Schedule a hearing from the case's Sessions tab. Reminders are sent before it, by default 7, 3 and 1 days ahead; the office can change these in Settings.\n\nAfter the hearing, record its outcome and minutes, and schedule the next one if it was adjourned. The Calendar shows every hearing of the office.",
+      "steps": "Open the case and its Sessions tab.\nChoose Schedule a hearing and enter the date, time and court.\nAfter the hearing, record the outcome and minutes."
+    },
+    "documents": {
+      "title": "Upload and find documents",
+      "summary": "Keep a case's documents in folders and search them.",
+      "body": "Upload documents to a case's Documents tab, in folders. Every file is checked for malware before it can be opened, and its text is read so that it can be searched.\n\nUse search (Ctrl / ⌘ + K) to find cases, clients and documents by name or by the words inside them.",
+      "steps": "Open the case and its Documents tab.\nChoose Upload and pick the files.\nWait until each file shows as ready."
+    },
+    "tasks": {
+      "title": "Tasks",
+      "summary": "Plan the work of the office and of each case.",
+      "body": "Create tasks for yourself or a colleague, with a due date and a priority, on a case or on their own. Move them across the board as the work progresses.\n\nEach morning you receive a summary of your tasks that are due soon or overdue.",
+      "steps": "Open Tasks from the menu, or a case's Tasks tab.\nChoose New task and enter the title, due date and assignee.\nMove the task to Done when it is finished."
+    },
+    "aiSummaries": {
+      "title": "AI summaries",
+      "summary": "Summaries of documents and hearing minutes, checked by you.",
+      "body": "The AI assistant can summarise a document, or the minutes of a hearing with suggested next steps. Names and personal details are hidden before any text leaves NexLegTiq.\n\nAI output may contain errors and is not legal advice: always review it. Suggested next steps become tasks only when you choose them. Each plan includes a number of AI operations per month.",
+      "steps": "Open a document or a hearing with minutes.\nChoose Summarise with AI.\nReview the summary, then pick the next steps to turn into tasks."
+    },
+    "invoicing": {
+      "title": "Time and invoicing",
+      "summary": "Log time, prepare invoices and record payments.",
+      "body": "Log the time spent on a case on its Billing tab. Prepare an invoice for a period: NexLegTiq adds the unbilled time, and you can add extra items and tax before reviewing the draft.\n\nSend the invoice, optionally by email with its PDF, then record the payment when it arrives. A case can also hold a retainer that pays its invoices.",
+      "steps": "Open the case and its Billing tab.\nChoose Generate invoice, pick the period and review the draft.\nSend it, and record the payment when it is received."
+    },
+    "clientPortal": {
+      "title": "Client portal",
+      "summary": "A space where your clients follow their cases.",
+      "body": "The client portal will let your clients sign in to see the progress of their cases, the documents you share with them, and their invoices.\n\nIt is not available yet. Until then, share documents and updates with your clients directly.",
+      "steps": "Watch the release notes for the portal's arrival.\nMeanwhile, send clients their documents and invoices by email."
+    },
+    "roles": {
+      "title": "Roles and permissions",
+      "summary": "Who can see and do what in your office.",
+      "body": "Each colleague has one role. The office manager can do everything, including settings, billing and the audit log. Senior lawyers see every case; lawyers, paralegals and trainees see the cases they are assigned to. The admin role handles the office's administration.\n\nConfidential cases are visible only to the office manager and the people assigned to them.",
+      "steps": "Open Team from the menu.\nChoose a colleague.\nChange their role and save."
+    },
+    "dataExport": {
+      "title": "Export your data",
+      "summary": "Download everything your office holds.",
+      "body": "The office manager can export all of the office's data from Settings → Data: cases, clients, documents, invoices and time, as one ZIP file. It is prepared in the background, you receive an email when it is ready, and it can be downloaded for 7 days.\n\nEvery user can also download their own data from the Profile page.",
+      "steps": "Open Settings and find the Data section.\nChoose Export office data.\nWhen the email arrives, return to Settings and download the file."
+    },
+    "security": {
+      "title": "Security and privacy",
+      "summary": "How we keep your office's data safe.",
+      "body": "Each office's data is kept apart from every other office's. Connections are encrypted, files are checked for malware, and downloads use short-lived links. Inactive sessions sign out on their own.\n\nThe audit log records who did what, and the office manager can review and export it. Your data is yours: you can export it at any time.",
+      "steps": "Use a strong, unique password.\nSign out on shared computers.\nReview the audit log from Settings when needed."
+    }
+  }
+}
