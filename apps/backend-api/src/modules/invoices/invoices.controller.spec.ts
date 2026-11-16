@@ -21,10 +21,12 @@ describe('InvoicesController', () => {
       void: jest.fn().mockResolvedValue('voided'),
     };
     const pdfs = { link: jest.fn().mockResolvedValue({ status: 'RENDERING' }) };
+    const sharing = { setShared: jest.fn().mockResolvedValue(undefined) };
     const controller = new InvoicesController(
       invoices as unknown as InvoicesService,
       lifecycle as unknown as InvoiceLifecycle,
       pdfs as never,
+      sharing as never,
     );
     await expect(controller.list({ page: 1, limit: 20 } as never)).resolves.toBe('list');
     await expect(controller.create({ clientId: ID } as never)).resolves.toBe('created');
@@ -40,6 +42,10 @@ describe('InvoicesController', () => {
       controller.markPaid(ID, { paidAt: '2026-11-10T09:00:00Z', method: 'CASH' }),
     ).resolves.toBe('paid');
     await expect(controller.void(ID)).resolves.toBe('voided');
+    await expect(controller.share(ID)).resolves.toBe('invoice');
+    await expect(controller.unshare(ID)).resolves.toBe('invoice');
+    expect(sharing.setShared).toHaveBeenCalledWith(ID, true);
+    expect(sharing.setShared).toHaveBeenLastCalledWith(ID, false);
     expect(lifecycle.remove).toHaveBeenCalledWith(ID);
   });
 });

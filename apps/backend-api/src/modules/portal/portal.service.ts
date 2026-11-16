@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import type {
   DownloadLink,
+  PortalInvoice,
+  PortalInvoicePdf,
   PortalOfficeAccess,
   PortalDocument,
   PortalFile,
@@ -8,6 +10,7 @@ import type {
 } from '@nexlegtiq/shared-contracts';
 import { PORTAL_TIMELINE_EVENT_TYPES } from '@nexlegtiq/shared-types';
 import type { OfficeId } from '@nexlegtiq/shared-types';
+import { roundMoney } from '@nexlegtiq/shared-utils';
 
 import { auditRow } from '../../common/audit/audit.service';
 import { ResourceNotFoundException } from '../../common/errors/app.exception';
@@ -16,6 +19,8 @@ import { TenantRunner } from '../../common/tenancy/tenant-runner';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
 import type { ClientInfo } from '../auth/client-info';
+import { PORTAL_INVOICE_STATUSES } from '../invoices/invoice-sharing.service';
+import { InvoicePdfService } from '../invoices/pdf/invoice-pdf.service';
 import { PortalAccounts } from '../portal-auth/portal-accounts';
 
 /** shortcut: no paging — a client has few files; page when one passes this. */
@@ -41,6 +46,53 @@ const fileSelect = (now: Date) =>
     },
   }) satisfies Prisma.LegalFileSelect;
 type FileRow = Prisma.LegalFileGetPayload<{ select: ReturnType<typeof fileSelect> }>;
+
+/** An invoice of the grant's client that the office shared and issued (D-188). */
+const sharedInvoices = (clientId: string) =>
+  ({
+    clientId,
+    sharedWithClient: true,
+    status: { in: [...PORTAL_INVOICE_STATUSES] },
+  }) satisfies Prisma.InvoiceWhereInput;
+
+const invoiceSelect = {
+  id: true,
+  invoiceNumber: true,
+  status: true,
+  currency: true,
+  issueDate: true,
+  dueDate: true,
+  total: true,
+  paidAt: true,
+  file: { select: { id: true, fileNumber: true, title: true } },
+} satisfies Prisma.InvoiceSelect;
+type InvoiceRow = Prisma.InvoiceGetPayload<{ select: typeof invoiceSelect }>;
+
+const toPortalInvoice = (grant: PortalOfficeAccess, row: InvoiceRow): PortalInvoice => {
+  // An issued invoice always has its number and dates (D-162); the filter above admits issued ones only.
+  if (
+    !row.invoiceNumber ||
+    !row.issueDate ||
+    !row.dueDate ||
+    row.status === 'DRAFT' ||
+    row.status === 'VOID'
+  ) {
+    throw new Error(`Invoice ${row.id} is listed on the portal without being issued`);
+  }
+  return {
+    id: row.id,
+    officeId: grant.officeId,
+    officeName: grant.officeName,
+    invoiceNumber: row.invoiceNumber,
+    status: row.status,
+    currency: row.currency,
+    issueDate: row.issueDate.toISOString().slice(0, 10),
+    dueDate: row.dueDate.toISOString().slice(0, 10),
+    total: roundMoney(row.total.toFixed(), row.currency),
+    paidAt: row.paidAt?.toISOString() ?? null,
+    file: row.file,
+  };
+};
 
 /** A live file the grant's client is linked to (D-003): the only files a portal account reaches. */
 const clientFiles = (clientId: string) =>
@@ -79,6 +131,7 @@ export class PortalService {
     private readonly tenants: TenantRunner,
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly invoicePdfs: InvoicePdfService,
   ) {}
 
   async files(clientUserId: string): Promise<PortalFile[]> {
@@ -183,6 +236,43 @@ export class PortalService {
         return { downloadUrl, expiresIn: DEFAULT_URL_TTL_SECONDS };
       });
       if (link) return link;
+    }
+    throw new ResourceNotFoundException();
+  }
+
+  /** The invoices offices shared with the client (D-188): issued ones of the grant's client, newest first per office. */
+  async invoices(clientUserId: string): Promise<PortalInvoice[]> {
+    const grants = await this.accounts.offices(clientUserId);
+    const lists = await Promise.all(
+      grants.map(async (grant) => {
+        const rows = await this.inOffice(grant, () =>
+          this.prisma.db.invoice.findMany({
+            where: sharedInvoices(grant.clientId),
+            orderBy: [{ issueDate: 'desc' }, { id: 'desc' }],
+            take: MAX_FILES,
+            select: invoiceSelect,
+          }),
+        );
+        return rows.map((row) => toPortalInvoice(grant, row));
+      }),
+    );
+    return lists.flat();
+  }
+
+  /** The PDF of a shared invoice (the office's own render, D-171), audited as the portal account; anything else 404. */
+  async invoicePdf(
+    clientUserId: string,
+    invoiceId: string,
+    client: ClientInfo,
+  ): Promise<PortalInvoicePdf> {
+    for (const grant of await this.accounts.offices(clientUserId)) {
+      const answer = await this.inOffice(grant, async () => {
+        const found = await this.prisma.db.invoice.count({
+          where: { id: invoiceId, ...sharedInvoices(grant.clientId) },
+        });
+        return found > 0 ? this.invoicePdfs.portalLink(invoiceId, clientUserId, client) : null;
+      });
+      if (answer) return answer;
     }
     throw new ResourceNotFoundException();
   }

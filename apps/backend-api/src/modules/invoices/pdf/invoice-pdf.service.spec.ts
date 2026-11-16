@@ -6,7 +6,11 @@ const UPDATED = new Date('2026-11-14T08:00:00Z');
 function setup(row: object | null, defaultLanguage = 'BILINGUAL') {
   const prisma = {
     db: {
-      invoice: { findFirst: jest.fn().mockResolvedValue(row) },
+      invoice: {
+        findFirst: jest.fn().mockResolvedValue(row),
+        findFirstOrThrow: jest.fn().mockResolvedValue({ officeId: 'o1' }),
+      },
+      auditLog: { create: jest.fn() },
       office: { findFirstOrThrow: jest.fn().mockResolvedValue({ defaultLanguage }) },
     },
   };
@@ -21,7 +25,7 @@ function setup(row: object | null, defaultLanguage = 'BILINGUAL') {
     queues as never,
     audit as never,
   );
-  return { service, storage, queues, audit };
+  return { service, storage, queues, audit, prisma };
 }
 const stored = (over: object = {}) => ({
   id: ID,
@@ -34,6 +38,26 @@ const stored = (over: object = {}) => ({
 });
 
 describe('InvoicePdfService (MVP-92)', () => {
+  it('should give the portal the same PDF, audited as the portal account without an office user (D-188)', async () => {
+    const { service, prisma, audit } = setup(stored());
+    const client = { ip: '1.2.3.4', userAgent: 'ua', requestId: 'r1' };
+    await expect(service.portalLink(ID, 'cu1', client)).resolves.toMatchObject({ status: 'READY' });
+    expect(prisma.db.invoice.findFirst.mock.calls[0][0].where).toEqual({ id: ID });
+    expect(prisma.db.auditLog.create.mock.calls[0][0].data).toMatchObject({
+      officeId: 'o1',
+      userId: null,
+      clientUserId: 'cu1',
+      action: 'DOWNLOAD',
+      newValues: { language: 'AR' },
+    });
+    expect(audit.log).not.toHaveBeenCalled();
+    const rendering = setup(stored({ pdfRenderedFor: null }));
+    await expect(rendering.service.portalLink(ID, 'cu1', client)).resolves.toEqual({
+      status: 'RENDERING',
+    });
+    expect(rendering.prisma.db.auditLog.create).not.toHaveBeenCalled();
+  });
+
   it('should link a current PDF named after the invoice and audit the download', async () => {
     const { service, storage, audit, queues } = setup(stored());
     await expect(service.link(ID)).resolves.toEqual({

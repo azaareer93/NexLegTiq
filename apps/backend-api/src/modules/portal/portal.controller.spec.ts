@@ -12,6 +12,8 @@ describe('PortalController', () => {
       file: jest.fn().mockResolvedValue('file'),
       documents: jest.fn().mockResolvedValue([]),
       download: jest.fn().mockResolvedValue('link'),
+      invoices: jest.fn().mockResolvedValue([]),
+      invoicePdf: jest.fn().mockResolvedValue({ status: 'READY' }),
     };
     const req = { clientUserId: 'u1', ip: '127.0.0.1', get: () => 'jest' } as unknown as Request;
     for (const active of [true, false]) {
@@ -23,6 +25,15 @@ describe('PortalController', () => {
       await expect(controller.file('f1', req)).resolves.toBe('file');
       await expect(controller.documents('f1', req)).resolves.toEqual([]);
       await expect(controller.download('d1', req)).resolves.toBe('link');
+      await expect(controller.invoices(req)).resolves.toEqual([]);
+      const res = { status: jest.fn() };
+      await expect(controller.invoicePdf('i1', req, res as never)).resolves.toEqual({
+        status: 'READY',
+      });
+      expect(res.status).toHaveBeenCalledWith(200);
+      portal.invoicePdf.mockResolvedValueOnce({ status: 'RENDERING' });
+      await controller.invoicePdf('i1', req, res as never);
+      expect(res.status).toHaveBeenLastCalledWith(202);
     }
     expect(portal.file).toHaveBeenCalledWith('u1', 'f1');
     expect(portal.download).toHaveBeenLastCalledWith(

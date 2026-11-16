@@ -1,18 +1,32 @@
-import { Controller, Get, Param, ParseUUIDPipe, Req, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import {
   DownloadLinkSchema,
   PortalDocumentSchema,
   PortalFileDetailSchema,
   PortalFileSchema,
+  PortalInvoicePdfSchema,
+  PortalInvoiceSchema,
 } from '@nexlegtiq/shared-contracts';
 import type {
   DownloadLink,
   PortalDocument,
   PortalFile,
   PortalFileDetail,
+  PortalInvoice,
+  PortalInvoicePdf,
 } from '@nexlegtiq/shared-contracts';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { ClsService } from 'nestjs-cls';
 
 import { PortalService } from './portal.service';
@@ -62,15 +76,42 @@ export class PortalController {
     return this.portal.documents(this.account(req), id);
   }
 
+  @Get('invoices')
+  @ApiOperation({
+    summary: 'The invoices the offices shared with the client (sent, overdue or paid)',
+  })
+  @ApiZodResponse(200, PortalInvoiceSchema.array())
+  invoices(@Req() req: PortalRequest): Promise<PortalInvoice[]> {
+    return this.portal.invoices(this.account(req));
+  }
+
+  @Get('invoices/:id/pdf')
+  // Each ask may queue a Chromium print on the office's report queue (D-171).
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @ApiOperation({
+    summary: 'A shared invoice PDF: 200 with a 5-minute link, or 202 while it renders (ask again)',
+  })
+  @ApiZodResponse(200, PortalInvoicePdfSchema)
+  @ApiZodResponse(202, PortalInvoicePdfSchema)
+  async invoicePdf(
+    @Param('id', uuid) id: string,
+    @Req() req: PortalRequest,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<PortalInvoicePdf> {
+    const answer = await this.portal.invoicePdf(this.account(req), id, this.client(req));
+    res.status(answer.status === 'READY' ? HttpStatus.OK : HttpStatus.ACCEPTED);
+    return answer;
+  }
+
   @Get('documents/:id/download')
   @ApiOperation({ summary: 'A 5-minute download link to a shared document (audited)' })
   @ApiZodResponse(200, DownloadLinkSchema)
   download(@Param('id', uuid) id: string, @Req() req: PortalRequest): Promise<DownloadLink> {
-    return this.portal.download(
-      this.account(req),
-      id,
-      clientFromRequest(req, this.cls.isActive() ? this.cls.getId() : null),
-    );
+    return this.portal.download(this.account(req), id, this.client(req));
+  }
+
+  private client(req: Request) {
+    return clientFromRequest(req, this.cls.isActive() ? this.cls.getId() : null);
   }
 
   private account(req: PortalRequest): string {

@@ -9,6 +9,7 @@ import type {
   PortalFile,
   PortalFileDetail,
   PortalInvitation,
+  PortalInvoice,
   PortalSession,
 } from '@nexlegtiq/shared-contracts';
 import request from 'supertest';
@@ -387,5 +388,115 @@ describe('portal data (HTTP + PostgreSQL)', () => {
     );
     await as(`/documents/${docB.id}/download`).expect(200);
     await as(`/documents/${docSame.id}/download`).expect(404);
+  });
+  it('should show a client the invoices shared with them, issued ones only, with their PDF (D-188)', async () => {
+    const o = await office();
+    const mine = await file(o, o.clients[0].id);
+    const invoice = (clientId: string, over: object = {}) =>
+      raw.invoice.create({
+        data: {
+          officeId: o.officeId,
+          clientId,
+          fileId: mine.id,
+          currency: 'ILS',
+          subtotal: '100.000',
+          taxRatePercent: '16',
+          taxAmount: '16.000',
+          total: '116.000',
+          createdById: o.userId,
+          status: 'SENT',
+          invoiceNumber: `INV-2026-${randomUUID().slice(0, 4)}`,
+          issueDate: new Date('2026-11-01T00:00:00Z'),
+          dueDate: new Date('2026-12-01T00:00:00Z'),
+          sentAt: new Date(),
+          ...over,
+        },
+      });
+    const sent = await invoice(o.clients[0].id);
+    const draft = await invoice(o.clients[0].id, {
+      status: 'DRAFT',
+      invoiceNumber: null,
+      issueDate: null,
+      dueDate: null,
+      sentAt: null,
+    });
+    const othersInvoice = await invoice(o.clients[1].id);
+    const auth = await portalUser(o, o.clients[0].id);
+    const share = (id: string, action = 'share') =>
+      http().post(`/api/v1/invoices/${id}/${action}`).set(bearerFor(jwt, o));
+
+    expect(codeOf(await share(draft.id).expect(422))).toBe('BIZ-006');
+    const shared = await share(sent.id).expect(200);
+    expect(dataOf<{ sharedWithClient: boolean }>(shared).sharedWithClient).toBe(true);
+    await share(othersInvoice.id).expect(200);
+    expect(
+      await raw.caseTimelineEvent.count({
+        where: { fileId: mine.id, eventType: 'INVOICE_SHARED' },
+      }),
+    ).toBe(2);
+    expect(
+      await raw.auditLog.count({
+        where: {
+          entityId: sent.id,
+          action: 'UPDATE',
+          newValues: { equals: { sharedWithClient: true } },
+        },
+      }),
+    ).toBe(1);
+    const other = await office();
+    await share(sent.id).set(bearerFor(jwt, other)).expect(404);
+
+    const as = (path: string) => http().get(`/api/v1/portal${path}`).set('Authorization', auth);
+    const listed = dataOf<PortalInvoice[]>(await as('/invoices').expect(200));
+    expect(listed).toEqual([
+      expect.objectContaining({
+        id: sent.id,
+        status: 'SENT',
+        total: '116.00',
+        issueDate: '2026-11-01',
+        file: expect.objectContaining({ id: mine.id }),
+      }),
+    ]);
+    expect(Object.keys(listed[0] ?? {}).sort()).toEqual(
+      [
+        'currency',
+        'dueDate',
+        'file',
+        'id',
+        'invoiceNumber',
+        'issueDate',
+        'officeId',
+        'officeName',
+        'paidAt',
+        'status',
+        'total',
+      ].sort(),
+    );
+    for (const id of [draft.id, othersInvoice.id, randomUUID()])
+      await as(`/invoices/${id}/pdf`).expect(404);
+
+    // Not rendered yet: 202 while the worker renders it; once current, a link audited as the portal account.
+    expect(
+      dataOf<{ status: string }>(await as(`/invoices/${sent.id}/pdf`).expect(202)).status,
+    ).toBe('RENDERING');
+    const current = await raw.invoice.findUniqueOrThrow({ where: { id: sent.id } });
+    await raw.invoice.update({
+      where: { id: sent.id },
+      data: {
+        pdfStorageKey: `${o.officeId}/invoices/${sent.id}.pdf`,
+        pdfLanguage: 'AR',
+        pdfRenderedFor: current.updatedAt,
+        updatedAt: current.updatedAt,
+      },
+    });
+    await as(`/invoices/${sent.id}/pdf`).expect(200);
+    expect(
+      await raw.auditLog.findMany({ where: { entityId: sent.id, action: 'DOWNLOAD' } }),
+    ).toEqual([expect.objectContaining({ userId: null, clientUserId: expect.any(String) })]);
+
+    // Withdrawn: gone from the portal at once.
+    await share(sent.id, 'unshare').expect(200);
+    expect(dataOf<PortalInvoice[]>(await as('/invoices').expect(200))).toEqual([]);
+    await as(`/invoices/${sent.id}/pdf`).expect(404);
   });
 });
