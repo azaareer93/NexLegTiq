@@ -281,6 +281,7 @@ enum TimelineEventType {
   INVOICE_SENT
   INVOICE_PAID
   RETAINER_DEPOSITED
+  INVOICE_SHARED
 }
 
 enum DocumentType {
@@ -1751,6 +1752,8 @@ model Invoice {
   pdfStorageKey    String?               @map("pdf_storage_key")
   pdfLanguage      OfficeLanguage?       @map("pdf_language")
   pdfRenderedFor   DateTime?             @map("pdf_rendered_for") @db.Timestamptz(3)
+  /// Shown to the client on the portal (MVP-150, D-188); only a SENT, OVERDUE or PAID invoice is ever listed there.
+  sharedWithClient Boolean               @default(false) @map("shared_with_client")
 
   office        Office            @relation(fields: [officeId], references: [id])
   client        Client            @relation(fields: [clientId, officeId], references: [id, officeId], onUpdate: Restrict)

@@ -49,3 +49,28 @@ export const PortalDocumentSchema = z.object({
   createdAt: z.iso.datetime(),
 });
 export type PortalDocument = z.infer<typeof PortalDocumentSchema>;
+
+/** `GET /portal/invoices` (D-188): an invoice the office shared with the client — sent, overdue or paid, never a draft. */
+export const PortalInvoiceSchema = z.object({
+  id: z.uuid(),
+  officeId: z.uuid(),
+  officeName: z.string(),
+  invoiceNumber: z.string(),
+  status: z.enum(['SENT', 'OVERDUE', 'PAID']),
+  currency: z.string(),
+  issueDate: z.iso.date(),
+  dueDate: z.iso.date(),
+  /** In the currency's minor digits, as text. */
+  total: z.string(),
+  paidAt: z.iso.datetime().nullable(),
+  /** The file it bills, when it bills one. */
+  file: z.object({ id: z.uuid(), fileNumber: z.string(), title: z.string() }).nullable(),
+});
+export type PortalInvoice = z.infer<typeof PortalInvoiceSchema>;
+
+/** `GET /portal/invoices/:id/pdf`: 200 with a 5-minute link once rendered, else 202 while the office's worker renders it. */
+export const PortalInvoicePdfSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('READY'), downloadUrl: z.url(), expiresIn: z.number().int() }),
+  z.object({ status: z.literal('RENDERING') }),
+]);
+export type PortalInvoicePdf = z.infer<typeof PortalInvoicePdfSchema>;

@@ -45,6 +45,7 @@
     "SUMMARY_GENERATED": "AI summary of a document prepared",
     "INVOICE_SENT": "Invoice sent",
     "INVOICE_PAID": "Invoice paid",
+    "INVOICE_SHARED": "Invoice shared with the client",
     "RETAINER_DEPOSITED": "Retainer deposit received"
   },
   "separator": " · ",

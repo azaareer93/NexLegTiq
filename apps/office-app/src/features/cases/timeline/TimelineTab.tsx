@@ -53,6 +53,7 @@ const ICONS: Readonly<Record<string, React.ReactNode>> = {
   SUMMARY_GENERATED: <RobotOutlined />,
   INVOICE_SENT: <DollarOutlined />,
   INVOICE_PAID: <DollarOutlined />,
+  INVOICE_SHARED: <DollarOutlined />,
 };
 
 /** Where an event's "open" goes: a hearing opens its drawer, documents and tasks their tab of the file. */

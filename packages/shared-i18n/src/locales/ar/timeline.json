@@ -45,6 +45,7 @@
     "SUMMARY_GENERATED": "إعداد ملخص بالذكاء الاصطناعي لمستند",
     "INVOICE_SENT": "إرسال فاتورة",
     "INVOICE_PAID": "تسديد فاتورة",
+    "INVOICE_SHARED": "مشاركة فاتورة مع الموكل",
     "RETAINER_DEPOSITED": "استلام دفعة مقدمة"
   },
   "separator": " · ",
