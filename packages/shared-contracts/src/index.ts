@@ -25,6 +25,7 @@ export * from './onboarding.contract.js';
 export * from './party.contract.js';
 export * from './password.contract.js';
 export * from './portal-auth.contract.js';
+export * from './portal.contract.js';
 export * from './profile.contract.js';
 export * from './realtime.contract.js';
 export * from './retainer.contract.js';
