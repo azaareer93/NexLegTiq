@@ -33,6 +33,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 
+import { HelpLink } from '../help';
 import { HearingDrawer } from './HearingDrawer';
 import { addDays, useCalendar } from './use-calendar';
 import type { CalendarEntry, CalendarRange } from './use-calendar';
@@ -256,7 +257,15 @@ export function CalendarPage() {
 
   return (
     <Flex vertical gap={16} component="section" data-testid="page-calendar">
-      <PageHeader title={t('calendar.title')} extra={toolbar} />
+      <PageHeader
+        title={t('calendar.title')}
+        extra={
+          <>
+            <HelpLink slug="hearings" />
+            {toolbar}
+          </>
+        }
+      />
       <Flex gap={8} wrap role="group" aria-label={t('calendar.legend.title')}>
         <Tag icon={<CalendarOutlined aria-hidden />}>{t('calendar.legend.hearing')}</Tag>
         <Tag icon={<CheckSquareOutlined aria-hidden />}>{t('calendar.legend.task')}</Tag>

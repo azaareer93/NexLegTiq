@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useBlocker } from 'react-router';
 
+import { HelpLink } from '../../help';
 import { useOfficeProfile, useOfficeSettings } from '../api/use-office';
 import { AuditLink } from '../components/AuditLink';
 import { DataSection } from '../components/DataSection';
@@ -99,7 +100,7 @@ export function SettingsPage(): React.JSX.Element {
 
   return (
     <Flex vertical gap={16} component="section" data-testid="page-settings">
-      <PageHeader title={t('settings.title')} />
+      <PageHeader title={t('settings.title')} extra={<HelpLink slug="data-export" />} />
       {sections()}
       <SubscriptionSection />
       <DataSection />

@@ -72,7 +72,8 @@
     "menu": "Account menu",
     "profile": "My account",
     "language": "Language",
-    "setupGuide": "Setup guide"
+    "setupGuide": "Setup guide",
+    "help": "Help"
   },
   "comingSoon": {
     "title": "Coming soon",
