@@ -32,6 +32,6 @@ import { AuthModule } from '../auth/auth.module';
     PortalAuthGuard,
     { provide: PORTAL_JWT, useFactory: () => new JwtService() },
   ],
-  exports: [PortalRealmGuard, PortalAuthGuard, PortalAccounts, PortalSessions],
+  exports: [PortalRealmGuard, PortalAuthGuard, PortalAccounts, PortalSessions, PORTAL_JWT],
 })
 export class PortalAuthModule {}

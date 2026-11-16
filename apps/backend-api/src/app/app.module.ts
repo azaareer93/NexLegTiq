@@ -36,6 +36,7 @@ import { PlatformOfficesModule } from '../modules/platform-offices/platform-offi
 import { PlatformPaymentsModule } from '../modules/platform-payments/platform-payments.module';
 import { PlatformPlansModule } from '../modules/platform-plans/platform-plans.module';
 import { PlatformUsageModule } from '../modules/platform-usage/platform-usage.module';
+import { PortalModule } from '../modules/portal/portal.module';
 import { PortalAuthModule } from '../modules/portal-auth/portal-auth.module';
 import { SearchModule } from '../modules/search/search.module';
 import { SessionsModule } from '../modules/sessions/sessions.module';
@@ -67,6 +68,7 @@ import { WitnessesModule } from '../modules/witnesses/witnesses.module';
     PlatformPlansModule,
     PlatformPaymentsModule,
     PortalAuthModule,
+    PortalModule,
     SubscriptionsModule,
     NotificationsModule,
     TimelineModule,
