@@ -24,3 +24,9 @@ export const NEW_VERSION_STATE = {
   ocrStatus: 'PENDING',
   processingErrorCode: null,
 } as const;
+
+/** `ocr` queue: scan a document a client sent through the portal (D-187); one job per upload. */
+export const SCAN_CLIENT_UPLOAD_JOB = 'scan-client-upload';
+export const ClientUploadJobSchema = z.object({ uploadId: z.uuid() });
+export type ClientUploadJob = z.infer<typeof ClientUploadJobSchema>;
+export const clientUploadJobId = (job: ClientUploadJob) => `scan-upload-${job.uploadId}`;

@@ -53,6 +53,7 @@
     "fileReassigned": "أُسند إليك الملف ⁨{{fileNumber}}⁩",
     "fileTeamAdded": "تمت إضافتك إلى فريق الملف ⁨{{fileNumber}}⁩",
     "documentQuarantined": "حُجب المستند ⁨{{name}}⁩ لاحتوائه على برمجية خبيثة",
+    "clientUpload": "أرسل ⁨{{client}}⁩ المستند ⁨{{name}}⁩ للمراجعة",
     "documentFailed": "تعذّر استخراج نص المستند ⁨{{name}}⁩",
     "invitationAccepted": "قُبلت دعوتك من ⁨{{name}}⁩",
     "documentProcessed": "أصبح نص المستند ⁨{{name}}⁩ جاهزًا",

@@ -16,6 +16,7 @@ import { InvitationLinks } from '../modules/auth/invitation-links';
 import { PasswordResetLinks } from '../modules/auth/password-reset-links';
 import { VerificationLinks } from '../modules/auth/verification-links';
 import { OfficeExportBuilder } from '../modules/data-export/office-export.builder';
+import { ClientUploadScan } from '../modules/documents/client-upload-scan';
 import { DocumentExtraction } from '../modules/documents/document-extraction';
 import { DocumentScan } from '../modules/documents/document-scan';
 import { ClamavScanner } from '../modules/documents/upload/clamav-scanner';
@@ -75,6 +76,7 @@ import { TimelineModule } from '../modules/timeline/timeline.module';
     SessionSummarizer,
     OcrProcessor,
     DocumentScan,
+    ClientUploadScan,
     DocumentExtraction,
     ClamavScanner,
   ],

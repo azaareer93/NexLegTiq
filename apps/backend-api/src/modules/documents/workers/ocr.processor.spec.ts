@@ -8,6 +8,7 @@ import { AppConfig } from '../../../config/app-config';
 import { testEnv } from '../../../config/env.fixture';
 import { parseEnv } from '../../../config/env.schema';
 import type { PrismaService } from '../../../database/prisma.service';
+import type { ClientUploadScan } from '../client-upload-scan';
 import type { DocumentExtraction } from '../document-extraction';
 import type { DocumentScan } from '../document-scan';
 import { UnreadableDocumentError } from '../extraction/extract-text';
@@ -28,6 +29,10 @@ function setup(env: Record<string, string> = {}) {
     run: jest.fn().mockResolvedValue('READY'),
     markFailed: jest.fn().mockResolvedValue(undefined),
   };
+  const uploadScan = {
+    run: jest.fn().mockResolvedValue('CLEAN'),
+    markFailed: jest.fn().mockResolvedValue(undefined),
+  };
   const tenant = { run: jest.fn((_ctx: unknown, work: () => Promise<unknown>) => work()) };
   const logger = { error: jest.fn(), warn: jest.fn() };
   const processor = new OcrProcessor(
@@ -35,10 +40,11 @@ function setup(env: Record<string, string> = {}) {
     {} as PrismaService,
     logger as unknown as PinoLogger,
     scan as unknown as DocumentScan,
+    uploadScan as unknown as ClientUploadScan,
     extraction as unknown as DocumentExtraction,
     new AppConfig(parseEnv(testEnv(env))),
   );
-  return { processor, scan, extraction, tenant, logger };
+  return { processor, scan, uploadScan, extraction, tenant, logger };
 }
 
 const job = (name: string, attemptsMade = 0) =>
@@ -67,6 +73,29 @@ describe('OcrProcessor', () => {
       signal,
     );
     await expect(handle('other')).rejects.toThrow('Unknown ocr job other');
+  });
+
+  it('should scan a client upload, mark it FAILED after its last attempt, and refuse a bad payload', async () => {
+    const { processor, uploadScan, scan } = setup();
+    const uploadJob = (attemptsMade: number) =>
+      ({
+        name: 'scan-client-upload',
+        data: { officeId: DATA.officeId, requestId: null, uploadId: DATA.documentId },
+        attemptsMade,
+        opts: { attempts: 3 },
+      }) as unknown as Job;
+    const internals = processor as unknown as Internals;
+    await expect(internals.handle(uploadJob(0), signal)).resolves.toEqual({ outcome: 'CLEAN' });
+    expect(uploadScan.run).toHaveBeenCalledWith({ uploadId: DATA.documentId }, signal);
+    await processor.onFailed(uploadJob(1), new Error('clamd down'));
+    expect(uploadScan.markFailed).not.toHaveBeenCalled();
+    await processor.onFailed(uploadJob(3), new Error('clamd down'));
+    expect(uploadScan.markFailed).toHaveBeenCalledWith({ uploadId: DATA.documentId });
+    // A document job whose payload is not a document's: refused, and never marks anything.
+    const odd = { ...uploadJob(3), name: 'scan-document' } as unknown as Job;
+    await expect(internals.handle(odd, signal)).rejects.toBeInstanceOf(UnrecoverableError);
+    await processor.onFailed(odd, new Error('x'));
+    expect(scan.markFailed).not.toHaveBeenCalled();
   });
 
   it('should fail an unreadable file at once and let other extraction errors be retried', async () => {

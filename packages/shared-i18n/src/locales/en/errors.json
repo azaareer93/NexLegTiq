@@ -45,6 +45,8 @@
   "BIZ-024": "This payment is already voided.",
   "BIZ-025": "Too many entries to export at once. Narrow the dates or filters.",
   "BIZ-026": "This export is not available: it is still being prepared, it failed or it has expired.",
+  "BIZ-027": "This client has reached the upload limit. Ask the office to review the pending uploads first.",
+  "BIZ-028": "This upload has already been reviewed.",
   "DB-001": "Something went wrong while saving. Try again.",
   "EXT-001": "The email could not be sent. Try again later.",
   "EXT-002": "Text recognition is unavailable right now. Try again later.",
