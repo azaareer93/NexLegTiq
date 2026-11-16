@@ -100,8 +100,8 @@ describe('ClientUploadScan (D-187)', () => {
     const gone = setup(null, false);
     await gone.scan.markFailed({ uploadId: 'u1' });
     expect(gone.tx.clientUpload.updateMany).not.toHaveBeenCalled();
-    const raced = setup(UPLOAD, false, 0);
-    await raced.scan.markFailed({ uploadId: 'u1' });
-    expect(raced.storage.delete).not.toHaveBeenCalled();
+    const racedFail = setup(UPLOAD, false, 0);
+    await racedFail.scan.markFailed({ uploadId: 'u1' });
+    expect(racedFail.storage.delete).not.toHaveBeenCalled();
   });
 });

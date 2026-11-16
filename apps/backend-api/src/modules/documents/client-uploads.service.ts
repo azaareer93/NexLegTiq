@@ -92,7 +92,7 @@ export class ClientUploadsService {
       // Pending uploads are outside the office's storage use (D-187): the quota is checked when one becomes a document.
       await this.intake.assertRoomFor(upload.sizeBytes);
       const folderId = body.folderId ?? (await this.clientUploadsFolder(tx, fileId));
-      await this.intake.recheck(tx, { fileId, folderId });
+      await this.intake.recheck(tx, { fileId, folderId: folderId ?? undefined });
       const name = body.name ?? upload.originalFilename;
       const stored = {
         originalFilename: upload.originalFilename,
