@@ -40,6 +40,7 @@ import { ClsService } from 'nestjs-cls';
 
 import { DocumentRecordsService } from './document-records.service';
 import { DocumentRetry } from './document-retry';
+import { DocumentSharingService } from './document-sharing.service';
 import { DocumentsService } from './documents.service';
 import { AuditService } from '../../common/audit/audit.service';
 import type { RequestContext } from '../../common/context/request-context';
@@ -69,6 +70,7 @@ export class DocumentsController {
     private readonly documents: DocumentsService,
     private readonly records: DocumentRecordsService,
     private readonly retries: DocumentRetry,
+    private readonly sharing: DocumentSharingService,
     private readonly cls: ClsService<RequestContext>,
     private readonly audit: AuditService,
   ) {}
@@ -143,6 +145,29 @@ export class DocumentsController {
   })
   async remove(@Param('id', uuid) id: string, @Req() req: Request): Promise<void> {
     await this.records.remove(id, this.client(req));
+  }
+
+  @Post(':id/share')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('share:document')
+  @ApiOperation({
+    summary:
+      "Show the document to the file's clients on the portal (audited; timeline DOCUMENT_SHARED)",
+  })
+  @ApiZodResponse(HttpStatus.OK, DocumentSchema)
+  async share(@Param('id', uuid) id: string, @Req() req: Request): Promise<Document> {
+    await this.sharing.setShared(id, true, this.client(req));
+    return this.records.get(id);
+  }
+
+  @Post(':id/unshare')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('share:document')
+  @ApiOperation({ summary: 'Stop showing the document on the portal (audited)' })
+  @ApiZodResponse(HttpStatus.OK, DocumentSchema)
+  async unshare(@Param('id', uuid) id: string, @Req() req: Request): Promise<Document> {
+    await this.sharing.setShared(id, false, this.client(req));
+    return this.records.get(id);
   }
 
   @Post(':id/ocr/retry')
