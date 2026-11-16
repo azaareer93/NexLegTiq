@@ -50,6 +50,7 @@ import { ApiZodBody, ApiZodQuery, ApiZodResponse } from '../../common/openapi/ap
 import { RequireAnyPermission, RequirePermissions } from '../../common/rbac/permissions.decorator';
 import { clientFromRequest } from '../auth/client-info';
 import type { ClientInfo } from '../auth/client-info';
+import { AllowWhenReadOnly } from '../subscriptions/subscription.decorators';
 
 /** A malformed id is the same 404 as an unknown one (D-019). */
 const uuid = new ParseUUIDPipe({ exceptionFactory: () => new ResourceNotFoundException() });
@@ -163,6 +164,8 @@ export class DocumentsController {
   @Post(':id/unshare')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions('share:document')
+  // A read-only office still serves its portal (D-158), so it must still be able to withdraw a document.
+  @AllowWhenReadOnly()
   @ApiOperation({ summary: 'Stop showing the document on the portal (audited)' })
   @ApiZodResponse(HttpStatus.OK, DocumentSchema)
   async unshare(@Param('id', uuid) id: string, @Req() req: Request): Promise<Document> {

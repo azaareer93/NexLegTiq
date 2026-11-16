@@ -303,9 +303,89 @@ describe('portal data (HTTP + PostgreSQL)', () => {
         role: 'PARALEGAL',
       },
     });
+    for (const action of ['share', 'unshare']) {
+      await http()
+        .post(`/api/v1/documents/${doc.id}/${action}`)
+        .set(bearerFor(jwt, { officeId: o.officeId, userId: paralegal.id, role: 'PARALEGAL' }))
+        .expect(403);
+    }
+  });
+
+  it("should keep a confidential document's name off the timeline, refuse quarantined ones and allow withdrawing on an archived file", async () => {
+    const o = await office();
+    const mine = await file(o, o.clients[0].id);
+    const share = (id: string) =>
+      http().post(`/api/v1/documents/${id}/share`).set(bearerFor(jwt, o));
+
+    const confidential = await document(o, mine.id, { isConfidential: true });
+    await share(confidential.id).expect(200);
+    const event = await raw.caseTimelineEvent.findFirstOrThrow({
+      where: { fileId: mine.id, eventType: 'DOCUMENT_SHARED' },
+    });
+    expect(event.payload).toEqual({});
+
+    const quarantined = await document(o, mine.id, { status: 'QUARANTINED' });
+    expect(codeOf(await share(quarantined.id).expect(422))).toBe('STO-004');
+    expect(
+      (await raw.document.findUniqueOrThrow({ where: { id: quarantined.id } })).sharedWithClient,
+    ).toBe(false);
+
+    await raw.legalFile.update({ where: { id: mine.id }, data: { status: 'ARCHIVED' } });
+    const other = await document(o, mine.id);
+    expect(codeOf(await share(other.id).expect(422))).toBe('BIZ-007');
     await http()
-      .post(`/api/v1/documents/${doc.id}/share`)
-      .set(bearerFor(jwt, { officeId: o.officeId, userId: paralegal.id, role: 'PARALEGAL' }))
-      .expect(403);
+      .post(`/api/v1/documents/${confidential.id}/unshare`)
+      .set(bearerFor(jwt, o))
+      .expect(200);
+  });
+
+  it("should never hand one client another client's shared document, and serve every office of one account", async () => {
+    const a = await office();
+    const b = await office();
+    const fileA = await file(a, a.clients[0].id);
+    const fileB = await file(b, b.clients[0].id);
+    const sameOffice = await file(a, a.clients[1].id);
+    const docB = await document(b, fileB.id, { sharedWithClient: true });
+    const docSame = await document(a, sameOffice.id, { sharedWithClient: true });
+    const auth = await portalUser(a, a.clients[0].id);
+    const as = (path: string) => http().get(`/api/v1/portal${path}`).set('Authorization', auth);
+
+    for (const id of [docB.id, docSame.id]) await as(`/documents/${id}/download`).expect(404);
+
+    // The same address invited by office B: one account, two offices (D-158).
+    const email = emails.at(-1); // portalUser's address
+    await http()
+      .post(`/api/v1/clients/${b.clients[0].id}/portal-invitations`)
+      .set(bearerFor(jwt, b))
+      .send({ email })
+      .expect(201);
+    const token = randomUUID().replaceAll('-', '');
+    await raw.clientInvitation.updateMany({
+      where: { officeId: b.officeId, acceptedAt: null },
+      data: { tokenHash: hashOpaqueToken(token) },
+    });
+    await http()
+      .post('/api/v1/portal/auth/accept-invite')
+      .send({
+        token,
+        fullName: 'Layla',
+        password: 'Correct-Horse-42',
+        acceptTerms: true,
+        acceptPrivacy: true,
+      })
+      .expect(201);
+
+    const files = dataOf<PortalFile[]>(await as('/files').expect(200));
+    expect(files.map((f) => [f.id, f.officeId]).sort()).toEqual(
+      [
+        [fileA.id, a.officeId],
+        [fileB.id, b.officeId],
+      ].sort(),
+    );
+    expect(dataOf<PortalFileDetail>(await as(`/files/${fileB.id}`).expect(200)).officeId).toBe(
+      b.officeId,
+    );
+    await as(`/documents/${docB.id}/download`).expect(200);
+    await as(`/documents/${docSame.id}/download`).expect(404);
   });
 });

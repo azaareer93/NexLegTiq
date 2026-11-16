@@ -10,8 +10,12 @@ const NO_CLIENT = { ip: '127.0.0.1', userAgent: null, requestId: null } satisfie
 const A = { officeId: 'o-a', officeName: 'Office A', clientId: 'c-a', clientName: 'Client' };
 const B = { officeId: 'o-b', officeName: 'Office B', clientId: 'c-b', clientName: 'Client' };
 const when = new Date('2026-12-01T08:00:00Z');
-const fileRow = (court: { nameAr: string; nameEn: string | null } | null, hearing = true) => ({
-  id: 'f1',
+const fileRow = (
+  court: { nameAr: string; nameEn: string | null } | null,
+  hearing = true,
+  id = 'f1',
+) => ({
+  id,
   fileNumber: '2026/1',
   title: 'Lease',
   status: 'OPEN',
@@ -22,7 +26,7 @@ const fileRow = (court: { nameAr: string; nameEn: string | null } | null, hearin
 function setup(grants = [A, B]) {
   const office: string[] = [];
   const db = {
-    legalFile: { findMany: jest.fn(), findFirstOrThrow: jest.fn(), count: jest.fn() },
+    legalFile: { findMany: jest.fn(), findFirst: jest.fn() },
     caseTimelineEvent: { findMany: jest.fn().mockResolvedValue([]) },
     document: { findMany: jest.fn(), findFirst: jest.fn() },
     documentVersion: {
@@ -54,7 +58,7 @@ describe('PortalService (D-186)', () => {
     const { service, db, office } = setup();
     db.legalFile.findMany
       .mockResolvedValueOnce([fileRow({ nameAr: 'بداية', nameEn: null })])
-      .mockResolvedValueOnce([fileRow(null, false), fileRow(null)]);
+      .mockResolvedValueOnce([fileRow(null, false, 'f2'), fileRow(null, true, 'f3')]);
     const files = await service.files('u1');
     expect(office).toEqual(['o-a', 'o-b']);
     expect(db.legalFile.findMany.mock.calls[1][0].where).toEqual({
@@ -68,10 +72,15 @@ describe('PortalService (D-186)', () => {
     ]);
   });
 
+  it('should list a file once when two grants in one office reach it', async () => {
+    const { service, db } = setup([A, { ...A, clientId: 'c-a2' }]);
+    db.legalFile.findMany.mockResolvedValue([fileRow(null, false)]);
+    expect((await service.files('u1')).map((f) => f.id)).toEqual(['f1']);
+  });
+
   it('should open a file in the office whose client it belongs to, with kinds and times only', async () => {
     const { service, db, office } = setup();
-    db.legalFile.count.mockResolvedValueOnce(0).mockResolvedValueOnce(1);
-    db.legalFile.findFirstOrThrow.mockResolvedValue(fileRow(null, false));
+    db.legalFile.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(fileRow(null, false));
     db.caseTimelineEvent.findMany.mockResolvedValue([
       { eventType: 'FILE_OPENED', occurredAt: when },
     ]);
@@ -85,14 +94,14 @@ describe('PortalService (D-186)', () => {
 
   it('should answer 404 for a file of no grant', async () => {
     const { service, db } = setup();
-    db.legalFile.count.mockResolvedValue(0);
+    db.legalFile.findFirst.mockResolvedValue(null);
     await expect(service.file('u1', 'f1')).rejects.toMatchObject({ code: 'RES-001' });
     await expect(service.documents('u1', 'f1')).rejects.toMatchObject({ code: 'RES-001' });
   });
 
   it('should list only shared, scanned-clean documents', async () => {
     const { service, db } = setup([A]);
-    db.legalFile.count.mockResolvedValue(1);
+    db.legalFile.findFirst.mockResolvedValue(fileRow(null));
     db.document.findMany.mockResolvedValue([
       { id: 'd1', name: 'Lease', mimeType: 'application/pdf', sizeBytes: 10n, createdAt: when },
     ]);

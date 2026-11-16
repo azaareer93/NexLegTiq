@@ -61,9 +61,10 @@ describe('DocumentSharingService (D-186)', () => {
     expect(timeline.record.mock.calls[0][1].payload).toEqual({});
   });
 
-  it('should unshare with an audit row and no timeline event', async () => {
-    const { service, tx, timeline } = setup(doc({ sharedWithClient: true }));
+  it('should unshare with read access (archived files too), an audit row and no timeline event', async () => {
+    const { service, tx, timeline, access } = setup(doc({ sharedWithClient: true }));
     await service.setShared('d1', false, NO_CLIENT);
+    expect(access.assertDocumentAccess).toHaveBeenCalledWith('d1', 'read');
     expect(tx.auditLog.create).toHaveBeenCalled();
     expect(timeline.record).not.toHaveBeenCalled();
   });

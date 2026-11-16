@@ -125,6 +125,20 @@ describe('visionOcr (D-142)', () => {
     await expect(run()).rejects.toMatchObject({ code: 'EMPTY_RESPONSE' });
   });
 
+  it('should read a page with no text or no confidence as unread, and an unreadable answer as empty', async () => {
+    const run = () =>
+      visionOcr(Buffer.from('x'), OCR_MIME.PNG, { pages: 1, signal: signal(), config });
+    const body = (value: unknown) => new Response(JSON.stringify(value), { status: 200 });
+    fetchMock.mockResolvedValueOnce(body({ responses: [{}] }));
+    await expect(run()).resolves.toMatchObject({ text: '', confidence: null });
+    fetchMock.mockResolvedValueOnce(body({ responses: [{ fullTextAnnotation: { text: 'نص' } }] }));
+    await expect(run()).resolves.toMatchObject({ text: 'نص', pageConfidences: [null] });
+    fetchMock.mockResolvedValueOnce(body({ responses: [{ error: {} }] }));
+    await expect(run()).rejects.toMatchObject({ code: 'VISION_UNKNOWN' });
+    fetchMock.mockResolvedValueOnce(new Response('not json', { status: 200 }));
+    await expect(run()).rejects.toMatchObject({ code: 'EMPTY_RESPONSE' });
+  });
+
   it('should pass an abort through instead of calling it a provider failure', async () => {
     const controller = new AbortController();
     controller.abort();

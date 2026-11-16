@@ -20,6 +20,8 @@ import { PortalAccounts } from '../portal-auth/portal-accounts';
 
 /** shortcut: no paging — a client has few files; page when one passes this. */
 const MAX_FILES = 200;
+/** shortcut: no paging — the newest 200 shared documents of a file; page when one passes this. */
+const MAX_DOCUMENTS = 200;
 const TIMELINE_EVENTS = 100;
 /** Scanned clean (D-126): the portal offers nothing else. */
 const OFFERED = { in: ['PROCESSING', 'READY'] } satisfies Prisma.EnumDocumentStatusFilter;
@@ -83,28 +85,25 @@ export class PortalService {
     const grants = await this.accounts.offices(clientUserId);
     const now = new Date();
     const lists = await Promise.all(
-      grants.map((grant) =>
-        this.inOffice(grant, () =>
+      grants.map(async (grant) => {
+        const rows = await this.inOffice(grant, () =>
           this.prisma.db.legalFile.findMany({
             where: clientFiles(grant.clientId),
             orderBy: [{ openingDate: 'desc' }, { id: 'desc' }],
             take: MAX_FILES,
             select: fileSelect(now),
           }),
-        ),
-      ),
+        );
+        return rows.map((row) => toFile(grant, row));
+      }),
     );
-    return lists.flatMap((rows, i) =>
-      rows.map((row) => toFile(grants[i] as PortalOfficeAccess, row)),
-    );
+    // Two grants in one office (a person and their company) can both reach a file: list it once.
+    const seen = new Set<string>();
+    return lists.flat().filter((f) => !seen.has(f.id) && Boolean(seen.add(f.id)));
   }
 
   async file(clientUserId: string, fileId: string): Promise<PortalFileDetail> {
-    return this.withFile(clientUserId, fileId, async (grant) => {
-      const row = await this.prisma.db.legalFile.findFirstOrThrow({
-        where: { id: fileId },
-        select: fileSelect(new Date()),
-      });
+    return this.withFile(clientUserId, fileId, async (grant, row) => {
       const events = await this.prisma.db.caseTimelineEvent.findMany({
         where: { fileId, eventType: { in: [...PORTAL_TIMELINE_EVENT_TYPES] } },
         orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
@@ -126,6 +125,7 @@ export class PortalService {
       const rows = await this.prisma.db.document.findMany({
         where: { fileId, deletedAt: null, sharedWithClient: true, status: OFFERED },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: MAX_DOCUMENTS,
         select: { id: true, name: true, mimeType: true, sizeBytes: true, createdAt: true },
       });
       return rows.map((r) => ({
@@ -187,17 +187,21 @@ export class PortalService {
     throw new ResourceNotFoundException();
   }
 
-  /** Runs `work` in the office of the grant whose client the file belongs to; none → 404. */
+  /** Runs `work` in the office of the grant whose client the file belongs to, on the row read once; none → 404. */
   private async withFile<T>(
     clientUserId: string,
     fileId: string,
-    work: (grant: PortalOfficeAccess) => Promise<T>,
+    work: (grant: PortalOfficeAccess, row: FileRow) => Promise<T>,
   ): Promise<T> {
     for (const grant of await this.accounts.offices(clientUserId)) {
-      const found = await this.inOffice(grant, () =>
-        this.prisma.db.legalFile.count({ where: { id: fileId, ...clientFiles(grant.clientId) } }),
-      );
-      if (found > 0) return this.inOffice(grant, () => work(grant));
+      const result = await this.inOffice(grant, async () => {
+        const row = await this.prisma.db.legalFile.findFirst({
+          where: { id: fileId, ...clientFiles(grant.clientId) },
+          select: fileSelect(new Date()),
+        });
+        return row ? { value: await work(grant, row) } : null;
+      });
+      if (result) return result.value;
     }
     throw new ResourceNotFoundException();
   }

@@ -28,7 +28,8 @@ export class DocumentSharingService {
     const officeId = this.cls.get('officeId');
     const userId = this.cls.get('userId');
     if (!officeId || !userId) throw new Error('No office caller in the request context');
-    const document = await this.documents.assertDocumentAccess(id, 'contribute');
+    // Withdrawing must work on an archived file too: the portal still shows its shared documents.
+    const document = await this.documents.assertDocumentAccess(id, shared ? 'contribute' : 'read');
     await this.uow.run(async (tx) => {
       await tx.$queryRaw`SELECT 1 FROM documents WHERE id = ${id}::uuid AND office_id = ${officeId}::uuid FOR UPDATE`;
       const row = await tx.document.findFirst({
