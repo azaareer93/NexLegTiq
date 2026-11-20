@@ -13,6 +13,8 @@ describe('PortalController', () => {
       file: jest.fn().mockResolvedValue('file'),
       documents: jest.fn().mockResolvedValue([]),
       download: jest.fn().mockResolvedValue('link'),
+      upload: jest.fn().mockResolvedValue('upload'),
+      uploads: jest.fn().mockResolvedValue([]),
     };
     const invoiceList = {
       list: jest.fn().mockResolvedValue([]),
@@ -29,6 +31,8 @@ describe('PortalController', () => {
       await expect(controller.file('f1', req)).resolves.toBe('file');
       await expect(controller.documents('f1', req)).resolves.toEqual([]);
       await expect(controller.download('d1', req)).resolves.toBe('link');
+      await expect(controller.upload('f1', req)).resolves.toBe('upload');
+      await expect(controller.uploads('f1', req)).resolves.toEqual([]);
       await expect(controller.invoices(req)).resolves.toEqual([]);
       const res = { status: jest.fn() };
       await expect(controller.invoicePdf('i1', req, res as never)).resolves.toEqual({

@@ -80,8 +80,11 @@
   DEMAND_LETTER, POWER_OF_ATTORNEY, CORRESPONDENCE, OTHER), mimeType, sizeBytes, checksumSha256, storageKey,
   currentVersion, `status: UPLOADED|SCANNING|PROCESSING|READY|FAILED|QUARANTINED`, `ocrStatus: NOT_NEEDED|PENDING|
   DONE|FAILED` (NOT_NEEDED = READY without text: a legacy .doc, or OCR off for the office — D-139), language
-  (AR|EN|MIXED), isConfidential, sharedWithClient, uploadedById | uploadedByClientUserId
-  (the latter with the Client Portal), deletedAt.
+  (AR|EN|MIXED), isConfidential, sharedWithClient, uploadedById (an office user; a client upload is credited to
+  the lawyer who accepted it, D-187), deletedAt.
+- **ClientUpload** 🔒 — a file sent through the portal, waiting for review (D-187): fileId, clientId, clientUserId,
+  the stored object (originalFilename, mimeType, sizeBytes, checksumSha256, storageKey), `status: SCANNING|
+  PENDING_REVIEW|ACCEPTED|REJECTED|QUARANTINED|FAILED`, rejectionReason, reviewedById/At, documentId (once accepted).
 - **DocumentVersion** 🔒 — versionNumber, storageKey, originalFilename, mimeType, sizeBytes, checksum, createdById,
   changeNote; append-only, the first upload included (storage use = sum of version sizes, D-119).
 - **DocumentText** 🔒 — documentId, versionNumber, text, `searchVectorSimple tsvector`, `searchVectorEnglish tsvector`,

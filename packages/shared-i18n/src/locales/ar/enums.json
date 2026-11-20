@@ -55,6 +55,14 @@
     "NGO": "منظمة غير حكومية",
     "PARTNERSHIP": "شراكة"
   },
+  "clientUploadStatus": {
+    "SCANNING": "قيد الفحص",
+    "PENDING_REVIEW": "بانتظار المراجعة",
+    "ACCEPTED": "مقبول",
+    "REJECTED": "مرفوض",
+    "QUARANTINED": "محجوب",
+    "FAILED": "تعذّر الفحص"
+  },
   "courtType": {
     "CIVIL": "مدنية",
     "CRIMINAL": "جزائية",

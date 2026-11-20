@@ -436,6 +436,7 @@ model Office {
   sessionAttendances     SessionPartyAttendance[]
   documentFolders        DocumentFolder[]
   documents              Document[]
+  clientUploads          ClientUpload[]
   documentVersions       DocumentVersion[]
   documentTexts          DocumentText[]
 
@@ -526,6 +527,7 @@ model User {
   attendedSessions      Session[]                @relation("SessionAttendingLawyer")
   createdSessions       Session[]                @relation("SessionCreator")
   uploadedDocuments     Document[]               @relation("DocumentUploader")
+  reviewedClientUploads ClientUpload[]           @relation("ClientUploadReviewer")
   documentVersions      DocumentVersion[]        @relation("DocumentVersionCreator")
 
   /// Target of the composite (user_id, office_id) FKs: a child row can never name a user of another office (D-079).
@@ -888,6 +890,7 @@ model Client {
   contacts          ContactPerson[]
   invoices          Invoice[]
   portalAccesses    ClientPortalAccess[]
+  uploads           ClientUpload[]
   portalInvitations ClientInvitation[]
 
   @@unique([id, officeId])
@@ -984,6 +987,7 @@ model LegalFile {
   sessions             Session[]
   documentFolders      DocumentFolder[]
   documents            Document[]
+  clientUploads        ClientUpload[]
   retainerEntries      RetainerEntry[]
 
   @@unique([officeId, fileNumber])
@@ -1497,14 +1501,15 @@ model Document {
   createdAt           DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt           DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  office     Office            @relation(fields: [officeId], references: [id])
-  file       LegalFile         @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  office       Office            @relation(fields: [officeId], references: [id])
+  file         LegalFile         @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
   // NoAction (end of statement): purging a file cascades to its folders, sessions and documents together.
-  folder     DocumentFolder?   @relation(fields: [folderId, fileId, officeId], references: [id, fileId, officeId], onDelete: NoAction, onUpdate: Restrict)
-  session    Session?          @relation(fields: [sessionId, fileId, officeId], references: [id, fileId, officeId], onDelete: NoAction, onUpdate: Restrict)
-  uploadedBy User              @relation("DocumentUploader", fields: [uploadedById, officeId], references: [id, officeId], onUpdate: Restrict)
-  versions   DocumentVersion[]
-  texts      DocumentText[]
+  folder       DocumentFolder?   @relation(fields: [folderId, fileId, officeId], references: [id, fileId, officeId], onDelete: NoAction, onUpdate: Restrict)
+  session      Session?          @relation(fields: [sessionId, fileId, officeId], references: [id, fileId, officeId], onDelete: NoAction, onUpdate: Restrict)
+  uploadedBy   User              @relation("DocumentUploader", fields: [uploadedById, officeId], references: [id, officeId], onUpdate: Restrict)
+  versions     DocumentVersion[]
+  texts        DocumentText[]
+  clientUpload ClientUpload?
 
   @@unique([id, officeId])
   // One upload per key and uploader (NULLs never collide).
@@ -2013,6 +2018,7 @@ model ClientUser {
   sessions    ClientSession[]
   resetTokens ClientPasswordResetToken[]
   auditLogs   AuditLog[]
+  uploads     ClientUpload[]
 
   @@map("client_users")
 }
@@ -2129,4 +2135,53 @@ enum OfficeExportStatus {
   RUNNING
   READY
   FAILED
+}
+
+/// Where a client upload stands (D-187): scanned, then waiting for a lawyer, who accepts it (a Document) or rejects it.
+enum ClientUploadStatus {
+  SCANNING
+  PENDING_REVIEW
+  ACCEPTED
+  REJECTED
+  QUARANTINED
+  FAILED
+}
+
+/// A document a client sent through the portal (MVP-99, D-187). Kept apart from `Document` until a lawyer accepts it:
+/// office lists, search, AI and exports never see an unreviewed upload. Accepting creates the Document (`documentId`).
+model ClientUpload {
+  id               String             @id @default(uuid(7)) @db.Uuid
+  officeId         String             @map("office_id") @db.Uuid
+  fileId           String             @map("file_id") @db.Uuid
+  /// The client of the grant the upload came through (D-158): only that client sees it on the portal.
+  clientId         String             @map("client_id") @db.Uuid
+  clientUserId     String             @map("client_user_id") @db.Uuid
+  originalFilename String             @map("original_filename")
+  mimeType         String             @map("mime_type")
+  sizeBytes        BigInt             @map("size_bytes")
+  checksumSha256   String             @map("checksum_sha256") @db.Char(64)
+  /// `{officeId}/{fileId}/{uploadId}/{uuid}.{ext}`; becomes the accepted Document's first version.
+  storageKey       String             @unique @map("storage_key")
+  status           ClientUploadStatus @default(SCANNING)
+  /// Shown to the client (D-187); set on REJECTED only.
+  rejectionReason  String?            @map("rejection_reason")
+  reviewedById     String?            @map("reviewed_by_id") @db.Uuid
+  reviewedAt       DateTime?          @map("reviewed_at") @db.Timestamptz(3)
+  documentId       String?            @map("document_id") @db.Uuid
+  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office     Office     @relation(fields: [officeId], references: [id])
+  file       LegalFile  @relation(fields: [fileId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  client     Client     @relation(fields: [clientId, officeId], references: [id, officeId], onDelete: Cascade, onUpdate: Restrict)
+  clientUser ClientUser @relation(fields: [clientUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  reviewedBy User?      @relation("ClientUploadReviewer", fields: [reviewedById, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
+  document   Document?  @relation(fields: [documentId, officeId], references: [id, officeId], onDelete: SetNull, onUpdate: Restrict)
+
+  // A file's review queue and the client's own list.
+  @@unique([documentId, officeId])
+  @@index([officeId, fileId, status])
+  @@index([officeId, clientId])
+  @@index([clientUserId])
+  @@map("client_uploads")
 }

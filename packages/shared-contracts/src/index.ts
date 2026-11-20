@@ -9,6 +9,7 @@ export * from './audit.contract.js';
 export * from './auth.contract.js';
 export * from './case.contract.js';
 export * from './client-portal.contract.js';
+export * from './client-upload.contract.js';
 export * from './client.contract.js';
 export * from './court.contract.js';
 export * from './dashboard.contract.js';

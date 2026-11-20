@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 
 import { CaseDocumentsController, ClientDocumentsController } from './case-documents.controller';
+import { ClientUploadIntake } from './client-upload-intake';
+import { CaseClientUploadsController, ClientUploadsController } from './client-uploads.controller';
+import { ClientUploadsService } from './client-uploads.service';
 import { DocumentAccessService } from './document-access.service';
 import { DocumentRecordsService } from './document-records.service';
 import { DocumentRetry } from './document-retry';
@@ -13,7 +16,8 @@ import { UploadIntake } from './upload/upload-intake';
 import { LegalFilesModule } from '../legal-files/legal-files.module';
 
 /**
- * Documents: folders (MVP-71, D-119) and uploads with their malware scan (MVP-72, D-126).
+ * Documents: folders (MVP-71, D-119), uploads with their malware scan (MVP-72, D-126) and the review of client uploads
+ * (MVP-99, D-187).
  * The `ocr` processor is provided by the worker process only (`WorkerModule`).
  */
 @Module({
@@ -23,6 +27,8 @@ import { LegalFilesModule } from '../legal-files/legal-files.module';
     DocumentsController,
     CaseDocumentsController,
     ClientDocumentsController,
+    CaseClientUploadsController,
+    ClientUploadsController,
   ],
   providers: [
     FoldersService,
@@ -32,7 +38,9 @@ import { LegalFilesModule } from '../legal-files/legal-files.module';
     UploadIntake,
     DocumentRetry,
     DocumentSharingService,
+    ClientUploadIntake,
+    ClientUploadsService,
   ],
-  exports: [DocumentAccessService],
+  exports: [DocumentAccessService, ClientUploadIntake],
 })
 export class DocumentsModule {}

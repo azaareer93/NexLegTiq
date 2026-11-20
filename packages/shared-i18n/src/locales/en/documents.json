@@ -100,5 +100,22 @@
     "current": "Current",
     "pages": "Pages of the document",
     "textPages": "Pages of the text"
+  },
+  "clientUploads": {
+    "title": "Client uploads",
+    "client": "Client",
+    "sentBy": "Sent by",
+    "reason": "Reason: {{reason}}",
+    "open": "Open",
+    "accept": "Accept",
+    "reject": "Reject",
+    "acceptTitle": "Accept upload",
+    "rejectTitle": "Reject upload",
+    "documentType": "Document type",
+    "folder": "Folder (default: Client Uploads)",
+    "name": "Document name (optional)",
+    "reasonLabel": "Reason shown to the client",
+    "accepted": "The upload was added to the documents",
+    "rejected": "The upload was rejected"
   }
 }

@@ -229,6 +229,26 @@ export const clientInvitationIn = async (db: PrismaClient, office: SeededOffice)
 export const PORTAL_RESOURCES: readonly TenantResource[] = [
   { model: 'ClientPortalAccess', create: portalAccessIn, update: { revokedAt: new Date() } },
   { model: 'ClientInvitation', create: clientInvitationIn, update: { status: 'REVOKED' } },
+  {
+    model: 'ClientUpload',
+    create: async (db, office) => {
+      const access = await portalAccessIn(db, office);
+      return db.clientUpload.create({
+        data: {
+          officeId: office.officeId,
+          fileId: (await fileIn(db, office)).id,
+          clientId: access.clientId,
+          clientUserId: access.clientUserId,
+          originalFilename: 'scan.pdf',
+          mimeType: 'application/pdf',
+          sizeBytes: 10n,
+          checksumSha256: 'b'.repeat(64),
+          storageKey: `${office.officeId}/${randomUUID()}.pdf`,
+        },
+      });
+    },
+    update: { status: 'FAILED' },
+  },
 ];
 
 /** Billing tenant models (D-162), listed here to keep the matrix file short. */
