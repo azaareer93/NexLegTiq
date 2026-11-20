@@ -3,7 +3,11 @@ import type { StorageService } from '../../common/storage/storage.service';
 import type { TenantRunner } from '../../common/tenancy/tenant-runner';
 import type { PrismaService } from '../../database/prisma.service';
 import type { ClientInfo } from '../auth/client-info';
+import type { ClientUploadIntake } from '../documents/client-upload-intake';
+import { discardBody } from '../documents/upload/multipart';
 import type { PortalAccounts } from '../portal-auth/portal-accounts';
+
+jest.mock('../documents/upload/multipart', () => ({ discardBody: jest.fn() }));
 
 const NO_CLIENT = { ip: '127.0.0.1', userAgent: null, requestId: null } satisfies ClientInfo;
 
@@ -37,7 +41,9 @@ function setup(grants = [A, B]) {
       }),
     },
     auditLog: { create: jest.fn() },
+    clientUpload: { findMany: jest.fn().mockResolvedValue([]) },
   };
+  const intake = { receive: jest.fn().mockResolvedValue('upload') };
   const tenants = {
     run: jest.fn((ctx: { officeId: string }, work: () => Promise<unknown>) => {
       office.push(ctx.officeId);
@@ -49,8 +55,9 @@ function setup(grants = [A, B]) {
     tenants as unknown as TenantRunner,
     { db } as unknown as PrismaService,
     { presignedGetUrl: jest.fn().mockResolvedValue('https://s3/x') } as unknown as StorageService,
+    intake as unknown as ClientUploadIntake,
   );
-  return { service, db, office };
+  return { service, db, office, intake };
 }
 
 describe('PortalService (D-186)', () => {
@@ -111,6 +118,52 @@ describe('PortalService (D-186)', () => {
     expect(db.document.findMany.mock.calls[0][0].where).toMatchObject({
       sharedWithClient: true,
       status: { in: ['PROCESSING', 'READY'] },
+    });
+  });
+
+  it("should take an upload into the file's office for the grant's client, and drain a refused body", async () => {
+    const { service, db, intake, office } = setup();
+    db.legalFile.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(fileRow(null, false));
+    const req = { readableEnded: false } as never;
+    await expect(service.upload('u1', 'f1', req, NO_CLIENT)).resolves.toBe('upload');
+    expect(office.at(-1)).toBe('o-b');
+    expect(intake.receive).toHaveBeenCalledWith(
+      req,
+      { fileId: 'f1', clientId: 'c-b', clientUserId: 'u1' },
+      NO_CLIENT,
+    );
+    db.legalFile.findFirst.mockResolvedValue(null);
+    await expect(service.upload('u1', 'f1', req, NO_CLIENT)).rejects.toMatchObject({
+      code: 'RES-001',
+    });
+    expect(discardBody).toHaveBeenCalledWith(req);
+    intake.receive.mockRejectedValueOnce(new Error('storage down'));
+    db.legalFile.findFirst.mockResolvedValue(fileRow(null));
+    await expect(service.upload('u1', 'f1', req, NO_CLIENT)).rejects.toThrow('storage down');
+    expect(discardBody).toHaveBeenCalledTimes(1);
+  });
+
+  it("should list only the grant client's uploads on the file", async () => {
+    const { service, db } = setup([A]);
+    db.legalFile.findFirst.mockResolvedValue(fileRow(null));
+    db.clientUpload.findMany.mockResolvedValue([
+      {
+        id: 'cu1',
+        fileId: 'f1',
+        originalFilename: 'a.pdf',
+        mimeType: 'application/pdf',
+        sizeBytes: 5n,
+        status: 'REJECTED',
+        rejectionReason: 'Unsigned',
+        createdAt: when,
+      },
+    ]);
+    await expect(service.uploads('u1', 'f1')).resolves.toEqual([
+      expect.objectContaining({ name: 'a.pdf', sizeBytes: '5', rejectionReason: 'Unsigned' }),
+    ]);
+    expect(db.clientUpload.findMany.mock.calls[0][0].where).toEqual({
+      fileId: 'f1',
+      clientId: 'c-a',
     });
   });
 

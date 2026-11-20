@@ -158,6 +158,7 @@ function serve({ file = FILE, docs = DOCS } = {}): Calls {
       return page(docs);
     }),
     http.get(api(`cases/${FILE_ID}/folders`), () => ok(FOLDERS)),
+    http.get(api(`cases/${FILE_ID}/client-uploads`), () => ok([])),
     http.post(
       api(`cases/${FILE_ID}/folders`),
       record('POST', () => ok(folder(CUSTOM_ID, { name: 'New' }), 201)),

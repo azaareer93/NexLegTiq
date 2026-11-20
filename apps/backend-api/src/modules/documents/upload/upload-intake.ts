@@ -89,6 +89,11 @@ export class UploadIntake {
     return stored;
   }
 
+  /** The plan's storage quota still has room for `bytes` more (403 AUTH-103). */
+  assertRoomFor(bytes: bigint): Promise<void> {
+    return this.entitlements.assertStorageFor(bytes);
+  }
+
   /** Best effort: an object whose record could not be written is removed (a leftover only costs storage). */
   async discard(key: string): Promise<void> {
     await this.storage.delete(key).catch(() => undefined);

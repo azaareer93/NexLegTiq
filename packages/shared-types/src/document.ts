@@ -50,3 +50,14 @@ export const FOLDER_SYSTEM_KEYS = [
   'CLIENT_UPLOADS',
 ] as const;
 export type FolderSystemKey = (typeof FOLDER_SYSTEM_KEYS)[number];
+
+/** Where a portal upload stands (D-187). Mirrors the Prisma enum; labels: `enums.clientUploadStatus.<VALUE>`. */
+export const CLIENT_UPLOAD_STATUSES = [
+  'SCANNING',
+  'PENDING_REVIEW',
+  'ACCEPTED',
+  'REJECTED',
+  'QUARANTINED',
+  'FAILED',
+] as const;
+export type ClientUploadStatus = (typeof CLIENT_UPLOAD_STATUSES)[number];

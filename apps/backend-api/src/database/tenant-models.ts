@@ -56,6 +56,8 @@ export const TENANT_MODELS = [
   'Witness',
   'WitnessStatement',
   'OfficeExport',
+  // After files, clients and documents: cleanup deletes it first (D-187).
+  'ClientUpload',
 ] as const satisfies readonly Prisma.ModelName[];
 
 export type TenantModel = (typeof TENANT_MODELS)[number];

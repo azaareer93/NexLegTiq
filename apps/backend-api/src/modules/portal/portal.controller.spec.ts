@@ -12,6 +12,8 @@ describe('PortalController', () => {
       file: jest.fn().mockResolvedValue('file'),
       documents: jest.fn().mockResolvedValue([]),
       download: jest.fn().mockResolvedValue('link'),
+      upload: jest.fn().mockResolvedValue('upload'),
+      uploads: jest.fn().mockResolvedValue([]),
     };
     const req = { clientUserId: 'u1', ip: '127.0.0.1', get: () => 'jest' } as unknown as Request;
     for (const active of [true, false]) {
@@ -23,6 +25,8 @@ describe('PortalController', () => {
       await expect(controller.file('f1', req)).resolves.toBe('file');
       await expect(controller.documents('f1', req)).resolves.toEqual([]);
       await expect(controller.download('d1', req)).resolves.toBe('link');
+      await expect(controller.upload('f1', req)).resolves.toBe('upload');
+      await expect(controller.uploads('f1', req)).resolves.toEqual([]);
     }
     expect(portal.file).toHaveBeenCalledWith('u1', 'f1');
     expect(portal.download).toHaveBeenLastCalledWith(

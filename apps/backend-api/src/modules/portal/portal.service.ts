@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type {
   DownloadLink,
+  PortalUpload,
   PortalOfficeAccess,
   PortalDocument,
   PortalFile,
@@ -8,6 +9,7 @@ import type {
 } from '@nexlegtiq/shared-contracts';
 import { PORTAL_TIMELINE_EVENT_TYPES } from '@nexlegtiq/shared-types';
 import type { OfficeId } from '@nexlegtiq/shared-types';
+import type { Request } from 'express';
 
 import { auditRow } from '../../common/audit/audit.service';
 import { ResourceNotFoundException } from '../../common/errors/app.exception';
@@ -16,6 +18,9 @@ import { TenantRunner } from '../../common/tenancy/tenant-runner';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
 import type { ClientInfo } from '../auth/client-info';
+import { ClientUploadIntake } from '../documents/client-upload-intake';
+import { portalUploadSelect, toPortalUpload } from '../documents/client-upload-presenter';
+import { discardBody } from '../documents/upload/multipart';
 import { PortalAccounts } from '../portal-auth/portal-accounts';
 
 /** shortcut: no paging — a client has few files; page when one passes this. */
@@ -79,6 +84,7 @@ export class PortalService {
     private readonly tenants: TenantRunner,
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly intake: ClientUploadIntake,
   ) {}
 
   async files(clientUserId: string): Promise<PortalFile[]> {
@@ -133,6 +139,36 @@ export class PortalService {
         sizeBytes: r.sizeBytes.toString(),
         createdAt: r.createdAt.toISOString(),
       }));
+    });
+  }
+
+  /** Receives a document from the client into the file's review queue (D-187); a file of no grant is 404, unread. */
+  async upload(
+    clientUserId: string,
+    fileId: string,
+    req: Request,
+    client: ClientInfo,
+  ): Promise<PortalUpload> {
+    try {
+      return await this.withFile(clientUserId, fileId, (grant) =>
+        this.intake.receive(req, { fileId, clientId: grant.clientId, clientUserId }, client),
+      );
+    } catch (error) {
+      if (error instanceof ResourceNotFoundException && !req.readableEnded) await discardBody(req);
+      throw error;
+    }
+  }
+
+  /** What this client sent on the file and where each stands; another client's uploads are never listed. */
+  async uploads(clientUserId: string, fileId: string): Promise<PortalUpload[]> {
+    return this.withFile(clientUserId, fileId, async (grant) => {
+      const rows = await this.prisma.db.clientUpload.findMany({
+        where: { fileId, clientId: grant.clientId },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: MAX_DOCUMENTS,
+        select: portalUploadSelect,
+      });
+      return rows.map(toPortalUpload);
     });
   }
 

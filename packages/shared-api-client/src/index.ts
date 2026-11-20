@@ -23,6 +23,7 @@ export type {
   FileSessionsParams,
   SessionCalendarParams,
 } from './resources.js';
+export { clientUploadsApi } from './client-uploads.js';
 export { documentsApi, foldersApi } from './documents.js';
 export type { DocumentListParams, UploadInput, VersionInput } from './documents.js';
 export { taskTemplatesApi, tasksApi } from './tasks.js';

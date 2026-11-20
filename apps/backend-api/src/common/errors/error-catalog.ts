@@ -55,6 +55,8 @@ export const ERROR_STATUS: Readonly<Record<ErrorCode, HttpStatus>> = {
   'BIZ-024': HttpStatus.UNPROCESSABLE_ENTITY,
   'BIZ-025': HttpStatus.UNPROCESSABLE_ENTITY,
   'BIZ-026': HttpStatus.UNPROCESSABLE_ENTITY,
+  'BIZ-027': HttpStatus.UNPROCESSABLE_ENTITY,
+  'BIZ-028': HttpStatus.UNPROCESSABLE_ENTITY,
   'AI-001': HttpStatus.SERVICE_UNAVAILABLE,
   'AI-002': HttpStatus.TOO_MANY_REQUESTS,
   'AI-003': HttpStatus.PAYLOAD_TOO_LARGE,

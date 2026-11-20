@@ -68,6 +68,7 @@ export type { TaskStatus } from './task.js';
 export { REMINDER_STATUSES, SESSION_OUTCOMES, SESSION_STATUSES, SESSION_TYPES } from './session.js';
 export type { ReminderStatus, SessionOutcome, SessionStatus, SessionType } from './session.js';
 export {
+  CLIENT_UPLOAD_STATUSES,
   DOCUMENT_LANGUAGES,
   DOCUMENT_STATUSES,
   DOCUMENT_TYPES,
@@ -75,6 +76,7 @@ export {
   OCR_STATUSES,
 } from './document.js';
 export type {
+  ClientUploadStatus,
   DocumentLanguage,
   DocumentStatus,
   DocumentType,
