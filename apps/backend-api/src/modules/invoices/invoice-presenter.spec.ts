@@ -24,6 +24,7 @@ const row = (over: object = {}) => ({
   paymentMethod: null,
   paymentReference: null,
   notes: null,
+  sharedWithClient: false,
   lines: [] as {
     id: string;
     timeEntryId: string | null;
