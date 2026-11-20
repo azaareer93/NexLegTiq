@@ -4,6 +4,7 @@ import type { InvoiceStatus } from '@nexlegtiq/shared-types';
 import { InvoiceAccess } from './invoice-access';
 import { AuditService } from '../../common/audit/audit.service';
 import { UnitOfWork } from '../../database/unit-of-work';
+import type { Prisma } from '../../generated/prisma/client';
 import { TimelineService } from '../timeline/timeline.service';
 
 /** The invoices a client may see on the portal: issued ones, never a draft or a voided one (D-188). */
@@ -13,6 +14,14 @@ export const PORTAL_INVOICE_STATUSES = [
   'PAID',
 ] as const satisfies readonly InvoiceStatus[];
 const ANY_STATUS: readonly InvoiceStatus[] = ['DRAFT', 'SENT', 'OVERDUE', 'PAID', 'VOID'];
+
+/** The portal's whole boundary for invoices: the bill-to client's, shared and issued (D-188). The one place it is written. */
+export const portalInvoiceWhere = (clientId: string) =>
+  ({
+    clientId,
+    sharedWithClient: true,
+    status: { in: [...PORTAL_INVOICE_STATUSES] },
+  }) satisfies Prisma.InvoiceWhereInput;
 
 /**
  * `POST /invoices/:id/share|unshare` (`generate:invoice`, MVP-150, D-188): whether the client sees the invoice on the portal.

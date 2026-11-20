@@ -41,10 +41,15 @@ describe('InvoicePdfService (MVP-92)', () => {
   it('should give the portal the same PDF, audited as the portal account without an office user (D-188)', async () => {
     const { service, prisma, audit } = setup(stored());
     const client = { ip: '1.2.3.4', userAgent: 'ua', requestId: 'r1' };
-    await expect(service.portalLink({ id: ID }, 'cu1', client)).resolves.toMatchObject({
+    await expect(service.portalLink(ID, 'c1', 'cu1', client)).resolves.toMatchObject({
       status: 'READY',
     });
-    expect(prisma.db.invoice.findFirst.mock.calls[0][0].where).toEqual({ id: ID });
+    expect(prisma.db.invoice.findFirst.mock.calls[0][0].where).toEqual({
+      id: ID,
+      clientId: 'c1',
+      sharedWithClient: true,
+      status: { in: ['SENT', 'OVERDUE', 'PAID'] },
+    });
     expect(prisma.db.auditLog.create.mock.calls[0][0].data).toMatchObject({
       officeId: 'o1',
       userId: null,
@@ -53,21 +58,28 @@ describe('InvoicePdfService (MVP-92)', () => {
       newValues: { language: 'AR', portal: true },
     });
     expect(audit.log).not.toHaveBeenCalled();
-    await expect(setup(null).service.portalLink({ id: ID }, 'cu1', client)).resolves.toBeNull();
+    await expect(setup(null).service.portalLink(ID, 'c1', 'cu1', client)).resolves.toBeNull();
     const rendering = setup(stored({ pdfRenderedFor: null }));
-    await expect(rendering.service.portalLink({ id: ID }, 'cu1', client)).resolves.toEqual({
+    await expect(rendering.service.portalLink(ID, 'c1', 'cu1', client)).resolves.toEqual({
       status: 'RENDERING',
     });
     expect(rendering.prisma.db.auditLog.create).not.toHaveBeenCalled();
     const unnumbered = setup(stored({ invoiceNumber: null }));
-    await unnumbered.service.portalLink({ id: ID }, 'cu1', client);
+    await unnumbered.service.portalLink(ID, 'c1', 'cu1', client);
     expect(unnumbered.storage.presignedGetUrl.mock.calls[0][1]).toMatchObject({
       filename: 'invoice-draft.pdf',
     });
+    // The office rendered English in an Arabic office: the portal takes that PDF, it does not re-render over it.
+    const english = setup(stored({ pdfLanguage: 'EN' }), 'AR');
+    await expect(english.service.portalLink(ID, 'c1', 'cu1', client)).resolves.toMatchObject({
+      status: 'READY',
+    });
+    expect(english.queues.enqueue).not.toHaveBeenCalled();
+    expect(english.prisma.db.office.findFirstOrThrow).not.toHaveBeenCalled();
     // Only "not found" becomes null; any other failure still surfaces.
     const broken = setup(stored());
     broken.storage.presignedGetUrl.mockRejectedValueOnce(new Error('s3 down'));
-    await expect(broken.service.portalLink({ id: ID }, 'cu1', client)).rejects.toThrow('s3 down');
+    await expect(broken.service.portalLink(ID, 'c1', 'cu1', client)).rejects.toThrow('s3 down');
   });
 
   it('should link a current PDF named after the invoice and audit the download', async () => {

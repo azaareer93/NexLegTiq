@@ -12,6 +12,7 @@ import type {
   PortalInvoice,
   PortalSession,
 } from '@nexlegtiq/shared-contracts';
+import { PortalInvoiceSchema } from '@nexlegtiq/shared-contracts';
 import request from 'supertest';
 
 import { AppModule } from '../../app/app.module';
@@ -24,6 +25,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { TENANT_MODELS } from '../../database/tenant-models';
 import type { PrismaClient } from '../../generated/prisma/client';
 import { bearerFor } from '../auth/auth.test-helper';
+import { EntitlementsService } from '../subscriptions/entitlements.service';
 import { liveSubscription } from '../subscriptions/subscription.test-helper';
 
 type Delegate = { deleteMany(args: unknown): Promise<unknown> };
@@ -498,5 +500,82 @@ describe('portal data (HTTP + PostgreSQL)', () => {
     await share(sent.id, 'unshare').expect(200);
     expect(dataOf<PortalInvoice[]>(await as('/invoices').expect(200))).toEqual([]);
     await as(`/invoices/${sent.id}/pdf`).expect(404);
+  });
+
+  it('should guard sharing: permission, read-only office, repeat, void; the list parses as the portal contract (D-188)', async () => {
+    const o = await office();
+    const mine = await file(o, o.clients[0].id);
+    const sent = await raw.invoice.create({
+      data: {
+        officeId: o.officeId,
+        clientId: o.clients[0].id,
+        fileId: mine.id,
+        currency: 'ILS',
+        subtotal: '100.000',
+        taxRatePercent: '16',
+        taxAmount: '16.000',
+        total: '116.000',
+        createdById: o.userId,
+        status: 'SENT',
+        invoiceNumber: `INV-2026-${randomUUID().slice(0, 8)}`,
+        issueDate: new Date('2026-11-01T00:00:00Z'),
+        dueDate: new Date('2026-12-01T00:00:00Z'),
+        sentAt: new Date(),
+      },
+    });
+    const paralegal = await raw.user.create({
+      data: {
+        officeId: o.officeId,
+        fullName: 'Paralegal',
+        email: `pl-${randomUUID()}@example.test`,
+        phone: '+970599000001',
+        passwordHash: '!',
+        role: 'PARALEGAL',
+      },
+    });
+    const post = (action: string, who: { userId: string; role: string } = o) =>
+      http()
+        .post(`/api/v1/invoices/${sent.id}/${action}`)
+        .set(bearerFor(jwt, { ...who, officeId: o.officeId }));
+    const auth = await portalUser(o, o.clients[0].id);
+    const list = async () =>
+      PortalInvoiceSchema.array().parse(
+        dataOf<unknown>(
+          await http().get('/api/v1/portal/invoices').set('Authorization', auth).expect(200),
+        ),
+      );
+
+    expect(
+      codeOf(await post('share', { userId: paralegal.id, role: 'PARALEGAL' }).expect(403)),
+    ).toBe('AUTH-100');
+    await http().post(`/api/v1/invoices/not-a-uuid/share`).set(bearerFor(jwt, o)).expect(404);
+    await post('share').expect(200);
+    await post('share').expect(200);
+    expect(await raw.auditLog.count({ where: { entityId: sent.id, action: 'UPDATE' } })).toBe(1);
+    expect(await raw.caseTimelineEvent.count({ where: { sourceId: sent.id } })).toBe(1);
+    expect((await list()).map((i) => i.id)).toEqual([sent.id]);
+
+    // Read-only: the office can still withdraw, not share; its portal keeps serving.
+    await raw.subscription.updateMany({
+      where: { officeId: o.officeId },
+      data: { status: 'CANCELLED' },
+    });
+    app.get(EntitlementsService).invalidateAll();
+    await post('unshare').expect(200);
+    expect(codeOf(await post('share').expect(403))).toBe('AUTH-104');
+    await raw.subscription.updateMany({
+      where: { officeId: o.officeId },
+      data: { status: 'ACTIVE' },
+    });
+    app.get(EntitlementsService).invalidateAll();
+
+    // Voided after sharing: gone from the list and its PDF.
+    await post('share').expect(200);
+    await raw.invoice.update({ where: { id: sent.id }, data: { status: 'VOID' } });
+    expect(await list()).toEqual([]);
+    await http()
+      .get(`/api/v1/portal/invoices/${sent.id}/pdf`)
+      .set('Authorization', auth)
+      .expect(404);
   });
 });

@@ -14,6 +14,7 @@ import type { ScopedTransaction } from '../../../database/unit-of-work';
 import type { Prisma } from '../../../generated/prisma/client';
 import type { ClientInfo } from '../../auth/client-info';
 import { InvoiceAccess } from '../invoice-access';
+import { portalInvoiceWhere } from '../invoice-sharing.service';
 
 const LINK_TTL_SECONDS = 300;
 
@@ -53,31 +54,37 @@ export class InvoicePdfService {
   ) {}
 
   async link(id: string, language?: PdfLanguage): Promise<InvoicePdf> {
-    const lang = language ?? (await officePdfLanguage(this.prisma.db));
-    return this.linkWhere({ AND: [{ id }, this.access.visibleWhere()] }, lang, (_row, newValues) =>
-      this.audit.log(this.prisma.db, {
-        entityType: 'Invoice',
-        entityId: id,
-        action: 'DOWNLOAD',
-        newValues,
-      }),
+    const pdf = await this.linkWhere(
+      { AND: [{ id }, this.access.visibleWhere()] },
+      language,
+      (_row, newValues) =>
+        this.audit.log(this.prisma.db, {
+          entityType: 'Invoice',
+          entityId: id,
+          action: 'DOWNLOAD',
+          newValues,
+        }),
     );
+    if (!pdf) throw new ResourceNotFoundException();
+    return pdf;
   }
 
   /**
-   * The portal's ask (MVP-150, D-188), in the invoice's office: `where` carries the portal's own scope (the grant's client,
-   * shared and issued), so the lookup and the link are one query; null when nothing matches. Same PDF, the office's
-   * language, audited DOWNLOAD by the portal account.
+   * The portal's ask (MVP-150, D-188), in the invoice's office: only an invoice of `clientId` that the office shared and
+   * issued, looked up and linked in one query; null otherwise. Same PDF, the office's language, audited DOWNLOAD by the
+   * portal account (D-186).
    */
-  async portalLink(
-    where: Prisma.InvoiceWhereInput,
+  portalLink(
+    invoiceId: string,
+    clientId: string,
     clientUserId: string,
     client: ClientInfo,
   ): Promise<InvoicePdf | null> {
-    const lang = await officePdfLanguage(this.prisma.db);
-    try {
-      return await this.linkWhere(where, lang, async (row, newValues) => {
-        await this.prisma.db.auditLog.create({
+    return this.linkWhere(
+      { id: invoiceId, ...portalInvoiceWhere(clientId) },
+      undefined,
+      (row, newValues) =>
+        this.prisma.db.auditLog.create({
           data: {
             ...auditRow(
               {
@@ -92,22 +99,18 @@ export class InvoicePdfService {
             ),
             clientUserId,
           },
-        });
-      });
-    } catch (error) {
-      if (error instanceof ResourceNotFoundException) return null;
-      throw error;
-    }
+        }),
+    );
   }
 
   private async linkWhere(
     where: Prisma.InvoiceWhereInput,
-    lang: PdfLanguage,
+    language: PdfLanguage | undefined,
     audit: (
       row: { id: string; officeId: string },
       newValues: { language: PdfLanguage },
     ) => Promise<unknown>,
-  ): Promise<InvoicePdf> {
+  ): Promise<InvoicePdf | null> {
     const row = await this.prisma.db.invoice.findFirst({
       where,
       select: {
@@ -120,7 +123,13 @@ export class InvoicePdfService {
         pdfRenderedFor: true,
       },
     });
-    if (!row) throw new ResourceNotFoundException();
+    if (!row) return null;
+    // No language asked: a current PDF in either language will do, so a portal ask never re-renders (and deletes) the
+    // office's PDF of the other language (D-188).
+    const stored = row.pdfLanguage as PdfLanguage | null;
+    const lang =
+      language ??
+      (stored && pdfIsCurrent(row, stored) ? stored : await officePdfLanguage(this.prisma.db));
     if (!pdfIsCurrent(row, lang) || !row.pdfStorageKey) {
       await enqueuePdf(
         this.queues,

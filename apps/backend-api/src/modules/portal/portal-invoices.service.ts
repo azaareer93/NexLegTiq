@@ -12,20 +12,12 @@ import { TenantRunner } from '../../common/tenancy/tenant-runner';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
 import type { ClientInfo } from '../auth/client-info';
-import { PORTAL_INVOICE_STATUSES } from '../invoices/invoice-sharing.service';
+import { portalInvoiceWhere } from '../invoices/invoice-sharing.service';
 import { InvoicePdfService } from '../invoices/pdf/invoice-pdf.service';
 import { PortalAccounts } from '../portal-auth/portal-accounts';
 
 /** shortcut: the newest 200 shared invoices per office, unpaged; page when a client passes this. */
 const MAX_INVOICES = 200;
-
-/** An invoice of the grant's client that the office shared and issued (D-188). */
-const sharedInvoices = (clientId: string) =>
-  ({
-    clientId,
-    sharedWithClient: true,
-    status: { in: [...PORTAL_INVOICE_STATUSES] },
-  }) satisfies Prisma.InvoiceWhereInput;
 
 const invoiceSelect = {
   id: true,
@@ -36,13 +28,28 @@ const invoiceSelect = {
   dueDate: true,
   total: true,
   paidAt: true,
-  file: { select: { id: true, fileNumber: true, title: true } },
+  // The billed file, shown only while it is live and still the client's (the bill-to client is the boundary, D-188).
+  file: {
+    select: {
+      id: true,
+      fileNumber: true,
+      title: true,
+      deletedAt: true,
+      clients: { select: { clientId: true } },
+    },
+  },
 } satisfies Prisma.InvoiceSelect;
 type InvoiceRow = Prisma.InvoiceGetPayload<{ select: typeof invoiceSelect }>;
 
+/** The billed file, only while it is live and still linked to the grant's client. */
+const shownFile = (grant: PortalOfficeAccess, file: InvoiceRow['file']) =>
+  file && !file.deletedAt && file.clients.some((link) => link.clientId === grant.clientId)
+    ? { id: file.id, fileNumber: file.fileNumber, title: file.title }
+    : null;
+
 /** The portal shape; null for a row that is not an issued invoice (the filter admits none — D-162 gives every issued one its number and dates). */
 const toPortalInvoice = (grant: PortalOfficeAccess, row: InvoiceRow): PortalInvoice | null => {
-  const { invoiceNumber, issueDate, dueDate, status } = row;
+  const { invoiceNumber, issueDate, dueDate, status, file } = row;
   if (!invoiceNumber || !issueDate || !dueDate || status === 'DRAFT' || status === 'VOID')
     return null;
   return {
@@ -56,7 +63,7 @@ const toPortalInvoice = (grant: PortalOfficeAccess, row: InvoiceRow): PortalInvo
     dueDate: dueDate.toISOString().slice(0, 10),
     total: roundMoney(row.total.toFixed(), row.currency),
     paidAt: row.paidAt?.toISOString() ?? null,
-    file: row.file,
+    file: shownFile(grant, file),
   };
 };
 
@@ -79,7 +86,7 @@ export class PortalInvoicesService {
       grants.map(async (grant) => {
         const rows = await this.inOffice(grant, () =>
           this.prisma.db.invoice.findMany({
-            where: sharedInvoices(grant.clientId),
+            where: portalInvoiceWhere(grant.clientId),
             orderBy: [{ issueDate: 'desc' }, { id: 'desc' }],
             take: MAX_INVOICES,
             select: invoiceSelect,
@@ -102,11 +109,7 @@ export class PortalInvoicesService {
   ): Promise<PortalInvoicePdf> {
     for (const grant of await this.accounts.offices(clientUserId)) {
       const answer = await this.inOffice(grant, () =>
-        this.pdfs.portalLink(
-          { id: invoiceId, ...sharedInvoices(grant.clientId) },
-          clientUserId,
-          client,
-        ),
+        this.pdfs.portalLink(invoiceId, grant.clientId, clientUserId, client),
       );
       if (answer) return answer;
     }

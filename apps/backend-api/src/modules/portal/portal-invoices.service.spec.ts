@@ -74,6 +74,30 @@ describe('PortalInvoicesService (D-188)', () => {
     });
   });
 
+  it("should show the billed file only while it is live and still the client's", async () => {
+    const { service, db } = setup([A]);
+    const file = (over: object) => ({
+      file: {
+        id: 'f1',
+        fileNumber: 'F-1',
+        title: 'T',
+        deletedAt: null,
+        clients: [{ clientId: 'c-a' }],
+        ...over,
+      },
+    });
+    db.invoice.findMany.mockResolvedValueOnce([
+      row('i1', '2026-11-03', file({})),
+      row('i2', '2026-11-02', file({ deletedAt: new Date() })),
+      row('i3', '2026-11-01', file({ clients: [{ clientId: 'c-other' }] })),
+    ]);
+    expect((await service.list('u1')).map((i) => i.file)).toEqual([
+      { id: 'f1', fileNumber: 'F-1', title: 'T' },
+      null,
+      null,
+    ]);
+  });
+
   it('should break a same-day tie by id, highest first, across offices', async () => {
     const { service, db } = setup();
     db.invoice.findMany
@@ -87,16 +111,7 @@ describe('PortalInvoicesService (D-188)', () => {
     pdfs.portalLink.mockResolvedValueOnce(null).mockResolvedValueOnce({ status: 'RENDERING' });
     await expect(service.pdf('u1', 'i1', NO_CLIENT)).resolves.toEqual({ status: 'RENDERING' });
     expect(office).toEqual(['o-a', 'o-b']);
-    expect(pdfs.portalLink).toHaveBeenLastCalledWith(
-      {
-        id: 'i1',
-        clientId: 'c-b',
-        sharedWithClient: true,
-        status: { in: ['SENT', 'OVERDUE', 'PAID'] },
-      },
-      'u1',
-      NO_CLIENT,
-    );
+    expect(pdfs.portalLink).toHaveBeenLastCalledWith('i1', 'c-b', 'u1', NO_CLIENT);
     pdfs.portalLink.mockResolvedValue(null);
     await expect(service.pdf('u1', 'i1', NO_CLIENT)).rejects.toMatchObject({ code: 'RES-001' });
   });
