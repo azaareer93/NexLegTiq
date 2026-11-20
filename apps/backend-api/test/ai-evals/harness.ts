@@ -5,12 +5,16 @@ import { Decimal } from 'decimal.js';
 import { z } from 'zod';
 
 import { percentile, rougeL, unsupportedCitations } from './metrics';
+import { check, repairInstruction } from '../../src/modules/ai/ai-answer';
 import { PiiRedactor } from '../../src/modules/ai/pii-redactor';
 import {
   DOCUMENT_SUMMARY_V1,
   DocumentSummaryOutputSchema,
 } from '../../src/modules/ai/prompts/document-summary.v1';
-import type { DocumentSummaryOutput } from '../../src/modules/ai/prompts/document-summary.v1';
+import {
+  ProviderRequestError,
+  ProviderUnavailableError,
+} from '../../src/modules/ai/providers/ai-provider';
 import type { AiCompletion, AiProvider } from '../../src/modules/ai/providers/ai-provider';
 import { restoreDeep } from '../../src/modules/ai/redaction';
 
@@ -41,6 +45,8 @@ export interface DocumentResult {
   readonly id: string;
   readonly language: 'ar' | 'en';
   readonly schemaValid: boolean;
+  /** The provider failed (unavailable, refused, timed out): counted apart from the schema pass rate. */
+  readonly providerError: boolean;
   readonly rougeL: number;
   readonly unsupportedCitations: readonly string[];
   readonly latencyMs: number;
@@ -82,25 +88,20 @@ const cost = (prices: Prices, model: string, answer: AiCompletion): Decimal => {
     .div(1_000_000);
 };
 
-function parse(text: string): DocumentSummaryOutput | { problem: string } {
-  try {
-    const parsed = DocumentSummaryOutputSchema.safeParse(JSON.parse(text));
-    if (parsed.success) return parsed.data;
-    return { problem: parsed.error.issues.map((issue) => issue.path.join('.')).join(', ') };
-  } catch {
-    return { problem: 'not JSON' };
-  }
+export interface EvalOptions {
+  readonly maxOutputTokens: number;
+  readonly temperature: number;
 }
 
 /**
- * Summarises one document the way production does for a document that fits one call (D-148): the v1 prompt, PII
- * redaction, one repair call on an invalid answer, names restored — then scores it against the reference.
+ * Summarises one document the way `AiExecutor` does for a document that fits one call (D-148): the v1 prompt, PII
+ * redaction, the same check and one repair call, names restored and checked again — then scores it against the reference.
  */
 async function evaluate(
   fixture: EvalFixture,
   provider: AiProvider,
   prices: Prices,
-  options: { maxOutputTokens: number; temperature: number },
+  options: EvalOptions,
 ): Promise<DocumentResult> {
   const source = sourceText(fixture);
   const prompt = DOCUMENT_SUMMARY_V1.whole(fixture.language, source);
@@ -118,36 +119,40 @@ async function evaluate(
     }),
     maxOutputTokens: options.maxOutputTokens,
     temperature: options.temperature,
+    // EXECUTE_DEADLINE_MS of ai-executor.ts (not imported: it carries Nest decorators tsx cannot compile).
     signal: AbortSignal.timeout(100_000),
   };
   const started = performance.now();
   let spent = new Decimal(0);
+  const failed = (error: string, providerError = false): DocumentResult => ({
+    id: fixture.id,
+    language: fixture.language,
+    schemaValid: false,
+    providerError,
+    rougeL: 0,
+    unsupportedCitations: [],
+    latencyMs: Math.round(performance.now() - started),
+    costUsd: spent,
+    error,
+  });
   try {
     const first = await provider.complete(request);
     spent = spent.plus(cost(prices, provider.model, first));
-    let answer = parse(first.text);
-    if ('problem' in answer) {
+    let answer = check(first.text, DocumentSummaryOutputSchema);
+    if (!answer.ok) {
       const repair = await provider.complete({
         ...request,
-        followUp: `Your previous answer was not valid (${answer.problem}). Answer again with one JSON object only, matching the schema.`,
+        followUp: repairInstruction(answer.problem),
       });
       spent = spent.plus(cost(prices, provider.model, repair));
-      answer = parse(repair.text);
+      answer = check(repair.text, DocumentSummaryOutputSchema);
     }
-    const latencyMs = Math.round(performance.now() - started);
-    if ('problem' in answer) {
-      return {
-        id: fixture.id,
-        language: fixture.language,
-        schemaValid: false,
-        rougeL: 0,
-        unsupportedCitations: [],
-        latencyMs,
-        costUsd: spent,
-        error: `schema: ${answer.problem}`,
-      };
-    }
-    const output = restoreDeep(answer, redacted.restore) as DocumentSummaryOutput;
+    if (!answer.ok) return failed(`schema: ${answer.problem}`);
+    const restored = DocumentSummaryOutputSchema.safeParse(
+      restoreDeep(answer.value, redacted.restore),
+    );
+    if (!restored.success) return failed('schema: after the names were restored');
+    const output = restored.data;
     const everything = [
       output.summary,
       ...output.keyFacts,
@@ -158,22 +163,18 @@ async function evaluate(
       id: fixture.id,
       language: fixture.language,
       schemaValid: true,
+      providerError: false,
       rougeL: rougeL(output.summary, fixture.referenceSummary),
       unsupportedCitations: unsupportedCitations(everything, source),
-      latencyMs,
+      latencyMs: Math.round(performance.now() - started),
       costUsd: spent,
     };
   } catch (error) {
-    return {
-      id: fixture.id,
-      language: fixture.language,
-      schemaValid: false,
-      rougeL: 0,
-      unsupportedCitations: [],
-      latencyMs: Math.round(performance.now() - started),
-      costUsd: spent,
-      error: error instanceof Error ? error.name : 'error',
-    };
+    // Provider errors never quote the input (ai-provider.ts): their message is safe to report.
+    if (error instanceof ProviderUnavailableError || error instanceof ProviderRequestError) {
+      return failed(error.message, true);
+    }
+    return failed(error instanceof Error ? error.name : 'error', true);
   }
 }
 
@@ -182,7 +183,8 @@ export async function runSummaryEvals(
   fixtures: readonly EvalFixture[],
   provider: AiProvider,
   prices: Prices = {},
-  options = { maxOutputTokens: 4096, temperature: 0.2 },
+  // The defaults of AI_MAX_OUTPUT_TOKENS and AI_TEMPERATURE (env.schema.ts); run.ts passes the shell's values.
+  options: EvalOptions = { maxOutputTokens: 4096, temperature: 0.2 },
 ): Promise<EvalRun> {
   const results: DocumentResult[] = [];
   for (const fixture of fixtures) results.push(await evaluate(fixture, provider, prices, options));
@@ -209,7 +211,12 @@ const mean = (values: readonly number[]): number =>
 export function checks(run: EvalRun): Check[] {
   const { results } = run;
   const rate = (count: number): number => (results.length === 0 ? 0 : count / results.length);
-  const schemaRate = rate(results.filter((result) => result.schemaValid).length);
+  const answered = results.filter((result) => !result.providerError);
+  const providerErrors = results.length - answered.length;
+  const schemaRate =
+    answered.length === 0
+      ? 0
+      : answered.filter((result) => result.schemaValid).length / answered.length;
   const hallucinationRate = rate(
     results.filter((result) => result.unsupportedCitations.length > 0).length,
   );
@@ -236,7 +243,13 @@ export function checks(run: EvalRun): Check[] {
       name: 'Schema pass rate',
       value: `${(schemaRate * 100).toFixed(1)}%`,
       target: `≥ ${THRESHOLDS.schemaPassRate * 100}%`,
-      pass: results.length > 0 && schemaRate >= THRESHOLDS.schemaPassRate,
+      pass: answered.length > 0 && schemaRate >= THRESHOLDS.schemaPassRate,
+    },
+    {
+      name: 'Provider errors',
+      value: String(providerErrors),
+      target: '0',
+      pass: providerErrors === 0,
     },
     {
       name: 'Documents with a citation not in the source',
@@ -261,7 +274,9 @@ export function renderReport(run: EvalRun, date: string): string {
     `# AI evals — ${run.feature} — ${run.promptVersion} — ${date}`,
     '',
     `Provider **${run.provider}**, model **${run.model}**, ${run.results.length} documents, total cost **$${total.toFixed(4)}**.`,
-    `Result: **${all.every((check) => check.pass) ? 'PASS' : 'FAIL'}** (thresholds: D-195).`,
+    run.provider === 'fake'
+      ? 'Result: **HARNESS CHECK ONLY** — the fake provider answers with the references; never paste this as an eval.'
+      : `Result: **${all.every((item) => item.pass) ? 'PASS' : 'FAIL'}** (thresholds: D-195).`,
     '',
     '| Check | Value | Target | |',
     '| --- | --- | --- | --- |',

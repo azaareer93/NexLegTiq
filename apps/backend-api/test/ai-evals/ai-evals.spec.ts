@@ -1,10 +1,16 @@
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { Decimal } from 'decimal.js';
+
 import { checks, loadFixtures, renderReport, runSummaryEvals, sourceText } from './harness';
-import type { EvalFixture } from './harness';
+import type { DocumentResult, EvalFixture, EvalRun } from './harness';
 import { extractCitations, percentile, rougeL, tokenize, unsupportedCitations } from './metrics';
+import { ProviderUnavailableError } from '../../src/modules/ai/providers/ai-provider';
 import { FakeAiProvider } from '../../src/modules/ai/providers/fake.provider';
 import type { FakeStep } from '../../src/modules/ai/providers/fake.provider';
+import { splitText } from '../../src/modules/ai-summaries/split-text';
 
 const fixtures = loadFixtures(join(__dirname, 'fixtures', 'summary'));
 const pick = (index: number): EvalFixture => {
@@ -67,6 +73,22 @@ describe('ai-evals metrics', () => {
       ).toEqual(new Set(['article:45', 'article:47', 'law:7/2000', 'case:501/2025']));
     });
 
+    it('should find plurals, lists and other spellings', () => {
+      expect(extractCitations('Articles 74 and 80, Art. 5 & 6, Law No. 2/2001')).toEqual(
+        new Set(['article:74', 'article:80', 'article:5', 'article:6', 'law:2/2001']),
+      );
+      expect(extractCitations('المادتين 12 و13 والمواد (5)، (6) والمادّة 7 والماده 8')).toEqual(
+        new Set(['article:12', 'article:13', 'article:5', 'article:6', 'article:7', 'article:8']),
+      );
+      expect(extractCitations('قانون التحكيم رقم 3/2000 في القضيه رقم 9/2024')).toEqual(
+        new Set(['law:3/2000', 'case:9/2024']),
+      );
+    });
+
+    it('should not read a contract section or a bare number as a citation', () => {
+      expect(extractCitations('Under section 3 of this agreement, 12 units are due.').size).toBe(0);
+    });
+
     it('should find nothing in a text without citations', () => {
       expect(extractCitations('The parties met on 3 March 2025 and agreed to settle.').size).toBe(
         0,
@@ -113,8 +135,25 @@ describe('ai-evals fixture set', () => {
       const source = sourceText(fixture);
       expect(unsupportedCitations(fixture.referenceSummary, source)).toEqual([]);
       for (const name of fixture.names) expect(source).toContain(name);
+      // The set holds one-call documents only (D-195), as production splits them.
+      expect(splitText(source.trim())).toHaveLength(1);
     },
   );
+
+  it('should refuse two fixtures with the same id', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ai-evals-'));
+    writeFileSync(join(dir, 'a.json'), JSON.stringify([first]));
+    writeFileSync(join(dir, 'b.json'), JSON.stringify([first]));
+
+    expect(() => loadFixtures(dir)).toThrow('Duplicate fixture ids');
+  });
+
+  it('should refuse a malformed fixture', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ai-evals-'));
+    writeFileSync(join(dir, 'a.json'), JSON.stringify([{ ...first, language: 'fr' }]));
+
+    expect(() => loadFixtures(dir)).toThrow();
+  });
 });
 
 describe('runSummaryEvals', () => {
@@ -177,15 +216,56 @@ describe('runSummaryEvals', () => {
     expect(renderReport(run, '2026-11-21')).toContain('article:999');
   });
 
-  it('should record a provider error as a failed document and price the calls it made', async () => {
+  it('should count a provider error apart from the schema rate and price the calls it made', async () => {
     const fake = new FakeAiProvider();
-    fake.script({ error: new Error('down') }, answer(last.referenceSummary));
+    fake.script(
+      { error: new ProviderUnavailableError('fake', 'rate-limited', 429) },
+      answer(last.referenceSummary),
+    );
 
     const run = await runSummaryEvals(two, fake, { 'fake-1': { input: 1_000_000, output: 0 } });
 
-    expect(run.results[0]).toMatchObject({ schemaValid: false, error: 'Error' });
+    expect(run.results[0]).toMatchObject({
+      schemaValid: false,
+      providerError: true,
+      error: 'fake unavailable: rate-limited (429)',
+    });
     expect(run.results[0]?.costUsd.toNumber()).toBe(0);
     expect(run.results[1]?.costUsd.toNumber()).toBeGreaterThan(0);
+    const byName = new Map(checks(run).map((check) => [check.name, check]));
+    expect(byName.get('Schema pass rate')?.pass).toBe(true);
+    expect(byName.get('Provider errors')).toMatchObject({ value: '1', pass: false });
+  });
+
+  it('should record any other error by its name only', async () => {
+    const fake = new FakeAiProvider();
+    fake.script({ error: new TypeError('may quote the input') });
+
+    const run = await runSummaryEvals([first], fake);
+
+    expect(run.results[0]).toMatchObject({ providerError: true, error: 'TypeError' });
+  });
+
+  it('should fail a document whose answer breaks the schema once the names are restored', async () => {
+    const fake = new FakeAiProvider();
+    // A placeholder at the 200-character limit of a party grows past it when the long name comes back.
+    const name = 'Abcdefghijklmnopqrstuvwxyz Testlongname';
+    const long = { ...first, names: [name], text: [...first.text, `Party: ${name}.`] };
+    fake.script({
+      json: {
+        summary: first.referenceSummary,
+        keyFacts: [],
+        keyLegalIssues: [],
+        parties: [`[PARTY_1] ${'x'.repeat(190)}`],
+      },
+    });
+
+    const run = await runSummaryEvals([long], fake);
+
+    expect(run.results[0]).toMatchObject({
+      schemaValid: false,
+      error: 'schema: after the names were restored',
+    });
   });
 });
 
@@ -198,7 +278,48 @@ describe('renderReport', () => {
     const report = renderReport(await runSummaryEvals(one, fake), '2026-11-21');
 
     expect(report).toContain('# AI evals — summary — document-summary.v1 — 2026-11-21');
-    expect(report).toContain('Result: **PASS**');
+    expect(report).toContain('Result: **HARNESS CHECK ONLY**');
     expect(report).toContain(`| ${first.id} | ok | 1.000 |`);
+  });
+
+  it('should say PASS or FAIL for a real provider', () => {
+    const run: EvalRun = { ...base, results: [result()] };
+
+    expect(renderReport(run, '2026-11-21')).toContain('Result: **PASS**');
+    expect(renderReport({ ...run, results: [result({ rougeL: 0.1 })] }, '2026-11-21')).toContain(
+      'Result: **FAIL**',
+    );
+  });
+});
+
+const base = { feature: 'summary', promptVersion: 'v', provider: 'openai', model: 'm' } as const;
+const result = (overrides: Partial<DocumentResult> = {}): DocumentResult => ({
+  id: 'en-01-x',
+  language: 'en',
+  schemaValid: true,
+  providerError: false,
+  rougeL: 1,
+  unsupportedCitations: [],
+  latencyMs: 1000,
+  costUsd: new Decimal(0),
+  ...overrides,
+});
+const verdicts = (results: DocumentResult[]): Record<string, boolean> =>
+  Object.fromEntries(checks({ ...base, results }).map((check) => [check.name, check.pass]));
+
+describe('checks', () => {
+  it('should hold each language to its own ROUGE-L threshold', () => {
+    expect(
+      verdicts([result({ rougeL: 0.59 }), result({ id: 'ar-01-x', language: 'ar', rougeL: 0.5 })]),
+    ).toMatchObject({ 'ROUGE-L (EN, mean)': false, 'ROUGE-L (AR, mean)': true });
+  });
+
+  it('should fail a p95 latency of exactly 10 s', () => {
+    expect(verdicts([result({ latencyMs: 9_999 })])['Latency p95']).toBe(true);
+    expect(verdicts([result({ latencyMs: 10_000 })])['Latency p95']).toBe(false);
+  });
+
+  it('should fail an empty run', () => {
+    expect(verdicts([])['Schema pass rate']).toBe(false);
   });
 });

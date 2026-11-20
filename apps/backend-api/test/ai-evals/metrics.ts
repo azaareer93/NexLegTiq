@@ -31,26 +31,40 @@ export function rougeL(candidate: string, reference: string): number {
   return (2 * precision * recall) / (precision + recall);
 }
 
+/** A list of numbers as written after "Articles" / "المواد": `74 and 80`, `(45) و(47)`, `5, 6 & 7`. */
+const LIST = String.raw`\(?\d+\)?(?:\s*(?:,|،|and|&|و)\s*\(?\d+\)?)*`;
+
 /**
- * Citation patterns, AR and EN, each giving a key such as `article:12`, `law:2/2001` or `case:145/2023` (digits
- * already Western). Arabic forms take the attached prefixes (و ب ل ف, ال, لل).
+ * Citation patterns over `normalizeArabic` text (folded letters, so `ماده`, `قضيه`, `دعوي`, `لسنه`; lower case), each
+ * giving keys such as `article:12`, `law:2/2001` or `case:145/2023`. Articles take plurals and lists (one key per
+ * number); Arabic forms take the attached prefixes (و ب ل ف, ال, لل).
  */
-const CITATIONS: readonly (readonly [string, RegExp])[] = [
-  ['article', /\b(?:article|art\.|section)\s+(\d+)/giu],
-  ['article', /(?:^|[^\p{L}])[وبلف]?(?:ال|لل)?مادة\s*(?:رقم\s*)?\(?(\d+)/gu],
-  ['law', /\blaw\b[^\n.]{0,60}?no\.?\s*(\d+)\s+of\s+(\d{4})/giu],
-  ['law', /قانون[^\n.]{0,60}?رقم\s*\(?(\d+)\)?\s*لسنة\s*(\d{4})/gu],
-  ['case', /\b(?:case|appeal|claim)\s+no\.?\s*(\d+)\s*\/\s*(\d{4})/giu],
-  ['case', /(?:دعوى|قضيه|قضية|استئناف)[^\n.]{0,30}?رقم\s*\(?(\d+)\)?\s*\/\s*(\d{4})/gu],
+const CITATIONS: readonly (readonly [kind: string, pattern: RegExp, list: boolean])[] = [
+  ['article', new RegExp(String.raw`\b(?:articles?|arts?\.)\s+(${LIST})`, 'gu'), true],
+  [
+    'article',
+    new RegExp(
+      String.raw`(?:^|[^\p{L}])[وبلف]?(?:ال|لل)?(?:ماده|مادتين|مادتان|مواد)\s*(?:رقم\s*)?(${LIST})`,
+      'gu',
+    ),
+    true,
+  ],
+  ['law', /\blaw\b[^\n.]{0,60}?no\.?\s*(\d+)\s*(?:of|\/)\s*(\d{4})/gu, false],
+  ['law', /قانون[^\n.]{0,60}?رقم\s*\(?(\d+)\)?\s*(?:لسنه|\/)\s*(\d{4})/gu, false],
+  ['case', /\b(?:case|appeal|claim)\s+no\.?\s*(\d+)\s*\/\s*(\d{4})/gu, false],
+  ['case', /(?:دعوي|قضيه|استئناف)[^\n.]{0,30}?رقم\s*\(?(\d+)\)?\s*\/\s*(\d{4})/gu, false],
 ];
 
 /** The distinct legal citations a text makes (articles, laws, case numbers), as normalised keys. */
 export function extractCitations(text: string): Set<string> {
-  const western = toWesternDigits(text.normalize('NFKC'));
+  const folded = normalizeArabic(toWesternDigits(text.normalize('NFKC')));
   const keys = new Set<string>();
-  for (const [kind, pattern] of CITATIONS) {
-    for (const match of western.matchAll(pattern)) {
-      keys.add(`${kind}:${match.slice(1).filter(Boolean).map(Number).join('/')}`);
+  for (const [kind, pattern, list] of CITATIONS) {
+    for (const match of folded.matchAll(pattern)) {
+      const numbers = (match.slice(1).join(' ').match(/\d+/g) ?? []).map(Number);
+      // A list cites each number; a law or case is one number/year pair.
+      const found = list ? numbers.map(String) : [numbers.join('/')];
+      for (const key of found) keys.add(`${kind}:${key}`);
     }
   }
   return keys;

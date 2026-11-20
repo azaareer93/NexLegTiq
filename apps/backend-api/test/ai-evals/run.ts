@@ -31,6 +31,9 @@ const Env = z.object({
   GEMINI_API_KEY: z.string().min(1).optional(),
   GEMINI_MODEL: z.string().min(1).optional(),
   AI_TIMEOUT_MS: z.coerce.number().int().min(1000).max(90_000).default(45_000),
+  // Same bounds and defaults as env.schema.ts, so a tuned production setting is what gets evaluated.
+  AI_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(256).max(32_768).default(4096),
+  AI_TEMPERATURE: z.coerce.number().min(0).max(1).default(0.2),
   AI_MODEL_PRICES: z
     .string()
     .default('{}')
@@ -77,7 +80,10 @@ async function main(): Promise<number> {
   const fixtures = loadFixtures(join(__dirname, 'fixtures', 'summary'));
   const provider = buildProvider(values.provider, env, fixtures);
 
-  const run = await runSummaryEvals(fixtures, provider, env.AI_MODEL_PRICES);
+  const run = await runSummaryEvals(fixtures, provider, env.AI_MODEL_PRICES, {
+    maxOutputTokens: env.AI_MAX_OUTPUT_TOKENS,
+    temperature: env.AI_TEMPERATURE,
+  });
   const date = new Date().toISOString().slice(0, 10);
   const report = renderReport(run, date);
   console.log(report);
@@ -85,7 +91,7 @@ async function main(): Promise<number> {
     const dir = join(__dirname, '..', '..', '..', '..', 'docs', 'ai-evals');
     mkdirSync(dir, { recursive: true });
     const file = join(dir, `${date}-${run.promptVersion}.md`);
-    writeFileSync(file, report);
+    writeFileSync(file, report, { flag: 'wx' });
     console.log(`Saved ${file}`);
   }
   return checks(run).every((check) => check.pass) ? 0 : 1;

@@ -5,6 +5,7 @@ import { ClsService } from 'nestjs-cls';
 import { z } from 'zod';
 
 import { AiAccess } from './ai-access';
+import { check, repairInstruction } from './ai-answer';
 import { AiCache } from './ai-cache';
 import { AiFinalException, AiProviders } from './ai-providers';
 import type { ProviderAnswer } from './ai-providers';
@@ -188,7 +189,7 @@ export class AiExecutor {
       if (checked.ok) return checked.value;
       const repair = await this.providers.complete({
         ...request,
-        followUp: `Your previous answer was not valid (${checked.problem}). Answer again with one JSON object only, matching the schema.`,
+        followUp: repairInstruction(checked.problem),
       });
       answers.push(repair);
       const repaired = check(repair.text, options.schema);
@@ -239,26 +240,6 @@ export class AiExecutor {
     if (!officeId) throw new Error('No office in the context of an AI call');
     return officeId;
   }
-}
-
-/** Parses and validates an answer; `problem` names paths and issue codes only (never the text). */
-function check<T>(
-  text: string,
-  schema: z.ZodType<T>,
-): { ok: true; value: T } | { ok: false; problem: string } {
-  let json: unknown;
-  try {
-    json = JSON.parse(text);
-  } catch {
-    return { ok: false, problem: 'not JSON' };
-  }
-  const parsed = schema.safeParse(json);
-  if (parsed.success) return { ok: true, value: parsed.data };
-  const problem = parsed.error.issues
-    .slice(0, 5)
-    .map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.code}`)
-    .join('; ');
-  return { ok: false, problem };
 }
 
 /**
