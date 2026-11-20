@@ -26,6 +26,9 @@ export default defineConfig(() => ({
     watch: false,
     globals: true,
     environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    // AntD forms with axe in jsdom take several seconds under coverage; the 5 s default fails them at random.
+    testTimeout: 30_000,
     include: ['{src,tests}/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
     reporters: ['default'],
     coverage: {
