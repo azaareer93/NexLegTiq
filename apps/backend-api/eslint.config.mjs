@@ -5,5 +5,5 @@ export default [
   ...baseConfig,
   ...backendRules,
   // CLI scripts (seeds) report progress on the terminal; the app itself logs through PinoLogger.
-  { files: ['prisma/**/*.ts'], rules: { 'no-console': 'off' } },
+  { files: ['prisma/**/*.ts', 'test/ai-evals/run.ts'], rules: { 'no-console': 'off' } },
 ];
