@@ -4,12 +4,8 @@ import { Button, Card, Flex, List, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 
+import { ShortcutList } from '../../shell/shortcuts';
 import { bugReportHref, HELP_ARTICLES, HELP_SLUGS, SUPPORT } from '../articles';
-
-const SHORTCUTS = [
-  { keys: 'Ctrl / ⌘ + K', action: 'search' },
-  { keys: 'Ctrl + Alt + N', action: 'newCase' },
-] as const;
 
 function Contact() {
   const { t, i18n } = useTranslation();
@@ -77,18 +73,7 @@ export function HelpPage() {
             <Contact />
           </Card>
           <Card title={t('help.shortcuts.title')}>
-            <List
-              size="small"
-              dataSource={[...SHORTCUTS]}
-              renderItem={(s) => (
-                <List.Item>
-                  <span>{t(`help.shortcuts.${s.action}`)}</span>
-                  <Typography.Text keyboard>
-                    <span dir="ltr">{s.keys}</span>
-                  </Typography.Text>
-                </List.Item>
-              )}
-            />
+            <ShortcutList />
           </Card>
         </Flex>
       </Flex>
