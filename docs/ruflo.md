@@ -20,8 +20,8 @@ npx ruflo@latest init upgrade --add-missing     # adds Ruflo helpers/skills/agen
 #     CLAUDE.md and .claude/settings.json, then `git diff` and keep our versions of those two files)
 npx ruflo@latest doctor --fix
 
-# 2) MCP server is already declared in .mcp.json as "claude-flow" — approve it when Claude Code asks,
-#    or register globally: claude mcp add claude-flow -- npx -y ruflo@latest mcp start
+# 2) The MCP server comes from the ruflo-core plugin (tools mcp__plugin_ruflo-core_ruflo__*), not .mcp.json —
+#    `npx -y ruflo@latest` there outran Claude Code's 30s MCP start timeout on Windows (D-189)
 
 # 3) Seed memory from the knowledge base (idempotent; re-run after docs change)
 npx ruflo@latest memory init

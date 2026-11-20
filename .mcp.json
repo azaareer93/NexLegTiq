@@ -7,12 +7,6 @@
     "notion": {
       "type": "http",
       "url": "https://mcp.notion.com/mcp"
-    },
-    "claude-flow": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "ruflo@latest", "mcp", "start"],
-      "env": {}
     }
   }
 }

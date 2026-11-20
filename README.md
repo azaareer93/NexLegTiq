@@ -60,7 +60,7 @@ The backend refuses to boot while a required variable is missing or invalid, and
 | `docs/ruflo.md` | Ruflo memory setup and namespaces |
 | `docs/tooling.md` | Claude Code add-ons (plugins, task-observer, Graphify, optional proxies) — D-077 |
 | `.claude/` | Subagents, skills, slash commands, path-scoped rules, hooks, settings |
-| `.mcp.json` | MCP servers: Atlassian (Jira), Notion, Ruflo (`claude-flow`) |
+| `.mcp.json` | MCP servers: Atlassian (Jira), Notion (Ruflo comes from the `ruflo-core` plugin) |
 | `.github/` | CI, PR conventions, PR template |
 | `scripts/` | `ruflo-seed.mjs` (load knowledge into Ruflo), `test-hooks.mjs` |
 
@@ -75,7 +75,7 @@ The backend refuses to boot while a required variable is missing or invalid, and
 ```
 
 ## One-time setup on your machine
-1. Clone, open in Claude Code, approve the project MCP servers (Atlassian, Notion, claude-flow) and sign in to Atlassian/Notion when prompted.
+1. Clone, open in Claude Code, approve the project MCP servers (Atlassian, Notion) and sign in to Atlassian/Notion when prompted.
 2. Ruflo: follow `docs/ruflo.md` (`npx ruflo@latest init upgrade --add-missing`, then `node scripts/ruflo-seed.mjs`).
    Add-ons: trust the folder so the plugins install, then wire Graphify per `docs/tooling.md`, then `pnpm hooks:install`
    (post-merge sync of Graphify/Ruflo/Notion, `docs/tooling.md` section 7).
