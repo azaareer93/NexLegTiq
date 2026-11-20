@@ -52,5 +52,6 @@ export function useCtrlAltShortcut(code: string, enabled: boolean, open: () => v
 export const isNewCaseShortcut = (event: KeyboardEvent): boolean =>
   isCtrlAltShortcut(event, 'KeyN');
 
-const isTyping = (target: EventTarget | null): boolean =>
+/** Focus is in a field (or contenteditable): letter shortcuts stay off so typing is never swallowed. */
+export const isTyping = (target: EventTarget | null): boolean =>
   target instanceof HTMLElement && (target.isContentEditable || EDITABLE.has(target.tagName));

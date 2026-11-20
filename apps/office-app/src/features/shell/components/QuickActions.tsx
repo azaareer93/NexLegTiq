@@ -11,7 +11,9 @@ import { lazy, Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { openQuickCreateCase } from '../../cases';
+import { useCtrlAltShortcut } from '../../cases/quick-create';
 import { openTaskDrawer } from '../../tasks';
+import { ctrlAltAria } from '../shortcuts';
 
 // Its own chunk, loaded the first time + Client is used (as the case modal is).
 const ClientDrawer = lazy(async () => ({
@@ -37,15 +39,20 @@ export function QuickActions({
     task: useCan('create:task'),
   };
 
+  // Ctrl+Alt+C: a new client (Ctrl+Alt+N and +T live with their dialogs' hosts).
+  useCtrlAltShortcut('KeyC', can.client && !clientOpen, () => setClientOpen(true));
+
   const icons: Record<QuickAction, React.JSX.Element> = {
     file: <FolderAddOutlined />,
     client: <UserAddOutlined />,
     task: <CheckSquareOutlined />,
   };
+  const keys: Record<QuickAction, string> = { file: 'N', client: 'C', task: 'T' };
   const items: MenuProps['items'] = QUICK_ACTIONS.filter((key) => can[key]).map((key) => ({
     key,
     icon: icons[key],
     label: t(`shell.quick.${key}`),
+    'aria-keyshortcuts': ctrlAltAria(keys[key]),
     'data-testid': `quick-${key}`,
   }));
 
