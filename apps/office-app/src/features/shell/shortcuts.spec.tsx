@@ -65,14 +65,19 @@ describe('shortcut helpers', () => {
     expect(isHelpShortcut(new KeyboardEvent('keydown', init))).toBe(false);
   });
 
-  it('should leave Ctrl+/ alone while typing in a field', () => {
-    const input = document.createElement('input');
-    document.body.append(input);
-    const event = new KeyboardEvent('keydown', help);
-    Object.defineProperty(event, 'target', { value: input });
-    expect(isHelpShortcut(event)).toBe(false);
-    input.remove();
-  });
+  it.each(['input', 'textarea', 'select', 'contenteditable'])(
+    'should leave Ctrl+/ alone while typing in a %s',
+    (kind) => {
+      const field = document.createElement(kind === 'contenteditable' ? 'div' : kind);
+      // jsdom has no isContentEditable: set it as a browser does for contenteditable="true".
+      if (kind === 'contenteditable') {
+        Object.defineProperty(field, 'isContentEditable', { value: true });
+      }
+      const event = new KeyboardEvent('keydown', help);
+      Object.defineProperty(event, 'target', { value: field });
+      expect(isHelpShortcut(event)).toBe(false);
+    },
+  );
 });
 
 describe('shortcut help modal', () => {
@@ -85,9 +90,7 @@ describe('shortcut help modal', () => {
       const dialog = await screen.findByRole('dialog');
       expect(within(dialog).getByText('Keyboard shortcuts')).toBeTruthy();
       expect(within(dialog).getByText('New client')).toBeTruthy();
-      expect(
-        within(dialog).getByText('Ctrl + Alt + C').closest('[aria-keyshortcuts]'),
-      ).toBeTruthy();
+      expect(within(dialog).getByText('Ctrl + Alt + C')).toBeTruthy();
       expect((await axe.run(dialog)).violations).toEqual([]);
       fireEvent.keyDown(dialog, { key: 'Escape', code: 'Escape' });
       await waitFor(() => expect(screen.queryByTestId('shortcut-list')).toBeNull());
@@ -104,16 +107,62 @@ describe('shortcut help modal', () => {
       const list = await screen.findByTestId('shortcut-list');
       expect(screen.getByText('اختصارات لوحة المفاتيح')).toBeTruthy();
       expect(within(list).getByText('البحث في كل شيء')).toBeTruthy();
-      expect(screen.queryByTestId('shortcut-newCase')).toBeNull();
-      expect(screen.queryByTestId('shortcut-newClient')).toBeNull();
-      expect(screen.getByTestId('shortcut-search')).toBeTruthy();
-      expect(screen.getByTestId('shortcut-help')).toBeTruthy();
+      expect(
+        within(list)
+          .getAllByRole('listitem')
+          .map((item) => item.getAttribute('data-testid')),
+      ).toEqual(['shortcut-search', 'shortcut-upload', 'shortcut-help', 'shortcut-close']);
+      expect((await axe.run(list)).violations).toEqual([]);
+    },
+    SLOW,
+  );
+
+  it(
+    'should not open from a field or over another dialog',
+    async () => {
+      asRole('LAWYER');
+      await screen.findByTestId('page-dashboard');
+      expect(screen.getByTestId('search-open').getAttribute('aria-keyshortcuts')).toBe(
+        'Control+K Meta+K',
+      );
+      fireEvent.click(screen.getByTestId('search-open'));
+      const input = await screen.findByTestId('search-input');
+      expect(fireEvent.keyDown(input, help)).toBe(true);
+      expect(screen.queryByTestId('shortcut-list')).toBeNull();
+    },
+    SLOW,
+  );
+
+  it(
+    'should list every shortcut a lawyer may use on /help',
+    async () => {
+      setViewport(1280);
+      signedIn({ role: 'LAWYER', permissions: [...permissionsFor('LAWYER')] });
+      renderApp('/help');
+      const list = await screen.findByTestId('shortcut-list', {}, { timeout: 20_000 });
+      expect(within(list).getAllByRole('listitem')).toHaveLength(SHORTCUTS.length);
     },
     SLOW,
   );
 });
 
 describe('Ctrl+Alt+C', () => {
+  it(
+    'should announce the quick actions their shortcuts',
+    async () => {
+      asRole('LAWYER');
+      await screen.findByTestId('page-dashboard');
+      fireEvent.click(screen.getByTestId('quick-actions'));
+      await screen.findByTestId('quick-client');
+      expect(
+        ['file', 'client', 'task'].map((key) =>
+          screen.getByTestId(`quick-${key}`).getAttribute('aria-keyshortcuts'),
+        ),
+      ).toEqual(['Control+Alt+N', 'Control+Alt+C', 'Control+Alt+T']);
+    },
+    SLOW,
+  );
+
   it(
     'should open the client drawer for who may manage clients, but not while typing',
     async () => {

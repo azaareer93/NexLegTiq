@@ -4,7 +4,7 @@ import { Button, Card, Flex, List, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 
-import { ShortcutList } from '../../shell';
+import { ShortcutList } from '../../shell/shortcuts';
 import { bugReportHref, HELP_ARTICLES, HELP_SLUGS, SUPPORT } from '../articles';
 
 function Contact() {

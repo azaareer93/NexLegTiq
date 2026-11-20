@@ -1,16 +1,18 @@
-import type { Permission } from '@nexlegtiq/shared-types';
 import { useCan } from '@nexlegtiq/shared-ui';
 import { List, Modal, Typography } from 'antd';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { isTyping } from '../cases/quick-create';
+import { isTyping } from '../cases';
 
 /** Apple devices write ⌘ for the Ctrl/Cmd shortcuts and ⌃ ⌥ for Control+Option; key names are not translated. */
-export const IS_MAC =
-  typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
+const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
 
 /** `Mod` is Ctrl, or ⌘ on a Mac (either is accepted); `Ctrl+Alt` is Control+Option on a Mac. */
+/** The permissions the listed handlers check; `ShortcutList` must hold one `useCan` per member. */
+type ShortcutPermission =
+  'create:case' | 'manage:clients' | 'create:task' | 'upload:document' | 'create:session';
+
 type Combo = { readonly mod: 'Mod' | 'CtrlAlt' | null; readonly key: string };
 
 interface Shortcut {
@@ -18,7 +20,7 @@ interface Shortcut {
   readonly action: string;
   readonly combo: Combo;
   /** Listed only for users who may do it — the handlers check the same permission. */
-  readonly permission?: Permission;
+  readonly permission?: ShortcutPermission;
 }
 
 /** Every shortcut of the office app (frontend.md#keyboard-shortcuts, D-190): the help modal and `/help` list these. */
@@ -73,7 +75,7 @@ export const isHelpShortcut = (event: KeyboardEvent): boolean =>
 export function ShortcutList(): React.JSX.Element {
   const { t } = useTranslation();
   // One hook per permission the list names (a fixed set, so hooks stay unconditional).
-  const allowed: Partial<Record<Permission, boolean>> = {
+  const allowed: Record<ShortcutPermission, boolean> = {
     'create:case': useCan('create:case'),
     'manage:clients': useCan('manage:clients'),
     'create:task': useCan('create:task'),
@@ -84,12 +86,12 @@ export function ShortcutList(): React.JSX.Element {
   return (
     <List
       size="small"
-      dataSource={[...visible]}
+      dataSource={visible}
       data-testid="shortcut-list"
       renderItem={(s) => (
         <List.Item data-testid={`shortcut-${s.action}`}>
           <span>{t(`help.shortcuts.${s.action}`)}</span>
-          <Typography.Text keyboard aria-keyshortcuts={ariaKeys(s.combo)}>
+          <Typography.Text keyboard>
             <span dir="ltr">{comboLabel(s.combo)}</span>
           </Typography.Text>
         </List.Item>
@@ -121,7 +123,6 @@ export function ShortcutsHelp(): React.JSX.Element {
       footer={null}
       title={t('help.shortcuts.title')}
       destroyOnHidden
-      data-testid="shortcuts-help"
     >
       <ShortcutList />
     </Modal>

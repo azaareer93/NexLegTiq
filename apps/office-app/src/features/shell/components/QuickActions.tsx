@@ -10,8 +10,7 @@ import type { MenuProps } from 'antd';
 import { lazy, Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { openQuickCreateCase } from '../../cases';
-import { useCtrlAltShortcut } from '../../cases/quick-create';
+import { openQuickCreateCase, useCtrlAltShortcut } from '../../cases';
 import { openTaskDrawer } from '../../tasks';
 import { ctrlAltAria } from '../shortcuts';
 
