@@ -44,17 +44,15 @@ function setup(grants = [A, B]) {
 describe('PortalInvoicesService (D-188)', () => {
   it("should list every office's shared, issued invoices of the grant's client, newest first across offices", async () => {
     const { service, db } = setup();
-    db.invoice.findMany
-      .mockResolvedValueOnce([row('a1', '2026-10-01')])
-      .mockResolvedValueOnce([
-        row('b1', '2026-11-01', {
-          status: 'PAID',
-          currency: 'JOD',
-          total: new Prisma.Decimal('116.0006'),
-          paidAt,
-        }),
-        row('b0', '2026-09-01', { status: 'DRAFT', invoiceNumber: null }),
-      ]);
+    db.invoice.findMany.mockResolvedValueOnce([row('a1', '2026-10-01')]).mockResolvedValueOnce([
+      row('b1', '2026-11-01', {
+        status: 'PAID',
+        currency: 'JOD',
+        total: new Prisma.Decimal('116.0006'),
+        paidAt,
+      }),
+      row('b0', '2026-09-01', { status: 'DRAFT', invoiceNumber: null }),
+    ]);
     const invoices = await service.list('u1');
     expect(invoices.map((i) => [i.id, i.officeName])).toEqual([
       ['b1', 'Office B'],
@@ -74,6 +72,14 @@ describe('PortalInvoicesService (D-188)', () => {
       orderBy: [{ issueDate: 'desc' }, { id: 'desc' }],
       take: 200,
     });
+  });
+
+  it('should break a same-day tie by id, highest first, across offices', async () => {
+    const { service, db } = setup();
+    db.invoice.findMany
+      .mockResolvedValueOnce([row('a1', '2026-11-01')])
+      .mockResolvedValueOnce([row('b9', '2026-11-01')]);
+    expect((await service.list('u1')).map((i) => i.id)).toEqual(['b9', 'a1']);
   });
 
   it('should hand out the PDF from the office whose scoped lookup finds the invoice, else 404', async () => {

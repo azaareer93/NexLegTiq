@@ -59,6 +59,15 @@ describe('InvoicePdfService (MVP-92)', () => {
       status: 'RENDERING',
     });
     expect(rendering.prisma.db.auditLog.create).not.toHaveBeenCalled();
+    const unnumbered = setup(stored({ invoiceNumber: null }));
+    await unnumbered.service.portalLink({ id: ID }, 'cu1', client);
+    expect(unnumbered.storage.presignedGetUrl.mock.calls[0][1]).toMatchObject({
+      filename: 'invoice-draft.pdf',
+    });
+    // Only "not found" becomes null; any other failure still surfaces.
+    const broken = setup(stored());
+    broken.storage.presignedGetUrl.mockRejectedValueOnce(new Error('s3 down'));
+    await expect(broken.service.portalLink({ id: ID }, 'cu1', client)).rejects.toThrow('s3 down');
   });
 
   it('should link a current PDF named after the invoice and audit the download', async () => {
