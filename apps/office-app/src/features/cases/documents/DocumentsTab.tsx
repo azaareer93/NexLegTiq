@@ -89,6 +89,7 @@ function UploadControls({
         type="primary"
         icon={<UploadOutlined />}
         onClick={() => setUploading(true)}
+        aria-keyshortcuts="Control+Alt+U"
         data-testid="documents-upload"
       >
         {t('documents.upload.open')}

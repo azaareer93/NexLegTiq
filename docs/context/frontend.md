@@ -69,7 +69,7 @@ and sign-in pages). Route errors: 403 / 404 / 500 pages inside the shell, chunk-
 ## Keyboard shortcuts
 Ctrl/Cmd+K search · Ctrl+Alt+N new file · Ctrl+Alt+C new client · Ctrl+Alt+T new task · Ctrl+Alt+U upload ·
 Ctrl+Alt+H new hearing · Ctrl+/ help · Esc close. (Docs' Ctrl+N/Ctrl+Shift+N collide with browser shortcuts — use Alt variants.)
-Shortcuts are listed in the help modal and localized.
+Shortcuts are listed in the help modal (Ctrl+/) and on `/help` from one list, localized and filtered by permission (D-190).
 
 ## Accessibility
 WCAG 2.1 AA: axe in component + E2E tests, keyboard reachability, focus rings, skip link, ARIA tabs, color is never the only

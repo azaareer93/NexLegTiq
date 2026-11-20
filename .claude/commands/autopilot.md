@@ -67,6 +67,8 @@ Stop at once when `.git/nexlegtiq/autopilot-stop` exists. Each iteration appends
 - Otherwise: run the next iteration right away; after two `IDLE`s in a row, stop and report.
 - After each `DONE`, if `docs/context/decisions/` changed since `.git/nexlegtiq/notion-decisions`, `/sync-notion decisions` (already
   done by /ticket step 11 unless it failed).
+- if you can continue, do not stop when the parameters are not saying that, do not cut the process to ask me to type continue, while we are not using `--once` and we didn't reach max prs, keep iterating to the next step right a way.
+- don't stop the iteration unless there is a good reason, if something is blocking or awaiting or taking time, listen and wait and continue or resume the loop. 
 
 ## Report (when stopping)
 ≤ 10 lines: PRs opened (stack order), tickets skipped with the reason, decisions waiting for me (`labels = needs-decision`).
