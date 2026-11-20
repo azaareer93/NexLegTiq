@@ -15,7 +15,7 @@ settings, or name another `MVP-<n>` key in a commit, PR title or PR body (mergin
      `.git/hooks/post-merge` lacks the `nexlegtiq-post-merge` block, run `pnpm hooks:install` first and say so).
    - **Ruflo**: if `.git/nexlegtiq/ruflo-pending` exists, run
      `node scripts/ruflo-seed.mjs --export=<scratchpad>/ruflo-changed.json --changed-since=$(cat .git/nexlegtiq/ruflo-pending)`,
-     then load the whole file with **one** claude-flow MCP call `memory_import` (`inputPath` = that file, `merge: true`; the
+     then load the whole file with **one** Ruflo MCP call (ruflo-core plugin) `memory_import` (`inputPath` = that file, `merge: true`; the
      export is `ruflo-memory-export/v1` with tags `nexlegtiq`, `seed`), then delete the pending file. Never store entry by
      entry with `memory_store` (dozens of calls through the conversation) unless `memory_import` itself fails. Never run the
      seed script without `--export` in a session: the MCP server owns `.swarm/memory.db`. If the import refuses (WAL sidecar
