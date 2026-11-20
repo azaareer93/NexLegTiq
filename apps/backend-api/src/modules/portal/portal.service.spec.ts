@@ -2,9 +2,7 @@ import { PortalService } from './portal.service';
 import type { StorageService } from '../../common/storage/storage.service';
 import type { TenantRunner } from '../../common/tenancy/tenant-runner';
 import type { PrismaService } from '../../database/prisma.service';
-import { Prisma } from '../../generated/prisma/client';
 import type { ClientInfo } from '../auth/client-info';
-import type { InvoicePdfService } from '../invoices/pdf/invoice-pdf.service';
 import type { PortalAccounts } from '../portal-auth/portal-accounts';
 
 const NO_CLIENT = { ip: '127.0.0.1', userAgent: null, requestId: null } satisfies ClientInfo;
@@ -39,9 +37,7 @@ function setup(grants = [A, B]) {
       }),
     },
     auditLog: { create: jest.fn() },
-    invoice: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
   };
-  const invoicePdfs = { portalLink: jest.fn().mockResolvedValue({ status: 'RENDERING' }) };
   const tenants = {
     run: jest.fn((ctx: { officeId: string }, work: () => Promise<unknown>) => {
       office.push(ctx.officeId);
@@ -53,9 +49,8 @@ function setup(grants = [A, B]) {
     tenants as unknown as TenantRunner,
     { db } as unknown as PrismaService,
     { presignedGetUrl: jest.fn().mockResolvedValue('https://s3/x') } as unknown as StorageService,
-    invoicePdfs as unknown as InvoicePdfService,
   );
-  return { service, db, office, invoicePdfs };
+  return { service, db, office };
 }
 
 describe('PortalService (D-186)', () => {
@@ -116,61 +111,6 @@ describe('PortalService (D-186)', () => {
     expect(db.document.findMany.mock.calls[0][0].where).toMatchObject({
       sharedWithClient: true,
       status: { in: ['PROCESSING', 'READY'] },
-    });
-  });
-
-  it("should list each office's shared, issued invoices of the grant's client in portal shape", async () => {
-    const { service, db } = setup();
-    db.invoice.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
-      {
-        id: 'i1',
-        invoiceNumber: 'INV-2026-0001',
-        status: 'PAID',
-        currency: 'JOD',
-        issueDate: new Date('2026-11-01T00:00:00Z'),
-        dueDate: new Date('2026-12-01T00:00:00Z'),
-        total: new Prisma.Decimal('116.0006'),
-        paidAt: when,
-        file: null,
-      },
-    ]);
-    await expect(service.invoices('u1')).resolves.toEqual([
-      {
-        id: 'i1',
-        officeId: 'o-b',
-        officeName: 'Office B',
-        invoiceNumber: 'INV-2026-0001',
-        status: 'PAID',
-        currency: 'JOD',
-        issueDate: '2026-11-01',
-        dueDate: '2026-12-01',
-        total: '116.001',
-        paidAt: when.toISOString(),
-        file: null,
-      },
-    ]);
-    expect(db.invoice.findMany.mock.calls[1][0].where).toEqual({
-      clientId: 'c-b',
-      sharedWithClient: true,
-      status: { in: ['SENT', 'OVERDUE', 'PAID'] },
-    });
-    db.invoice.findMany.mockResolvedValueOnce([
-      { id: 'bad', invoiceNumber: null, status: 'DRAFT', issueDate: null, dueDate: null },
-    ]);
-    await expect(service.invoices('u1')).rejects.toThrow('without being issued');
-  });
-
-  it("should hand out a shared invoice's PDF from its own office, else 404", async () => {
-    const { service, db, invoicePdfs, office } = setup();
-    db.invoice.count.mockResolvedValueOnce(0).mockResolvedValueOnce(1);
-    await expect(service.invoicePdf('u1', 'i1', NO_CLIENT)).resolves.toEqual({
-      status: 'RENDERING',
-    });
-    expect(office.at(-1)).toBe('o-b');
-    expect(invoicePdfs.portalLink).toHaveBeenCalledWith('i1', 'u1', NO_CLIENT);
-    db.invoice.count.mockResolvedValue(0);
-    await expect(service.invoicePdf('u1', 'i1', NO_CLIENT)).rejects.toMatchObject({
-      code: 'RES-001',
     });
   });
 

@@ -54,7 +54,7 @@ export class InvoicePdfService {
 
   async link(id: string, language?: PdfLanguage): Promise<InvoicePdf> {
     const lang = language ?? (await officePdfLanguage(this.prisma.db));
-    return this.linkWhere({ AND: [{ id }, this.access.visibleWhere()] }, lang, (newValues) =>
+    return this.linkWhere({ AND: [{ id }, this.access.visibleWhere()] }, lang, (_row, newValues) =>
       this.audit.log(this.prisma.db, {
         entityType: 'Invoice',
         entityId: id,
@@ -65,44 +65,54 @@ export class InvoicePdfService {
   }
 
   /**
-   * The portal's ask (MVP-150, D-188), run in the invoice's office once the portal has scoped it to the client: the same
-   * PDF in the office's language, audited as DOWNLOAD by the portal account.
+   * The portal's ask (MVP-150, D-188), in the invoice's office: `where` carries the portal's own scope (the grant's client,
+   * shared and issued), so the lookup and the link are one query; null when nothing matches. Same PDF, the office's
+   * language, audited DOWNLOAD by the portal account.
    */
-  async portalLink(id: string, clientUserId: string, client: ClientInfo): Promise<InvoicePdf> {
+  async portalLink(
+    where: Prisma.InvoiceWhereInput,
+    clientUserId: string,
+    client: ClientInfo,
+  ): Promise<InvoicePdf | null> {
     const lang = await officePdfLanguage(this.prisma.db);
-    return this.linkWhere({ id }, lang, async (newValues) => {
-      const { officeId } = await this.prisma.db.invoice.findFirstOrThrow({
-        where: { id },
-        select: { officeId: true },
+    try {
+      return await this.linkWhere(where, lang, async (row, newValues) => {
+        await this.prisma.db.auditLog.create({
+          data: {
+            ...auditRow(
+              {
+                officeId: row.officeId,
+                userId: null,
+                entityType: 'Invoice',
+                entityId: row.id,
+                action: 'DOWNLOAD',
+                newValues: { ...newValues, portal: true },
+              },
+              client,
+            ),
+            clientUserId,
+          },
+        });
       });
-      await this.prisma.db.auditLog.create({
-        data: {
-          ...auditRow(
-            {
-              officeId,
-              userId: null,
-              entityType: 'Invoice',
-              entityId: id,
-              action: 'DOWNLOAD',
-              newValues,
-            },
-            client,
-          ),
-          clientUserId,
-        },
-      });
-    });
+    } catch (error) {
+      if (error instanceof ResourceNotFoundException) return null;
+      throw error;
+    }
   }
 
   private async linkWhere(
     where: Prisma.InvoiceWhereInput,
     lang: PdfLanguage,
-    audit: (newValues: { language: PdfLanguage; portal?: true }) => Promise<unknown>,
+    audit: (
+      row: { id: string; officeId: string },
+      newValues: { language: PdfLanguage },
+    ) => Promise<unknown>,
   ): Promise<InvoicePdf> {
     const row = await this.prisma.db.invoice.findFirst({
       where,
       select: {
         id: true,
+        officeId: true,
         invoiceNumber: true,
         updatedAt: true,
         pdfStorageKey: true,
@@ -124,7 +134,7 @@ export class InvoicePdfService {
       filename: `${row.invoiceNumber ?? 'invoice-draft'}.pdf`,
       contentType: 'application/pdf',
     });
-    await audit({ language: lang });
+    await audit(row, { language: lang });
     return { status: 'READY', downloadUrl, expiresIn: LINK_TTL_SECONDS };
   }
 }

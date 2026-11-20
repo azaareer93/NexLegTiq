@@ -8,7 +8,6 @@ function setup(row: object | null, defaultLanguage = 'BILINGUAL') {
     db: {
       invoice: {
         findFirst: jest.fn().mockResolvedValue(row),
-        findFirstOrThrow: jest.fn().mockResolvedValue({ officeId: 'o1' }),
       },
       auditLog: { create: jest.fn() },
       office: { findFirstOrThrow: jest.fn().mockResolvedValue({ defaultLanguage }) },
@@ -29,6 +28,7 @@ function setup(row: object | null, defaultLanguage = 'BILINGUAL') {
 }
 const stored = (over: object = {}) => ({
   id: ID,
+  officeId: 'o1',
   invoiceNumber: 'INV-2026-0007',
   updatedAt: UPDATED,
   pdfStorageKey: 'o1/invoices/x.pdf',
@@ -41,18 +41,21 @@ describe('InvoicePdfService (MVP-92)', () => {
   it('should give the portal the same PDF, audited as the portal account without an office user (D-188)', async () => {
     const { service, prisma, audit } = setup(stored());
     const client = { ip: '1.2.3.4', userAgent: 'ua', requestId: 'r1' };
-    await expect(service.portalLink(ID, 'cu1', client)).resolves.toMatchObject({ status: 'READY' });
+    await expect(service.portalLink({ id: ID }, 'cu1', client)).resolves.toMatchObject({
+      status: 'READY',
+    });
     expect(prisma.db.invoice.findFirst.mock.calls[0][0].where).toEqual({ id: ID });
     expect(prisma.db.auditLog.create.mock.calls[0][0].data).toMatchObject({
       officeId: 'o1',
       userId: null,
       clientUserId: 'cu1',
       action: 'DOWNLOAD',
-      newValues: { language: 'AR' },
+      newValues: { language: 'AR', portal: true },
     });
     expect(audit.log).not.toHaveBeenCalled();
+    await expect(setup(null).service.portalLink({ id: ID }, 'cu1', client)).resolves.toBeNull();
     const rendering = setup(stored({ pdfRenderedFor: null }));
-    await expect(rendering.service.portalLink(ID, 'cu1', client)).resolves.toEqual({
+    await expect(rendering.service.portalLink({ id: ID }, 'cu1', client)).resolves.toEqual({
       status: 'RENDERING',
     });
     expect(rendering.prisma.db.auditLog.create).not.toHaveBeenCalled();

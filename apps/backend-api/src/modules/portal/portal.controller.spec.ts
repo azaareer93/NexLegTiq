@@ -1,6 +1,7 @@
 import type { Request } from 'express';
 import type { ClsService } from 'nestjs-cls';
 
+import type { PortalInvoicesService } from './portal-invoices.service';
 import { PortalController } from './portal.controller';
 import type { PortalService } from './portal.service';
 import type { RequestContext } from '../../common/context/request-context';
@@ -12,13 +13,16 @@ describe('PortalController', () => {
       file: jest.fn().mockResolvedValue('file'),
       documents: jest.fn().mockResolvedValue([]),
       download: jest.fn().mockResolvedValue('link'),
-      invoices: jest.fn().mockResolvedValue([]),
-      invoicePdf: jest.fn().mockResolvedValue({ status: 'READY' }),
+    };
+    const invoiceList = {
+      list: jest.fn().mockResolvedValue([]),
+      pdf: jest.fn().mockResolvedValue({ status: 'READY' }),
     };
     const req = { clientUserId: 'u1', ip: '127.0.0.1', get: () => 'jest' } as unknown as Request;
     for (const active of [true, false]) {
       const controller = new PortalController(
         portal as unknown as PortalService,
+        invoiceList as unknown as PortalInvoicesService,
         { isActive: () => active, getId: () => 'req-1' } as unknown as ClsService<RequestContext>,
       );
       await expect(controller.files(req)).resolves.toEqual([]);
@@ -31,7 +35,7 @@ describe('PortalController', () => {
         status: 'READY',
       });
       expect(res.status).toHaveBeenCalledWith(200);
-      portal.invoicePdf.mockResolvedValueOnce({ status: 'RENDERING' });
+      invoiceList.pdf.mockResolvedValueOnce({ status: 'RENDERING' });
       await controller.invoicePdf('i1', req, res as never);
       expect(res.status).toHaveBeenLastCalledWith(202);
     }
@@ -43,6 +47,7 @@ describe('PortalController', () => {
     );
     const controller = new PortalController(
       portal as unknown as PortalService,
+      invoiceList as unknown as PortalInvoicesService,
       {} as ClsService<RequestContext>,
     );
     expect(() => controller.files({} as Request)).toThrow('PortalAuthGuard did not run');

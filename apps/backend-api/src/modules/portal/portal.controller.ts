@@ -29,6 +29,7 @@ import type {
 import type { Request, Response } from 'express';
 import { ClsService } from 'nestjs-cls';
 
+import { PortalInvoicesService } from './portal-invoices.service';
 import { PortalService } from './portal.service';
 import { Public } from '../../common/auth/public.decorator';
 import type { RequestContext } from '../../common/context/request-context';
@@ -52,6 +53,7 @@ const uuid = new ParseUUIDPipe({ exceptionFactory: () => new ResourceNotFoundExc
 export class PortalController {
   constructor(
     private readonly portal: PortalService,
+    private readonly invoiceList: PortalInvoicesService,
     private readonly cls: ClsService<RequestContext>,
   ) {}
 
@@ -82,7 +84,7 @@ export class PortalController {
   })
   @ApiZodResponse(200, PortalInvoiceSchema.array())
   invoices(@Req() req: PortalRequest): Promise<PortalInvoice[]> {
-    return this.portal.invoices(this.account(req));
+    return this.invoiceList.list(this.account(req));
   }
 
   @Get('invoices/:id/pdf')
@@ -98,7 +100,7 @@ export class PortalController {
     @Req() req: PortalRequest,
     @Res({ passthrough: true }) res: Response,
   ): Promise<PortalInvoicePdf> {
-    const answer = await this.portal.invoicePdf(this.account(req), id, this.client(req));
+    const answer = await this.invoiceList.pdf(this.account(req), id, this.client(req));
     res.status(answer.status === 'READY' ? HttpStatus.OK : HttpStatus.ACCEPTED);
     return answer;
   }
