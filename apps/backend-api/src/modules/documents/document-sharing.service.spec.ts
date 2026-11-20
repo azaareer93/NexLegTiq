@@ -2,9 +2,9 @@ import type { ClsService } from 'nestjs-cls';
 
 import type { DocumentAccessService } from './document-access.service';
 import { DocumentSharingService } from './document-sharing.service';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import type { UnitOfWork } from '../../database/unit-of-work';
-import type { ClientInfo } from '../auth/client-info';
 import type { TimelineService } from '../timeline/timeline.service';
 
 const NO_CLIENT = { ip: '127.0.0.1', userAgent: null, requestId: null } satisfies ClientInfo;

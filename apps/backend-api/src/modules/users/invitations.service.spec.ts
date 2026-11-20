@@ -1,11 +1,11 @@
 import type { ClsService } from 'nestjs-cls';
 
 import { InvitationsService } from './invitations.service';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import type { QueueProducer } from '../../common/queue/queue-producer';
 import type { PrismaService } from '../../database/prisma.service';
 import type { UnitOfWork } from '../../database/unit-of-work';
-import type { ClientInfo } from '../auth/client-info';
 import type { EntitlementsService } from '../subscriptions/entitlements.service';
 
 const client: ClientInfo = { ip: '127.0.0.1', userAgent: 'jest', requestId: 'req-12345678' };

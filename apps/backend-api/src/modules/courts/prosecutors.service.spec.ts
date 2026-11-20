@@ -1,8 +1,8 @@
 import { ProsecutorsService } from './prosecutors.service';
 import type { ReferenceContext } from './reference-context';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { PrismaService } from '../../database/prisma.service';
 import type { UnitOfWork } from '../../database/unit-of-work';
-import type { ClientInfo } from '../auth/client-info';
 
 const AT = new Date('2026-11-08T10:00:00.000Z');
 const ROW = {

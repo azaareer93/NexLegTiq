@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 
+import { truncateUserAgent } from '../../common/context/client-info';
+import type { ClientInfo } from '../../common/context/client-info';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
-import { truncateUserAgent } from '../auth/client-info';
-import type { ClientInfo } from '../auth/client-info';
 
 export interface PlatformAuditEntry {
   readonly adminId: string | null;

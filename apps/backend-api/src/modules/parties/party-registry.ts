@@ -3,13 +3,13 @@ import type { FileParty, NewPartyRequest, Party, PartyQuery } from '@nexlegtiq/s
 import { ClsService } from 'nestjs-cls';
 
 import { auditRow } from '../../common/audit/audit.service';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import { FieldCipher } from '../../common/crypto/field-cipher';
 import { uuidV7 } from '../../common/ids/uuid-v7';
 import { PrismaService } from '../../database/prisma.service';
 import type { ScopedTransaction } from '../../database/unit-of-work';
 import { Prisma } from '../../generated/prisma/client';
-import type { ClientInfo } from '../auth/client-info';
 
 const ENCRYPTED = {
   nationalId: 'parties.national_id',

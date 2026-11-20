@@ -7,11 +7,11 @@ import type {
 
 import { ClientContext, changedFields } from './client-context';
 import { CONTACT_SELECT, toContact } from './clients.repository';
+import type { ClientInfo } from '../../common/context/client-info';
 import { ResourceNotFoundException } from '../../common/errors/app.exception';
 import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { ScopedTransaction } from '../../database/unit-of-work';
-import type { ClientInfo } from '../auth/client-info';
 
 const ORDER = [{ isPrimary: 'desc' }, { createdAt: 'asc' }, { id: 'asc' }] as const;
 

@@ -11,6 +11,7 @@ import { PinoLogger } from 'nestjs-pino';
 
 import { RENDER_PAYMENT_RECEIPT_JOB, receiptIsCurrent } from './receipt-pdf.renderer';
 import type { ReceiptJob } from './receipt-pdf.renderer';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import {
   BusinessRuleException,
@@ -23,7 +24,6 @@ import { StorageService } from '../../common/storage/storage.service';
 import { TenantRunner } from '../../common/tenancy/tenant-runner';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
-import type { ClientInfo } from '../auth/client-info';
 import type { PdfLanguage } from '../invoices/pdf/invoice-pdf.html';
 import { pdfLanguageOf } from '../invoices/pdf/invoice-pdf.service';
 import { PlatformAuditService } from '../platform-auth/platform-audit.service';

@@ -3,10 +3,10 @@ import { ClsService } from 'nestjs-cls';
 
 import { DocumentAccessService } from './document-access.service';
 import { auditRow } from '../../common/audit/audit.service';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import { AppException, ResourceNotFoundException } from '../../common/errors/app.exception';
 import { UnitOfWork } from '../../database/unit-of-work';
-import type { ClientInfo } from '../auth/client-info';
 import { TimelineService } from '../timeline/timeline.service';
 
 /**

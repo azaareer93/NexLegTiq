@@ -7,12 +7,12 @@ import { documentJobId, PROCESS_DOCUMENT_JOB, SCAN_DOCUMENT_JOB } from './docume
 import { DocumentRecordsService } from './document-records.service';
 import { UploadIntake } from './upload/upload-intake';
 import { auditRow } from '../../common/audit/audit.service';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import { BusinessRuleException } from '../../common/errors/app.exception';
 import { QueueProducer } from '../../common/queue/queue-producer';
 import { QUEUE } from '../../common/queue/queues';
 import { UnitOfWork } from '../../database/unit-of-work';
-import type { ClientInfo } from '../auth/client-info';
 
 /**
  * `POST /documents/:id/ocr/retry` (D-132): a FAILED document goes back to the step that failed — extraction

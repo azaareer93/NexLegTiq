@@ -3,10 +3,10 @@ import type { UserId } from '@nexlegtiq/shared-types';
 import { ClsService } from 'nestjs-cls';
 
 import { auditRow } from '../../common/audit/audit.service';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import { BusinessRuleException } from '../../common/errors/app.exception';
 import { isPrismaError } from '../../common/errors/prisma-error';
-import type { ClientInfo } from '../auth/client-info';
 
 /** Caller, office and audit rows for courts, judges and prosecutors (MVP-66, D-115). */
 @Injectable()

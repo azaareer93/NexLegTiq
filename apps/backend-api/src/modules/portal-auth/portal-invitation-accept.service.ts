@@ -8,6 +8,8 @@ import { portalAttemptKey } from './portal-auth.constants';
 import { PortalAuthService } from './portal-auth.service';
 import type { PortalSignIn } from './portal-auth.service';
 import { hashOpaqueToken } from '../../common/auth/opaque-token';
+import { truncateUserAgent } from '../../common/context/client-info';
+import type { ClientInfo } from '../../common/context/client-info';
 import {
   AppException,
   ResourceConflictException,
@@ -15,8 +17,6 @@ import {
 } from '../../common/errors/app.exception';
 import { TenantRunner } from '../../common/tenancy/tenant-runner';
 import { PrismaService } from '../../database/prisma.service';
-import { truncateUserAgent } from '../auth/client-info';
-import type { ClientInfo } from '../auth/client-info';
 import { isLocked } from '../auth/lockout';
 import { LoginAttemptRepository } from '../auth/login-attempt.repository';
 import { PasswordHasher } from '../auth/password-hasher';

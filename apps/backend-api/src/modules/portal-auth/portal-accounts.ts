@@ -2,10 +2,10 @@ import { Injectable } from '@nestjs/common';
 import type { PortalOfficeAccess } from '@nexlegtiq/shared-contracts';
 import type { OfficeId } from '@nexlegtiq/shared-types';
 
+import { truncateUserAgent } from '../../common/context/client-info';
+import type { ClientInfo } from '../../common/context/client-info';
 import { PrismaService } from '../../database/prisma.service';
 import type { AuditAction, Prisma } from '../../generated/prisma/client';
-import { truncateUserAgent } from '../auth/client-info';
-import type { ClientInfo } from '../auth/client-info';
 import { EntitlementsService } from '../subscriptions/entitlements.service';
 
 type AuditWriter = Pick<Prisma.TransactionClient, 'auditLog' | 'clientPortalAccess'>;
