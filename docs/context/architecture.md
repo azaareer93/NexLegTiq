@@ -115,3 +115,4 @@ enterprise/government contract requiring Multi-AZ/SLA, or DR RTO < 1h required.
 ## Performance budgets
 API P95 < 500 ms (P99 < 1 s), DB query < 100 ms, search < 200 ms, upload ack < 5 s, OCR < 30 s/page-set,
 AI summary < 10 s p50 (async), page load < 2 s, TTI < 3 s. Route-level code splitting; vendor chunks for antd/react.
+Measured against a 20-office seed with k6, bundle budgets in CI: `docs/perf/baseline.md` (D-235).
