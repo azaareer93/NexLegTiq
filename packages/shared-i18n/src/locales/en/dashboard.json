@@ -36,6 +36,20 @@
     "description": "Open a case to see its hearings, tasks and documents here.",
     "action": "New case"
   },
+  "quickStart": {
+    "title": "Get started",
+    "progress": "{{done}} of {{total}} steps done",
+    "dismiss": "Hide the get-started checklist",
+    "done": "Done",
+    "steps": {
+      "client": "Add a client",
+      "case": "Open a case",
+      "hearing": "Schedule a hearing",
+      "document": "Upload a document",
+      "colleague": "Invite a colleague",
+      "aiSummary": "Try an AI summary"
+    }
+  },
   "finance": {
     "unpaid": "Unpaid invoices",
     "overdue_one": "{{count}} overdue",

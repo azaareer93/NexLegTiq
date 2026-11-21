@@ -9,6 +9,7 @@ import type { SessionType, UserId } from '@nexlegtiq/shared-types';
 import { roundMoney, wallClock, zonedDateTime } from '@nexlegtiq/shared-utils';
 import { ClsService } from 'nestjs-cls';
 
+import { officeSetup } from './dashboard-setup';
 import type { RequestContext } from '../../common/context/request-context';
 import { assignedFilesWhere } from '../../common/rbac/case-scope';
 import { PrismaService } from '../../database/prisma.service';
@@ -118,7 +119,7 @@ export class DashboardService {
     const today = wallClock(now, timezone).date;
     const at = (date: string) => new Date(zonedDateTime(date, '00:00', timezone));
     const monthStart = at(`${today.slice(0, 8)}01`);
-    const [mine, team, newClientsThisMonth, activity, finance] = await Promise.all([
+    const [mine, team, newClientsThisMonth, activity, finance, setup] = await Promise.all([
       this.mine(userId, today, now, at),
       role === 'OFFICE_MANAGER' || role === 'SENIOR_LAWYER'
         ? this.team(today, now, at(addDays(today, WEEK)))
@@ -132,8 +133,9 @@ export class DashboardService {
       permissions.includes('view:all:invoices') || permissions.includes('view:assigned:invoices')
         ? this.finance(today, monthStart)
         : null,
+      officeSetup(this.prisma.db, userId, permissions),
     ]);
-    return { today, ...mine, newClientsThisMonth, activity, team, finance };
+    return { today, ...mine, newClientsThisMonth, activity, team, finance, setup };
   }
 
   /** What concerns the caller: the files they are assigned to (D-051), the hearings they attend, their tasks. */

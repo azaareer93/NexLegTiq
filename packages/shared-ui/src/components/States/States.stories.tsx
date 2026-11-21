@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Button } from 'antd';
 import { useTranslation } from 'react-i18next';
 
+import { Illustration } from './Illustration';
 import { EmptyState, ErrorState, LoadingSkeleton } from './States';
 
 const meta = { title: 'Feedback/States', component: EmptyState } satisfies Meta<typeof EmptyState>;
@@ -26,3 +27,13 @@ export const ErrorWithReference: Story = {
 };
 export const GenericError: Story = { render: () => <ErrorState onRetry={() => undefined} /> };
 export const Loading: Story = { render: () => <LoadingSkeleton rows={4} /> };
+export const BareIllustration: Story = { render: () => <Illustration kind="start" /> };
+export const FirstRunIllustrations: Story = {
+  render: () => (
+    <>
+      {(['start', 'cases', 'clients', 'calendar', 'documents'] as const).map((kind) => (
+        <EmptyState key={kind} illustration={kind} />
+      ))}
+    </>
+  ),
+};

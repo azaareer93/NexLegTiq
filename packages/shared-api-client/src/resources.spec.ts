@@ -820,6 +820,14 @@ describe('dashboardApi', () => {
       activity: { items: [], names: {} },
       team: null,
       finance: null,
+      setup: {
+        client: true,
+        case: true,
+        hearing: false,
+        document: false,
+        colleague: false,
+        aiSummary: false,
+      },
     };
     server.use(http.get(url('dashboard'), () => ok(data)));
     await expect(setup().dashboard.get()).resolves.toEqual(data);
