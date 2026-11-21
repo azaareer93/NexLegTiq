@@ -24,6 +24,7 @@ function setup(context: Partial<RequestContext>) {
     legalFile: {
       count: jest.fn().mockResolvedValueOnce(3).mockResolvedValueOnce(1),
       groupBy: jest.fn().mockResolvedValue([{ responsibleLawyerId: ID(7), _count: { _all: 2 } }]),
+      findFirst: jest.fn().mockResolvedValue({ id: ID(30) }),
     },
     session: {
       findMany: jest
@@ -34,6 +35,7 @@ function setup(context: Partial<RequestContext>) {
         ])
         .mockResolvedValueOnce([hearing(11, '2026-11-09T08:30:00Z')]),
       count: jest.fn().mockResolvedValue(4),
+      findFirst: jest.fn().mockResolvedValue(null),
     },
     task: {
       count: jest.fn().mockResolvedValue(2),
@@ -44,8 +46,13 @@ function setup(context: Partial<RequestContext>) {
         ]),
       groupBy: jest.fn().mockResolvedValue([{ assignedToId: ID(7), _count: { _all: 1 } }]),
     },
-    document: { count: jest.fn().mockResolvedValue(5) },
-    client: { count: jest.fn().mockResolvedValue(6) },
+    document: {
+      count: jest.fn().mockResolvedValue(5),
+      findFirst: jest.fn().mockResolvedValue(null),
+    },
+    client: { count: jest.fn().mockResolvedValue(6), findFirst: jest.fn().mockResolvedValue(null) },
+    officeInvitation: { findFirst: jest.fn().mockResolvedValue({ id: ID(31) }) },
+    aiSummary: { findFirst: jest.fn().mockResolvedValue(null) },
     invoice: {
       groupBy: jest
         .fn()
@@ -60,6 +67,7 @@ function setup(context: Partial<RequestContext>) {
         { id: ID(7), fullName: 'Omar' },
         { id: ID(8), fullName: 'Sami' },
       ]),
+      findFirst: jest.fn().mockResolvedValue(null),
     },
   };
   const timeline = { recent: jest.fn().mockResolvedValue({ items: [], names: {} }) };
@@ -97,6 +105,27 @@ describe('DashboardService (D-151)', () => {
     expect(db.client.count).not.toHaveBeenCalled();
     expect(data.finance).toBeNull();
     expect(db.invoice.groupBy).not.toHaveBeenCalled();
+    expect(data.setup).toBeNull();
+    expect(db.aiSummary.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('should tick the quick-start steps the office has taken for whoever manages it (D-210)', async () => {
+    const { service, db } = setup({
+      userId: ID(7),
+      role: 'OFFICE_MANAGER',
+      permissions: ['manage:office'],
+    } as never);
+    const data = await service.get(NOW);
+    // A file exists and a colleague was invited (no other user yet); nothing else has happened.
+    expect(data.setup).toEqual({
+      client: false,
+      case: true,
+      hearing: false,
+      document: false,
+      colleague: true,
+      aiSummary: false,
+    });
+    expect(db.user.findFirst.mock.calls[0]?.[0].where).toEqual({ id: { not: ID(7) } });
   });
 
   it('should sum visible unpaid and paid-this-month invoices per currency for invoice viewers', async () => {

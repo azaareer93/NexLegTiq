@@ -300,6 +300,15 @@ describe('dashboard (HTTP + PostgreSQL)', () => {
     expect(data.activity.items).toEqual([]);
     expect(data.finance.unpaid).toEqual([{ currency: 'ILS', amount: '1159.50', count: 4 }]);
     expect(data.team.hearingsThisWeek).toBe(2);
+    // Quick-start ticks (D-210): office-wide, so the confidential file and others' documents count.
+    expect(data.setup).toEqual({
+      client: true,
+      case: true,
+      hearing: true,
+      document: true,
+      colleague: true,
+      aiSummary: false,
+    });
     expect(data.team.workload).toEqual([
       { userId: manager.userId, fullName: 'Layla Manager', openFiles: 1, overdueTasks: 0 },
       // Counts include the confidential file's task (D-151); closed files and done tasks are left out.
@@ -312,9 +321,19 @@ describe('dashboard (HTTP + PostgreSQL)', () => {
       newClientsThisMonth: null,
       team: null,
       finance: null,
+      setup: null,
       openFiles: { count: 0 },
     });
     const b = await dashboard(other);
+    // Office A's clients, hearings, documents and colleagues tick nothing in office B.
+    expect(b.setup).toEqual({
+      client: false,
+      case: true,
+      hearing: false,
+      document: false,
+      colleague: false,
+      aiSummary: false,
+    });
     expect(b).toMatchObject({
       newClientsThisMonth: 0,
       team: { hearingsThisWeek: 0 },

@@ -41,6 +41,7 @@ describe('DashboardSchema (D-151)', () => {
         overdueCount: 0,
         revenueThisMonth: [],
       },
+      setup: null,
     });
     expect(parsed.team).toBeNull();
   });
