@@ -148,4 +148,68 @@ describe('platform usage pages (MVP-103)', () => {
     });
     expect(violations.map((v) => v.id)).toEqual([]);
   });
+
+  describe('product analytics (MVP-110, D-215)', () => {
+    const ANALYTICS = {
+      since: '2026-08-23',
+      funnel: [
+        { event: 'SIGNUP_COMPLETED', offices: 10 },
+        { event: 'ONBOARDING_COMPLETED', offices: 7 },
+        { event: 'FIRST_CASE_CREATED', offices: 5 },
+        { event: 'HEARING_SCHEDULED', offices: 3 },
+        { event: 'DOCUMENT_UPLOADED', offices: 4 },
+        { event: 'AI_SUMMARY_GENERATED', offices: 2 },
+        { event: 'INVITE_SENT', offices: 1 },
+        { event: 'PORTAL_INVITE_SENT', offices: 0 },
+      ],
+      onboardingSteps: [
+        'ACCOUNT',
+        'OFFICE',
+        'INVITE',
+        'TOUR',
+        'CASE',
+        'HEARING',
+        'DOCUMENT',
+        'DONE',
+      ].map((step, i) => ({ step, offices: 10 - i })),
+      medianSecondsToFirstCase: 150,
+      retention: { d7: { offices: 8, retained: 4 }, d30: { offices: 0, retained: 0 } },
+    };
+
+    it('should show the funnel with shares, steps, retention and the time to a first case', async () => {
+      const asked: string[] = [];
+      server.use(
+        http.get(api('admin/analytics'), ({ request }) => {
+          asked.push(new URL(request.url).search);
+          return ok(ANALYTICS);
+        }),
+      );
+      open('/analytics');
+      const funnel = await screen.findByTestId('analytics-funnel');
+      expect(funnel.textContent).toContain('Finished the setup guide');
+      expect(funnel.textContent).toContain('70% of signups (target 70%)');
+      expect(screen.getByTestId('analytics-steps').textContent).toContain('Your first case');
+      expect(screen.getByTestId('analytics-d7').textContent).toContain('50%');
+      expect(screen.getByTestId('analytics-d7').textContent).toContain('4 of 8 offices');
+      expect(screen.getByTestId('analytics-d30').textContent).toContain(
+        'No office has reached this point yet.',
+      );
+      expect(screen.getByTestId('analytics-first-case').textContent).toContain('2.5 min');
+      expect(asked[0]).toBe('?days=90');
+      fireEvent.click(screen.getByText('30 days'));
+      await waitFor(() => expect(asked.at(-1)).toBe('?days=30'));
+    });
+
+    it('should be accessible in Arabic', { timeout: 60_000 }, async () => {
+      server.use(http.get(api('admin/analytics'), () => ok(ANALYTICS)));
+      open('/analytics', 'ar');
+      await screen.findByTestId('analytics-funnel');
+      expect(document.documentElement.dir).toBe('rtl');
+      expect(screen.getByTestId('analytics-funnel').textContent).toContain('أنهوا دليل الإعداد');
+      const { violations } = await axe.run(document.body, {
+        rules: { 'color-contrast': { enabled: false }, region: { enabled: false } },
+      });
+      expect(violations.map((v) => v.id)).toEqual([]);
+    });
+  });
 });

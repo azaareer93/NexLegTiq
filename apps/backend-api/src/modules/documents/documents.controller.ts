@@ -42,6 +42,7 @@ import { DocumentRecordsService } from './document-records.service';
 import { DocumentRetry } from './document-retry';
 import { DocumentSharingService } from './document-sharing.service';
 import { DocumentsService } from './documents.service';
+import { TrackProductEvent } from '../../common/analytics/product-event.interceptor';
 import { AuditService } from '../../common/audit/audit.service';
 import type { RequestContext } from '../../common/context/request-context';
 import { ResourceNotFoundException } from '../../common/errors/app.exception';
@@ -80,6 +81,7 @@ export class DocumentsController {
   @HttpCode(HttpStatus.ACCEPTED)
   @Throttle(UPLOADS)
   @RequirePermissions('upload:document')
+  @TrackProductEvent('DOCUMENT_UPLOADED')
   @ApiConsumes('multipart/form-data')
   @ApiHeader({ name: 'Idempotency-Key', required: false })
   @ApiOperation({

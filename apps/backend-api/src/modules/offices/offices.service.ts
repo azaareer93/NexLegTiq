@@ -44,6 +44,7 @@ const SETTINGS = {
   enableAi: true,
   enableOcr: true,
   enableVisionOcr: true,
+  enableProductAnalytics: true,
   fileNumberFormat: true,
   sessionIdleMinutes: true,
   auditRetentionDays: true,

@@ -37,6 +37,7 @@ import { ClsService } from 'nestjs-cls';
 import { InvitationsService } from './invitations.service';
 import { TeamService } from './team.service';
 import { UsersRepository } from './users.repository';
+import { TrackProductEvent } from '../../common/analytics/product-event.interceptor';
 import type { RequestContext } from '../../common/context/request-context';
 import { ResourceNotFoundException } from '../../common/errors/app.exception';
 import { ZodValidationPipe } from '../../common/http/zod-validation.pipe';
@@ -81,6 +82,7 @@ export class UsersController {
   }
 
   @Post('invite')
+  @TrackProductEvent('INVITE_SENT')
   @HttpCode(HttpStatus.CREATED)
   // Each call emails someone outside the office (D-134).
   @Throttle({ default: { limit: 20, ttl: 60_000 } })

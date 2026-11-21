@@ -24,6 +24,8 @@
 
 ## Privacy & compliance (product obligations)
 - Legal acceptance at signup (ToS/Privacy versions), cookie consent on marketing site (app uses strictly necessary only).
+- Product analytics (D-215): first-party per-office event counts in our own DB (no vendor, no cookie); honours DNT/GPC
+  and the office setting `enableProductAnalytics`.
 - Data subject rights: export user data; office export (JSON/CSV + documents zip, async) ; account deletion = 30-day grace then hard
   delete of documents + anonymization of audit actors; block if legal hold.
 - Retention defaults: audit 365d (configurable up), time entries 3y, invoices 6y, closed cases 5y then flag for review

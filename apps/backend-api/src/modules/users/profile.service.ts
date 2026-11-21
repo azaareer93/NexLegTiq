@@ -15,6 +15,7 @@ import { EMAIL_CATEGORIES, NOTIFICATION_CATEGORIES } from '@nexlegtiq/shared-typ
 import { ClsService } from 'nestjs-cls';
 import { PinoLogger } from 'nestjs-pino';
 
+import { ProductAnalytics } from '../../common/analytics/product-analytics';
 import { AuditService } from '../../common/audit/audit.service';
 import { changes } from '../../common/audit/changes';
 import type { RequestContext } from '../../common/context/request-context';
@@ -58,6 +59,7 @@ export class ProfileService {
     private readonly audit: AuditService,
     private readonly cls: ClsService<RequestContext>,
     private readonly logger: PinoLogger,
+    private readonly analytics: ProductAnalytics,
   ) {
     this.logger.setContext(ProfileService.name);
   }
@@ -124,11 +126,17 @@ export class ProfileService {
 
   /** Saves the wizard's progress as sent (UI progress, not office data: not audited, D-181). */
   async saveOnboarding(state: OnboardingState): Promise<OnboardingAnswer> {
+    const { state: before } = await this.onboarding();
     await this.prisma.db.user.update({
       where: { id: this.userId() },
       data: { onboardingState: state },
       select: { id: true },
     });
+    // Product analytics (D-215): each step done for the first time, and finishing the wizard.
+    for (const step of state.done.filter((s) => !before?.done.includes(s)))
+      await this.analytics.track('ONBOARDING_STEP_COMPLETED', { step });
+    if (state.status === 'COMPLETED' && before?.status !== 'COMPLETED')
+      await this.analytics.track('ONBOARDING_COMPLETED', {});
     return { state };
   }
 

@@ -1,6 +1,7 @@
 import type { ClsService } from 'nestjs-cls';
 
 import { DocumentSummarizer } from './document-summarizer';
+import type { ProductAnalytics } from '../../common/analytics/product-analytics';
 import type { RequestContext } from '../../common/context/request-context';
 import type { RealtimePublisher } from '../../common/realtime/realtime.publisher';
 import type { PrismaService } from '../../database/prisma.service';
@@ -72,6 +73,7 @@ function setup({
     registry,
     { get: () => 'o1' } as unknown as ClsService<RequestContext>,
     testTimeline({ get: () => 'o1' }),
+    { track: jest.fn() } as unknown as ProductAnalytics,
   );
   service.onModuleInit();
   return { service, registry, executor, access, realtime, tx, db };

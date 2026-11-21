@@ -68,6 +68,8 @@ const LABELLED_ELSEWHERE = [
   // The wizard's steps are labelled `onboarding.steps.*`; its statuses are never shown (D-181).
   'ONBOARDING_STEPS',
   'ONBOARDING_STATUSES',
+  // Funnel steps are labelled `admin.analytics.events.*` (admin panel only, D-215).
+  'PRODUCT_EVENT_TYPES',
 ];
 
 describe('findMissingKeys', () => {

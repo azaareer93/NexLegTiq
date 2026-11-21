@@ -140,4 +140,68 @@ describe('platform usage (HTTP + PostgreSQL)', () => {
     const anonymous = await http().get('/api/v1/admin/usage').set('Origin', ORIGIN);
     expect([401, 403]).toContain(anonymous.status);
   });
+
+  it('should count the funnel, onboarding steps and D7/D30 retention of recent signups (D-215)', async () => {
+    type Analytics = {
+      funnel: { event: string; offices: number }[];
+      onboardingSteps: { step: string; offices: number }[];
+      retention: {
+        d7: { offices: number; retained: number };
+        d30: { offices: number; retained: number };
+      };
+    };
+    const read = async () => {
+      const res = await get('analytics?days=60');
+      expect(res.status).toBe(200);
+      return res.body.data as Analytics;
+    };
+    const funnel = (a: Analytics, event: string) =>
+      a.funnel.find((f) => f.event === event)?.offices;
+    const step = (a: Analytics, s: string) => a.onboardingSteps.find((f) => f.step === s)?.offices;
+    // Other suites share the database: compare before and after this office's events.
+    const before = await read();
+    const office = await raw.office.create({
+      data: { name: `pa-${randomUUID().slice(0, 8)}`, settings: { create: {} } },
+    });
+    officeIds.push(office.id);
+    const ago = (days: number) => new Date(Date.now() - days * 86_400_000);
+    await raw.productEvent.createMany({
+      data: [
+        { officeId: office.id, event: 'SIGNUP_COMPLETED', createdAt: ago(40) },
+        {
+          officeId: office.id,
+          event: 'ONBOARDING_STEP_COMPLETED',
+          props: { step: 'CASE' },
+          createdAt: ago(40),
+        },
+        {
+          officeId: office.id,
+          event: 'FIRST_CASE_CREATED',
+          props: { secondsSinceSignup: 60 },
+          createdAt: ago(40),
+        },
+        // Active on day 8 (D7), not on days 30–36 (D30).
+        { officeId: office.id, event: 'APP_ACTIVE', createdAt: ago(32) },
+        { officeId: office.id, event: 'APP_ACTIVE', createdAt: ago(1) },
+      ],
+    });
+    const after = await read();
+    expect(funnel(after, 'SIGNUP_COMPLETED')).toBe((funnel(before, 'SIGNUP_COMPLETED') ?? 0) + 1);
+    expect(funnel(after, 'FIRST_CASE_CREATED')).toBe(
+      (funnel(before, 'FIRST_CASE_CREATED') ?? 0) + 1,
+    );
+    expect(funnel(after, 'INVITE_SENT')).toBe(funnel(before, 'INVITE_SENT'));
+    expect(step(after, 'CASE')).toBe((step(before, 'CASE') ?? 0) + 1);
+    expect(after.retention.d7).toEqual({
+      offices: before.retention.d7.offices + 1,
+      retained: before.retention.d7.retained + 1,
+    });
+    expect(after.retention.d30).toEqual({
+      offices: before.retention.d30.offices + 1,
+      retained: before.retention.d30.retained,
+    });
+    expect((await get('analytics?days=400')).status).toBe(400);
+    const anonymous = await http().get('/api/v1/admin/analytics').set('Origin', ORIGIN);
+    expect([401, 403]).toContain(anonymous.status);
+  });
 });

@@ -1,9 +1,11 @@
 import {
+  AdminAnalyticsSchema,
   AdminAuditPageSchema,
   AdminQueueSchema,
   AdminUsageSchema,
 } from '@nexlegtiq/shared-contracts';
 import type {
+  AdminAnalytics,
   AdminAuditExportQuery,
   AdminAuditPage,
   AdminAuditQuery,
@@ -25,6 +27,12 @@ export function adminUsageApi(client: ApiClient) {
       client.request(
         { method: 'GET', path: 'admin/usage', query: { days }, signal },
         AdminUsageSchema,
+      ),
+    /** Product analytics: onboarding funnel and retention (D-215). */
+    analytics: (days: number, signal?: AbortSignal): Promise<AdminAnalytics> =>
+      client.request(
+        { method: 'GET', path: 'admin/analytics', query: { days }, signal },
+        AdminAnalyticsSchema,
       ),
     queues: (signal?: AbortSignal): Promise<AdminQueue[]> =>
       client.request({ method: 'GET', path: 'admin/queues', signal }, AdminQueueSchema.array()),

@@ -16,6 +16,8 @@ const CLS_MIDDLEWARE_OPTIONS: ClsMiddlewareOptions = {
     if (req.ip) cls.set('ip', req.ip);
     const agent = req.headers['user-agent'];
     if (agent) cls.set('userAgent', agent);
+    // Do Not Track / Global Privacy Control: no product analytics for this request (D-215).
+    if (req.headers['dnt'] === '1' || req.headers['sec-gpc'] === '1') cls.set('doNotTrack', true);
   },
 };
 

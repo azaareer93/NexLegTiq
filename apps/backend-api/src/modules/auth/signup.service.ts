@@ -16,6 +16,7 @@ import { isVerificationOverdue } from './email-verification';
 import { PasswordHasher } from './password-hasher';
 import { SignupRepository } from './signup.repository';
 import type { ExistingAccount } from './signup.repository';
+import { ProductAnalytics } from '../../common/analytics/product-analytics';
 import { hashOpaqueToken } from '../../common/auth/opaque-token';
 import { AppException } from '../../common/errors/app.exception';
 import { TenantRunner } from '../../common/tenancy/tenant-runner';
@@ -53,6 +54,7 @@ export class SignupService {
     private readonly mailer: AccountMailer,
     private readonly config: AppConfig,
     private readonly logger: PinoLogger,
+    private readonly analytics: ProductAnalytics,
   ) {
     this.logger.setContext(SignupService.name);
   }
@@ -82,6 +84,9 @@ export class SignupService {
     );
     // The worker creates the link and sends it (D-085); a failure here is logged, never turns signup into an error.
     await this.mailer.sendVerification({ userId: user.id, officeId: user.officeId }, client);
+    // The wizard starts with ACCOUNT done (D-181): signing up completes that step.
+    await this.analytics.track('SIGNUP_COMPLETED', {}, user.officeId);
+    await this.analytics.track('ONBOARDING_STEP_COMPLETED', { step: 'ACCOUNT' }, user.officeId);
     return this.auth.issue(user, opened);
   }
 
