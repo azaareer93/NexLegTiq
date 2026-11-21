@@ -4,10 +4,9 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { SearchPanel } from '../../search';
+import { ariaKeys, comboLabel } from '../shortcuts';
 
-/** The shortcut as the platform writes it; key names are not translated. */
-const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
-const SHORTCUT = IS_MAC ? '⌘ K' : 'Ctrl K';
+const COMBO = { mod: 'Mod', key: 'K' } as const;
 
 /**
  * Ctrl+K (⌘K on a Mac) and nothing else: not with Shift or Alt (AltGr is Ctrl+Alt on Windows layouts, used to type
@@ -49,14 +48,14 @@ export function SearchOverlay({
         icon={<SearchOutlined />}
         onClick={() => setOpen(true)}
         aria-label={t('shell.search.open')}
-        aria-keyshortcuts="Control+K Meta+K"
+        aria-keyshortcuts={ariaKeys(COMBO)}
         data-testid="search-open"
       >
         {compact ? null : (
           <Flex component="span" align="center" gap={token.marginXS}>
             <span>{t('shell.search.open')}</span>
             <kbd dir="ltr" style={{ fontFamily: 'inherit', color: token.colorTextSecondary }}>
-              {SHORTCUT}
+              {comboLabel(COMBO)}
             </kbd>
           </Flex>
         )}

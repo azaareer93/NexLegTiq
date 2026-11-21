@@ -1,7 +1,7 @@
 import type { Dashboard } from '@nexlegtiq/shared-contracts';
 import { permissionsFor } from '@nexlegtiq/shared-types';
 import type { Role } from '@nexlegtiq/shared-types';
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import axe from 'axe-core';
 
 import {
@@ -79,6 +79,16 @@ const FULL: Dashboard = {
     overdueCount: 2,
     revenueThisMonth: [],
   },
+  setup: null,
+};
+
+const NEW_OFFICE = {
+  client: true,
+  case: false,
+  hearing: false,
+  document: false,
+  colleague: true,
+  aiSummary: false,
 };
 
 async function openDashboard(role: Role, data: Dashboard, locale: 'en' | 'ar' = 'en') {
@@ -138,6 +148,8 @@ describe('Dashboard (D-151)', () => {
       expect(screen.queryByTestId('kpi-clients')).toBeNull();
       expect(screen.queryByTestId('kpi-unpaid')).toBeNull();
       expect(screen.queryByTestId('dashboard-team')).toBeNull();
+      // No `manage:office`: the API sends no checklist (D-210).
+      expect(screen.queryByTestId('quick-start')).toBeNull();
     },
     SLOW,
   );
@@ -152,10 +164,54 @@ describe('Dashboard (D-151)', () => {
     SLOW,
   );
 
+  it.each([
+    ['en', '2 of 6 steps done', 'Open a case'],
+    ['ar', 'أُنجزت 2 من 6 خطوات', 'فتح ملف'],
+  ] as const)(
+    'should tick the quick-start steps the office has taken and open the next one (%s)',
+    async (locale, progress, openCase) => {
+      await openDashboard('OFFICE_MANAGER', { ...EMPTY_DASHBOARD, setup: NEW_OFFICE }, locale);
+      const checklist = await screen.findByTestId('quick-start');
+      expect(within(checklist).getByText(progress)).toBeTruthy();
+      expect(screen.getByTestId('quick-start-client').dataset['done']).toBe('true');
+      expect(screen.getByTestId('quick-start-case').dataset['done']).toBe('false');
+      // The checklist carries the first case; the separate prompt is not repeated.
+      expect(screen.queryByTestId('dashboard-new-case')).toBeNull();
+      fireEvent.click(within(checklist).getByRole('button', { name: openCase }));
+      expect(await screen.findByRole('dialog')).toBeTruthy();
+    },
+    SLOW,
+  );
+
+  it(
+    'should keep the quick-start checklist hidden once dismissed',
+    async () => {
+      const newOffice = { ...EMPTY_DASHBOARD, setup: NEW_OFFICE };
+      await openDashboard('OFFICE_MANAGER', newOffice);
+      fireEvent.click(await screen.findByTestId('quick-start-dismiss'));
+      expect(screen.queryByTestId('quick-start')).toBeNull();
+      cleanup();
+      await openDashboard('OFFICE_MANAGER', newOffice);
+      expect(screen.queryByTestId('quick-start')).toBeNull();
+    },
+    SLOW,
+  );
+
+  it(
+    'should not show the checklist once the office has taken every step',
+    async () => {
+      const all = Object.fromEntries(Object.keys(NEW_OFFICE).map((k) => [k, true]));
+      await openDashboard('OFFICE_MANAGER', { ...FULL, setup: all as typeof NEW_OFFICE });
+      expect(screen.queryByTestId('quick-start')).toBeNull();
+    },
+    SLOW,
+  );
+
   it.each(['en', 'ar'] as const)(
     'should have no accessibility violations (%s)',
     async (locale) => {
-      await openDashboard('OFFICE_MANAGER', FULL, locale);
+      await openDashboard('OFFICE_MANAGER', { ...FULL, setup: NEW_OFFICE }, locale);
+      expect(screen.getByTestId('quick-start')).toBeTruthy();
       if (locale === 'ar') {
         expect(document.documentElement.dir).toBe('rtl');
         expect(screen.getByText('مهام متأخرة')).toBeTruthy();

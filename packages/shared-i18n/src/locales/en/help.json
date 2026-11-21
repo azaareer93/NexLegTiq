@@ -5,6 +5,7 @@
   "back": "All guides",
   "notFound": "This guide does not exist.",
   "linkLabel": "Help: {{title}}",
+  "howItWorks": "How it works",
   "contact": {
     "title": "Contact support",
     "email": "Email support",
@@ -16,7 +17,13 @@
   "shortcuts": {
     "title": "Keyboard shortcuts",
     "search": "Search everything",
-    "newCase": "New case"
+    "newCase": "New case",
+    "newClient": "New client",
+    "newTask": "New task",
+    "upload": "Upload documents (on a case page)",
+    "newHearing": "Schedule a hearing (on a case page)",
+    "help": "Show keyboard shortcuts",
+    "close": "Close the open window"
   },
   "articles": {
     "gettingStarted": {

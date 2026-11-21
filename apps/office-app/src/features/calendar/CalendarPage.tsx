@@ -3,7 +3,6 @@ import { LeftOutlined, RightOutlined } from '@ant-design/icons';
 import { isErrorCode } from '@nexlegtiq/shared-types';
 import {
   DirectionalIcon,
-  EmptyState,
   ErrorState,
   isApiError,
   Ltr,
@@ -34,6 +33,7 @@ import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 
 import { HelpLink } from '../help';
+import { CalendarEmpty } from './CalendarEmpty';
 import { HearingDrawer } from './HearingDrawer';
 import { addDays, useCalendar } from './use-calendar';
 import type { CalendarEntry, CalendarRange } from './use-calendar';
@@ -239,7 +239,7 @@ export function CalendarPage() {
         ? Array.from({ length: 7 }, (_, i) => addDays(range.first, i))
         : [...new Set(calendar.entries.map((entry) => entry.day))];
     if (days.length === 0 && !calendar.isPending) {
-      return <EmptyState title={t('calendar.empty')} />;
+      return <CalendarEmpty />;
     }
     return (
       <Row gutter={[8, 8]}>

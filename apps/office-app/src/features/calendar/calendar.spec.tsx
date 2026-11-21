@@ -153,6 +153,34 @@ describe('Calendar page (D-155)', () => {
     SLOW,
   );
 
+  it.each([
+    ['en', 'Schedule a hearing'],
+    ['ar', 'جدولة جلسة'],
+  ] as const)(
+    'should illustrate an empty agenda and lead to the cases to schedule from (%s)',
+    async (locale, schedule) => {
+      server.use(
+        http.get(api('sessions'), () => ok([])),
+        http.get(api('tasks'), () =>
+          HttpResponse.json({
+            success: true,
+            data: [],
+            meta: {
+              timestamp: '2026-11-09T10:00:00.000Z',
+              requestId: 'req-12345678',
+              pagination: { page: 1, limit: 100, total: 0, totalPages: 0, hasMore: false },
+            },
+          }),
+        ),
+      );
+      await openCalendar('LAWYER', 360, locale);
+      expect(await screen.findByTestId('illustration-calendar')).toBeTruthy();
+      expect(screen.getByTestId('how-it-works-hearings')).toBeTruthy();
+      expect(screen.getByTestId('calendar-empty-schedule').textContent).toBe(schedule);
+    },
+    SLOW,
+  );
+
   it.each(['en', 'ar'] as const)(
     'should have no accessibility violations (%s)',
     async (locale) => {

@@ -2,7 +2,7 @@ import { UploadOutlined } from '@ant-design/icons';
 import type { DocumentListParams } from '@nexlegtiq/shared-api-client';
 import type { Folder } from '@nexlegtiq/shared-contracts';
 import { EmptyState, ErrorState, LoadingSkeleton, useCan } from '@nexlegtiq/shared-ui';
-import { Button, Card, Col, Input, Row } from 'antd';
+import { Button, Card, Col, Flex, Input, Row } from 'antd';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -14,6 +14,7 @@ import type { FolderSelection } from './FolderTree';
 import { DocumentPreviewDrawer } from './preview/DocumentPreviewDrawer';
 import { UploadPanel } from './UploadPanel';
 import { useDocuments, useFolders } from './use-documents';
+import { HowItWorksLink } from '../../help';
 import { useCtrlAltShortcut } from '../quick-create';
 
 const PAGE_SIZE = 20;
@@ -28,9 +29,12 @@ function ListBody({
   page,
   onPage,
   onOpen,
+  onUpload,
 }: {
   readonly fileId: string;
   readonly onOpen: (documentId: string) => void;
+  /** Opens the upload panel (offered only with `rights.edit`). */
+  readonly onUpload: () => void;
   readonly list: ReturnType<typeof useDocuments>;
   readonly filtered: boolean;
   readonly folders: readonly Folder[];
@@ -46,8 +50,24 @@ function ListBody({
       <EmptyState title={t('documents.list.emptyFolder')} />
     ) : (
       <EmptyState
+        illustration="documents"
         title={t('documents.list.empty')}
         description={rights.edit ? t('documents.list.emptyHint') : undefined}
+        action={
+          <Flex vertical align="center" gap={4}>
+            {rights.edit ? (
+              <Button
+                type="primary"
+                icon={<UploadOutlined />}
+                onClick={onUpload}
+                data-testid="documents-empty-upload"
+              >
+                {t('documents.upload.open')}
+              </Button>
+            ) : null}
+            <HowItWorksLink slug="documents" />
+          </Flex>
+        }
       />
     );
   }
@@ -74,13 +94,16 @@ function UploadControls({
   fileId,
   folders,
   folderId,
+  uploading,
+  setUploading,
 }: {
   readonly fileId: string;
   readonly folders: readonly Folder[];
   readonly folderId: string | null;
+  readonly uploading: boolean;
+  readonly setUploading: (open: boolean) => void;
 }): React.JSX.Element {
   const { t } = useTranslation();
-  const [uploading, setUploading] = useState(false);
   // Ctrl+Alt+U (physical key; not while typing or inside a dialog).
   useCtrlAltShortcut('KeyU', !uploading, () => setUploading(true));
   return (
@@ -89,6 +112,7 @@ function UploadControls({
         type="primary"
         icon={<UploadOutlined />}
         onClick={() => setUploading(true)}
+        aria-keyshortcuts="Control+Alt+U"
         data-testid="documents-upload"
       >
         {t('documents.upload.open')}
@@ -137,6 +161,7 @@ export function DocumentsTab({
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [opened, setOpened] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const folders = useFolders(fileId).data ?? [];
   const list = useDocuments(fileId, listQuery(selection, search, page));
   // A page emptied by a delete (or a shorter list) goes back to the last page that has rows.
@@ -172,7 +197,13 @@ export function DocumentsTab({
           }
           extra={
             canUpload ? (
-              <UploadControls fileId={fileId} folders={folders} folderId={folderId} />
+              <UploadControls
+                fileId={fileId}
+                folders={folders}
+                folderId={folderId}
+                uploading={uploading}
+                setUploading={setUploading}
+              />
             ) : null
           }
         >
@@ -185,6 +216,7 @@ export function DocumentsTab({
             page={page}
             onPage={setPage}
             onOpen={setOpened}
+            onUpload={() => setUploading(true)}
           />
         </Card>
       </Col>

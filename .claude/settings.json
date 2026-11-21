@@ -28,9 +28,9 @@
       "mcp__atlassian__getJiraIssueRemoteIssueLinks",
       "mcp__notion__notion-fetch",
       "mcp__notion__notion-search",
-      "mcp__claude-flow__memory_search",
-      "mcp__claude-flow__memory_retrieve",
-      "mcp__claude-flow__memory_list",
+      "mcp__plugin_ruflo-core_ruflo__memory_search",
+      "mcp__plugin_ruflo-core_ruflo__memory_retrieve",
+      "mcp__plugin_ruflo-core_ruflo__memory_list",
       "mcp__atlassian__createJiraIssue",
       "mcp__atlassian__editJiraIssue",
       "mcp__notion__notion-update-page",
@@ -71,7 +71,7 @@
     "agent-skills@addy-agent-skills": true
   },
   "enableAllProjectMcpServers": false,
-  "enabledMcpjsonServers": ["atlassian", "notion", "claude-flow"],
+  "enabledMcpjsonServers": ["atlassian", "notion"],
   "hooks": {
     "SessionStart": [
       {
