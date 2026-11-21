@@ -10,6 +10,9 @@ import { z } from 'zod';
 
 import { DependencyUnavailableException } from './app.exception';
 import { GlobalExceptionFilter } from './global-exception.filter';
+import { reportError } from '../monitoring/error-reporting';
+
+jest.mock('../monitoring/error-reporting');
 
 function setup(options: { clsActive?: boolean; headersSent?: boolean } = {}) {
   const response = {
@@ -129,14 +132,22 @@ describe('GlobalExceptionFilter', () => {
     expect(response.json.mock.calls[0][0].error.code).toBe('RES-001');
   });
 
-  it('should log 5xx as error and 4xx as debug', () => {
+  it('should log 5xx as error and 4xx as debug, and report only the 5xx', () => {
     const { filter, host, logger } = setup();
+    const boom = new Error('boom');
+    jest.mocked(reportError).mockClear();
 
-    filter.catch(new Error('boom'), host);
+    filter.catch(boom, host);
     filter.catch(new NotFoundException(), host);
 
     expect(logger.error).toHaveBeenCalledTimes(1);
     expect(logger.debug).toHaveBeenCalledTimes(1);
+    expect(reportError).toHaveBeenCalledTimes(1);
+    expect(reportError).toHaveBeenCalledWith(boom, {
+      code: 'SYS-001',
+      status: 500,
+      requestId: 'req-123',
+    });
   });
 
   it('should not write when headers were already sent', () => {

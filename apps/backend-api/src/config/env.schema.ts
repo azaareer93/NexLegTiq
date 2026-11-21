@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { parseIpEntry } from './ip-entry';
+import { MONITORING_ENV } from './monitoring-env';
 import { RECEIPT_ENV } from './receipt-env';
 
 const port = z.coerce.number().int().min(1).max(65_535);
@@ -37,9 +38,7 @@ const EnvObject = z.object({
     .pipe(z.array(origin))
     .default(['http://localhost:4200', 'http://localhost:4201', 'http://localhost:4202']),
   SWAGGER_ENABLED: z.stringbool().optional(),
-  METRICS_ENABLED: z.stringbool().default(true),
-  METRICS_HOST: z.string().trim().min(1).default('localhost'),
-  METRICS_PORT: port.default(9464),
+  ...MONITORING_ENV,
   // Number of reverse proxies (Caddy/Traefik, D-020) in front of the API whose X-Forwarded-For is trusted. 0 = none.
   // Optional (0) outside production; production must set it, since lockout and rate limits key on the client IP.
   TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).optional(),

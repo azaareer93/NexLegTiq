@@ -10,6 +10,7 @@ import { parseTenantJob } from './tenant-job';
 import type { TenantJobData } from './tenant-job';
 import { withTimeout } from './with-timeout';
 import type { PrismaService } from '../../database/prisma.service';
+import { reportError } from '../monitoring/error-reporting';
 import type { TenantRunner } from '../tenancy/tenant-runner';
 
 /** Log fields for one job attempt: worker logs have no HTTP request, so the request id comes from the payload (D-076). */
@@ -96,7 +97,16 @@ export abstract class TenantProcessor<T extends object> extends WorkerHost {
       );
     } catch (error) {
       this.logger.warn({ ...fields, err: error }, 'Job attempt failed');
+      reportIfFinal(job, fields, error);
       throw error;
     }
+  }
+}
+
+/** Only the attempt that fails the job is reported; retried attempts show up in the queue metrics (D-230). */
+function reportIfFinal(job: Job, fields: ReturnType<typeof jobLogFields>, error: unknown): void {
+  if (error instanceof UnrecoverableError || fields.attempt >= (job.opts?.attempts ?? 1)) {
+    const { queue, job: name, jobId, attempt, requestId } = fields;
+    reportError(error, { queue, job: name, jobId, attempt, requestId });
   }
 }
