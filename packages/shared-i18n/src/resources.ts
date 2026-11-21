@@ -17,6 +17,7 @@ import arHelp from './locales/ar/help.json' with { type: 'json' };
 import arLegal from './locales/ar/legal.json' with { type: 'json' };
 import arOnboarding from './locales/ar/onboarding.json' with { type: 'json' };
 import arParties from './locales/ar/parties.json' with { type: 'json' };
+import arPortal from './locales/ar/portal.json' with { type: 'json' };
 import arProfile from './locales/ar/profile.json' with { type: 'json' };
 import arSessions from './locales/ar/sessions.json' with { type: 'json' };
 import arSettings from './locales/ar/settings.json' with { type: 'json' };
@@ -42,6 +43,7 @@ import enHelp from './locales/en/help.json' with { type: 'json' };
 import enLegal from './locales/en/legal.json' with { type: 'json' };
 import enOnboarding from './locales/en/onboarding.json' with { type: 'json' };
 import enParties from './locales/en/parties.json' with { type: 'json' };
+import enPortal from './locales/en/portal.json' with { type: 'json' };
 import enProfile from './locales/en/profile.json' with { type: 'json' };
 import enSessions from './locales/en/sessions.json' with { type: 'json' };
 import enSettings from './locales/en/settings.json' with { type: 'json' };
@@ -78,6 +80,7 @@ const en = {
   help: enHelp,
   onboarding: enOnboarding,
   audit: enAudit,
+  portal: enPortal,
 };
 const ar = {
   common: arCommon,
@@ -105,6 +108,7 @@ const ar = {
   help: arHelp,
   onboarding: arOnboarding,
   audit: arAudit,
+  portal: arPortal,
 };
 
 /** Nested string tree of one namespace file. */

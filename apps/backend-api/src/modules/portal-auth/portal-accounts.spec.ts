@@ -10,7 +10,7 @@ describe('PortalAccounts (D-158)', () => {
       {
         officeId: 'o1',
         clientId: 'c1',
-        office: { name: 'Office' },
+        office: { name: 'Office', phone: '+970 2 000 0000', email: 'office@example.test' },
         client: { displayName: 'Layla' },
       },
     ]);
@@ -20,7 +20,14 @@ describe('PortalAccounts (D-158)', () => {
       { forOffice } as unknown as EntitlementsService,
     );
     await expect(accounts.offices('u1')).resolves.toEqual([
-      { officeId: 'o1', officeName: 'Office', clientId: 'c1', clientName: 'Layla' },
+      {
+        officeId: 'o1',
+        officeName: 'Office',
+        officePhone: '+970 2 000 0000',
+        officeEmail: 'office@example.test',
+        clientId: 'c1',
+        clientName: 'Layla',
+      },
     ]);
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -33,7 +40,7 @@ describe('PortalAccounts (D-158)', () => {
     const grant = (officeId: string) => ({
       officeId,
       clientId: 'c1',
-      office: { name: officeId },
+      office: { name: officeId, phone: null, email: null },
       client: { displayName: 'L' },
     });
     const accounts = new PortalAccounts(
