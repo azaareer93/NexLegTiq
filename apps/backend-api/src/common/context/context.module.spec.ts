@@ -29,9 +29,12 @@ describe('CLS request setup (D-136, D-215)', () => {
     expect(store.has('userAgent')).toBe(false);
   });
 
-  it.each([{ dnt: '1' }, { 'sec-gpc': '1' }])('should mark %o as Do Not Track', (headers) => {
-    expect(run(headers).get('doNotTrack')).toBe(true);
-  });
+  it.each<Record<string, string>>([{ dnt: '1' }, { 'sec-gpc': '1' }])(
+    'should mark %o as Do Not Track',
+    (headers) => {
+      expect(run(headers).get('doNotTrack')).toBe(true);
+    },
+  );
 
   it('should not treat DNT: 0 as an opt-out', () => {
     expect(run({ dnt: '0' }).has('doNotTrack')).toBe(false);
