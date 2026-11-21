@@ -14,6 +14,7 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate, useNavigate, useSearchParams } from 'react-router';
 
+import { HowItWorksLink } from '../../help';
 import { useClientsList } from '../api/use-clients';
 import { ClientDrawer } from '../components/ClientDrawer';
 import { ClientsFilters } from '../components/ClientsFilters';
@@ -62,16 +63,20 @@ function ListEmpty({
               {t('clients.list.filters.clear')}
             </Button>
           ) : (
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={onCreate}
-              data-testid="clients-empty-new"
-            >
-              {t('clients.list.newClient')}
-            </Button>
+            <Flex vertical align="center" gap={4}>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={onCreate}
+                data-testid="clients-empty-new"
+              >
+                {t('clients.list.newClient')}
+              </Button>
+              <HowItWorksLink slug="getting-started" />
+            </Flex>
           )
         }
+        illustration={filtered ? undefined : 'clients'}
       />
     </div>
   );

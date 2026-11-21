@@ -17,5 +17,7 @@
     "task": "Task due"
   },
   "truncated": "Some tasks of this period are not shown (more than 100).",
-  "empty": "Nothing scheduled in this period."
+  "empty": "Nothing scheduled in this period.",
+  "emptyHint": "Hearings are scheduled from a case's Sessions tab and appear here with their reminders.",
+  "emptyAction": "Schedule a hearing"
 }

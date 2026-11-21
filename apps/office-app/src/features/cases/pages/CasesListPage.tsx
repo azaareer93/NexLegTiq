@@ -16,7 +16,7 @@ import type { MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate, useNavigate, useSearchParams } from 'react-router';
 
-import { HelpLink } from '../../help';
+import { HelpLink, HowItWorksLink } from '../../help';
 import { useCasesList } from '../api/use-cases';
 import { isPlainClick } from '../components/case-cells';
 import { CasesCards } from '../components/CasesCards';
@@ -60,17 +60,42 @@ function ListEmpty({
   onClear,
 }: Pick<ListBodyProps, 'filtered' | 'onClear'>): React.JSX.Element {
   const { t } = useTranslation();
-  return (
-    <div data-testid="cases-empty">
-      <EmptyState
-        title={filtered ? t('cases.list.empty.filteredTitle') : t('cases.list.empty.title')}
-        description={filtered ? t('cases.list.empty.filteredBody') : t('cases.list.empty.body')}
-        action={
-          filtered ? (
+  const canCreate = useCan('create:case');
+  if (filtered) {
+    return (
+      <div data-testid="cases-empty">
+        <EmptyState
+          title={t('cases.list.empty.filteredTitle')}
+          description={t('cases.list.empty.filteredBody')}
+          action={
             <Button onClick={onClear} data-testid="cases-clear">
               {t('cases.list.filters.clear')}
             </Button>
-          ) : null
+          }
+        />
+      </div>
+    );
+  }
+  return (
+    <div data-testid="cases-empty">
+      <EmptyState
+        illustration="cases"
+        title={t('cases.list.empty.title')}
+        description={t('cases.list.empty.body')}
+        action={
+          <Flex vertical align="center" gap={4}>
+            {canCreate ? (
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={openQuickCreateCase}
+                data-testid="cases-empty-new"
+              >
+                {t('cases.list.newFile')}
+              </Button>
+            ) : null}
+            <HowItWorksLink slug="create-case" />
+          </Flex>
         }
       />
     </div>

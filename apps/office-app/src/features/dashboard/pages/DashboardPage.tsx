@@ -1,3 +1,4 @@
+import type { Dashboard } from '@nexlegtiq/shared-contracts';
 import { isErrorCode } from '@nexlegtiq/shared-types';
 import {
   EmptyState,
@@ -18,6 +19,31 @@ import { openQuickCreateCase } from '../../cases';
 import { OnboardingNudge } from '../../onboarding';
 import { useDashboard } from '../api/use-dashboard';
 import { Activity, Deadlines, Hearings, KpiRow, Team } from '../components/DashboardCards';
+import { QuickStart } from '../components/QuickStart';
+
+/**
+ * The quick-start checklist for whoever sets up the office (D-210); other creators in an empty office get a prompt for
+ * the first case instead (the checklist carries that step).
+ */
+function FirstSteps({ data }: { readonly data: Dashboard }) {
+  const { t } = useTranslation();
+  const canCreate = useCan('create:case');
+  if (data.setup) return <QuickStart setup={data.setup} />;
+  const fresh = data.openFiles.count === 0 && data.activity.items.length === 0;
+  if (!fresh || !canCreate) return null;
+  return (
+    <EmptyState
+      illustration="cases"
+      title={t('dashboard.start.title')}
+      description={t('dashboard.start.description')}
+      action={
+        <Button type="primary" onClick={openQuickCreateCase} data-testid="dashboard-new-case">
+          {t('dashboard.start.action')}
+        </Button>
+      }
+    />
+  );
+}
 
 /** `/` (frontend.md#dashboard, D-151): the signed-in user's day, role-aware; every number links to where it is acted on. */
 export function DashboardPage() {
@@ -25,7 +51,6 @@ export function DashboardPage() {
   const format = useFormat();
   const { referenceOf } = useApiErrorHandler();
   const name = useSession((state) => state.user?.fullName ?? '');
-  const canCreate = useCan('create:case');
   const query = useDashboard();
   const data = query.data;
   const header = (
@@ -56,22 +81,11 @@ export function DashboardPage() {
       </section>
     );
   }
-  const fresh = data.openFiles.count === 0 && data.activity.items.length === 0;
   return (
     <Flex vertical gap={16} component="section" data-testid="page-dashboard">
       {header}
       <OnboardingNudge />
-      {fresh && canCreate ? (
-        <EmptyState
-          title={t('dashboard.start.title')}
-          description={t('dashboard.start.description')}
-          action={
-            <Button type="primary" onClick={openQuickCreateCase} data-testid="dashboard-new-case">
-              {t('dashboard.start.action')}
-            </Button>
-          }
-        />
-      ) : null}
+      <FirstSteps data={data} />
       <KpiRow data={data} />
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={12}>

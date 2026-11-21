@@ -3,6 +3,8 @@ import { Button, Empty, Flex, Result, Skeleton, Typography } from 'antd';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { Illustration } from './Illustration';
+import type { IllustrationKind } from './Illustration';
 import { Ltr } from '../Bidi/Bidi';
 
 export interface EmptyStateProps {
@@ -11,14 +13,22 @@ export interface EmptyStateProps {
   readonly description?: ReactNode;
   /** Usually the button that creates the first item. */
   readonly action?: ReactNode;
+  /** A drawing for a first-run empty page (MVP-109); without one, AntD's small empty box. */
+  readonly illustration?: IllustrationKind;
 }
 
 /** An empty list or page, with an optional way forward. */
-export function EmptyState({ title, description, action }: EmptyStateProps): React.JSX.Element {
+export function EmptyState({
+  title,
+  description,
+  action,
+  illustration,
+}: EmptyStateProps): React.JSX.Element {
   const { t } = useTranslation();
   return (
     <Empty
-      image={Empty.PRESENTED_IMAGE_SIMPLE}
+      image={illustration ? <Illustration kind={illustration} /> : Empty.PRESENTED_IMAGE_SIMPLE}
+      styles={illustration ? { image: { height: 'auto' } } : undefined}
       description={
         <Flex vertical gap={4}>
           <Typography.Text strong>{title ?? t('common.states.empty')}</Typography.Text>

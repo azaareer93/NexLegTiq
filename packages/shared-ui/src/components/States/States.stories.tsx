@@ -26,3 +26,12 @@ export const ErrorWithReference: Story = {
 };
 export const GenericError: Story = { render: () => <ErrorState onRetry={() => undefined} /> };
 export const Loading: Story = { render: () => <LoadingSkeleton rows={4} /> };
+export const FirstRunIllustrations: Story = {
+  render: () => (
+    <>
+      {(['start', 'cases', 'clients', 'calendar', 'documents'] as const).map((kind) => (
+        <EmptyState key={kind} illustration={kind} />
+      ))}
+    </>
+  ),
+};

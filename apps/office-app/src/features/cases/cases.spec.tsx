@@ -195,6 +195,25 @@ describe('cases list page', () => {
     SLOW,
   );
 
+  it.each([
+    ['en', 'No cases yet', 'How it works'],
+    ['ar', 'لا توجد ملفات بعد', 'كيف يعمل ذلك؟'],
+  ] as const)(
+    'should illustrate the first-run empty list with a new-case button and its guide (%s)',
+    async (locale, title, howItWorks) => {
+      setViewport(1280);
+      signedIn({ uiLanguage: locale === 'ar' ? 'AR' : 'EN' });
+      serveCases([]);
+      const { router } = renderApp('/cases', locale);
+      expect(await screen.findByText(title, {}, { timeout: COLD })).toBeTruthy();
+      expect(screen.getByTestId('illustration-cases')).toBeTruthy();
+      expect(screen.getByTestId('cases-empty-new')).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: howItWorks }));
+      await waitFor(() => expect(router.state.location.pathname).toBe('/help/create-case'));
+    },
+    SLOW,
+  );
+
   it(
     'should go to the last page when the address asks for a page past the end',
     async () => {
