@@ -13,7 +13,8 @@ ci.yml (lint · typecheck · test · build · secret scan)
 ```
 
 The host only needs Docker and SSH. Postgres 17 + pgvector, Redis and the bucket are managed services; the SPAs are on
-Cloudflare Pages. Nothing in the repo names a VPS provider or region (D-021 is still open).
+Cloudflare Pages. Nothing in the repo names a VPS provider yet; the region is the EU, Germany or Finland (D-021) — pick providers there and
+add them to `docs/context/legal-facts.md`.
 
 ## First setup (once)
 
