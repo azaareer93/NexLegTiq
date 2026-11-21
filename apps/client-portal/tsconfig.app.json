@@ -23,10 +23,14 @@
     "src/**/*.test.jsx",
     "eslint.config.js",
     "eslint.config.cjs",
-    "eslint.config.mjs"
+    "eslint.config.mjs",
+    "src/test/**"
   ],
   "include": ["src/**/*.js", "src/**/*.jsx", "src/**/*.ts", "src/**/*.tsx"],
   "references": [
+    {
+      "path": "../../packages/shared-utils/tsconfig.lib.json"
+    },
     {
       "path": "../../packages/shared-ui/tsconfig.lib.json"
     },
@@ -35,6 +39,12 @@
     },
     {
       "path": "../../packages/shared-i18n/tsconfig.lib.json"
+    },
+    {
+      "path": "../../packages/shared-contracts/tsconfig.lib.json"
+    },
+    {
+      "path": "../../packages/shared-api-client/tsconfig.lib.json"
     },
     {
       "path": "../../packages/shared-config/tsconfig.lib.json"

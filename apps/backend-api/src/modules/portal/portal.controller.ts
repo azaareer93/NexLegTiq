@@ -7,6 +7,7 @@ import {
   ParseUUIDPipe,
   Post,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -16,6 +17,8 @@ import {
   PortalDocumentSchema,
   PortalFileDetailSchema,
   PortalFileSchema,
+  PortalInvoicePdfSchema,
+  PortalInvoiceSchema,
   PortalUploadSchema,
 } from '@nexlegtiq/shared-contracts';
 import type {
@@ -23,11 +26,14 @@ import type {
   PortalDocument,
   PortalFile,
   PortalFileDetail,
+  PortalInvoice,
+  PortalInvoicePdf,
   PortalUpload,
 } from '@nexlegtiq/shared-contracts';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { ClsService } from 'nestjs-cls';
 
+import { PortalInvoicesService } from './portal-invoices.service';
 import { PortalService } from './portal.service';
 import { Public } from '../../common/auth/public.decorator';
 import type { RequestContext } from '../../common/context/request-context';
@@ -51,6 +57,7 @@ const uuid = new ParseUUIDPipe({ exceptionFactory: () => new ResourceNotFoundExc
 export class PortalController {
   constructor(
     private readonly portal: PortalService,
+    private readonly invoiceList: PortalInvoicesService,
     private readonly cls: ClsService<RequestContext>,
   ) {}
 
@@ -93,6 +100,33 @@ export class PortalController {
   @ApiZodResponse(200, PortalUploadSchema.array())
   uploads(@Param('id', uuid) id: string, @Req() req: PortalRequest): Promise<PortalUpload[]> {
     return this.portal.uploads(this.account(req), id);
+  }
+
+  @Get('invoices')
+  @ApiOperation({
+    summary: 'The invoices the offices shared with the client (sent, overdue or paid)',
+  })
+  @ApiZodResponse(200, PortalInvoiceSchema.array())
+  invoices(@Req() req: PortalRequest): Promise<PortalInvoice[]> {
+    return this.invoiceList.list(this.account(req));
+  }
+
+  @Get('invoices/:id/pdf')
+  // Each ask may queue a Chromium print on the office's report queue (D-171).
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @ApiOperation({
+    summary: 'A shared invoice PDF: 200 with a 5-minute link, or 202 while it renders (ask again)',
+  })
+  @ApiZodResponse(200, PortalInvoicePdfSchema)
+  @ApiZodResponse(202, PortalInvoicePdfSchema)
+  async invoicePdf(
+    @Param('id', uuid) id: string,
+    @Req() req: PortalRequest,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<PortalInvoicePdf> {
+    const answer = await this.invoiceList.pdf(this.account(req), id, this.client(req));
+    res.status(answer.status === 'READY' ? HttpStatus.OK : HttpStatus.ACCEPTED);
+    return answer;
   }
 
   @Get('documents/:id/download')

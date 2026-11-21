@@ -39,6 +39,7 @@ const invoice = (n: number, extra: Partial<Invoice> = {}): Invoice => ({
   total: '116.00',
   sentAt: NOW,
   paidAt: null,
+  sharedWithClient: false,
   createdAt: NOW,
   updatedAt: NOW,
   paymentMethod: null,

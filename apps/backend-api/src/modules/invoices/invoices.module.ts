@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { InvoiceAccess } from './invoice-access';
 import { InvoiceLifecycle } from './invoice-lifecycle.service';
 import { InvoiceNumberService } from './invoice-number.service';
+import { InvoiceSharing } from './invoice-sharing.service';
 import { InvoicesController } from './invoices.controller';
 import { InvoicesService } from './invoices.service';
 import { InvoicePdfService } from './pdf/invoice-pdf.service';
@@ -21,8 +22,9 @@ import { RetainerService } from './retainer.service';
     InvoiceAccess,
     InvoiceNumberService,
     InvoicePdfService,
+    InvoiceSharing,
     RetainerService,
   ],
-  exports: [InvoiceAccess],
+  exports: [InvoiceAccess, InvoicePdfService],
 })
 export class InvoicesModule {}

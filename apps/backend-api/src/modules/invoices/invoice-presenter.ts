@@ -17,6 +17,7 @@ export const LISTED = {
   total: true,
   sentAt: true,
   paidAt: true,
+  sharedWithClient: true,
   createdAt: true,
   updatedAt: true,
   client: { select: { id: true, displayName: true } },
@@ -66,6 +67,7 @@ export function toListItem(row: ListedRow): InvoiceListItem {
     total: money(row.total),
     sentAt: row.sentAt?.toISOString() ?? null,
     paidAt: row.paidAt?.toISOString() ?? null,
+    sharedWithClient: row.sharedWithClient,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
