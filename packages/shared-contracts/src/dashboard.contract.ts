@@ -45,10 +45,21 @@ export const DashboardFinanceSchema = z.object({
 });
 export type DashboardFinance = z.infer<typeof DashboardFinanceSchema>;
 
+/** The quick-start checklist (MVP-109, D-210): whether the office has taken each first step yet, office-wide. */
+export const DashboardSetupSchema = z.object({
+  client: z.boolean(),
+  case: z.boolean(),
+  hearing: z.boolean(),
+  document: z.boolean(),
+  colleague: z.boolean(),
+  aiSummary: z.boolean(),
+});
+export type DashboardSetup = z.infer<typeof DashboardSetupSchema>;
+
 /**
  * `GET /dashboard` (D-151): the caller's day. "My files" are the files they are assigned to (D-051); dates are the
  * office's (D-092). `newClientsThisMonth` is null without `manage:clients`, `team` null for roles other than the office
- * manager and senior lawyers, `finance` null without `view:all|assigned:invoices`.
+ * manager and senior lawyers, `finance` null without `view:all|assigned:invoices`, `setup` null without `manage:office`.
  */
 export const DashboardSchema = z.object({
   today: z.iso.date(),
@@ -69,5 +80,6 @@ export const DashboardSchema = z.object({
     .object({ workload: z.array(DashboardWorkloadSchema), hearingsThisWeek: z.number().int() })
     .nullable(),
   finance: DashboardFinanceSchema.nullable(),
+  setup: DashboardSetupSchema.nullable(),
 });
 export type Dashboard = z.infer<typeof DashboardSchema>;
