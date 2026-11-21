@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
+import { FUNNEL_EVENTS } from '@nexlegtiq/shared-contracts';
 import type {
+  AdminAnalytics,
   AdminAuditEntry,
   AdminAuditExportQuery,
   AdminAuditPage,
@@ -8,16 +10,18 @@ import type {
   AdminQueue,
   AdminUsage,
 } from '@nexlegtiq/shared-contracts';
+import { ONBOARDING_STEPS } from '@nexlegtiq/shared-types';
 
 import { BusinessRuleException } from '../../common/errors/app.exception';
 import { getQueue, QUEUE_NAMES } from '../../common/queue/queues';
 import { PrismaService } from '../../database/prisma.service';
-import type { Prisma } from '../../generated/prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import { BOM, csvCell } from '../audit-log/audit-csv';
 import { EXPORT_MAX_ROWS } from '../audit-log/audit-log.service';
 
 const DAY_MS = 86_400_000;
 const TOP = 20;
+const NO_COHORT = { offices: 0, retained: 0 };
 type Filters = Omit<AdminAuditQuery, 'cursor' | 'limit'>;
 
 const ROW_SELECT = {
@@ -135,6 +139,66 @@ export class PlatformUsageService {
       })),
       activeUsers: { daily, weekly },
       signups: { offices: ids.length, verified, withCase },
+    };
+  }
+
+  /**
+   * Onboarding funnel and retention (D-215) of the offices whose first SIGNUP_COMPLETED falls in the last `days` days:
+   * offices per funnel event and per onboarding step, the median time to the first case, and D7/D30 retention (any
+   * APP_ACTIVE on UTC days 7–13 / 30–36 after the signup day, counted only once that window has ended).
+   */
+  async analytics(days: number, now = new Date()): Promise<AdminAnalytics> {
+    const since = new Date(now.getTime() - days * DAY_MS);
+    const cohort = Prisma.sql`
+      SELECT office_id, min(created_at) AS signed_up FROM product_events
+      WHERE event = 'SIGNUP_COMPLETED' GROUP BY office_id HAVING min(created_at) >= ${since}`;
+    // unscoped: the platform realm reads across offices (D-145), counts only.
+    const raw = this.prisma.unscoped();
+    const [events, steps, [median], [retention]] = await Promise.all([
+      raw.$queryRaw<{ event: string; offices: number }[]>`
+        WITH c AS (${cohort})
+        SELECT e.event::text AS event, count(DISTINCT e.office_id)::int AS offices
+        FROM product_events e JOIN c ON c.office_id = e.office_id
+        WHERE e.event::text = ANY(${[...FUNNEL_EVENTS]}) GROUP BY 1`,
+      raw.$queryRaw<{ step: string; offices: number }[]>`
+        WITH c AS (${cohort})
+        SELECT e.props->>'step' AS step, count(DISTINCT e.office_id)::int AS offices
+        FROM product_events e JOIN c ON c.office_id = e.office_id
+        WHERE e.event = 'ONBOARDING_STEP_COMPLETED' GROUP BY 1`,
+      raw.$queryRaw<{ seconds: number | null }[]>`
+        WITH c AS (${cohort})
+        SELECT round(percentile_cont(0.5) WITHIN GROUP (ORDER BY (e.props->>'secondsSinceSignup')::int))::int AS seconds
+        FROM product_events e JOIN c ON c.office_id = e.office_id WHERE e.event = 'FIRST_CASE_CREATED'`,
+      raw.$queryRaw<AdminAnalytics['retention'][]>`
+        WITH c AS (${cohort}), d AS (
+          -- UTC days on both sides: APP_ACTIVE is one row per office and UTC day.
+          SELECT office_id, (signed_up AT TIME ZONE 'UTC')::date AS d0 FROM c
+        ), r AS (
+          SELECT d.d0,
+            EXISTS (SELECT 1 FROM product_events a WHERE a.office_id = d.office_id AND a.event = 'APP_ACTIVE'
+              AND a.created_at >= (d.d0 + 7)::timestamp AT TIME ZONE 'UTC'
+              AND a.created_at < (d.d0 + 14)::timestamp AT TIME ZONE 'UTC') AS w7,
+            EXISTS (SELECT 1 FROM product_events a WHERE a.office_id = d.office_id AND a.event = 'APP_ACTIVE'
+              AND a.created_at >= (d.d0 + 30)::timestamp AT TIME ZONE 'UTC'
+              AND a.created_at < (d.d0 + 37)::timestamp AT TIME ZONE 'UTC') AS w30
+          FROM d), t AS (SELECT (${now}::timestamptz AT TIME ZONE 'UTC')::date AS today)
+        SELECT json_build_object(
+            'offices', count(*) FILTER (WHERE d0 + 14 <= today),
+            'retained', count(*) FILTER (WHERE d0 + 14 <= today AND w7)) AS d7,
+          json_build_object(
+            'offices', count(*) FILTER (WHERE d0 + 37 <= today),
+            'retained', count(*) FILTER (WHERE d0 + 37 <= today AND w30)) AS d30
+        FROM r, t`,
+    ]);
+    const offices = new Map(events.map((r) => [r.event, r.offices]));
+    const byStep = new Map(steps.map((r) => [r.step, r.offices]));
+    return {
+      since: since.toISOString().slice(0, 10),
+      funnel: FUNNEL_EVENTS.map((event) => ({ event, offices: offices.get(event) ?? 0 })),
+      onboardingSteps: ONBOARDING_STEPS.map((step) => ({ step, offices: byStep.get(step) ?? 0 })),
+      // Aggregates without GROUP BY always return one row.
+      medianSecondsToFirstCase: median?.seconds ?? null,
+      retention: retention ?? { d7: NO_COHORT, d30: NO_COHORT },
     };
   }
 

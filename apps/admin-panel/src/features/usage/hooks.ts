@@ -10,12 +10,19 @@ export type AuditFilters = Partial<Omit<AdminAuditQuery, 'cursor' | 'limit'>>;
 
 export const usageKeys = {
   usage: (days: number) => ['admin', 'usage', days] as const,
+  analytics: (days: number) => ['admin', 'analytics', days] as const,
   queues: ['admin', 'queues'] as const,
   audit: (filters: AuditFilters) => ['admin', 'audit', filters] as const,
 };
 
 export const useUsage = (days: number) =>
   useQuery({ queryKey: usageKeys.usage(days), queryFn: ({ signal }) => usage.usage(days, signal) });
+
+export const useAnalytics = (days: number) =>
+  useQuery({
+    queryKey: usageKeys.analytics(days),
+    queryFn: ({ signal }) => usage.analytics(days, signal),
+  });
 
 /** Queue counts, refreshed every 30 s while the page is open. */
 export const useQueues = () =>

@@ -15,6 +15,7 @@ import { SessionSummarizer } from './session-summarizer';
 import { PART_CHARS } from './split-text';
 import { AppModule } from '../../app/app.module';
 import { configureApp } from '../../app/configure-app';
+import { ProductAnalytics } from '../../common/analytics/product-analytics';
 import { getQueue, QUEUE } from '../../common/queue/queues';
 import { RealtimePublisher } from '../../common/realtime/realtime.publisher';
 import { TenantRunner } from '../../common/tenancy/tenant-runner';
@@ -198,6 +199,7 @@ describe('Document AI summaries (integration)', () => {
       registry,
       app.get(ClsService),
       app.get(TimelineService, { strict: false }),
+      app.get(ProductAnalytics),
     ).onModuleInit();
     new SessionSummarizer(
       app.get(AiExecutor, { strict: false }),
@@ -207,6 +209,7 @@ describe('Document AI summaries (integration)', () => {
       registry,
       app.get(ClsService),
       app.get(TimelineService, { strict: false }),
+      app.get(ProductAnalytics),
     ).onModuleInit();
     processor = new AiProcessor(
       app.get(TenantRunner),

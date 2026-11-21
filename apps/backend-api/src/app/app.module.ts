@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
+import { ProductEventInterceptor } from '../common/analytics/product-event.interceptor';
 import { CoreModule } from '../common/core/core.module';
 import { GlobalExceptionFilter } from '../common/errors/global-exception.filter';
 import { EnvelopeInterceptor } from '../common/http/envelope.interceptor';
@@ -108,6 +109,8 @@ import { WitnessesModule } from '../modules/witnesses/witnesses.module';
     { provide: APP_GUARD, useExisting: SubscriptionGuard },
     // First: fills CLS (officeId, userId, …) from req.user before anything reads it.
     { provide: APP_INTERCEPTOR, useClass: TenantInterceptor },
+    // Records a route's @TrackProductEvent once it succeeded (D-215).
+    { provide: APP_INTERCEPTOR, useClass: ProductEventInterceptor },
     { provide: APP_INTERCEPTOR, useClass: EnvelopeInterceptor },
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },
   ],

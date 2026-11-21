@@ -27,6 +27,8 @@ export interface RequestContext extends ClsStore {
   /** Client address (behind TRUST_PROXY_HOPS) and user agent, set when the request starts; for audit rows (D-136). */
   ip?: string;
   userAgent?: string;
+  /** The request sent `DNT: 1` or `Sec-GPC: 1`: product analytics records nothing for it (D-215). */
+  doNotTrack?: boolean;
 }
 
 /**

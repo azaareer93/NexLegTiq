@@ -39,6 +39,7 @@ import { ClsService } from 'nestjs-cls';
 
 import { SessionRemindersService } from './session-reminders.service';
 import { SessionsService } from './sessions.service';
+import { TrackProductEvent } from '../../common/analytics/product-event.interceptor';
 import type { RequestContext } from '../../common/context/request-context';
 import { ResourceNotFoundException } from '../../common/errors/app.exception';
 import type { PaginatedResult } from '../../common/http/paginated-result';
@@ -65,6 +66,7 @@ export class SessionsController {
 
   @Post()
   @RequirePermissions('create:session')
+  @TrackProductEvent('HEARING_SCHEDULED')
   @ApiOperation({
     summary: 'Schedule a session (409 BIZ-004 when the lawyer is busy, unless acknowledged)',
   })

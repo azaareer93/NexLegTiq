@@ -120,6 +120,7 @@ describe('office profile and settings (HTTP + PostgreSQL)', () => {
       enableAi: true,
       enableOcr: true,
       enableVisionOcr: false,
+      enableProductAnalytics: true,
       fileNumberFormat: '{YEAR}-{TYPE}-{SEQ:5}',
       sessionIdleMinutes: 30,
       auditRetentionDays: 365,
