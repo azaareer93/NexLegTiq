@@ -30,4 +30,6 @@ export type {
 } from './components/States/States';
 export { PriorityTag, StatusTag } from './components/StatusTag/StatusTag';
 export type { StatusTagProps, StatusTone } from './components/StatusTag/StatusTag';
+export { Illustration } from './components/States/Illustration';
+export type { IllustrationKind } from './components/States/Illustration';
 export { nexTheme } from './theme';

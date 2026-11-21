@@ -508,6 +508,25 @@ describe('documents tab (MVP-75)', () => {
     SLOW,
   );
 
+  it.each([
+    ['en', 'No documents yet', 'How it works'],
+    ['ar', 'لا توجد مستندات بعد', 'كيف يعمل ذلك؟'],
+  ] as const)(
+    'should illustrate the empty tab, open the upload panel from it and link its guide (%s)',
+    async (locale, title, howItWorks) => {
+      setViewport(1280);
+      asRole('LAWYER', locale === 'ar' ? 'AR' : 'EN');
+      serve({ docs: [] });
+      renderApp(`/cases/${FILE_ID}?tab=documents`, locale);
+      expect(await screen.findByText(title, {}, { timeout: COLD })).toBeTruthy();
+      expect(screen.getByTestId('illustration-documents')).toBeTruthy();
+      expect(screen.getByRole('button', { name: howItWorks })).toBeTruthy();
+      fireEvent.click(screen.getByTestId('documents-empty-upload'));
+      expect(await screen.findByTestId('upload-panel')).toBeTruthy();
+    },
+    SLOW,
+  );
+
   it.each(['en', 'ar'] as const)(
     'should label the tab in the language and pass axe (%s)',
     async (locale) => {

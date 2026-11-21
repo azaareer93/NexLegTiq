@@ -5,6 +5,7 @@
   "back": "All guides",
   "notFound": "This guide does not exist.",
   "linkLabel": "Help: {{title}}",
+  "howItWorks": "How it works",
   "contact": {
     "title": "Contact support",
     "email": "Email support",

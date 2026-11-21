@@ -175,6 +175,12 @@ describe('states', () => {
     expect(screen.getByText('Create the first one')).toBeTruthy();
   });
 
+  it('should draw a first-run illustration hidden from screen readers', () => {
+    inLocale('ar', <EmptyState illustration="cases" title="لا توجد ملفات" />);
+    expect(screen.getByTestId('illustration-cases').getAttribute('aria-hidden')).toBe('true');
+    expect(screen.getByText('لا توجد ملفات')).toBeTruthy();
+  });
+
   it('should explain the error code, show the request id left to right and retry', () => {
     const onRetry = vi.fn();
     inLocale('ar', <ErrorState code="RES-001" requestId="req-12345678" onRetry={onRetry} />);
