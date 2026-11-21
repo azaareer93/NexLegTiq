@@ -288,6 +288,7 @@ describe('clients list', () => {
       const queries = serveClients([]);
       const { router } = renderApp('/clients?clientType=NGO&search=zz');
       expect(await screen.findByTestId('clients-clear', {}, { timeout: COLD })).toBeTruthy();
+      expect(screen.queryByTestId('illustration-clients')).toBeNull();
       fireEvent.click(screen.getByTestId('clients-clear'));
       await waitFor(() => expect(router.state.location.search).toBe(''));
       expect(lastQuery(queries)).toEqual({});
@@ -298,6 +299,25 @@ describe('clients list', () => {
 
       fireEvent.click(await screen.findByTestId('clients-empty-new'));
       expect(await screen.findByTestId('client-name-input')).toBeTruthy();
+    },
+    SLOW,
+  );
+
+  it.each([
+    ['en', 'No clients yet', 'How it works'],
+    ['ar', 'لا يوجد موكلون بعد', 'كيف يعمل ذلك؟'],
+  ] as const)(
+    'should illustrate the first-run empty list and link its guide (%s)',
+    async (locale, title, howItWorks) => {
+      setViewport(1280);
+      signedIn({ uiLanguage: locale === 'ar' ? 'AR' : 'EN' });
+      serveClients([]);
+      const { router } = renderApp('/clients', locale);
+      expect(await screen.findByText(title, {}, { timeout: COLD })).toBeTruthy();
+      expect(screen.getByTestId('illustration-clients')).toBeTruthy();
+      expect(screen.getByTestId('clients-empty-new')).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: howItWorks }));
+      await waitFor(() => expect(router.state.location.pathname).toBe('/help/getting-started'));
     },
     SLOW,
   );
