@@ -62,8 +62,9 @@ Architecture (`modules/ai`):
 - Every AI output rendered with a disclaimer component (`<AiDisclaimer kind="summary" />`) — texts in i18n, from Notion `AI_DISCLAIMERS`.
 - Show provider/model/generated-at, allow regenerate, allow "report issue" (stores feedback).
 - Human-in-the-loop: AI never changes case data by itself.
-- Evaluation set: 20 anonymized Arabic + English documents in `apps/backend-api/test/ai-evals/` with reference summaries;
-  script reports ROUGE-L (target > 0.6 EN) and a checklist for hallucinated citations; run before changing prompts/models.
+- Evaluation set: 20 synthetic Arabic + English documents in `apps/backend-api/test/ai-evals/` with reference summaries;
+  `nx run backend-api:ai-evals --feature summary` reports ROUGE-L, schema pass rate, hallucinated citations, latency and
+  cost into `docs/ai-evals/`; run (locally, real provider) before changing prompts/models — thresholds in D-195.
 - Offices can disable AI (`enableAI=false`) → endpoints return `AI-005`, UI hides AI entry points.
 
 ## Phase 2+ (not MVP)

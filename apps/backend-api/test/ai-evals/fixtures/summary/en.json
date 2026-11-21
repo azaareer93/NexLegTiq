@@ -1,0 +1,144 @@
+[
+  {
+    "id": "en-01-pleading",
+    "language": "en",
+    "kind": "PLEADING",
+    "names": ["Samir Testwood", "Lina Exampleton"],
+    "text": [
+      "Before the Ramallah Magistrates Court. Statement of Claim in Claim No. 418/2025.",
+      "Plaintiff: Samir Testwood, merchant, represented by counsel. Defendant: Lina Exampleton, owner of Exampleton Trading.",
+      "On 3 March 2025 the plaintiff delivered 120 cartons of olive oil to the defendant under a written supply order. The agreed price was 36,000 ILS, payable within thirty days of delivery. The defendant accepted the goods without objection and signed the delivery note.",
+      "Despite two written reminders, dated 15 April 2025 and 2 May 2025, the defendant has paid only 10,000 ILS. The balance of 26,000 ILS remains outstanding.",
+      "The plaintiff relies on Article 74 of the Civil Procedure Law No. 2 of 2001 and on the signed delivery note and supply order attached as Exhibits 1 and 2.",
+      "The plaintiff asks the court to order the defendant to pay 26,000 ILS with legal interest from the due date, together with court fees and attorney's fees."
+    ],
+    "referenceSummary": "A statement of claim in Claim No. 418/2025 before the Ramallah Magistrates Court. Samir Testwood says he delivered 120 cartons of olive oil to Lina Exampleton on 3 March 2025 for 36,000 ILS, payable within thirty days. She accepted the goods and paid only 10,000 ILS despite reminders on 15 April and 2 May 2025. Relying on Article 74 of the Civil Procedure Law No. 2 of 2001 and the signed delivery note, he asks for the unpaid 26,000 ILS with legal interest, court fees and attorney's fees."
+  },
+  {
+    "id": "en-02-pleading",
+    "language": "en",
+    "kind": "PLEADING",
+    "names": ["Omar Sampleman", "Huda Placeholder"],
+    "text": [
+      "Before the Nablus Court of First Instance. Statement of Defence in Case No. 77/2025.",
+      "Defendant: Omar Sampleman, landlord. Plaintiff: Huda Placeholder, tenant of the second-floor flat at the Sampleman building.",
+      "The defendant denies that he cut the water supply to the flat. The interruption between 10 and 14 June 2025 was caused by a municipal repair of the main pipe, as the attached notice from the municipality shows.",
+      "The defendant further states that the plaintiff has not paid rent for May, June and July 2025, a total of 4,500 ILS, and that her claim for damages of 8,000 ILS is not supported by any receipt or expert report.",
+      "The defendant relies on Article 9 of the Landlords and Tenants Law and asks the court to dismiss the claim, to order the plaintiff to pay the unpaid rent of 4,500 ILS as a counterclaim, and to award costs against her."
+    ],
+    "referenceSummary": "Omar Sampleman's statement of defence in Case No. 77/2025 before the Nablus Court of First Instance, against his tenant Huda Placeholder. He denies cutting the flat's water and says the interruption of 10 to 14 June 2025 came from a municipal pipe repair, with the municipality's notice attached. He says she has not paid rent for May to July 2025, 4,500 ILS, and that her 8,000 ILS damages claim has no receipt or expert report. Relying on Article 9 of the Landlords and Tenants Law, he asks for dismissal, the unpaid rent as a counterclaim, and costs."
+  },
+  {
+    "id": "en-03-pleading",
+    "language": "en",
+    "kind": "PLEADING",
+    "names": ["Karim Fictora", "Dana Mockford"],
+    "text": [
+      "Before the Bethlehem Court of First Instance, sitting as a labour court. Statement of Claim.",
+      "Claimant: Karim Fictora, former accountant. Respondent: Mockford Tiles Company, represented by its manager Dana Mockford.",
+      "The claimant worked for the respondent from 1 January 2019 until 30 September 2025, when he was dismissed by a letter that gave no reason and no notice. His last monthly salary was 5,200 ILS.",
+      "The claimant claims end-of-service gratuity of one month's salary for each year of service under Article 45 of the Labour Law No. 7 of 2000, one month's salary in lieu of notice, and compensation for arbitrary dismissal under Article 47 of the same law.",
+      "He also claims 14 days of unused annual leave. He asks the court to order the respondent to pay these amounts with fees and costs."
+    ],
+    "referenceSummary": "A labour claim before the Bethlehem Court of First Instance by Karim Fictora, an accountant, against Mockford Tiles Company. He worked there from 1 January 2019 until he was dismissed on 30 September 2025 by a letter without reason or notice, on a last salary of 5,200 ILS. Under Article 45 and Article 47 of the Labour Law No. 7 of 2000 he claims end-of-service gratuity, a month's salary in lieu of notice, compensation for arbitrary dismissal and 14 days of unused leave, with fees and costs."
+  },
+  {
+    "id": "en-04-judgment",
+    "language": "en",
+    "kind": "JUDGMENT",
+    "names": ["Rami Dummyson", "Nour Testara"],
+    "text": [
+      "Judgment of the Hebron Court of First Instance in Case No. 233/2024, delivered on 12 October 2025.",
+      "The plaintiff, Rami Dummyson, sued the defendant, Nour Testara, for 50,000 ILS lent to her under a handwritten acknowledgment dated 1 February 2023.",
+      "The defendant admitted her signature but argued that 20,000 ILS had already been repaid in cash. She produced no receipt and her single witness could not state the date or amount of any payment.",
+      "The court held that a written acknowledgment can only be rebutted by evidence of equal strength, in accordance with Article 68 of the Evidence Law No. 4 of 2001, and that the defendant's witness testimony was insufficient.",
+      "The court therefore ordered the defendant to pay the plaintiff 50,000 ILS with legal interest from the date the claim was filed, plus fees and 1,000 ILS in attorney's fees. The judgment may be appealed within thirty days."
+    ],
+    "referenceSummary": "Judgment of the Hebron Court of First Instance in Case No. 233/2024, delivered on 12 October 2025. Rami Dummyson claimed 50,000 ILS lent to Nour Testara under a handwritten acknowledgment of 1 February 2023. She admitted her signature but said 20,000 ILS had been repaid, without a receipt and with a witness who could not give a date or amount. Under Article 68 of the Evidence Law No. 4 of 2001 the acknowledgment could not be rebutted by that testimony, so the court ordered her to pay 50,000 ILS with legal interest, fees and 1,000 ILS attorney's fees. Appeal lies within thirty days."
+  },
+  {
+    "id": "en-05-judgment",
+    "language": "en",
+    "kind": "JUDGMENT",
+    "names": ["Yousef Samplerton", "Maha Fakeley"],
+    "text": [
+      "Judgment of the Court of Appeal sitting in Ramallah in Appeal No. 512/2025, delivered on 2 November 2025.",
+      "The appellant, Yousef Samplerton, appealed a first-instance judgment that rejected his claim to cancel the sale of a plot of land to the respondent, Maha Fakeley, on the ground that he signed the contract under duress.",
+      "The appellant argued that the trial court ignored the testimony of two witnesses who saw threats being made. The court found that both witnesses described events that took place six months after the contract was signed and therefore could not prove duress at the time of signing.",
+      "The court found no error in the trial court's assessment of the evidence and confirmed that, under Article 141 of the Civil Code, duress must exist when consent is given.",
+      "The appeal was dismissed, the first-instance judgment was upheld, and the appellant was ordered to pay the costs of the appeal."
+    ],
+    "referenceSummary": "Judgment of the Court of Appeal in Ramallah in Appeal No. 512/2025, delivered on 2 November 2025. Yousef Samplerton appealed the rejection of his claim to cancel a land sale to Maha Fakeley for duress. The court found that his two witnesses described threats made six months after the contract was signed, so they could not prove duress at signing, which Article 141 of the Civil Code requires. Finding no error in the trial court's view of the evidence, it dismissed the appeal, upheld the judgment and ordered the appellant to pay the costs."
+  },
+  {
+    "id": "en-06-judgment",
+    "language": "en",
+    "kind": "JUDGMENT",
+    "names": ["Tariq Exemplar"],
+    "text": [
+      "Judgment of the Jenin Magistrates Court in Case No. 96/2025, delivered on 20 September 2025.",
+      "The public prosecution charged the defendant, Tariq Exemplar, with issuing a cheque without sufficient funds for 12,000 ILS, dated 10 January 2025, contrary to Article 421 of the Penal Code.",
+      "The defendant admitted issuing the cheque but stated that he had settled the full amount with the beneficiary on 1 August 2025. He submitted a written waiver signed by the beneficiary, which the prosecution did not contest.",
+      "The court found the offence proven. Taking into account the settlement and the waiver, and that the defendant had no prior convictions, it imposed a fine of 500 ILS instead of imprisonment.",
+      "The judgment is subject to appeal within fifteen days."
+    ],
+    "referenceSummary": "Judgment of the Jenin Magistrates Court in Case No. 96/2025, delivered on 20 September 2025. Tariq Exemplar was charged under Article 421 of the Penal Code with issuing a 12,000 ILS cheque dated 10 January 2025 without sufficient funds. He admitted it but showed he had settled the full amount on 1 August 2025, with an uncontested waiver signed by the beneficiary. The court found the offence proven and, given the settlement, the waiver and his clean record, imposed a 500 ILS fine instead of imprisonment. Appeal lies within fifteen days."
+  },
+  {
+    "id": "en-07-contract",
+    "language": "en",
+    "kind": "CONTRACT",
+    "names": ["Faris Mockingham", "Salma Specimen"],
+    "text": [
+      "Commercial Lease Agreement made on 1 July 2025 between Faris Mockingham (the Landlord) and Specimen Pharmacy, represented by Salma Specimen (the Tenant).",
+      "Premises: the ground-floor shop at 14 Main Street, Al-Bireh, of about 60 square metres.",
+      "Term: three years from 1 August 2025 to 31 July 2028, renewable for a further term by written agreement signed at least sixty days before expiry.",
+      "Rent: 1,500 USD per month, payable in advance on the first day of each month by bank transfer. The rent increases by 5 percent at the start of the third year. The Tenant pays a security deposit of 3,000 USD, returnable at the end of the lease less any damage.",
+      "The Tenant may not sublet without the Landlord's written consent. The Landlord is responsible for structural repairs and the Tenant for routine maintenance.",
+      "Either party may terminate on a material breach that is not cured within thirty days of written notice. Disputes are referred to the courts of Ramallah."
+    ],
+    "referenceSummary": "A commercial lease signed on 1 July 2025 between landlord Faris Mockingham and Specimen Pharmacy, represented by Salma Specimen, for a 60 square metre ground-floor shop at 14 Main Street, Al-Bireh. The term is three years, from 1 August 2025 to 31 July 2028, renewable by written agreement sixty days before expiry. Rent is 1,500 USD a month in advance, rising 5 percent in the third year, with a 3,000 USD deposit. Subletting needs written consent; the landlord handles structural repairs and the tenant routine maintenance. An uncured material breach after thirty days' notice allows termination, and disputes go to the Ramallah courts."
+  },
+  {
+    "id": "en-08-contract",
+    "language": "en",
+    "kind": "CONTRACT",
+    "names": ["Bassam Templeton", "Rana Draftwell"],
+    "text": [
+      "Software Services Agreement dated 15 September 2025 between Templeton Logistics, represented by Bassam Templeton (the Client), and Draftwell Systems, represented by Rana Draftwell (the Provider).",
+      "Scope: the Provider will build and host a fleet-tracking web application in three milestones: design by 31 October 2025, a working beta by 31 January 2026, and final delivery by 31 March 2026.",
+      "Fees: 24,000 USD in total, paid 30 percent on signing, 30 percent on acceptance of the beta and 40 percent on final acceptance. Hosting and support cost 400 USD per month for twelve months after final delivery.",
+      "The Client owns the source code once all fees are paid. The Provider keeps the Client's data confidential and may not disclose it to third parties.",
+      "Late delivery of a milestone by more than fifteen days entitles the Client to a deduction of 2 percent of the fees per week, capped at 10 percent. The agreement is governed by Palestinian law."
+    ],
+    "referenceSummary": "A software services agreement of 15 September 2025 in which Draftwell Systems will build and host a fleet-tracking web application for Templeton Logistics. Milestones are design by 31 October 2025, a beta by 31 January 2026 and final delivery by 31 March 2026. Fees total 24,000 USD, paid 30, 30 and 40 percent at signing, beta acceptance and final acceptance, plus 400 USD a month for twelve months of hosting and support. The client owns the source code once paid, data stays confidential, and a milestone more than fifteen days late costs 2 percent of the fees per week, capped at 10 percent. Palestinian law governs."
+  },
+  {
+    "id": "en-09-minutes",
+    "language": "en",
+    "kind": "MINUTES",
+    "names": ["Adel Notareal", "Samira Sketchley", "Hani Mockwell"],
+    "text": [
+      "Minutes of the hearing of 5 November 2025 in Case No. 233/2024 before the Hebron Court of First Instance, presided over by Judge Adel Notareal.",
+      "Present: counsel for the plaintiff, Samira Sketchley; counsel for the defendant, Hani Mockwell. The defendant did not attend in person.",
+      "Counsel for the defendant asked for an adjournment to bring a second witness. Counsel for the plaintiff objected, noting that this was the third adjournment requested for the same reason.",
+      "The court granted a final adjournment and warned that the right to call the witness would be forfeited if the witness did not appear at the next hearing.",
+      "The court also ordered the defendant to file the original bank statements referred to in her defence. The case was adjourned to 3 December 2025 at 9:00."
+    ],
+    "referenceSummary": "Minutes of the 5 November 2025 hearing in Case No. 233/2024 before Judge Adel Notareal at the Hebron Court of First Instance. Counsel for the defendant asked for an adjournment to bring a second witness; counsel for the plaintiff objected that it was the third such request. The court granted a final adjournment, warning that the right to call the witness is lost if the witness does not appear, and ordered the defendant to file the original bank statements cited in her defence. The case was adjourned to 3 December 2025 at 9:00."
+  },
+  {
+    "id": "en-10-minutes",
+    "language": "en",
+    "kind": "MINUTES",
+    "names": ["Ziad Mockery", "Layla Testfield"],
+    "text": [
+      "Minutes of the client meeting held on 18 October 2025 at the office, concerning the dismissal dispute of the client Ziad Mockery.",
+      "Attending: the client and Layla Testfield, the lawyer responsible for the file.",
+      "The client explained that his employer informed him orally on 10 October 2025 that his contract would end at the end of the month, and that he received no written notice. He has worked for the employer for four years.",
+      "The lawyer advised that the client should keep all payslips and messages, send a written request for the reason of dismissal, and not sign any settlement before review.",
+      "It was agreed that the lawyer will send a warning letter to the employer by 25 October 2025 and prepare a labour claim if no answer is received within two weeks. The client will provide copies of his contract and the last twelve payslips by 22 October 2025."
+    ],
+    "referenceSummary": "Minutes of an 18 October 2025 office meeting between client Ziad Mockery and his lawyer, Layla Testfield, about his dismissal. After four years of work, his employer told him orally on 10 October 2025 that his contract would end at month's end, with no written notice. The lawyer advised him to keep payslips and messages, ask in writing for the reason, and sign no settlement before review. The lawyer will send a warning letter by 25 October 2025 and prepare a labour claim if there is no answer within two weeks; the client will provide his contract and last twelve payslips by 22 October 2025."
+  }
+]
