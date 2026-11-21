@@ -78,5 +78,5 @@ Payments at MVP: manual (cash / bank transfer) recorded in admin panel.
 - Show ToS + Privacy acceptance at signup; store accepted versions (D-038).
 - AI outputs "as is" with visible disclaimers; human oversight; customer data never used for training.
 - Data export on request/cancellation; account deletion after 30-day grace; closed cases retained 5 years.
-- Sub-processors listed in DPA must match what we actually use (update before launch — D-021).
+- Sub-processors listed in DPA must match what we actually use, data in the EU (D-021); the register is `legal-facts.md` (D-220).
 - 18+ users; breach notification ≤ 72h.
