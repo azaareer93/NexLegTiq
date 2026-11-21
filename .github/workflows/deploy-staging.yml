@@ -19,6 +19,7 @@ concurrency:
 permissions:
   contents: read
   packages: write
+  statuses: write # the `staging/deployed` commit status release.yml requires (D-225)
 
 env:
   # GHCR names must be lowercase.
@@ -125,6 +126,13 @@ jobs:
         run: printf '%s' "$GHCR_TOKEN" | ssh "$SSH_TARGET" "docker login ghcr.io -u '$GHCR_USER' --password-stdin"
       - name: Pull, migrate, start, smoke test
         run: ssh "$SSH_TARGET" "API_DOMAIN='$API_DOMAIN' STAGING_ALLOWED_IPS='$ALLOWED_IPS' sh $DEPLOY_DIR/deploy.sh '$IMAGE_REPO' '$TAG'"
+      # Keyed by the images' SHA (not the run's commit, which differs on a rollback): production releases only these.
+      - name: Mark the images as staging-tested
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api -X POST "repos/$GITHUB_REPOSITORY/statuses/$TAG" -f state=success -f context=staging/deployed \
+            -f description="Ran green on staging (deploy.sh smoke test)" > /dev/null
       - name: Log the host out of GHCR
         if: always()
         run: ssh "$SSH_TARGET" "docker logout ghcr.io" || true
