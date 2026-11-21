@@ -57,6 +57,7 @@ export const EMPTY_DASHBOARD = {
   activity: { items: [], names: {} },
   team: null,
   finance: null,
+  setup: null,
 };
 
 /**
