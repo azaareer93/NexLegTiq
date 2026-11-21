@@ -121,11 +121,14 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     };
     if (error.status >= 500) {
       this.logger.error(payload, 'Request failed');
-      reportError(exception, {
-        code: error.code,
-        status: error.status,
-        requestId: this.requestId(),
-      });
+      // A dependency outage (SYS-002) would be one report per request; the uptime check on /health/ready alerts on it.
+      if (error.code !== 'SYS-002') {
+        reportError(exception, {
+          code: error.code,
+          status: error.status,
+          requestId: this.requestId(),
+        });
+      }
     } else this.logger.debug(payload, 'Request rejected');
   }
 

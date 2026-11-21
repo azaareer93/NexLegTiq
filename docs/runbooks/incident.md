@@ -1,7 +1,7 @@
 # Incident runbook — monitoring, alerts, response (D-230)
 
 Vendors (owner's choice on the monitoring story): **Sentry, EU region** (errors) and **Better Stack, EU region** (log sink,
-uptime checks, heartbeats, status page, email + phone push). Metric alerts are rules in Better Stack over the API's
+uptime checks, status page, email + phone push). Metric alerts are rules in Better Stack over the API's
 Prometheus `/metrics`, shipped by the Better Stack collector on the host. Nothing is sent anywhere until the accounts below
 exist and their keys are set: the code is inert without them.
 
@@ -25,17 +25,20 @@ Each rule lives in Better Stack; the threshold here is the source of truth.
 |---|---|---|
 | API down | uptime check, 1 min: `GET https://<api>/health/ready` not 200 (503 = a dependency is down) | CRITICAL |
 | Office app / portal down | uptime check, 1 min: the SPA's URL not 200 | CRITICAL |
-| Error rate | `sum(rate(http_request_duration_seconds_count{status_code=~"5.."}[5m])) / sum(rate(http_request_duration_seconds_count[5m])) > 0.05` | HIGH |
+| Error rate | `sum(rate(http_request_duration_seconds_count{status_code=~"5.."}[5m])) / sum(rate(http_request_duration_seconds_count[5m])) > 0.05 and sum(rate(http_request_duration_seconds_count[5m])) > 0.2` for 5 min | HIGH |
 | Slow API | `histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[5m]))) > 2` for 5 min | MEDIUM |
-| Queue backed up | `bullmq_queue_jobs{state="waiting"} > 100` for 10 min | MEDIUM |
-| Failed jobs spike | `sum(delta(bullmq_queue_jobs{state="failed"}[15m])) > 20` | HIGH |
-| Reminder failed | `delta(bullmq_queue_jobs{queue="reminder",state="failed"}[10m]) > 0` (any) | HIGH |
+| Queue backed up | `sum by (queue) (bullmq_queue_jobs{state=~"waiting\|prioritized"}) > 100` for 10 min | MEDIUM |
+| Worker stalled | `sum by (queue) (bullmq_queue_jobs{state=~"waiting\|prioritized"}) > 0 and on (queue) bullmq_queue_jobs{state="active"} == 0` for 10 min | HIGH |
+| Failed jobs spike | Sentry metric alert: > 20 events with a `queue` tag in 15 min | HIGH |
+| Reminder failed | Sentry issue alert: any event tagged `queue:reminder` | HIGH |
 | New error | Sentry issue alert: a new issue, or an issue seen > 10 times in 1 h | HIGH |
 | SSL expiry | Better Stack uptime monitor's certificate check: < 30 days left, on the API, app and portal hosts | MEDIUM |
-| Disk | collector host metrics: disk use > 80 % | HIGH |
+| Disk | collector host metrics (its host-metrics source enabled): disk use > 80 % | HIGH |
 | AI cost | already built (D-144): daily email above `AI_COST_ALERT_THRESHOLD_USD` | MEDIUM |
 
-Failed jobs stay counted for 30 days (queue retention), so the failed-job rules use `delta`, not the level.
+Failed jobs alert through Sentry, not `/metrics`: the `failed` count is trimmed by the 30-day retention as new failures
+arrive, so its level or delta cannot count new failures. Sentry gets exactly one event per job that failed its last
+attempt. The worker has no `/metrics` of its own; a dead worker shows as "Worker stalled".
 
 ## Setup checklist (owner, once per environment)
 
@@ -55,15 +58,15 @@ Failed jobs stay counted for 30 days (queue retention), so the failed-job rules 
    before paid launch.
 7. **Legal** — Sentry and Better Stack become sub-processors the day step 2 or 3 is done: the sub-processor list and the
    privacy text must name them (EU region) first.
-8. **Test** — fire each alert once and keep the evidence (screenshots) with the setup: stop the worker container (queue
-   backs up / heartbeat), point a monitor at a 404, `curl` a route that throws on staging, fail a reminder job.
+8. **Test** — fire each alert once and keep the evidence (screenshots) with the setup: stop the worker container and enqueue
+   a job (worker stalled), point a monitor at a 404, `curl` a route that throws on staging, fail a reminder job.
 
 ## What error reports contain (D-230)
 
-Only 5xx request failures and jobs that failed their last attempt are reported, with the error type, message and stack the
-logs already keep, plus tags: error code, status, request id, queue, job name, job id, attempt. Never request bodies,
-headers, cookies, query strings, tokens, users, job payloads or document text; Prisma errors go without their message
-(it quotes query values). The scrub is in `apps/backend-api/src/common/monitoring/error-reporting.ts`.
+Only unexpected 5xx request failures (not SYS-002 outages, which the uptime check covers) and jobs that failed their last
+attempt are reported: the error type, its stack frames, the message only for our own `AppException`s, plus tags: error
+code, status, request id, queue, job name, job id, attempt, Prisma code. Never request bodies, headers, cookies, query
+strings, tokens, users, job payloads, document text, or the message of a library error (they quote their input). The scrub is in `apps/backend-api/src/common/monitoring/error-reporting.ts`.
 
 ## During an incident
 

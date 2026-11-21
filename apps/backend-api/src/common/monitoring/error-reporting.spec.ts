@@ -5,6 +5,7 @@ import { initErrorReporting, reportError, scrubEvent } from './error-reporting';
 import { AppConfig } from '../../config/app-config';
 import { testEnv } from '../../config/env.fixture';
 import { parseEnv } from '../../config/env.schema';
+import { DependencyUnavailableException } from '../errors/app.exception';
 
 jest.mock('@sentry/node');
 
@@ -81,8 +82,31 @@ describe('error reporting (D-230)', () => {
 
     const [reported] = jest.mocked(Sentry.captureException).mock.calls[0] ?? [];
     expect(reported).not.toBe(error);
-    expect(reported).toMatchObject({ name: 'Error', message: 'boom' });
     expect(reported).not.toHaveProperty('body');
     expect(reported).not.toHaveProperty('config');
+  });
+
+  it('should drop the message of a library error, which can quote document text, but keep its frames', () => {
+    let error: unknown;
+    try {
+      JSON.parse('{"summary": "the client confessed');
+    } catch (caught) {
+      error = caught;
+    }
+
+    reportError(error, {});
+
+    const [reported] = jest.mocked(Sentry.captureException).mock.calls[0] ?? [];
+    const { name, message, stack } = reported as Error;
+    expect({ name, message }).toEqual({ name: 'SyntaxError', message: 'SyntaxError' });
+    expect(stack).not.toContain('confessed');
+    expect(stack).toMatch(/^SyntaxError: SyntaxError\n\s+at /);
+  });
+
+  it('should keep the developer-written message of our own exceptions', () => {
+    reportError(new DependencyUnavailableException([]), {});
+
+    const [reported] = jest.mocked(Sentry.captureException).mock.calls[0] ?? [];
+    expect((reported as Error).message).toBe('Service unavailable');
   });
 });

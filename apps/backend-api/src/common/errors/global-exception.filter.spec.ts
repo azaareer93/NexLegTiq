@@ -132,15 +132,17 @@ describe('GlobalExceptionFilter', () => {
     expect(response.json.mock.calls[0][0].error.code).toBe('RES-001');
   });
 
-  it('should log 5xx as error and 4xx as debug, and report only the 5xx', () => {
+  it('should log 5xx as error and 4xx as debug, and report only the unexpected 5xx', () => {
     const { filter, host, logger } = setup();
     const boom = new Error('boom');
     jest.mocked(reportError).mockClear();
 
     filter.catch(boom, host);
     filter.catch(new NotFoundException(), host);
+    // An outage is alerted by the uptime check, not reported per request.
+    filter.catch(new DependencyUnavailableException([{ field: 'db', message: 'timeout' }]), host);
 
-    expect(logger.error).toHaveBeenCalledTimes(1);
+    expect(logger.error).toHaveBeenCalledTimes(2);
     expect(logger.debug).toHaveBeenCalledTimes(1);
     expect(reportError).toHaveBeenCalledTimes(1);
     expect(reportError).toHaveBeenCalledWith(boom, {

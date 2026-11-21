@@ -75,7 +75,9 @@ export abstract class TenantProcessor<T extends object> extends WorkerHost {
         jobLogFields(job, tenant?.requestId ?? null),
         'Invalid job payload; not retried',
       );
-      throw new UnrecoverableError('Invalid job payload');
+      const error = new UnrecoverableError('Invalid job payload');
+      reportIfFinal(job, jobLogFields(job, tenant?.requestId ?? null), error);
+      throw error;
     }
     const policy = QUEUE_POLICY[job.queueName as QueueName];
     if (!policy) throw new UnrecoverableError(`No queue policy for ${job.queueName}`);
@@ -103,7 +105,7 @@ export abstract class TenantProcessor<T extends object> extends WorkerHost {
   }
 }
 
-/** Only the attempt that fails the job is reported; retried attempts show up in the queue metrics (D-230). */
+/** Only the attempt that fails the job is reported; retried attempts are only logged (D-230). */
 function reportIfFinal(job: Job, fields: ReturnType<typeof jobLogFields>, error: unknown): void {
   if (error instanceof UnrecoverableError || fields.attempt >= (job.opts?.attempts ?? 1)) {
     const { queue, job: name, jobId, attempt, requestId } = fields;
