@@ -4,14 +4,17 @@ import type { InvoicePdf } from '@nexlegtiq/shared-contracts';
 import type { PdfLanguage } from './invoice-pdf.html';
 import { pdfIsCurrent, RENDER_INVOICE_PDF_JOB } from './invoice-pdf.renderer';
 import type { InvoicePdfJob } from './invoice-pdf.renderer';
-import { AuditService } from '../../../common/audit/audit.service';
+import { AuditService, auditRow } from '../../../common/audit/audit.service';
 import { ResourceNotFoundException } from '../../../common/errors/app.exception';
 import { QueueProducer } from '../../../common/queue/queue-producer';
 import { QUEUE } from '../../../common/queue/queues';
 import { StorageService } from '../../../common/storage/storage.service';
 import { PrismaService } from '../../../database/prisma.service';
 import type { ScopedTransaction } from '../../../database/unit-of-work';
+import type { Prisma } from '../../../generated/prisma/client';
+import type { ClientInfo } from '../../auth/client-info';
 import { InvoiceAccess } from '../invoice-access';
+import { portalInvoiceWhere } from '../invoice-sharing.service';
 
 const LINK_TTL_SECONDS = 300;
 
@@ -51,10 +54,68 @@ export class InvoicePdfService {
   ) {}
 
   async link(id: string, language?: PdfLanguage): Promise<InvoicePdf> {
+    const pdf = await this.linkWhere(
+      { AND: [{ id }, this.access.visibleWhere()] },
+      language,
+      (_row, newValues) =>
+        this.audit.log(this.prisma.db, {
+          entityType: 'Invoice',
+          entityId: id,
+          action: 'DOWNLOAD',
+          newValues,
+        }),
+    );
+    if (!pdf) throw new ResourceNotFoundException();
+    return pdf;
+  }
+
+  /**
+   * The portal's ask (MVP-150, D-188), in the invoice's office: only an invoice of `clientId` that the office shared and
+   * issued, looked up and linked in one query; null otherwise. Same PDF, the office's language, audited DOWNLOAD by the
+   * portal account (D-186).
+   */
+  portalLink(
+    invoiceId: string,
+    clientId: string,
+    clientUserId: string,
+    client: ClientInfo,
+  ): Promise<InvoicePdf | null> {
+    return this.linkWhere(
+      { id: invoiceId, ...portalInvoiceWhere(clientId) },
+      undefined,
+      (row, newValues) =>
+        this.prisma.db.auditLog.create({
+          data: {
+            ...auditRow(
+              {
+                officeId: row.officeId,
+                userId: null,
+                entityType: 'Invoice',
+                entityId: row.id,
+                action: 'DOWNLOAD',
+                newValues: { ...newValues, portal: true },
+              },
+              client,
+            ),
+            clientUserId,
+          },
+        }),
+    );
+  }
+
+  private async linkWhere(
+    where: Prisma.InvoiceWhereInput,
+    language: PdfLanguage | undefined,
+    audit: (
+      row: { id: string; officeId: string },
+      newValues: { language: PdfLanguage },
+    ) => Promise<unknown>,
+  ): Promise<InvoicePdf | null> {
     const row = await this.prisma.db.invoice.findFirst({
-      where: { AND: [{ id }, this.access.visibleWhere()] },
+      where,
       select: {
         id: true,
+        officeId: true,
         invoiceNumber: true,
         updatedAt: true,
         pdfStorageKey: true,
@@ -62,10 +123,19 @@ export class InvoicePdfService {
         pdfRenderedFor: true,
       },
     });
-    if (!row) throw new ResourceNotFoundException();
-    const lang = language ?? (await officePdfLanguage(this.prisma.db));
+    if (!row) return null;
+    // No language asked: a current PDF in either language will do, so a portal ask never re-renders (and deletes) the
+    // office's PDF of the other language (D-188).
+    const stored = row.pdfLanguage as PdfLanguage | null;
+    const lang =
+      language ??
+      (stored && pdfIsCurrent(row, stored) ? stored : await officePdfLanguage(this.prisma.db));
     if (!pdfIsCurrent(row, lang) || !row.pdfStorageKey) {
-      await enqueuePdf(this.queues, { invoiceId: id, language: lang, email: false }, row.updatedAt);
+      await enqueuePdf(
+        this.queues,
+        { invoiceId: row.id, language: lang, email: false },
+        row.updatedAt,
+      );
       return { status: 'RENDERING' };
     }
     const downloadUrl = await this.storage.presignedGetUrl(row.pdfStorageKey, {
@@ -73,12 +143,7 @@ export class InvoicePdfService {
       filename: `${row.invoiceNumber ?? 'invoice-draft'}.pdf`,
       contentType: 'application/pdf',
     });
-    await this.audit.log(this.prisma.db, {
-      entityType: 'Invoice',
-      entityId: id,
-      action: 'DOWNLOAD',
-      newValues: { language: lang },
-    });
+    await audit(row, { language: lang });
     return { status: 'READY', downloadUrl, expiresIn: LINK_TTL_SECONDS };
   }
 }

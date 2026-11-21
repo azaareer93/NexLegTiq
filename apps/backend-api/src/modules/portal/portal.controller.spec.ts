@@ -1,6 +1,7 @@
 import type { Request } from 'express';
 import type { ClsService } from 'nestjs-cls';
 
+import type { PortalInvoicesService } from './portal-invoices.service';
 import { PortalController } from './portal.controller';
 import type { PortalService } from './portal.service';
 import type { RequestContext } from '../../common/context/request-context';
@@ -15,10 +16,15 @@ describe('PortalController', () => {
       upload: jest.fn().mockResolvedValue('upload'),
       uploads: jest.fn().mockResolvedValue([]),
     };
+    const invoiceList = {
+      list: jest.fn().mockResolvedValue([]),
+      pdf: jest.fn().mockResolvedValue({ status: 'READY' }),
+    };
     const req = { clientUserId: 'u1', ip: '127.0.0.1', get: () => 'jest' } as unknown as Request;
     for (const active of [true, false]) {
       const controller = new PortalController(
         portal as unknown as PortalService,
+        invoiceList as unknown as PortalInvoicesService,
         { isActive: () => active, getId: () => 'req-1' } as unknown as ClsService<RequestContext>,
       );
       await expect(controller.files(req)).resolves.toEqual([]);
@@ -27,6 +33,15 @@ describe('PortalController', () => {
       await expect(controller.download('d1', req)).resolves.toBe('link');
       await expect(controller.upload('f1', req)).resolves.toBe('upload');
       await expect(controller.uploads('f1', req)).resolves.toEqual([]);
+      await expect(controller.invoices(req)).resolves.toEqual([]);
+      const res = { status: jest.fn() };
+      await expect(controller.invoicePdf('i1', req, res as never)).resolves.toEqual({
+        status: 'READY',
+      });
+      expect(res.status).toHaveBeenCalledWith(200);
+      invoiceList.pdf.mockResolvedValueOnce({ status: 'RENDERING' });
+      await controller.invoicePdf('i1', req, res as never);
+      expect(res.status).toHaveBeenLastCalledWith(202);
     }
     expect(portal.file).toHaveBeenCalledWith('u1', 'f1');
     expect(portal.download).toHaveBeenLastCalledWith(
@@ -36,6 +51,7 @@ describe('PortalController', () => {
     );
     const controller = new PortalController(
       portal as unknown as PortalService,
+      invoiceList as unknown as PortalInvoicesService,
       {} as ClsService<RequestContext>,
     );
     expect(() => controller.files({} as Request)).toThrow('PortalAuthGuard did not run');

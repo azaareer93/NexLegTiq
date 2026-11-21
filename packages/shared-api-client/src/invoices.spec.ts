@@ -29,6 +29,7 @@ const invoice = {
   paymentMethod: null,
   paymentReference: null,
   notes: null,
+  sharedWithClient: false,
   lines: [],
 };
 const retainer = { fileId: FILE, currency: 'ILS', balance: '10.00', entries: [] };

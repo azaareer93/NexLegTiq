@@ -43,6 +43,7 @@ import type {
 import type { Response } from 'express';
 
 import { InvoiceLifecycle } from './invoice-lifecycle.service';
+import { InvoiceSharing } from './invoice-sharing.service';
 import { InvoicesService } from './invoices.service';
 import { InvoicePdfService } from './pdf/invoice-pdf.service';
 import { ResourceNotFoundException } from '../../common/errors/app.exception';
@@ -50,6 +51,7 @@ import type { PaginatedResult } from '../../common/http/paginated-result';
 import { ZodValidationPipe } from '../../common/http/zod-validation.pipe';
 import { ApiZodBody, ApiZodQuery, ApiZodResponse } from '../../common/openapi/api-zod.decorators';
 import { RequireAnyPermission, RequirePermissions } from '../../common/rbac/permissions.decorator';
+import { AllowWhenReadOnly } from '../subscriptions/subscription.decorators';
 
 const invoiceId = new ParseUUIDPipe({ exceptionFactory: () => new ResourceNotFoundException() });
 
@@ -62,6 +64,7 @@ export class InvoicesController {
     private readonly invoices: InvoicesService,
     private readonly lifecycle: InvoiceLifecycle,
     private readonly pdfs: InvoicePdfService,
+    private readonly sharing: InvoiceSharing,
   ) {}
 
   @Get()
@@ -163,6 +166,31 @@ export class InvoicesController {
     const answer = await this.pdfs.link(id, query.language);
     res.status(answer.status === 'READY' ? HttpStatus.OK : HttpStatus.ACCEPTED);
     return answer;
+  }
+
+  @Post(':id/share')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('generate:invoice')
+  @ApiOperation({
+    summary:
+      'Show an issued invoice to its client on the portal (audited; INVOICE_SHARED); a draft or void → 422 BIZ-006',
+  })
+  @ApiZodResponse(HttpStatus.OK, InvoiceSchema)
+  async share(@Param('id', invoiceId) id: string): Promise<Invoice> {
+    await this.sharing.setShared(id, true);
+    return this.invoices.get(id);
+  }
+
+  @Post(':id/unshare')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('generate:invoice')
+  // A read-only office still serves its portal (D-158), so it can always withdraw an invoice.
+  @AllowWhenReadOnly()
+  @ApiOperation({ summary: 'Stop showing the invoice on the portal (audited)' })
+  @ApiZodResponse(HttpStatus.OK, InvoiceSchema)
+  async unshare(@Param('id', invoiceId) id: string): Promise<Invoice> {
+    await this.sharing.setShared(id, false);
+    return this.invoices.get(id);
   }
 
   @Post(':id/mark-paid')

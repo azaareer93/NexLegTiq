@@ -292,6 +292,7 @@
     "SUMMARY_GENERATED": "AI summary",
     "INVOICE_SENT": "Invoice sent",
     "INVOICE_PAID": "Invoice paid",
+    "INVOICE_SHARED": "Invoice shared with the client",
     "RETAINER_DEPOSITED": "Retainer deposit"
   }
 }
