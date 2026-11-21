@@ -230,6 +230,75 @@ describe('my files', () => {
     expect(list.textContent).toContain('Please send a clearer photo');
   });
 
+  it('should offer a retry when the files cannot be loaded', async () => {
+    let calls = 0;
+    server.use(
+      http.get(api('portal/files'), () => {
+        calls += 1;
+        return calls <= 2 ? fail(500, 'SYS-001') : ok([]);
+      }),
+    );
+    await renderApp('/', 'en');
+    fireEvent.click(await screen.findByRole('button', { name: /retry|try again/i }));
+    expect(await screen.findByText(t('portal.files.empty'))).toBeTruthy();
+  });
+
+  it('should show the court in Arabic, no hearing when none is set, and skip missing contact rows', async () => {
+    server.use(
+      http.post(api('portal/auth/refresh'), () =>
+        ok({
+          ...SESSION,
+          user: {
+            ...SESSION.user,
+            offices: [{ ...SESSION.user.offices[0], officePhone: null, officeEmail: null }],
+          },
+        }),
+      ),
+      http.get(api('portal/files'), () =>
+        ok([FILE, { ...FILE, id: '01920000-0000-7000-8000-000000000102', nextHearing: null }]),
+      ),
+    );
+    await renderApp('/');
+    expect((await screen.findByTestId(`file-${FILE_ID}`)).textContent).toContain(
+      'محكمة صلح رام الله',
+    );
+    expect(screen.getByText(text(RESOURCES.ar, 'portal.files.noHearing'))).toBeTruthy();
+    expect(screen.queryByTestId('contact-phone')).toBeNull();
+    expect(screen.queryByTestId('contact-email')).toBeNull();
+  });
+
+  it('should show sizes in B and MB and an empty documents state', async () => {
+    server.use(
+      http.get(api(`portal/files/${FILE_ID}/documents`), () =>
+        ok([
+          {
+            id: DOC_ID,
+            name: 'a.pdf',
+            mimeType: 'application/pdf',
+            sizeBytes: '512',
+            createdAt: '2026-11-15T09:00:00.000Z',
+          },
+          {
+            id: '01920000-0000-7000-8000-000000000302',
+            name: 'b.pdf',
+            mimeType: 'application/pdf',
+            sizeBytes: '3145728',
+            createdAt: '2026-11-15T09:00:00.000Z',
+          },
+        ]),
+      ),
+    );
+    await renderApp(`/files/${FILE_ID}?tab=documents`, 'en');
+    const list = await screen.findByTestId('documents-list');
+    expect(list.textContent).toContain('512 B');
+    expect(list.textContent).toContain('3 MB');
+    cleanup();
+    server.use(http.get(api(`portal/files/${FILE_ID}/documents`), () => ok([])));
+    resetSession();
+    await renderApp(`/files/${FILE_ID}?tab=documents`, 'en');
+    expect(await screen.findByText(t('portal.documents.empty'))).toBeTruthy();
+  });
+
   it('should name the product, not one office, when the account spans several offices', async () => {
     const other = {
       ...SESSION.user.offices[0],

@@ -69,6 +69,24 @@ describe('portal sign-in', () => {
     expect(usePortalSession.getState().accessToken).toBe('portal-access');
   });
 
+  it('should check the fields with the contract before sending anything', async () => {
+    let sent = false;
+    server.use(
+      http.post(api('portal/auth/login'), () => {
+        sent = true;
+        return ok(SESSION);
+      }),
+    );
+    await renderApp('/login', 'en');
+    await screen.findByTestId('login-email');
+    type('login-email', 'not-an-email');
+    click('login-submit');
+    await waitFor(() =>
+      expect(document.querySelector('.ant-form-item-explain-error')).not.toBeNull(),
+    );
+    expect(sent).toBe(false);
+  });
+
   it('should show a refused sign-in without leaving the page', async () => {
     server.use(http.post(api('portal/auth/login'), () => fail(401, 'AUTH-001')));
     await renderApp('/login', 'en');

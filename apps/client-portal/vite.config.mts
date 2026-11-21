@@ -40,6 +40,7 @@ export default defineConfig(() => ({
         'src/**/index.ts',
         'src/main.tsx',
         'src/app/router.ts',
+        'src/test/**',
       ],
       // D-071 quality gate (enforced when run with --coverage, as CI does)
       thresholds: { lines: 70, branches: 70, functions: 70, statements: 70 },
