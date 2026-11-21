@@ -17,13 +17,19 @@ process, Prisma's default pool of 10 connections).
 | `POST /documents` (10 KB PDF, 202 ack) | 2 s | 186.2 ms | 160.7 ms | ✓ |
 | Errors | < 1% | 0.00% | 0.00% | ✓ |
 
-¹ The first run searched common words only. List and case reads did not change between the runs (same code); the
-difference is run-to-run noise.
+¹ The first run searched common words only.
+
+The list and case-read code did not change between the runs: their differences (54.6 → 70.8 ms, 151 → 178 ms) are
+run-to-run noise on a shared laptop. The upload gate is the k6 table's 2 s (`quality-testing.md`), tighter than the
+5 s ack budget of `architecture.md`.
 
 **Search at 10 VUs** (after): common words 265 ms, rare 71 ms, mix 238 ms p95. One common-word search costs ~200 ms of
 database time (the document-text query, below); 50 of them a second saturate the database CPU, and rare searches queue
-behind them. Follow-up story: document search for common words (options in Jira: per-user cache, two-step search, an
+behind them. Follow-up story MVP-172: document search for common words (options: per-user cache, two-step search, an
 ordered index, a bigger pool).
+
+Trade-off of the cap: for a word with more than 1,000 matches in the office, an older row that would rank higher is
+not returned (nor added by the trigram pass); the newest matches are.
 
 ## Tuning
 
@@ -49,11 +55,13 @@ The top 10 queries and their plans: [top-queries.md](top-queries.md).
 
 Production builds (`VITE_API_URL` set), gzip sizes from `pnpm perf:bundle`:
 
-| App | First load (index.html) | Largest later chunk | Budget (CI) |
-|---|---|---|---|
-| office-app | 674.5 kB | 124.9 kB (`pdf`, the PDF viewer) | 700 / 150 kB |
-| client-portal | 389.9 kB | 26.8 kB (`FileDetailPage`) | 410 / 60 kB |
-| admin-panel | 394.6 kB | 82.6 kB (`table`) | 415 / 100 kB |
+| App | First load (index.html) | Largest later chunk | Largest worker | Budget (CI) |
+|---|---|---|---|---|
+| office-app | 674.5 kB | 124.9 kB (`pdf`, the PDF viewer) | 367.3 kB (PDF.js) | 700 / 150 / 390 kB |
+| client-portal | 389.8 kB | 26.8 kB (`FileDetailPage`) | — | 410 / 60 / 0 kB |
+| admin-panel | 394.6 kB | 82.6 kB (`table`) | — | 415 / 100 / 0 kB |
+
+Per app rather than per route: the largest later chunk bounds every route's own chunk.
 
 The budgets guard against regressions; they are not the 4G target. Lighthouse 12.8 on the office app's `/login`
 (`vite preview` of the production build):
@@ -64,8 +72,9 @@ The budgets guard against regressions; they are not the 4G target. Lighthouse 12
 | Desktop | 0.91 | 1.3 s | 1.4 s | 10 ms | |
 
 The sign-in page loads the whole shell: `index.html` preloads the case list, client drawer, quick-create and AntD table /
-date-picker chunks (321 KiB of unused JavaScript on `/login`). Follow-up story: split the shell so the public pages load
-without it. Authenticated pages were not measured: the production build talks to an https API only — run them on staging.
+date-picker chunks (321 KiB of unused JavaScript on `/login`). Follow-up story MVP-173: split the shell so the public pages
+load without it, and measure the authenticated pages on staging — they were not measured here: the production build talks
+to an https API only.
 
 ## How to run
 

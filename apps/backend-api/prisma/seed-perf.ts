@@ -85,24 +85,25 @@ async function seedPerfOffice(
   const o = Prisma.sql`${officeId}::uuid`;
   const s = PERF_SIZES;
 
-  await prisma.$executeRaw`SELECT setseed(${index / 100})`;
-  await prisma.$executeRaw`
-    INSERT INTO clients (id, office_id, client_type, display_name, updated_at)
-    SELECT nlq_uuid_v7(), ${o}, 'INDIVIDUAL', ${TITLE}, now() FROM generate_series(1, ${s.clients}) g`;
-  // Files: a quarter per lawyer, one in five closed, one in fifty confidential, opened over three years.
-  await prisma.$executeRaw`
-    INSERT INTO legal_files (id, office_id, file_number, title, file_type, status, responsible_lawyer_id,
-                             responsible_paralegal_id, jurisdiction, currency, is_confidential, opening_date,
-                             created_at, updated_at)
-    SELECT nlq_uuid_v7(), ${o}, 'P-' || lpad(g::text, 5, '0'), ${TITLE},
-           (ARRAY['LITIGATION','RENTAL_AGREEMENT','CONTRACT_DRAFTING','LEGAL_ADVISORY']::"FileType"[])[1 + g % 4],
-           CASE WHEN g % 5 = 0 THEN 'CLOSED' ELSE 'OPEN' END::"FileStatus",
-           (${lawyerArray})[1 + g % 4], CASE WHEN g % 3 = 0 THEN ${users['paralegal']}::uuid END,
-           'PALESTINE', 'ILS', g % 50 = 0, (now() - (g % 1095) * interval '1 day')::date,
-           now() - (g % 1095) * interval '1 day', now() - (g % 90) * interval '1 day'
-    FROM generate_series(1, ${s.files}) g`;
   await prisma.$transaction(
     async (tx) => {
+      // One connection: the seed (reproducible data) and every insert, all or nothing.
+      await tx.$executeRaw`SELECT setseed(${index / 100})`;
+      await tx.$executeRaw`
+        INSERT INTO clients (id, office_id, client_type, display_name, updated_at)
+        SELECT nlq_uuid_v7(), ${o}, 'INDIVIDUAL', ${TITLE}, now() FROM generate_series(1, ${s.clients}) g`;
+      // Files: a quarter per lawyer, one in five closed, one in fifty confidential, opened over three years.
+      await tx.$executeRaw`
+        INSERT INTO legal_files (id, office_id, file_number, title, file_type, status, responsible_lawyer_id,
+                                 responsible_paralegal_id, jurisdiction, currency, is_confidential, opening_date,
+                                 created_at, updated_at)
+        SELECT nlq_uuid_v7(), ${o}, 'P-' || lpad(g::text, 5, '0'), ${TITLE},
+               (ARRAY['LITIGATION','RENTAL_AGREEMENT','CONTRACT_DRAFTING','LEGAL_ADVISORY']::"FileType"[])[1 + g % 4],
+               CASE WHEN g % 5 = 0 THEN 'CLOSED' ELSE 'OPEN' END::"FileStatus",
+               (${lawyerArray})[1 + g % 4], CASE WHEN g % 3 = 0 THEN ${users['paralegal']}::uuid END,
+               'PALESTINE', 'ILS', g % 50 = 0, (now() - (g % 1095) * interval '1 day')::date,
+               now() - (g % 1095) * interval '1 day', now() - (g % 90) * interval '1 day'
+        FROM generate_series(1, ${s.files}) g`;
       // Files numbered once, so every child picks its file by `g % files`.
       await tx.$executeRaw`
         CREATE TEMP TABLE perf_files ON COMMIT DROP AS
@@ -175,15 +176,25 @@ async function seedPerfOffice(
   return officeId;
 }
 
-async function main(): Promise<void> {
+/** The run's settings from the environment, refused when unsafe or malformed. */
+function perfSettings(): { password: string; offices: number; url: string } {
   if (!perfAllowed()) throw new Error('seed-perf runs only with NODE_ENV=development|test');
   const password = process.env['PERF_PASSWORD'];
   if (!password || password.length < 12)
     throw new Error('Set PERF_PASSWORD (12+ characters) for the perf accounts');
   const offices = Number(process.env['PERF_OFFICES'] ?? 20);
+  if (!Number.isInteger(offices) || offices < 1 || offices > 100)
+    throw new Error('PERF_OFFICES must be a whole number from 1 to 100');
   // Its own variable, never DATABASE_URL: Nx loads the developer's .env, which names the dev database.
   const url = process.env['PERF_DATABASE_URL'];
   if (!url) throw new Error('Set PERF_DATABASE_URL to the perf database (docs/perf/baseline.md)');
+  if (url === process.env['DATABASE_URL'])
+    throw new Error('PERF_DATABASE_URL names the dev database (DATABASE_URL): use the perf one');
+  return { password, offices, url };
+}
+
+async function main(): Promise<void> {
+  const { password, offices, url } = perfSettings();
   process.env['DATABASE_URL'] = url;
   const prisma = createSeedClient();
   try {

@@ -19,7 +19,7 @@ describe('searchQuery (D-165)', () => {
 
   it('should rank only the newest word matches (D-235)', () => {
     const { sql } = searchQuery('documents', OFFICE, 'عقد', 5, ALL);
-    expect(sql).toContain(`ORDER BY t."id" DESC\n        LIMIT ${RANKED_CANDIDATES}`);
+    expect(sql).toMatch(new RegExp(`ORDER BY t\\."id" DESC\\s+LIMIT ${RANKED_CANDIDATES}\\b`));
   });
 
   it('should refuse a limit that is not a whole number from 1 to 100', () => {

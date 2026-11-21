@@ -83,7 +83,7 @@ export function searchQuery(
         FROM ${from} t
         WHERE ${scope} AND (${words})
         ORDER BY t."id" DESC
-        LIMIT ${Prisma.raw(String(RANKED_CANDIDATES))}
+        LIMIT ${Prisma.raw(String(RANKED_CANDIDATES))} -- a literal, so every plan (generic ones too) knows the cap
       ) c, q
       ORDER BY rank DESC, c."id"
       LIMIT ${limit}

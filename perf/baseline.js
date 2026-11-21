@@ -10,7 +10,8 @@ const PASSWORD = __ENV.PERF_PASSWORD;
 const OFFICES = Number(__ENV.PERF_OFFICES || 20);
 const VUS = Number(__ENV.VUS || 50);
 const DURATION = __ENV.DURATION || '60s';
-const STEP = Number(__ENV.STEP_SECONDS || 70);
+// Scenarios start one after the other: the duration (seconds) plus 10 s for the last requests to finish.
+const STEP = Number(__ENV.STEP_SECONDS || parseInt(DURATION, 10) + 10);
 // Half the searches use a word of the seed's small vocabulary, found in most rows (the worst case: about 3 in 4 documents),
 // half a word of its 2,000 others or a file number, as a name or a number is usually typed.
 const COMMON = ['عقد', 'ايجار', 'المدرسه', 'lease', 'contract', 'تعويض', 'احمد النور', 'claim'];
@@ -38,7 +39,7 @@ export const options = {
     'http_req_duration{endpoint:list}': ['p(95)<500'],
     'http_req_duration{endpoint:get}': ['p(95)<500'],
     'http_req_duration{endpoint:search}': ['p(95)<200'],
-    // Reported apart (no budget of their own): the two halves of the search mix.
+    // Reported apart, never failing (no budget of their own): the two halves of the search mix.
     'http_req_duration{endpoint:search,term:common}': ['p(95)<100000'],
     'http_req_duration{endpoint:search,term:rare}': ['p(95)<100000'],
     'http_req_duration{endpoint:dashboard}': ['p(95)<500'],
@@ -56,14 +57,14 @@ export function setup() {
   if (!PASSWORD) throw new Error('Set PERF_PASSWORD (the one seed-perf used)');
   const sessions = [];
   for (let office = 1; office <= OFFICES; office += 1) {
-    for (const key of ['manager', 'lawyer1']) {
+    for (const [n, key] of ['manager', 'lawyer1'].entries()) {
       const res = http.post(
         `${BASE}/auth/login`,
         JSON.stringify({ email: email(office, key), password: PASSWORD }),
         {
           headers: {
             'Content-Type': 'application/json',
-            'X-Forwarded-For': `10.250.${office}.${key.length}`,
+            'X-Forwarded-For': `10.250.${office}.${n + 1}`,
           },
           tags: { endpoint: 'setup' },
         },
