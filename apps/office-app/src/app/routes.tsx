@@ -1,28 +1,22 @@
 import { LoadingSkeleton } from '@nexlegtiq/shared-ui';
 import type { RouteObject } from 'react-router';
 
-import { auditRoutes } from '../features/audit';
+import { auditRoutes } from '../features/audit/routes';
 import { authRoutes, RequireAuth } from '../features/auth';
-import { calendarRoutes } from '../features/calendar';
-import { casesRoutes } from '../features/cases';
-import { clientsRoutes } from '../features/clients';
-import { dashboardRoutes } from '../features/dashboard';
-import { helpRoutes } from '../features/help';
-import { invoicesRoutes } from '../features/invoices';
-import { notificationsRoutes } from '../features/notifications';
-import { onboardingRoutes } from '../features/onboarding';
-import { profileRoutes } from '../features/profile';
-import { settingsRoutes } from '../features/settings';
-import {
-  AppShell,
-  NAV_ITEMS,
-  NotFoundPage,
-  RequirePermission,
-  RouteError,
-} from '../features/shell';
+import { calendarRoutes } from '../features/calendar/routes';
+import { casesRoutes } from '../features/cases/routes';
+import { clientsRoutes } from '../features/clients/routes';
+import { dashboardRoutes } from '../features/dashboard/routes';
+import { helpRoutes } from '../features/help/routes';
+import { invoicesRoutes } from '../features/invoices/routes';
+import { notificationsRoutes } from '../features/notifications/routes';
+import { onboardingRoutes } from '../features/onboarding/routes';
+import { profileRoutes } from '../features/profile/routes';
+import { settingsRoutes } from '../features/settings/routes';
+import { NAV_ITEMS, NotFoundPage, RequirePermission, RouteError } from '../features/shell';
 import type { NavKey } from '../features/shell';
-import { tasksRoutes } from '../features/tasks';
-import { teamRoutes } from '../features/team';
+import { tasksRoutes } from '../features/tasks/routes';
+import { teamRoutes } from '../features/team/routes';
 
 /** A lazy placeholder page, until its feature replaces it (its own chunk: the module is only imported here). */
 const placeholder = (navKey: NavKey): Pick<RouteObject, 'lazy'> => ({
@@ -68,7 +62,10 @@ export const routes: RouteObject[] = [
         element: <RequireAuth />,
         children: [
           {
-            element: <AppShell />,
+            // Its own chunk: the sign-in pages load without the menu, drawers and quick-create (D-245).
+            lazy: async () => ({
+              Component: (await import('../features/shell/components/AppShell')).AppShell,
+            }),
             children: [
               {
                 // Errors of a page stay inside the shell: the menu remains usable.
