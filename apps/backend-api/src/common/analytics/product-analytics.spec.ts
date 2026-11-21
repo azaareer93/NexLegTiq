@@ -51,7 +51,7 @@ describe('ProductAnalytics (D-215)', () => {
     const { analytics, raw, logger } = setup();
     await expect(
       analytics.track('INVITE_SENT', { email: 'a@example.test' } as never),
-    ).resolves.toBeUndefined();
+    ).resolves.toBe(false);
     expect(raw.productEvent.create).not.toHaveBeenCalled();
     expect(logger.warn).toHaveBeenCalled();
   });
@@ -76,10 +76,19 @@ describe('ProductAnalytics (D-215)', () => {
     );
   });
 
+  it('should retry the day’s activity on the next request when recording it failed', async () => {
+    const { analytics, raw } = setup();
+    raw.productEvent.create.mockRejectedValueOnce(new Error('down'));
+    const at = new Date('2026-11-21T08:00:00Z');
+    await analytics.active(OFFICE, at);
+    await analytics.active(OFFICE, at);
+    expect(raw.productEvent.create).toHaveBeenCalledTimes(2);
+  });
+
   it('should never fail the caller when the database does', async () => {
     const { analytics, raw } = setup();
     raw.productEvent.create.mockRejectedValueOnce(new Error('down'));
-    await expect(analytics.track('HEARING_SCHEDULED', {})).resolves.toBeUndefined();
+    await expect(analytics.track('HEARING_SCHEDULED', {})).resolves.toBe(false);
   });
 
   it("should record the office's first case with the seconds since signup, and no later one", async () => {

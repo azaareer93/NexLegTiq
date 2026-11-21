@@ -239,9 +239,10 @@
     "percent": "{{value}}%",
     "target": "Target: {{value}}%",
     "noCohort": "No office has reached this point yet.",
-    "retained": "{{retained}} of {{offices}} offices",
-    "d7": "Back on days 7–13 (D7)",
-    "d30": "Back on days 30–36 (D30)",
+    "retained_one": "{{retained}} of {{offices}} office",
+    "retained_other": "{{retained}} of {{offices}} offices",
+    "d7": "Back between day 7 and day 13 (D7)",
+    "d30": "Back between day 30 and day 36 (D30)",
     "medianFirstCase": "Median time to the first case",
     "minutes": "{{value}} min",
     "columns": {

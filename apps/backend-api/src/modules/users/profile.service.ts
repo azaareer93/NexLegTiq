@@ -132,9 +132,9 @@ export class ProfileService {
       data: { onboardingState: state },
       select: { id: true },
     });
-    // Product analytics (D-215): each step done for the first time, and finishing the wizard.
-    for (const step of state.done.filter((s) => !before?.done.includes(s)))
-      await this.analytics.track('ONBOARDING_STEP_COMPLETED', { step });
+    // Product analytics (D-215): each step done for the first time (ACCOUNT is counted at signup), and finishing.
+    const newlyDone = state.done.filter((s) => s !== 'ACCOUNT' && !before?.done.includes(s));
+    for (const step of newlyDone) await this.analytics.track('ONBOARDING_STEP_COMPLETED', { step });
     if (state.status === 'COMPLETED' && before?.status !== 'COMPLETED')
       await this.analytics.track('ONBOARDING_COMPLETED', {});
     return { state };

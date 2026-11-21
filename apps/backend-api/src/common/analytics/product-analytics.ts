@@ -29,14 +29,18 @@ export class ProductAnalytics {
     this.logger.setContext(ProductAnalytics.name);
   }
 
-  /** Records `event` for the request's office, or for `officeId` where no tenant context exists yet (signup, guard). */
+  /**
+   * Records `event` for the request's office, or for `officeId` where no tenant context exists yet (signup, guard).
+   * Resolves false only when recording failed (a skip by opt-out or DNT counts as done).
+   */
   async track<E extends ProductEventType>(
     event: E,
     props: ProductEventProps<E>,
-    officeId: string | undefined = this.cls.get('officeId'),
-  ): Promise<void> {
-    if (!officeId || this.cls.get('doNotTrack')) return;
+    forOffice?: string,
+  ): Promise<boolean> {
     try {
+      const officeId = forOffice ?? this.cls.get('officeId');
+      if (!officeId || this.cls.get('doNotTrack')) return true;
       const parsed = ProductEventSchema.parse({ event, props });
       // Also called before a tenant context exists (signup, the auth guard); the office id comes from the verified
       // token or the office just created, never from the request.
@@ -46,20 +50,26 @@ export class ProductAnalytics {
         where: { officeId },
         select: { enableProductAnalytics: true },
       });
-      if (settings?.enableProductAnalytics === false) return;
+      if (settings?.enableProductAnalytics === false) return true;
       await raw.productEvent.create({
         data: { officeId, event: parsed.event, props: parsed.props },
         select: { id: true },
       });
+      return true;
     } catch (error) {
       this.logger.warn({ err: error, event }, 'Could not record a product event');
+      return false;
     }
   }
 
-  /** After a case is created: the office's first one records the time since signup, later ones nothing. */
-  async firstCase(officeId: string | undefined = this.cls.get('officeId')): Promise<void> {
-    if (!officeId || this.cls.get('doNotTrack')) return;
+  /**
+   * After a case is created: the office's first one records the time since signup, later ones nothing.
+   * shortcut: two first cases created at the same instant may both see 2 files and record none; metrics only.
+   */
+  async firstCase(): Promise<void> {
     try {
+      const officeId = this.cls.get('officeId');
+      if (!officeId || this.cls.get('doNotTrack')) return;
       // unscoped: counts the office's own files by its id (all of them, closed and deleted included).
       const raw = this.prisma.unscoped();
       const [office, files] = await Promise.all([
@@ -82,12 +92,9 @@ export class ProductAnalytics {
    * guard on every authenticated request, so a memo per process skips the query once the day is recorded.
    */
   async active(officeId: string, now = new Date()): Promise<void> {
-    if (this.cls.get('doNotTrack')) return;
     const day = now.toISOString().slice(0, 10);
-    if (this.activeDay.get(officeId) === day) return;
-    if (this.activeDay.size >= MEMO_LIMIT) this.activeDay.clear();
-    this.activeDay.set(officeId, day);
     try {
+      if (this.cls.get('doNotTrack') || this.activeDay.get(officeId) === day) return;
       // unscoped: guard-time read before the tenant context exists, filtered by the token's own office.
       const seen = await this.prisma.unscoped().productEvent.findFirst({
         where: {
@@ -97,7 +104,11 @@ export class ProductAnalytics {
         },
         select: { id: true },
       });
-      if (!seen) await this.track('APP_ACTIVE', {}, officeId);
+      // Remembered only once the day is recorded: a failed write is retried on the next request.
+      if (seen || (await this.track('APP_ACTIVE', {}, officeId))) {
+        if (this.activeDay.size >= MEMO_LIMIT) this.activeDay.clear();
+        this.activeDay.set(officeId, day);
+      }
     } catch (error) {
       this.logger.warn({ err: error }, 'Could not record activity');
     }

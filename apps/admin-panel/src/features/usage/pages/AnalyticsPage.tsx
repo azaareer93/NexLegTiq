@@ -68,6 +68,7 @@ export function AnalyticsPage() {
                     <Typography.Text type="secondary">
                       {cohort.offices
                         ? t('admin.analytics.retained', {
+                            count: cohort.offices,
                             retained: format.number(cohort.retained),
                             offices: format.number(cohort.offices),
                           })

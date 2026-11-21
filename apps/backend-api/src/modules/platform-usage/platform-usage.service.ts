@@ -145,7 +145,7 @@ export class PlatformUsageService {
   /**
    * Onboarding funnel and retention (D-215) of the offices whose first SIGNUP_COMPLETED falls in the last `days` days:
    * offices per funnel event and per onboarding step, the median time to the first case, and D7/D30 retention (any
-   * APP_ACTIVE on days 7–13 / 30–36 after signup, counted only once that window has ended).
+   * APP_ACTIVE on UTC days 7–13 / 30–36 after the signup day, counted only once that window has ended).
    */
   async analytics(days: number, now = new Date()): Promise<AdminAnalytics> {
     const since = new Date(now.getTime() - days * DAY_MS);
@@ -158,7 +158,8 @@ export class PlatformUsageService {
       raw.$queryRaw<{ event: string; offices: number }[]>`
         WITH c AS (${cohort})
         SELECT e.event::text AS event, count(DISTINCT e.office_id)::int AS offices
-        FROM product_events e JOIN c ON c.office_id = e.office_id GROUP BY 1`,
+        FROM product_events e JOIN c ON c.office_id = e.office_id
+        WHERE e.event::text = ANY(${[...FUNNEL_EVENTS]}) GROUP BY 1`,
       raw.$queryRaw<{ step: string; offices: number }[]>`
         WITH c AS (${cohort})
         SELECT e.props->>'step' AS step, count(DISTINCT e.office_id)::int AS offices
@@ -169,20 +170,25 @@ export class PlatformUsageService {
         SELECT round(percentile_cont(0.5) WITHIN GROUP (ORDER BY (e.props->>'secondsSinceSignup')::int))::int AS seconds
         FROM product_events e JOIN c ON c.office_id = e.office_id WHERE e.event = 'FIRST_CASE_CREATED'`,
       raw.$queryRaw<AdminAnalytics['retention'][]>`
-        WITH c AS (${cohort}), r AS (
-          SELECT c.signed_up,
-            EXISTS (SELECT 1 FROM product_events a WHERE a.office_id = c.office_id AND a.event = 'APP_ACTIVE'
-              AND a.created_at >= c.signed_up + interval '7 days' AND a.created_at < c.signed_up + interval '14 days') AS w7,
-            EXISTS (SELECT 1 FROM product_events a WHERE a.office_id = c.office_id AND a.event = 'APP_ACTIVE'
-              AND a.created_at >= c.signed_up + interval '30 days' AND a.created_at < c.signed_up + interval '37 days') AS w30
-          FROM c)
+        WITH c AS (${cohort}), d AS (
+          -- UTC days on both sides: APP_ACTIVE is one row per office and UTC day.
+          SELECT office_id, (signed_up AT TIME ZONE 'UTC')::date AS d0 FROM c
+        ), r AS (
+          SELECT d.d0,
+            EXISTS (SELECT 1 FROM product_events a WHERE a.office_id = d.office_id AND a.event = 'APP_ACTIVE'
+              AND a.created_at >= (d.d0 + 7)::timestamp AT TIME ZONE 'UTC'
+              AND a.created_at < (d.d0 + 14)::timestamp AT TIME ZONE 'UTC') AS w7,
+            EXISTS (SELECT 1 FROM product_events a WHERE a.office_id = d.office_id AND a.event = 'APP_ACTIVE'
+              AND a.created_at >= (d.d0 + 30)::timestamp AT TIME ZONE 'UTC'
+              AND a.created_at < (d.d0 + 37)::timestamp AT TIME ZONE 'UTC') AS w30
+          FROM d), t AS (SELECT (${now}::timestamptz AT TIME ZONE 'UTC')::date AS today)
         SELECT json_build_object(
-            'offices', count(*) FILTER (WHERE signed_up <= ${now}::timestamptz - interval '14 days'),
-            'retained', count(*) FILTER (WHERE signed_up <= ${now}::timestamptz - interval '14 days' AND w7)) AS d7,
+            'offices', count(*) FILTER (WHERE d0 + 14 <= today),
+            'retained', count(*) FILTER (WHERE d0 + 14 <= today AND w7)) AS d7,
           json_build_object(
-            'offices', count(*) FILTER (WHERE signed_up <= ${now}::timestamptz - interval '37 days'),
-            'retained', count(*) FILTER (WHERE signed_up <= ${now}::timestamptz - interval '37 days' AND w30)) AS d30
-        FROM r`,
+            'offices', count(*) FILTER (WHERE d0 + 37 <= today),
+            'retained', count(*) FILTER (WHERE d0 + 37 <= today AND w30)) AS d30
+        FROM r, t`,
     ]);
     const offices = new Map(events.map((r) => [r.event, r.offices]));
     const byStep = new Map(steps.map((r) => [r.step, r.offices]));
