@@ -1,0 +1,98 @@
+{
+  "nav": {
+    "files": "My files",
+    "invoices": "Invoices",
+    "signOut": "Sign out",
+    "menu": "Menu"
+  },
+  "login": {
+    "title": "Sign in",
+    "subtitle": "Follow your files with your lawyer's office."
+  },
+  "acceptInvite": {
+    "title": "Set up your portal access",
+    "intro": "{{office}} has invited you to follow your files online as {{client}}.",
+    "existingAccount": "You already have a portal account with this email. Enter its password to add this office to it.",
+    "submit": "Continue",
+    "invalidBody": "Invitations can be used once and expire after 7 days. Ask your lawyer's office to send a new one."
+  },
+  "files": {
+    "title": "My files",
+    "empty": "No file yet",
+    "emptyHint": "Your lawyer's office has not linked a file to your account yet.",
+    "lawyer": "Lawyer",
+    "nextHearing": "Next hearing",
+    "noHearing": "No hearing scheduled",
+    "court": "Court",
+    "back": "Back to my files",
+    "notFound": "This file is not available",
+    "notFoundBody": "It may have been removed from your access. Contact your lawyer's office if you think this is a mistake."
+  },
+  "detail": {
+    "tabs": {
+      "overview": "Overview",
+      "documents": "Documents",
+      "uploads": "Send documents"
+    },
+    "status": "Status",
+    "timeline": "Timeline",
+    "timelineEmpty": "Nothing to show yet."
+  },
+  "timeline": {
+    "FILE_OPENED": "File opened",
+    "FILE_CLOSED": "File closed",
+    "FILE_REOPENED": "File reopened",
+    "SESSION_CREATED": "Hearing scheduled",
+    "SESSION_UPDATED": "Hearing updated",
+    "DOCUMENT_SHARED": "Document shared with you",
+    "INVOICE_SENT": "Invoice issued",
+    "INVOICE_PAID": "Invoice paid",
+    "other": "Update on the file"
+  },
+  "documents": {
+    "empty": "No shared documents",
+    "emptyHint": "Documents your lawyer shares with you appear here.",
+    "download": "Download {{name}}",
+    "downloadLabel": "Download"
+  },
+  "uploads": {
+    "intro": "Send documents your lawyer asked for. Each one is checked, then reviewed by the office.",
+    "pick": "Choose a file",
+    "hint": "PDF, Word, Excel or images, up to {{max}} MB each.",
+    "sent": "{{name}} sent",
+    "empty": "You have not sent any document on this file.",
+    "reason": "Reason: {{reason}}",
+    "status": {
+      "SCANNING": "Being checked",
+      "PENDING_REVIEW": "Waiting for the office",
+      "ACCEPTED": "Accepted",
+      "REJECTED": "Not accepted",
+      "QUARANTINED": "Refused for security reasons",
+      "FAILED": "Could not be checked, send it again"
+    }
+  },
+  "invoices": {
+    "title": "Invoices",
+    "empty": "No invoice",
+    "emptyHint": "Invoices your lawyer's office shares with you appear here.",
+    "number": "Invoice {{number}}",
+    "issued": "Issued",
+    "due": "Due",
+    "total": "Total",
+    "paidOn": "Paid on {{date}}",
+    "file": "File",
+    "pdf": "Download PDF",
+    "preparing": "The PDF is being prepared, try again in a moment.",
+    "status": {
+      "SENT": "Unpaid",
+      "OVERDUE": "Overdue",
+      "PAID": "Paid"
+    }
+  },
+  "contact": {
+    "title": "Contact your lawyer",
+    "body": "For any question about your file, contact {{office}}.",
+    "phone": "Phone",
+    "email": "Email"
+  }
+}

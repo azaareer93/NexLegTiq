@@ -34,7 +34,7 @@ export class PortalAccounts {
       select: {
         officeId: true,
         clientId: true,
-        office: { select: { name: true } },
+        office: { select: { name: true, phone: true, email: true } },
         client: { select: { displayName: true } },
       },
     });
@@ -50,6 +50,8 @@ export class PortalAccounts {
       .map((grant) => ({
         officeId: grant.officeId,
         officeName: grant.office.name,
+        officePhone: grant.office.phone,
+        officeEmail: grant.office.email,
         clientId: grant.clientId,
         clientName: grant.client.displayName,
       }));

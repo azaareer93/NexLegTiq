@@ -53,3 +53,5 @@ export type { TimeEntryListParams } from './time-entries.js';
 export { witnessesApi } from './witnesses.js';
 export { clientProfileApi } from './client-profile.js';
 export type { ClientDocumentListParams, InvoiceListParams } from './client-profile.js';
+export { portalApi, portalAuthApi } from './portal.js';
+export type { PortalClientSession } from './portal.js';
