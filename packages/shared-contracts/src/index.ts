@@ -23,6 +23,7 @@ export * from './notification.contract.js';
 export * from './office-export.contract.js';
 export * from './office.contract.js';
 export * from './onboarding.contract.js';
+export * from './product-analytics.contract.js';
 export * from './party.contract.js';
 export * from './password.contract.js';
 export * from './portal-auth.contract.js';

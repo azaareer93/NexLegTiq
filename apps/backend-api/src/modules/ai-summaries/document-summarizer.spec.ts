@@ -1,6 +1,7 @@
 import type { ClsService } from 'nestjs-cls';
 
 import { DocumentSummarizer } from './document-summarizer';
+import type { ProductAnalytics } from '../../common/analytics/product-analytics';
 import type { RequestContext } from '../../common/context/request-context';
 import type { RealtimePublisher } from '../../common/realtime/realtime.publisher';
 import type { PrismaService } from '../../database/prisma.service';
@@ -72,6 +73,7 @@ function setup({
     registry,
     { get: () => 'o1' } as unknown as ClsService<RequestContext>,
     testTimeline({ get: () => 'o1' }),
+    { track: jest.fn() } as unknown as ProductAnalytics,
   );
   service.onModuleInit();
   return { service, registry, executor, access, realtime, tx, db };
@@ -166,6 +168,18 @@ describe('DocumentSummarizer (D-148)', () => {
       documentId: FIELDS.documentId,
       fileId: 'f1',
     });
+  });
+
+  it('should let any other storage failure through (only a duplicate is a racing job)', async () => {
+    for (const error of [
+      new Error('connection lost'),
+      Object.assign(new Error('fk'), { name: 'PrismaClientKnownRequestError', code: 'P2003' }),
+    ]) {
+      const broken = setup();
+      broken.tx.aiSummary.create.mockRejectedValueOnce(error);
+      await expect(broken.service.run(FIELDS, CONTEXT)).rejects.toBe(error);
+      expect(broken.db.aiSummary.findFirstOrThrow).not.toHaveBeenCalled();
+    }
   });
 
   it('should reuse a stored summary, and refuse a missing document or one without text', async () => {

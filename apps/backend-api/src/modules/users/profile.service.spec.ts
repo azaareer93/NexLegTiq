@@ -5,6 +5,7 @@ import type { ClsService } from 'nestjs-cls';
 import type { PinoLogger } from 'nestjs-pino';
 
 import { ProfileService } from './profile.service';
+import type { ProductAnalytics } from '../../common/analytics/product-analytics';
 import type { AuditService } from '../../common/audit/audit.service';
 import type { RequestContext } from '../../common/context/request-context';
 import type { StorageService } from '../../common/storage/storage.service';
@@ -48,6 +49,7 @@ function setup(user: Partial<typeof USER> = {}) {
   };
   const audit = { log: jest.fn() };
   const logger = { setContext: jest.fn(), warn: jest.fn() };
+  const analytics = { track: jest.fn() };
   const service = new ProfileService(
     { db } as unknown as PrismaService,
     storage as unknown as StorageService,
@@ -56,8 +58,9 @@ function setup(user: Partial<typeof USER> = {}) {
       get: (key: string) => (key === 'officeId' ? 'o1' : 'u1'),
     } as unknown as ClsService<RequestContext>,
     logger as unknown as PinoLogger,
+    analytics as unknown as ProductAnalytics,
   );
-  return { service, tx, storage, audit, logger, db };
+  return { service, tx, storage, audit, logger, db, analytics };
 }
 
 const file = (content: Buffer, filename: string, truncated = false) => ({
@@ -204,9 +207,32 @@ describe('ProfileService (D-146)', () => {
     const state: OnboardingState = { status: 'ACTIVE', step: 'TOUR', done: ['ACCOUNT'] };
     db.user.findUniqueOrThrow.mockResolvedValueOnce({ onboardingState: state });
     await expect(service.onboarding()).resolves.toEqual({ state });
+    db.user.findUniqueOrThrow.mockResolvedValueOnce({ onboardingState: state });
     await expect(service.saveOnboarding(state)).resolves.toEqual({ state });
     expect(db.user.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: { onboardingState: state } }),
     );
+  });
+
+  it('should count each newly done step and finishing the wizard, once (D-215)', async () => {
+    const { service, db, analytics } = setup();
+    const before: OnboardingState = { status: 'ACTIVE', step: 'TOUR', done: ['ACCOUNT', 'OFFICE'] };
+    db.user.findUniqueOrThrow.mockResolvedValueOnce({ onboardingState: before });
+    await service.saveOnboarding({
+      status: 'COMPLETED',
+      step: 'DONE',
+      done: ['ACCOUNT', 'OFFICE', 'TOUR', 'CASE'],
+    });
+    expect(analytics.track.mock.calls).toEqual([
+      ['ONBOARDING_STEP_COMPLETED', { step: 'TOUR' }],
+      ['ONBOARDING_STEP_COMPLETED', { step: 'CASE' }],
+      ['ONBOARDING_COMPLETED', {}],
+    ]);
+
+    analytics.track.mockClear();
+    const done: OnboardingState = { status: 'COMPLETED', step: 'DONE', done: ['ACCOUNT'] };
+    db.user.findUniqueOrThrow.mockResolvedValueOnce({ onboardingState: done });
+    await service.saveOnboarding(done);
+    expect(analytics.track).not.toHaveBeenCalled();
   });
 });

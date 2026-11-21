@@ -2,6 +2,8 @@ import { Controller, Get, HttpStatus, Query, StreamableFile, UseGuards } from '@
 import { ApiBearerAuth, ApiOperation, ApiProduces, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import {
+  AdminAnalyticsQuerySchema,
+  AdminAnalyticsSchema,
   AdminAuditExportQuerySchema,
   AdminAuditPageSchema,
   AdminAuditQuerySchema,
@@ -10,6 +12,8 @@ import {
   AdminUsageSchema,
 } from '@nexlegtiq/shared-contracts';
 import type {
+  AdminAnalytics,
+  AdminAnalyticsQuery,
   AdminAuditExportQuery,
   AdminAuditPage,
   AdminAuditQuery,
@@ -43,6 +47,18 @@ export class PlatformUsageController {
     @Query(new ZodValidationPipe(AdminUsageQuerySchema)) query: AdminUsageQuery,
   ): Promise<AdminUsage> {
     return this.usage.usage(query.days);
+  }
+
+  @Get('analytics')
+  @ApiOperation({
+    summary: 'Product analytics: onboarding funnel and D7/D30 retention of recent signups (D-215)',
+  })
+  @ApiZodQuery(AdminAnalyticsQuerySchema)
+  @ApiZodResponse(HttpStatus.OK, AdminAnalyticsSchema)
+  analytics(
+    @Query(new ZodValidationPipe(AdminAnalyticsQuerySchema)) query: AdminAnalyticsQuery,
+  ): Promise<AdminAnalytics> {
+    return this.usage.analytics(query.days);
   }
 
   @Get('queues')

@@ -439,32 +439,35 @@ model Office {
   clientUploads          ClientUpload[]
   documentVersions       DocumentVersion[]
   documentTexts          DocumentText[]
+  productEvents          ProductEvent[]
 
   @@map("offices")
 }
 
 /// Typed per-office settings (not key/value). audit_retention_days >= 365 is a CHECK constraint (D-060).
 model OfficeSettings {
-  id                    String        @id @default(uuid(7)) @db.Uuid
-  officeId              String        @unique @map("office_id") @db.Uuid
-  courtReminderDays     Int[]         @default([7, 3, 1]) @map("court_reminder_days")
-  taskReminderDays      Int[]         @default([1]) @map("task_reminder_days")
-  defaultBillingRate    Decimal?      @map("default_billing_rate") @db.Decimal(14, 2)
-  defaultBillingMethod  BillingMethod @default(HOURLY) @map("default_billing_method")
-  taxRatePercent        Decimal       @default(0) @map("tax_rate_percent") @db.Decimal(5, 2)
-  enableAi              Boolean       @default(true) @map("enable_ai")
-  enableOcr             Boolean       @default(true) @map("enable_ocr")
+  id                     String        @id @default(uuid(7)) @db.Uuid
+  officeId               String        @unique @map("office_id") @db.Uuid
+  courtReminderDays      Int[]         @default([7, 3, 1]) @map("court_reminder_days")
+  taskReminderDays       Int[]         @default([1]) @map("task_reminder_days")
+  defaultBillingRate     Decimal?      @map("default_billing_rate") @db.Decimal(14, 2)
+  defaultBillingMethod   BillingMethod @default(HOURLY) @map("default_billing_method")
+  taxRatePercent         Decimal       @default(0) @map("tax_rate_percent") @db.Decimal(5, 2)
+  enableAi               Boolean       @default(true) @map("enable_ai")
+  enableOcr              Boolean       @default(true) @map("enable_ocr")
   /// Google Vision for hard-to-read scans (D-142): the office's opt-in, also gated by the plan flag `googleVisionOcr`.
-  enableVisionOcr       Boolean       @default(false) @map("enable_vision_ocr")
-  fileNumberFormat      String        @default("{YEAR}-{TYPE}-{SEQ:5}") @map("file_number_format")
-  sessionIdleMinutes    Int           @default(30) @map("session_idle_minutes")
+  enableVisionOcr        Boolean       @default(false) @map("enable_vision_ocr")
+  /// First-party product analytics (D-215): false = the office opted out.
+  enableProductAnalytics Boolean       @default(true) @map("enable_product_analytics")
+  fileNumberFormat       String        @default("{YEAR}-{TYPE}-{SEQ:5}") @map("file_number_format")
+  sessionIdleMinutes     Int           @default(30) @map("session_idle_minutes")
   /// A stopped timer is rounded up to this many minutes (D-152).
-  timeIncrementMinutes  Int           @default(6) @map("time_increment_minutes")
-  auditRetentionDays    Int           @default(365) @map("audit_retention_days")
+  timeIncrementMinutes   Int           @default(6) @map("time_increment_minutes")
+  auditRetentionDays     Int           @default(365) @map("audit_retention_days")
   /// Highest retention ever set; kept by a trigger (never lowered) and used by the purge (D-136).
-  maxAuditRetentionDays Int           @default(365) @map("max_audit_retention_days")
-  createdAt             DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt             DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  maxAuditRetentionDays  Int           @default(365) @map("max_audit_retention_days")
+  createdAt              DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   office Office @relation(fields: [officeId], references: [id], onDelete: Cascade)
 
@@ -2184,4 +2187,33 @@ model ClientUpload {
   @@index([officeId, clientId])
   @@index([clientUserId])
   @@map("client_uploads")
+}
+
+/// Product analytics (D-215): first-party, in our own database. The office id is the only identifier — no user, name,
+/// email, case title or document content; `props` holds only what shared-contracts' ProductEventSchema allows.
+model ProductEvent {
+  id        String           @id @default(uuid(7)) @db.Uuid
+  officeId  String           @map("office_id") @db.Uuid
+  event     ProductEventType
+  props     Json             @default("{}")
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  office Office @relation(fields: [officeId], references: [id], onDelete: Cascade)
+
+  @@index([officeId, event, createdAt])
+  @@index([event, createdAt])
+  @@map("product_events")
+}
+
+enum ProductEventType {
+  SIGNUP_COMPLETED
+  ONBOARDING_STEP_COMPLETED
+  ONBOARDING_COMPLETED
+  FIRST_CASE_CREATED
+  HEARING_SCHEDULED
+  DOCUMENT_UPLOADED
+  AI_SUMMARY_GENERATED
+  INVITE_SENT
+  PORTAL_INVITE_SENT
+  APP_ACTIVE
 }

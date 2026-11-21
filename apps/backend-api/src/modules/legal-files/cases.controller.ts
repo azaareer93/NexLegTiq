@@ -31,6 +31,7 @@ import type { Request } from 'express';
 import { ClsService } from 'nestjs-cls';
 
 import { CasesService } from './cases.service';
+import { TrackProductEvent } from '../../common/analytics/product-event.interceptor';
 import { AuditService } from '../../common/audit/audit.service';
 import { clientFromRequest } from '../../common/context/client-info';
 import type { ClientInfo } from '../../common/context/client-info';
@@ -57,6 +58,7 @@ export class CasesController {
 
   @Post()
   @RequirePermissions('create:case')
+  @TrackProductEvent('FIRST_CASE_CREATED')
   @ApiOperation({ summary: 'Open a legal file; the number is generated' })
   @ApiZodBody(CreateCaseSchema)
   @ApiZodResponse(HttpStatus.CREATED, CaseSchema)

@@ -5,6 +5,7 @@ import { AiSummariesController } from './ai-summaries.controller';
 import type { AiSummariesService } from './ai-summaries.service';
 import { addDays, SessionSummariesService } from './session-summaries.service';
 import { SessionSummarizer } from './session-summarizer';
+import type { ProductAnalytics } from '../../common/analytics/product-analytics';
 import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import type { RealtimePublisher } from '../../common/realtime/realtime.publisher';
@@ -202,6 +203,7 @@ describe('SessionSummarizer (D-179)', () => {
       { register: jest.fn() } as unknown as AiJobRegistry,
       { get: () => officeId ?? undefined } as unknown as ClsService<RequestContext>,
       timeline as unknown as TimelineService,
+      { track: jest.fn() } as unknown as ProductAnalytics,
     );
     return { summarizer, tx, executor, realtime, timeline, db };
   }
@@ -337,6 +339,7 @@ describe('session summary wiring (D-179)', () => {
       { register } as unknown as AiJobRegistry,
       { get: () => undefined } as unknown as ClsService<RequestContext>,
       {} as TimelineService,
+      { track: jest.fn() } as unknown as ProductAnalytics,
     );
     summarizer.onModuleInit();
     expect(register).toHaveBeenCalledWith('summarize-session', expect.any(Function));

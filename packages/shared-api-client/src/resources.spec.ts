@@ -550,6 +550,7 @@ describe('officesApi', () => {
       enableAi: true,
       enableOcr: true,
       enableVisionOcr: false,
+      enableProductAnalytics: true,
       fileNumberFormat: '{YEAR}-{TYPE}-{SEQ:5}',
       sessionIdleMinutes: 30,
       auditRetentionDays: 365,

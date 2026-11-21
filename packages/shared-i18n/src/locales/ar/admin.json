@@ -228,6 +228,43 @@
       "updated": "تم تحديث الخطة."
     }
   },
+  "analytics": {
+    "title": "تحليلات المنتج",
+    "privacy": "تُحتسب لكل مكتب في قاعدة بياناتنا: بلا أسماء أو عناوين بريد أو عناوين قضايا أو محتوى مستندات. لا تُحتسب المكاتب التي أوقفت التحليلات ولا المتصفحات التي ترسل إشارة «عدم التتبع» (⁦Do Not Track⁩).",
+    "period": "المكاتب التي سجّلت منذ {{date}}",
+    "funnel": "مسار بدء الاستخدام",
+    "steps": "خطوات دليل الإعداد المكتملة",
+    "share": "{{value}}% من المسجّلين",
+    "shareTarget": "{{value}}% من المسجّلين (الهدف {{target}}%)",
+    "percent": "{{value}}%",
+    "target": "الهدف: {{value}}%",
+    "noCohort": "لم يبلغ أي مكتب هذه المرحلة بعد.",
+    "retained_zero": "{{retained}} من {{offices}} مكتب",
+    "retained_one": "{{retained}} من مكتب واحد",
+    "retained_two": "{{retained}} من مكتبين",
+    "retained_few": "{{retained}} من {{offices}} مكاتب",
+    "retained_many": "{{retained}} من {{offices}} مكتبًا",
+    "retained_other": "{{retained}} من {{offices}} مكتب",
+    "d7": "عادوا بين اليوم 7 واليوم 13 (⁦D7⁩)",
+    "d30": "عادوا بين اليوم 30 واليوم 36 (⁦D30⁩)",
+    "medianFirstCase": "الوقت الوسيط حتى أول قضية",
+    "minutes": "{{value}} د",
+    "columns": {
+      "step": "الخطوة",
+      "offices": "المكاتب",
+      "share": "من المسجّلين"
+    },
+    "events": {
+      "SIGNUP_COMPLETED": "أتمّوا التسجيل",
+      "ONBOARDING_COMPLETED": "أنهوا دليل الإعداد",
+      "FIRST_CASE_CREATED": "فتحوا أول قضية",
+      "HEARING_SCHEDULED": "حدّدوا موعد جلسة",
+      "DOCUMENT_UPLOADED": "رفعوا مستندًا",
+      "AI_SUMMARY_GENERATED": "أنشأوا ملخصًا بالذكاء الاصطناعي",
+      "INVITE_SENT": "دعوا زميلًا",
+      "PORTAL_INVITE_SENT": "دعوا موكّلًا إلى بوابة الموكلين"
+    }
+  },
   "usage": {
     "title": "الاستخدام",
     "days_zero": "{{count}} يوم",

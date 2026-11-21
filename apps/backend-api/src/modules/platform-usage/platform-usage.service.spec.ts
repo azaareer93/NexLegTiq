@@ -66,6 +66,20 @@ function setup({
 }
 
 describe('PlatformUsageService (D-183)', () => {
+  it('should answer an empty funnel with zeros and no median or cohort when nobody signed up (D-215)', async () => {
+    const { service, raw } = setup();
+    raw.$queryRaw.mockReset().mockResolvedValue([]);
+    const analytics = await service.analytics(30, NOW);
+    expect(analytics.since).toBe('2026-10-16');
+    expect(analytics.funnel.every((step) => step.offices === 0)).toBe(true);
+    expect(analytics.onboardingSteps.every((step) => step.offices === 0)).toBe(true);
+    expect(analytics.medianSecondsToFirstCase).toBeNull();
+    expect(analytics.retention).toEqual({
+      d7: { offices: 0, retained: 0 },
+      d30: { offices: 0, retained: 0 },
+    });
+  });
+
   it('should sum AI cost, storage, active users and the signup funnel', async () => {
     const { service } = setup();
     const usage = await service.usage(30, NOW);

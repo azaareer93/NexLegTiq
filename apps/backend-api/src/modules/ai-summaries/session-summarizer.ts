@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { fileRedactionContext } from './redaction-context';
 import { SUMMARIZE_SESSION_JOB } from './summary-job';
+import { ProductAnalytics } from '../../common/analytics/product-analytics';
 import type { RequestContext } from '../../common/context/request-context';
 import {
   BusinessRuleException,
@@ -42,6 +43,7 @@ export class SessionSummarizer extends BaseAiService implements OnModuleInit {
     private readonly registry: AiJobRegistry,
     private readonly cls: ClsService<RequestContext>,
     private readonly timeline: TimelineService,
+    private readonly analytics: ProductAnalytics,
   ) {
     super(executor);
   }
@@ -131,6 +133,7 @@ export class SessionSummarizer extends BaseAiService implements OnModuleInit {
         async () => this.ready(context.userId, session),
         'realtime session.summary.ready',
       );
+      afterCommit(() => this.analytics.track('AI_SUMMARY_GENERATED', {}), 'product analytics');
       return row.id;
     });
     return summaryId ? { summaryId } : { superseded: 1 };

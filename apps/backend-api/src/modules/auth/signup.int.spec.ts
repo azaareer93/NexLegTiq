@@ -231,6 +231,25 @@ describe('office signup (HTTP + PostgreSQL)', () => {
     expect(link.tokenHash).not.toBe(token);
   });
 
+  it('should count the signup by office id only, and nothing under Do Not Track (D-215)', async () => {
+    const counted = await register(body()).expect(201);
+    const rows = await prisma.unscoped().productEvent.findMany({
+      where: { officeId: counted.body.data.user.officeId },
+      select: { event: true, props: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    expect(rows).toEqual([
+      { event: 'SIGNUP_COMPLETED', props: {} },
+      { event: 'ONBOARDING_STEP_COMPLETED', props: { step: 'ACCOUNT' } },
+    ]);
+    const untracked = await register(body()).set('DNT', '1').expect(201);
+    await expect(
+      prisma
+        .unscoped()
+        .productEvent.count({ where: { officeId: untracked.body.data.user.officeId } }),
+    ).resolves.toBe(0);
+  });
+
   it('should give other jurisdictions a 30-day trial sized by account type, in English', async () => {
     const payload = body({
       jurisdiction: 'JORDAN',

@@ -11,6 +11,7 @@ import { isLocked, lockedUntil } from './lockout';
 import { PasswordHasher } from './password-hasher';
 import { refreshCookieOptions, refreshExpiry, rotatedExpiry } from './refresh-token';
 import type { SessionActivity } from './session-activity';
+import type { ProductAnalytics } from '../../common/analytics/product-analytics';
 import { hashOpaqueToken, newOpaqueToken } from '../../common/auth/opaque-token';
 import { Public } from '../../common/auth/public.decorator';
 import { AppException, PermissionDeniedException } from '../../common/errors/app.exception';
@@ -155,6 +156,7 @@ describe('JwtAuthGuard', () => {
         new AppConfig(parseEnv(testEnv({ EMAIL_VERIFICATION_ENFORCED: 'true' }))),
       ),
       activity as unknown as SessionActivity,
+      { active: jest.fn() } as unknown as ProductAnalytics,
     );
     const request: { headers: Record<string, string>; user?: unknown } = { headers: {} };
     const run = (authorization?: string, handler: object = () => undefined): Promise<boolean> => {
@@ -219,6 +221,7 @@ describe('JwtAuthGuard', () => {
         new AppConfig(parseEnv(testEnv())),
       ),
       noActivity as unknown as SessionActivity,
+      { active: jest.fn() } as unknown as ProductAnalytics,
     );
     const headers = { authorization: [`Bearer ${sign({ sid: undefined })}`, 'Bearer other'] };
     const context = {

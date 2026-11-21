@@ -58,6 +58,8 @@ export const TENANT_MODELS = [
   'OfficeExport',
   // After files, clients and documents: cleanup deletes it first (D-187).
   'ClientUpload',
+  // Product analytics (D-215): written unscoped by office id, read by the platform realm as counts.
+  'ProductEvent',
 ] as const satisfies readonly Prisma.ModelName[];
 
 export type TenantModel = (typeof TENANT_MODELS)[number];

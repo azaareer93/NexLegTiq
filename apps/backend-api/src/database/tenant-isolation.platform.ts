@@ -26,4 +26,11 @@ export const PLATFORM_RESOURCES: readonly TenantResource[] = [
     },
     update: { reference: 'changed' },
   },
+  // Product analytics (D-215): written by office id, read by the platform realm as counts.
+  {
+    model: 'ProductEvent',
+    create: (db, { officeId }) =>
+      db.productEvent.create({ data: { officeId, event: 'APP_ACTIVE' } }),
+    update: { props: { changed: true } },
+  },
 ];

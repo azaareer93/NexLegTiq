@@ -228,6 +228,39 @@
       "updated": "The plan was updated."
     }
   },
+  "analytics": {
+    "title": "Product analytics",
+    "privacy": "Counted per office in our own database: no names, emails, case titles or document content. Offices that turned analytics off and browsers that send Do Not Track are not counted.",
+    "period": "Offices that signed up since {{date}}",
+    "funnel": "Onboarding funnel",
+    "steps": "Setup guide steps completed",
+    "share": "{{value}}% of signups",
+    "shareTarget": "{{value}}% of signups (target {{target}}%)",
+    "percent": "{{value}}%",
+    "target": "Target: {{value}}%",
+    "noCohort": "No office has reached this point yet.",
+    "retained_one": "{{retained}} of {{offices}} office",
+    "retained_other": "{{retained}} of {{offices}} offices",
+    "d7": "Back between day 7 and day 13 (D7)",
+    "d30": "Back between day 30 and day 36 (D30)",
+    "medianFirstCase": "Median time to the first case",
+    "minutes": "{{value}} min",
+    "columns": {
+      "step": "Step",
+      "offices": "Offices",
+      "share": "Of signups"
+    },
+    "events": {
+      "SIGNUP_COMPLETED": "Signed up",
+      "ONBOARDING_COMPLETED": "Finished the setup guide",
+      "FIRST_CASE_CREATED": "Opened a first case",
+      "HEARING_SCHEDULED": "Scheduled a hearing",
+      "DOCUMENT_UPLOADED": "Uploaded a document",
+      "AI_SUMMARY_GENERATED": "Generated an AI summary",
+      "INVITE_SENT": "Invited a colleague",
+      "PORTAL_INVITE_SENT": "Invited a client to the portal"
+    }
+  },
   "usage": {
     "title": "Usage",
     "days_one": "{{count}} day",

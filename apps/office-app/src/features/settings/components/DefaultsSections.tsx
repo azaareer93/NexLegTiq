@@ -17,6 +17,7 @@ const DEFAULTS = [
   'enableAi',
   'enableOcr',
   'enableVisionOcr',
+  'enableProductAnalytics',
 ];
 const SECURITY = ['sessionIdleMinutes', 'auditRetentionDays'];
 const shape = UpdateOfficeSettingsSchema.shape;
@@ -112,6 +113,14 @@ export function DefaultsSection({ settings, onDirtyChange }: SectionProps): Reac
         valuePropName="checked"
       >
         <Switch data-testid="settings-enable-vision-ocr" />
+      </Form.Item>
+      <Form.Item
+        name="enableProductAnalytics"
+        label={t('settings.defaults.enableProductAnalytics')}
+        extra={t('settings.defaults.enableProductAnalyticsHint')}
+        valuePropName="checked"
+      >
+        <Switch data-testid="settings-enable-product-analytics" />
       </Form.Item>
     </SettingsSection>
   );

@@ -33,6 +33,12 @@ export const routes: RouteObject[] = [
             }),
           },
           {
+            path: 'analytics',
+            lazy: async () => ({
+              Component: (await import('../features/usage/pages/AnalyticsPage')).AnalyticsPage,
+            }),
+          },
+          {
             path: 'queues',
             lazy: async () => ({
               Component: (await import('../features/usage/pages/QueuesPage')).QueuesPage,

@@ -9,6 +9,7 @@ import type { PasswordHasher } from './password-hasher';
 import { LEGAL_VERSIONS, SignupRepository } from './signup.repository';
 import type { ExistingAccount, NewOfficeAccount } from './signup.repository';
 import { SignupService, signupPlanCode } from './signup.service';
+import type { ProductAnalytics } from '../../common/analytics/product-analytics';
 import { hashOpaqueToken } from '../../common/auth/opaque-token';
 import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
@@ -110,6 +111,7 @@ describe('SignupService', () => {
     };
     const mailer = { sendVerification: jest.fn().mockResolvedValue(undefined) };
     const send = mailer.sendVerification;
+    const analytics = { track: jest.fn() };
     const passwords = {
       hash: jest.fn().mockResolvedValue('$argon2id$hash'),
     } as unknown as PasswordHasher;
@@ -125,13 +127,21 @@ describe('SignupService', () => {
       mailer as unknown as AccountMailer,
       config,
       logger(),
+      analytics as unknown as ProductAnalytics,
     );
-    return { service, signups, auth, send, tx };
+    return { service, signups, auth, send, tx, analytics };
   }
 
   it('should create the account, log in in the new office and ask the worker for the verification email', async () => {
-    const { service, signups, auth, send, tx } = setup();
+    const { service, signups, auth, send, tx, analytics } = setup();
     await expect(service.register(body, client)).resolves.toBe(issued);
+    // Product analytics by the new office's id only (D-215).
+    expect(analytics.track).toHaveBeenCalledWith('SIGNUP_COMPLETED', {}, OFFICE);
+    expect(analytics.track).toHaveBeenCalledWith(
+      'ONBOARDING_STEP_COMPLETED',
+      { step: 'ACCOUNT' },
+      OFFICE,
+    );
 
     const input = signups.createOfficeAccount.mock.calls[0][0] as NewOfficeAccount;
     expect(input).toMatchObject({

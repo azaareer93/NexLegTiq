@@ -25,6 +25,7 @@ import type { Request } from 'express';
 import { ClsService } from 'nestjs-cls';
 
 import { PortalAccessService } from './portal-access.service';
+import { TrackProductEvent } from '../../common/analytics/product-event.interceptor';
 import { clientFromRequest } from '../../common/context/client-info';
 import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
@@ -49,6 +50,7 @@ export class PortalAccessController {
   ) {}
 
   @Post('portal-invitations')
+  @TrackProductEvent('PORTAL_INVITE_SENT')
   @RequireFeature('clientPortal')
   @ApiOperation({ summary: 'Invite a person of this client to the client portal' })
   @ApiZodBody(CreatePortalInvitationSchema)
