@@ -11,11 +11,11 @@
 
 | Item | Status |
 |---|---|
-| Customer data (database, Redis, document storage, backups) is hosted **in the EU** — Germany or Finland | **Fact (owner decision, 2026-11-10)** — the FAQ's "AWS us-east-1" is wrong and must go |
+| Customer data (database, Redis, document storage, backups) is hosted **in the EU** — Germany or Finland | **Owner commitment** (D-021, Jira comment 2026-11-10 — no provider is contracted yet) — the FAQ's "AWS us-east-1" is wrong and must go |
 | The exact providers and country (VPS, managed Postgres, managed Redis, object storage, backup bucket) | **Pending owner** — nothing in the repo names one yet (`docs/runbooks/deploy.md`, `infra/staging/`); the legal text says "EU (Germany or Finland)" until they are contracted |
 | Static web apps (office app, portal, admin panel) are served by **Cloudflare Pages** (a global CDN — static files only, no customer data) | Fact (D-020, `ops-security.md`) |
 | AI text providers (OpenAI, Google Gemini) process redacted text **outside the EU** (their API endpoints are not EU-pinned: `api.openai.com`, `generativelanguage.googleapis.com`) | Fact — the transfer and its safeguard must be disclosed; **pending owner** (see §5) |
-| Google Vision (opt-in OCR) is called on the **EU endpoint** `eu-vision.googleapis.com`; production refuses anything but `https://*.googleapis.com` | Fact (D-142, `GOOGLE_VISION_ENDPOINT`) |
+| Google Vision (opt-in OCR) is called on the **EU endpoint** `eu-vision.googleapis.com` **by default**; production only refuses hosts outside `https://*.googleapis.com`, so a global or US endpoint is possible by configuration | Fact (D-142, `GOOGLE_VISION_ENDPOINT`); the text may say "EU endpoint" only while the deployment keeps the default |
 
 ## 2. Sub-processors actually used by the code
 
@@ -25,14 +25,14 @@ and must be removed, or named only once it is contracted.
 | Sub-processor (category) | Data it receives | When | Status |
 |---|---|---|---|
 | VPS host (API + worker containers) | everything the app processes | always | Category fact; **provider pending owner** (EU) |
-| Managed PostgreSQL 17 | all office data, encrypted at rest; sensitive ids also AES-256-GCM in the app (D-056) | always | Category fact; **provider pending owner** (EU) |
+| Managed PostgreSQL 17 | all office data (encrypted storage is a provider requirement); sensitive ids also AES-256-GCM in the app (D-056) | always | Category fact; **provider pending owner** (EU) |
 | Managed Redis | queue jobs (ids, not documents), AI answers cache (office's own data, 24 h), WebSocket fan-out | always | Category fact; **provider pending owner** (EU) |
 | S3-compatible object storage | uploaded documents, office exports | always | Category fact; **provider pending owner** (EU) |
 | Backup bucket at a **second** provider | `age`-encrypted database dumps and a copy of documents (D-141) | once `BACKUP_ENABLED` | Category fact; **provider pending owner** (EU) |
 | Email delivery: SMTP relay **or Resend** (`EMAIL_PROVIDER`) | recipient address, name, the email's text and links | always | Fact (code supports exactly these two); **which one pending owner** |
-| **OpenAI** (API) | PII-pseudonymized text of documents/hearings (§3) | only when AI is configured, in the plan and on for the office | Fact (owner 7A: under its zero-retention API terms) |
-| **Google Gemini** (API, paid account) | the same pseudonymized text, as primary or fallback provider | as above | Fact (owner 7A: paid account, which excludes training) |
-| **Google Cloud Vision** | **unredacted scan images** (scans cannot be redacted) | only offices that switch on `enableVisionOcr`, on a plan with the `googleVisionOcr` flag and a page budget; never confidential documents | Fact (D-142; owner 7A: listed as "only for offices that switch it on") |
+| **OpenAI** (API) | PII-pseudonymized text of documents/hearings (§3) | only when AI is configured, in the plan and on for the office | Use: Fact (code sends `store: false`). Zero retention: **pending owner** — an account agreement with OpenAI (owner 7A, 2026-11-10) |
+| **Google Gemini** (API, paid account) | the same pseudonymized text, as primary or fallback provider | as above | Use: Fact. Paid account excluding training: **owner commitment** (7A) — nothing in the code enforces it |
+| **Google Cloud Vision** | **unredacted scan images** (scans cannot be redacted) | only offices that switch on `enableVisionOcr` (default off), on a plan with the `googleVisionOcr` flag and a page budget; never documents **the office has marked confidential** (no automatic detection) | Fact (D-142; owner 7A: listed as "only for offices that switch it on") |
 | Cloudflare Pages | none (static files; visitors' IP addresses in its logs) | always | Fact |
 | Error monitoring (Sentry), uptime monitor, log sink | — | **not integrated yet** (no SDK in the code) | Listed only when the monitoring story ships |
 | Payment processors | — | **none**: payments are recorded by hand with numbered receipts (D-174) | Card/wallet processors are Phase 4 |
@@ -54,7 +54,8 @@ Not sub-processors (run inside our own containers): ClamAV (upload scanning), Te
   the plan includes it; an office can switch it off (AI-005). Every AI output carries a disclaimer; a human confirms.
 - Stored with each AI output: provider, model, prompt version; `AiUsage` keeps token counts, cost and redaction **counts**
   (never the redacted values).
-- Google Vision receives the page images themselves (unredacted), only under the opt-in above.
+- Google Vision receives the page images themselves (unredacted), only under the opt-in above; the transfer disclosure
+  (§1, pending owner) covers Vision as well as the text providers.
 
 ## 4. Retention — implemented vs promised
 
