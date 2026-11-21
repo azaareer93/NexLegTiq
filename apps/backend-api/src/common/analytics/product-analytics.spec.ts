@@ -107,6 +107,51 @@ describe('ProductAnalytics (D-215)', () => {
     expect(second.raw.productEvent.create).not.toHaveBeenCalled();
   });
 
+  it('should record an office that has no settings row yet (analytics on by default)', async () => {
+    const { analytics, raw } = setup({ enabled: null });
+    await expect(analytics.track('SIGNUP_COMPLETED', {})).resolves.toBe(true);
+    expect(raw.productEvent.create).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['no tenant context', { context: { officeId: undefined } }],
+    ['Do Not Track / GPC', { context: { doNotTrack: true } }],
+  ])('should not look for a first case with %s', async (_label, options) => {
+    const { analytics, raw } = setup(options);
+    await analytics.firstCase();
+    expect(raw.legalFile.count).not.toHaveBeenCalled();
+    expect(raw.productEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('should record no first case when the office is gone, and never fail when counting does', async () => {
+    const gone = setup();
+    gone.raw.office.findUnique.mockResolvedValueOnce(null);
+    await gone.analytics.firstCase();
+    expect(gone.raw.productEvent.create).not.toHaveBeenCalled();
+
+    const down = setup();
+    down.raw.legalFile.count.mockRejectedValueOnce(new Error('down'));
+    await expect(down.analytics.firstCase()).resolves.toBeUndefined();
+    expect(down.logger.warn).toHaveBeenCalled();
+  });
+
+  it('should never fail the guard when the activity lookup does', async () => {
+    const { analytics, raw, logger } = setup();
+    raw.productEvent.findFirst.mockRejectedValueOnce(new Error('down'));
+    await expect(analytics.active(OFFICE)).resolves.toBeUndefined();
+    expect(logger.warn).toHaveBeenCalled();
+  });
+
+  it('should start the activity memo over once it holds 10,000 offices', async () => {
+    const { analytics, raw } = setup();
+    const at = new Date('2026-11-21T08:00:00Z');
+    for (let i = 0; i <= 10_000; i += 1) await analytics.active(`office-${i}`, at);
+    raw.productEvent.findFirst.mockClear();
+    // office-0 was dropped when the memo started over, so its day is looked up again.
+    await analytics.active('office-0', at);
+    expect(raw.productEvent.findFirst).toHaveBeenCalledTimes(1);
+  });
+
   it('should record activity once per office and UTC day', async () => {
     const { analytics, raw } = setup();
     const morning = new Date('2026-11-21T08:00:00Z');

@@ -6,7 +6,7 @@ import type { ClsMiddlewareOptions } from 'nestjs-cls';
 
 import { ensureRequestId } from './request-context';
 
-const CLS_MIDDLEWARE_OPTIONS: ClsMiddlewareOptions = {
+export const CLS_MIDDLEWARE_OPTIONS: ClsMiddlewareOptions = {
   generateId: true,
   idGenerator: (req: IncomingMessage) => ensureRequestId(req),
   // pino-http skips genReqId once `req.id` exists, so the response header is echoed here.

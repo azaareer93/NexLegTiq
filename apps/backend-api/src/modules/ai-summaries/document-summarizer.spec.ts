@@ -170,6 +170,18 @@ describe('DocumentSummarizer (D-148)', () => {
     });
   });
 
+  it('should let any other storage failure through (only a duplicate is a racing job)', async () => {
+    for (const error of [
+      new Error('connection lost'),
+      Object.assign(new Error('fk'), { name: 'PrismaClientKnownRequestError', code: 'P2003' }),
+    ]) {
+      const broken = setup();
+      broken.tx.aiSummary.create.mockRejectedValueOnce(error);
+      await expect(broken.service.run(FIELDS, CONTEXT)).rejects.toBe(error);
+      expect(broken.db.aiSummary.findFirstOrThrow).not.toHaveBeenCalled();
+    }
+  });
+
   it('should reuse a stored summary, and refuse a missing document or one without text', async () => {
     const reused = setup({ existing: { id: 's0' } });
     await expect(reused.service.run(FIELDS, CONTEXT)).resolves.toEqual({ summaryId: 's0' });
