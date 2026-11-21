@@ -96,6 +96,14 @@ describe('portal sign-in', () => {
     );
   });
 
+  it('should offer a retry, not sign-in, when the session cannot be restored for an outage', async () => {
+    server.use(http.post(api('portal/auth/refresh'), () => fail(503, 'SYS-002')));
+    const router = await renderApp('/', 'en');
+    expect(await screen.findByRole('button', { name: /retry|try again/i })).toBeTruthy();
+    expect(router.state.location.pathname).toBe('/');
+    expect(usePortalSession.getState().status).toBe('error');
+  });
+
   it('should always confirm a forgot-password request', async () => {
     let body: unknown;
     server.use(
@@ -196,6 +204,13 @@ describe('portal invitation', () => {
     click('invite-submit');
     await screen.findByTestId('portal-brand');
     expect(body).toMatchObject({ fullName: 'Layla Haddad', password: 'old' });
+  });
+
+  it('should take the token out of the address bar at once', async () => {
+    server.use(preview(false));
+    const router = await renderApp('/accept-invite?token=invite-token-0123456789abcdef', 'en');
+    await screen.findByTestId('invite-intro');
+    expect(router.state.location.search).toBe('');
   });
 
   it('should explain a link that is no longer valid', async () => {

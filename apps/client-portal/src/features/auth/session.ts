@@ -54,6 +54,8 @@ export const portalAuth = portalAuthApi(apiClient);
 export const portal = portalApi(apiClient);
 
 export function startSession(session: PortalClientSession): void {
+  // Another account may have been signed in on this device (an invitation opened while signed in): never show its data.
+  if (usePortalSession.getState().user?.id !== session.user.id) queryClient.clear();
   usePortalSession.setState({
     status: 'authenticated',
     user: session.user,

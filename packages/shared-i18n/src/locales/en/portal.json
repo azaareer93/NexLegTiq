@@ -67,7 +67,7 @@
       "PENDING_REVIEW": "Waiting for the office",
       "ACCEPTED": "Accepted",
       "REJECTED": "Not accepted",
-      "QUARANTINED": "Refused (unsafe file)",
+      "QUARANTINED": "Refused for security reasons",
       "FAILED": "Could not be checked, send it again"
     }
   },

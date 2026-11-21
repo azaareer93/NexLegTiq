@@ -16,11 +16,11 @@ import {
 } from '../../test/render-app';
 import { resetSession } from '../auth/session';
 
-const en = RESOURCES.en;
-const t = (path: string): string =>
+const text = (tree: unknown, path: string): string =>
   path
     .split('.')
-    .reduce<unknown>((node, key) => (node as Record<string, unknown>)[key], en) as string;
+    .reduce<unknown>((node, key) => (node as Record<string, unknown>)[key], tree) as string;
+const t = (path: string): string => text(RESOURCES.en, path);
 
 const FILE = {
   id: FILE_ID,
@@ -86,7 +86,7 @@ describe('my files', () => {
       'tel:+97022950000',
     );
     expect(within(contact).getByTestId('contact-email').getAttribute('href')).toBe(
-      'mailto:office@example.test',
+      'mailto:office%40example.test',
     );
     await expectAccessible();
   });
@@ -94,7 +94,7 @@ describe('my files', () => {
   it('should show an empty state in Arabic when there is no file, with the contact card', async () => {
     server.use(http.get(api('portal/files'), () => ok([])));
     await renderApp('/');
-    expect(await screen.findByText(RESOURCES.ar.portal.files.empty as string)).toBeTruthy();
+    expect(await screen.findByText(text(RESOURCES.ar, 'portal.files.empty'))).toBeTruthy();
     expect(screen.getByTestId(`contact-${OFFICE_ID}`)).toBeTruthy();
   });
 
@@ -195,6 +195,57 @@ describe('my files', () => {
       t('documents.upload.problem.empty'),
     );
   });
+
+  it('should refuse a file over the size limit before sending it', async () => {
+    await renderApp(`/files/${FILE_ID}?tab=uploads`, 'en');
+    await screen.findByText(t('portal.uploads.empty'));
+    const big = new File(['x'], 'big.pdf');
+    Object.defineProperty(big, 'size', { value: 51 * 1024 * 1024 });
+    fireEvent.change(document.querySelector('input[type="file"]') as HTMLInputElement, {
+      target: { files: [big] },
+    });
+    expect((await screen.findByTestId('upload-problem')).textContent).toContain('50');
+  });
+
+  it('should show a rejected upload with the office reason in portal wording', async () => {
+    server.use(
+      http.get(api(`portal/files/${FILE_ID}/uploads`), () =>
+        ok([
+          {
+            id: '01920000-0000-7000-8000-000000000502',
+            fileId: FILE_ID,
+            name: 'blurry.jpg',
+            mimeType: 'image/jpeg',
+            sizeBytes: '2048',
+            status: 'REJECTED',
+            rejectionReason: 'Please send a clearer photo',
+            createdAt: '2026-11-21T10:00:00.000Z',
+          },
+        ]),
+      ),
+    );
+    await renderApp(`/files/${FILE_ID}?tab=uploads`, 'en');
+    const list = await screen.findByTestId('uploads-list');
+    expect(list.textContent).toContain(t('portal.uploads.status.REJECTED'));
+    expect(list.textContent).toContain('Please send a clearer photo');
+  });
+
+  it('should name the product, not one office, when the account spans several offices', async () => {
+    const other = {
+      ...SESSION.user.offices[0],
+      officeId: '01920000-0000-7000-8000-00000000000b',
+      officeName: 'Other Office',
+    };
+    server.use(
+      http.post(api('portal/auth/refresh'), () =>
+        ok({ ...SESSION, user: { ...SESSION.user, offices: [...SESSION.user.offices, other] } }),
+      ),
+    );
+    await renderApp('/', 'en');
+    expect((await screen.findByTestId('portal-brand')).textContent).toBe('NexLegTiq Portal');
+    expect((await screen.findByTestId(`file-${FILE_ID}`)).textContent).toContain('مكتب العدالة');
+    expect(screen.getByTestId(`contact-${other.officeId}`)).toBeTruthy();
+  });
 });
 
 describe('invoices', () => {
@@ -239,7 +290,7 @@ describe('invoices', () => {
       .mockImplementation(() => undefined);
     await renderApp('/invoices');
     const card = await screen.findByTestId(`invoice-${INVOICE_ID}`);
-    expect(card.textContent).toContain(RESOURCES.ar.portal.invoices.status.PAID as string);
+    expect(card.textContent).toContain(text(RESOURCES.ar, 'portal.invoices.status.PAID'));
     click(`invoice-pdf-${INVOICE_ID}`);
     await waitFor(() => expect(clickLink).toHaveBeenCalled());
     clickLink.mockRestore();

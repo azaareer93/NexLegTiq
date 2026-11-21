@@ -41,7 +41,10 @@ export function ContactCard({
         {office.officeEmail ? (
           <Typography.Text>
             {t('portal.contact.email')}:{' '}
-            <a href={`mailto:${office.officeEmail}`} data-testid="contact-email">
+            <a
+              href={`mailto:${encodeURIComponent(office.officeEmail)}`}
+              data-testid="contact-email"
+            >
               <Ltr>{office.officeEmail}</Ltr>
             </a>
           </Typography.Text>

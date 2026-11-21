@@ -66,7 +66,7 @@ export function UploadsTab({ fileId }: { readonly fileId: string }): React.JSX.E
             showUploadList={false}
             beforeUpload={(file) => {
               send(file);
-              return false;
+              return Upload.LIST_IGNORE;
             }}
           >
             <Button

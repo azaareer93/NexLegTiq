@@ -30,6 +30,9 @@ export const useUploads = (id: string) =>
   useQuery({
     queryKey: portalKeys.uploads(id),
     queryFn: ({ signal }) => portal.uploads(id, signal),
+    // A scan takes seconds: follow it until every upload is checked (then the office reviews, which can take days).
+    refetchInterval: (query) =>
+      query.state.data?.some((upload) => upload.status === 'SCANNING') ? 5_000 : false,
   });
 
 /** Sends one picked file; a new idempotency key per pick, so only a retry of the same pick can be deduplicated. */

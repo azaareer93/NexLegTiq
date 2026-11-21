@@ -36,7 +36,8 @@ export function AcceptInvitePage(): React.JSX.Element {
     queryFn: ({ signal }) => portalAuth.invitePreview(token ?? '', signal),
     enabled: token !== null,
     gcTime: 0,
-    retry: (count, error) => !(error instanceof ApiError && error.status < 500) && count < 1,
+    retry: (count, error) =>
+      (!(error instanceof ApiError) || error.status === 0 || error.status >= 500) && count < 1,
   });
 
   let content: React.ReactNode;

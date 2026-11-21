@@ -30,7 +30,8 @@ export function FileDetailPage(): React.JSX.Element {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const file = useFile(id);
-  const tab = isTab(params.get('tab')) ? (params.get('tab') as Tab) : 'overview';
+  const requested = params.get('tab');
+  const tab = isTab(requested) ? requested : 'overview';
 
   if (file.isError) {
     if (file.error instanceof ApiError && file.error.code === 'RES-001') {
