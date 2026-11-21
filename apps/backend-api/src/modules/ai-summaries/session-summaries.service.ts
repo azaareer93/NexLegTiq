@@ -9,6 +9,7 @@ import type {
 import { z } from 'zod';
 
 import { SUMMARIZE_SESSION_JOB } from './summary-job';
+import type { ClientInfo } from '../../common/context/client-info';
 import {
   BusinessRuleException,
   ResourceNotFoundException,
@@ -18,7 +19,6 @@ import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
 import { AiJobs } from '../ai/ai-jobs';
 import { SESSION_SUMMARY_V1 } from '../ai/prompts/session-summary.v1';
-import type { ClientInfo } from '../auth/client-info';
 import { CaseAccessService } from '../legal-files/case-access.service';
 import { todayIn } from '../legal-files/cases.service';
 import { TasksService } from '../tasks/tasks.service';

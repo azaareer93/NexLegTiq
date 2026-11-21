@@ -13,6 +13,7 @@ import { buildDocx, buildPdf } from './extraction/fixtures.test-helper';
 import { ocr } from './extraction/ocr';
 import { visionWithin } from './extraction/vision';
 import type { UploadIntake } from './upload/upload-intake';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import { AppException } from '../../common/errors/app.exception';
 import type { QueueProducer } from '../../common/queue/queue-producer';
@@ -23,7 +24,6 @@ import { testEnv } from '../../config/env.fixture';
 import { parseEnv } from '../../config/env.schema';
 import type { PrismaService } from '../../database/prisma.service';
 import type { UnitOfWork } from '../../database/unit-of-work';
-import type { ClientInfo } from '../auth/client-info';
 import { NotificationService } from '../notifications/notification.service';
 import type { EntitlementsService } from '../subscriptions/entitlements.service';
 

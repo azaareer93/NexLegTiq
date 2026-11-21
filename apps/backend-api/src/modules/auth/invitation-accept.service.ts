@@ -4,12 +4,12 @@ import type { AcceptInviteRequest, InvitePreview } from '@nexlegtiq/shared-contr
 
 import { AuthService } from './auth.service';
 import type { IssuedSession } from './auth.service';
-import { tenantContextFor, truncateUserAgent } from './client-info';
-import type { ClientInfo } from './client-info';
 import { PasswordHasher } from './password-hasher';
 import { USER_FOR_SESSION } from './refresh-token.repository';
 import { LEGAL_VERSIONS } from './signup.repository';
 import { hashOpaqueToken } from '../../common/auth/opaque-token';
+import type { ClientInfo } from '../../common/context/client-info';
+import { tenantContextFor, truncateUserAgent } from '../../common/context/client-info';
 import {
   AppException,
   ResourceConflictException,

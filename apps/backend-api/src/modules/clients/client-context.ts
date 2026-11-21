@@ -3,10 +3,10 @@ import type { UserId } from '@nexlegtiq/shared-types';
 import { ClsService } from 'nestjs-cls';
 
 import { auditRow } from '../../common/audit/audit.service';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import { ResourceNotFoundException } from '../../common/errors/app.exception';
 import type { ScopedTransaction } from '../../database/unit-of-work';
-import type { ClientInfo } from '../auth/client-info';
 
 /** Fields never written to the audit log in clear: the log records that they changed, not their value. */
 const SECRET_FIELDS = new Set(['nationalId', 'taxId']);

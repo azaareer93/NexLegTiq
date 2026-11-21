@@ -9,6 +9,7 @@ import { clientUploadJobId, SCAN_CLIENT_UPLOAD_JOB } from './document-jobs';
 import { readUpload } from './upload/multipart';
 import { UploadIntake } from './upload/upload-intake';
 import { auditRow } from '../../common/audit/audit.service';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import { BusinessRuleException } from '../../common/errors/app.exception';
 import { uuidV7 } from '../../common/ids/uuid-v7';
@@ -17,7 +18,6 @@ import { QUEUE } from '../../common/queue/queues';
 import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { ScopedTransaction } from '../../database/unit-of-work';
-import type { ClientInfo } from '../auth/client-info';
 
 /** shortcut: a fixed cap on a client's unreviewed uploads (bytes); make it a plan limit if offices ask for more. */
 export const MAX_PENDING_CLIENT_BYTES = 250n * 1024n * 1024n;

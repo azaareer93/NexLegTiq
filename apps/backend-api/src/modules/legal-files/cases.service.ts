@@ -15,6 +15,7 @@ import { FileNumberService } from './file-number.service';
 import { assertParticipants } from './participants';
 import { auditRow } from '../../common/audit/audit.service';
 import { changes } from '../../common/audit/changes';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import {
   PermissionDeniedException,
@@ -25,7 +26,6 @@ import { assignedFilesWhere } from '../../common/rbac/case-scope';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { ScopedTransaction } from '../../database/unit-of-work';
 import { Prisma } from '../../generated/prisma/client';
-import type { ClientInfo } from '../auth/client-info';
 import { assertCourtRefs, nextCourtRefs } from '../courts/court-refs';
 import { applyTaskTemplates } from '../tasks/task-templates';
 import { TimelineService } from '../timeline/timeline.service';

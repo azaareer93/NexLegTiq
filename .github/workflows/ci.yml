@@ -133,6 +133,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      statuses: write
     uses: ./.github/workflows/deploy-staging.yml
     secrets: inherit
 

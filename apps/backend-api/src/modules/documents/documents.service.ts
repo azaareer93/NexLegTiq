@@ -11,6 +11,7 @@ import { discardBody, readUpload } from './upload/multipart';
 import type { StoredUpload } from './upload/store-upload';
 import { UploadIntake } from './upload/upload-intake';
 import { auditRow } from '../../common/audit/audit.service';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import {
   ResourceConflictException,
@@ -24,7 +25,6 @@ import { QUEUE } from '../../common/queue/queues';
 import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { AfterCommit, ScopedTransaction } from '../../database/unit-of-work';
-import type { ClientInfo } from '../auth/client-info';
 import { TimelineService } from '../timeline/timeline.service';
 
 /** A client-chosen retry key (api-conventions.md: `Idempotency-Key`). */

@@ -20,6 +20,9 @@ export type PortalLoginRequest = z.infer<typeof PortalLoginRequestSchema>;
 export const PortalOfficeAccessSchema = z.object({
   officeId: z.uuid(),
   officeName: z.string(),
+  /** The office's public contact details, for the portal's "contact your lawyer" card (D-200). */
+  officePhone: z.string().nullable(),
+  officeEmail: z.string().nullable(),
   clientId: z.uuid(),
   clientName: z.string(),
 });

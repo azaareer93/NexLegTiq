@@ -20,10 +20,10 @@ import type {
 import type { Request } from 'express';
 import { ClsService } from 'nestjs-cls';
 
-import { clientFromRequest } from './client-info';
-import type { ClientInfo } from './client-info';
 import { PasswordService } from './password.service';
 import { Public } from '../../common/auth/public.decorator';
+import { clientFromRequest } from '../../common/context/client-info';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { AuthPrincipal, RequestContext } from '../../common/context/request-context';
 import { ZodValidationPipe } from '../../common/http/zod-validation.pipe';
 import { ApiZodBody } from '../../common/openapi/api-zod.decorators';

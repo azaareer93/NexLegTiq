@@ -7,8 +7,6 @@ import { isRole, permissionsFor } from '@nexlegtiq/shared-types';
 
 import { ACCESS_TOKEN_TTL_SECONDS, JWT_AUDIENCE, JWT_ISSUER } from './auth.constants';
 import type { AccessTokenClaims } from './auth.constants';
-import { tenantContextFor, truncateUserAgent } from './client-info';
-import type { ClientInfo } from './client-info';
 import { isVerificationOverdue, verifyBy } from './email-verification';
 import { isLocked } from './lockout';
 import { LoginAttemptRepository } from './login-attempt.repository';
@@ -22,6 +20,8 @@ import {
 } from './refresh-token.repository';
 import { auditRow } from '../../common/audit/audit.service';
 import { hashOpaqueToken, newOpaqueToken } from '../../common/auth/opaque-token';
+import type { ClientInfo } from '../../common/context/client-info';
+import { tenantContextFor, truncateUserAgent } from '../../common/context/client-info';
 import { AppException } from '../../common/errors/app.exception';
 import { TenantRunner } from '../../common/tenancy/tenant-runner';
 import { AppConfig } from '../../config/app-config';

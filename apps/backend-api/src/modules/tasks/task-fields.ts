@@ -2,8 +2,8 @@ import type { TaskQuery } from '@nexlegtiq/shared-contracts';
 
 import { toDbDate } from './tasks.repository';
 import { auditRow } from '../../common/audit/audit.service';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { Prisma } from '../../generated/prisma/client';
-import type { ClientInfo } from '../auth/client-info';
 
 /** `dueFrom`/`dueBefore` as a calendar-date range, both days included (D-155). */
 export function dueRange({ dueFrom, dueBefore }: TaskQuery): Prisma.TaskWhereInput {

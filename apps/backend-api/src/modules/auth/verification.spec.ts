@@ -2,9 +2,9 @@ import { ClsServiceManager } from 'nestjs-cls';
 import type { PinoLogger } from 'nestjs-pino';
 
 import { SEND_VERIFICATION_EMAIL_JOB, AccountMailer } from './account-mailer';
-import type { ClientInfo } from './client-info';
 import { VerificationLinks } from './verification-links';
 import { hashOpaqueToken } from '../../common/auth/opaque-token';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import type { QueueProducer } from '../../common/queue/queue-producer';
 import { TenantRunner } from '../../common/tenancy/tenant-runner';

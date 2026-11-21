@@ -13,7 +13,8 @@ ci.yml (lint · typecheck · test · build · secret scan)
 ```
 
 The host only needs Docker and SSH. Postgres 17 + pgvector, Redis and the bucket are managed services; the SPAs are on
-Cloudflare Pages. Nothing in the repo names a VPS provider or region (D-021 is still open).
+Cloudflare Pages. Nothing in the repo names a VPS provider yet; the region is the EU, Germany or Finland (D-021) — pick providers there and
+add them to `docs/context/legal-facts.md`.
 
 ## First setup (once)
 
@@ -59,7 +60,8 @@ Cloudflare Pages. Nothing in the repo names a VPS provider or region (D-021 is s
 
 Merge to `develop`. Watch Actions → CI → *Deploy staging*. The run fails (and the old containers keep running if
 `up` never started) when the migration, the health checks or the `/health/ready` smoke test fail. On the host,
-`/opt/nexlegtiq/staging/deployed-tag` holds the running SHA and `previous-tag` the one before.
+`/opt/nexlegtiq/staging/deployed-tag` holds the running SHA and `previous-tag` the one before. A green rollout sets the
+commit status `staging/deployed` on the images' SHA: production releases only commits that carry it (D-225).
 
 ## Rollback
 
@@ -79,7 +81,8 @@ that rule needs a database restore (backups runbook) instead.
 - `docker compose run --rm migrate` re-runs migrations + plan seed alone.
 - The ClamAV container needs a few minutes on first start (signature download); `up --wait` allows 10 minutes.
 
+Production releases (tags on `main`): [release.md](release.md) (D-225); backups: [backups.md](backups.md) (D-141).
+
 ## Not covered yet
 
-Sentry releases (monitoring story), production (release pipeline story; backups are in [backups.md](backups.md), D-141),
-provisioning as code (Terraform for VPS/DNS/bucket — waits for the provider choice, D-103).
+Sentry releases (monitoring story), provisioning as code (Terraform for VPS/DNS/bucket — waits for the provider choice, D-103).

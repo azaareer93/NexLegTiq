@@ -140,6 +140,8 @@ export const InvoiceListItemSchema = z.object({
   total: z.string(),
   sentAt: z.iso.datetime().nullable(),
   paidAt: z.iso.datetime().nullable(),
+  /** Shown to the client on the portal (D-188). */
+  sharedWithClient: z.boolean(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });

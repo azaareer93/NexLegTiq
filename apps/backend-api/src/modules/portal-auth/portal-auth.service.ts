@@ -23,6 +23,7 @@ import type { PortalAccessClaims } from './portal-auth.constants';
 import { PortalSessions, PortalTokenReused } from './portal-sessions';
 import type { IssuedPortalSession } from './portal-sessions';
 import { hashOpaqueToken } from '../../common/auth/opaque-token';
+import type { ClientInfo } from '../../common/context/client-info';
 import {
   AppException,
   ResourceNotFoundException,
@@ -35,7 +36,6 @@ import { AppConfig } from '../../config/app-config';
 import { PrismaService } from '../../database/prisma.service';
 import type { ClientUser, Prisma } from '../../generated/prisma/client';
 import { JWT_ISSUER } from '../auth/auth.constants';
-import type { ClientInfo } from '../auth/client-info';
 import { isLocked } from '../auth/lockout';
 import { LoginAttemptRepository } from '../auth/login-attempt.repository';
 import { PasswordHasher } from '../auth/password-hasher';

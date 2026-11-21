@@ -1,13 +1,13 @@
 import { ClsServiceManager } from 'nestjs-cls';
 
 import type { AccountMailer } from './account-mailer';
-import type { ClientInfo } from './client-info';
 import { mayIssueLink } from './link-limits';
 import type { PasswordHasher } from './password-hasher';
 import { PasswordResetLinks } from './password-reset-links';
 import type { PasswordRepository } from './password.repository';
 import { PasswordService } from './password.service';
 import { hashOpaqueToken } from '../../common/auth/opaque-token';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import { TenantRunner } from '../../common/tenancy/tenant-runner';
 import { TenantContextMissingError } from '../../common/tenancy/tenant.errors';

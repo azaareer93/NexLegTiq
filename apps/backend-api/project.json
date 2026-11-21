@@ -135,6 +135,13 @@
         }
       }
     },
+    "ai-evals": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsx test/ai-evals/run.ts",
+        "cwd": "apps/backend-api"
+      }
+    },
     "create-admin": {
       "executor": "nx:run-commands",
       "options": {

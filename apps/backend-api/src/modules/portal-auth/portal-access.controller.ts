@@ -26,13 +26,13 @@ import { ClsService } from 'nestjs-cls';
 
 import { PortalAccessService } from './portal-access.service';
 import { TrackProductEvent } from '../../common/analytics/product-event.interceptor';
+import { clientFromRequest } from '../../common/context/client-info';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import { ResourceNotFoundException } from '../../common/errors/app.exception';
 import { ZodValidationPipe } from '../../common/http/zod-validation.pipe';
 import { ApiZodBody, ApiZodResponse } from '../../common/openapi/api-zod.decorators';
 import { RequirePermissions } from '../../common/rbac/permissions.decorator';
-import { clientFromRequest } from '../auth/client-info';
-import type { ClientInfo } from '../auth/client-info';
 import { AllowWhenReadOnly, RequireFeature } from '../subscriptions/subscription.decorators';
 
 /** A malformed id is the same 404 as an unknown one (D-019). */

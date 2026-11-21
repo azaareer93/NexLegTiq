@@ -17,6 +17,10 @@
 - [ ] Migrations reviewed (label `needs-human-review`)
 - [ ] `docs/context` / a `decisions/D-NNN.md` added if behavior changed
 
+## AI changes (new prompt version, model or provider — delete if none)
+- [ ] `pnpm nx run backend-api:ai-evals --feature <x> --provider <p>` passes every threshold (D-195), and its report is committed in `docs/ai-evals/`
+<!-- paste the report's check table here -->
+
 ## Screenshots (AR / EN)
 
 ## Migration / rollout / rollback

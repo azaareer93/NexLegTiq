@@ -16,12 +16,12 @@ import type { Request } from 'express';
 import { ClsService } from 'nestjs-cls';
 
 import { OfficesService } from './offices.service';
+import { clientFromRequest } from '../../common/context/client-info';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import { ZodValidationPipe } from '../../common/http/zod-validation.pipe';
 import { ApiZodBody, ApiZodResponse } from '../../common/openapi/api-zod.decorators';
 import { RequirePermissions } from '../../common/rbac/permissions.decorator';
-import { clientFromRequest } from '../auth/client-info';
-import type { ClientInfo } from '../auth/client-info';
 
 /**
  * The current office's profile and settings (api-conventions.md#offices, MVP-48, D-125): `me`-scoped, so another
