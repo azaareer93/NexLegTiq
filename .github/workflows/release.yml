@@ -1,0 +1,182 @@
+# Production release (D-020, D-225). A tag `vX.Y.Z` on a commit of main deploys the images staging already ran: the
+# tagged tree must equal a develop commit that has a successful staging deployment, and that commit's images are used —
+# nothing is rebuilt. Then: GitHub Environment `production` approval → encrypted pre-migration dump → migrate → rolling
+# restart (api-a, api-b, worker) → smoke tests → GitHub release with generated notes.
+# Rollback: Actions → Release → Run workflow with `version` = an earlier tag: same images and approval, no dump, no
+# migration, no release notes. Off until the repository variable PROD_DEPLOY=true (the resolve job still runs, so a tag
+# can be dry-run). Runbook: docs/runbooks/release.md.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Earlier release tag to roll back to (e.g. v1.4.2). Its images are redeployed without migrating.
+        required: true
+
+# Never cancel a rollout halfway (a migration may be running); a second release waits for the first.
+concurrency:
+  group: release-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  # GHCR names must be lowercase.
+  IMAGE_REPO: ghcr.io/${{ github.repository_owner }}/nexlegtiq
+
+jobs:
+  resolve:
+    name: Resolve the staging-tested images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: read
+      packages: read
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      sha: ${{ steps.resolve.outputs.sha }}
+      rollback: ${{ steps.resolve.outputs.rollback }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Map the tag to the develop commit whose images staging ran
+        id: resolve
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version=${INPUT_VERSION:-$GITHUB_REF_NAME}
+          rollback=$([ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && echo true || echo false)
+          [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::version must look like v1.2.3"; exit 1; }
+          commit=$(git rev-parse --verify --quiet "refs/tags/$version^{commit}") || { echo "::error::no tag $version"; exit 1; }
+          git merge-base --is-ancestor "$commit" origin/main || { echo "::error::$version is not on main"; exit 1; }
+          # main is develop merged: the released tree must be byte-identical to a develop commit staging deployed.
+          tree=$(git rev-parse "$commit^{tree}")
+          sha=
+          for candidate in $(git log --format='%H %T' origin/develop | awk -v t="$tree" '$2 == t { print $1 }'); do
+            for id in $(gh api "repos/$GITHUB_REPOSITORY/deployments?environment=staging&sha=$candidate" --jq '.[].id'); do
+              state=$(gh api "repos/$GITHUB_REPOSITORY/deployments/$id/statuses" --jq '.[0].state')
+              [ "$state" = success ] && sha=$candidate && break 2
+            done
+          done
+          [ -n "$sha" ] || { echo "::error::$version matches no develop commit with a successful staging deployment"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "rollback=$rollback" >> "$GITHUB_OUTPUT"
+          echo "$version (tag commit $commit) → images of develop $sha; rollback=$rollback" >> "$GITHUB_STEP_SUMMARY"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check the three images exist
+        env:
+          SHA: ${{ steps.resolve.outputs.sha }}
+        run: |
+          repo=${IMAGE_REPO,,}
+          for image in backend-api backend-api-worker backend-api-migrate; do
+            docker buildx imagetools inspect "$repo/$image:$SHA" > /dev/null || { echo "::error::missing $image:$SHA"; exit 1; }
+          done
+
+  deploy:
+    name: Deploy to production
+    needs: resolve
+    if: ${{ vars.PROD_DEPLOY == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: read
+    # Required reviewers and the `v*` tag rule live on the environment (runbook, "First setup"): this is the approval.
+    environment:
+      name: production
+      url: https://${{ vars.PROD_API_DOMAIN }}/health/ready
+    env:
+      TAG: ${{ needs.resolve.outputs.sha }}
+      ROLLBACK: ${{ needs.resolve.outputs.rollback }}
+      SSH_TARGET: ${{ vars.PROD_SSH_TARGET }}
+      DEPLOY_DIR: /opt/nexlegtiq/production
+      API_DOMAIN: ${{ vars.PROD_API_DOMAIN }}
+      ADMIN_IPS: ${{ vars.PROD_ADMIN_ALLOWED_IPS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: infra
+      - name: Check inputs
+        run: |
+          echo "IMAGE_REPO=${IMAGE_REPO,,}" >> "$GITHUB_ENV"
+          [[ "$TAG" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::resolved image tag must be a full commit SHA"; exit 1; }
+          # These end up in a remote shell command: plain shapes only (no quotes, no spaces beyond the IP list).
+          [[ "$API_DOMAIN" =~ ^[a-z0-9.-]+$ ]] || { echo "::error::PROD_API_DOMAIN must be a host name"; exit 1; }
+          [[ "$ADMIN_IPS" =~ ^[0-9a-fA-F.:/\ ]+$ ]] || { echo "::error::PROD_ADMIN_ALLOWED_IPS must be CIDRs separated by spaces"; exit 1; }
+          [[ "$SSH_TARGET" =~ ^[a-z_][a-z0-9_-]*@[A-Za-z0-9.-]+$ ]] || { echo "::error::PROD_SSH_TARGET must be user@host"; exit 1; }
+      - name: Encrypted dump before migrating (D-141 tools)
+        if: ${{ env.ROLLBACK != 'true' }}
+        env:
+          BACKUP_ENV: ${{ secrets.PROD_BACKUP_ENV }}
+        run: |
+          [ -n "$BACKUP_ENV" ] || { echo "::error::PROD_BACKUP_ENV is not set: no release migrates without a fresh dump"; exit 1; }
+          docker build --quiet --tag nexlegtiq-backup infra/backup
+          umask 077
+          printf '%s\n' "$BACKUP_ENV" | tr -d '\r' > "$RUNNER_TEMP/backup.env"
+          while IFS='=' read -r _ value; do
+            [ -n "$value" ] && echo "::add-mask::$value"
+          done < "$RUNNER_TEMP/backup.env"
+          docker run --rm --env-file "$RUNNER_TEMP/backup.env" nexlegtiq-backup /opt/backup/backup.sh | tee -a "$GITHUB_STEP_SUMMARY"
+          rm -f "$RUNNER_TEMP/backup.env"
+        shell: bash # -eo pipefail: a failed dump must fail the step through the tee
+      - name: Configure SSH (pinned host key, no trust on first use)
+        env:
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Upload compose files and render env files on the host
+        env:
+          APP_ENV: ${{ secrets.PROD_APP_ENV }}
+          MIGRATE_DATABASE_URL: ${{ secrets.PROD_MIGRATE_DATABASE_URL }}
+        run: |
+          scp -q infra/production/compose.yml infra/production/Caddyfile infra/production/deploy.sh "$SSH_TARGET:$DEPLOY_DIR/"
+          printf '%s\n' "$APP_ENV" | ssh "$SSH_TARGET" "umask 077 && cat > $DEPLOY_DIR/app.env"
+          printf 'DATABASE_URL=%s\n' "$MIGRATE_DATABASE_URL" | ssh "$SSH_TARGET" "umask 077 && cat > $DEPLOY_DIR/migrate.env"
+      - name: Log the host in to GHCR (this job's token, valid only while the job runs)
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        run: printf '%s' "$GHCR_TOKEN" | ssh "$SSH_TARGET" "docker login ghcr.io -u '$GHCR_USER' --password-stdin"
+      - name: Pull, migrate, rolling restart, smoke test on the host
+        run: |
+          skip=$([ "$ROLLBACK" = true ] && echo 1 || echo 0)
+          ssh "$SSH_TARGET" "SKIP_MIGRATE=$skip API_DOMAIN='$API_DOMAIN' ADMIN_ALLOWED_IPS='$ADMIN_IPS' sh $DEPLOY_DIR/deploy.sh '$IMAGE_REPO' '$TAG'"
+      - name: Smoke test through the public edge (TLS, Caddy, HSTS, admin allow-list)
+        run: |
+          curl -fsS --retry 5 --retry-all-errors --retry-delay 5 -o /dev/null "https://$API_DOMAIN/health/ready"
+          curl -fsS -D - -o /dev/null "https://$API_DOMAIN/health" | grep -qi '^strict-transport-security:' \
+            || { echo "::error::no HSTS header"; exit 1; }
+          # The runner is not on the admin allow-list: the edge must answer 404.
+          code=$(curl -s -o /dev/null -w '%{http_code}' "https://$API_DOMAIN/api/v1/admin/auth/me")
+          [ "$code" = 404 ] || { echo "::error::admin routes reachable from outside the allow-list ($code)"; exit 1; }
+      - name: Log the host out of GHCR
+        if: always()
+        run: ssh "$SSH_TARGET" "docker logout ghcr.io" || true
+
+  notes:
+    name: GitHub release with generated notes
+    needs: [resolve, deploy]
+    if: ${{ needs.resolve.outputs.rollback == 'false' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Create the release (changelog from the merged PR titles)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.resolve.outputs.version }}
+        run: gh release create "$VERSION" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes

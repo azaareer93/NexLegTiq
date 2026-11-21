@@ -1,0 +1,25 @@
+# Production API behind Caddy (automatic HTTPS; D-225). The backend runs with TRUST_PROXY_HOPS=1: Caddy is the only
+# proxy, so nothing may sit in front of it (no CDN proxying) or client IPs (lockout, rate limits, audit) would be wrong.
+{$API_DOMAIN} {
+	# Two years, subdomains included (app., portal., admin. are HTTPS-only on the CDN too); submit to the preload list
+	# only once every subdomain is known to stay on HTTPS.
+	header Strict-Transport-Security "max-age=63072000; includeSubDomains"
+
+	# Platform admin routes (D-145) answer only the listed ranges, at the edge as well as in the app (ADMIN_IP_ALLOWLIST).
+	@admin_outsider {
+		path /api/v1/admin /api/v1/admin/*
+		not remote_ip {$ADMIN_ALLOWED_IPS}
+	}
+	respond @admin_outsider 404
+
+	# No `encode`: the API compresses its own responses.
+	reverse_proxy api-a:3000 api-b:3000 {
+		# While deploy.sh replaces one container, requests to it fail fast and are retried on the other one.
+		lb_policy round_robin
+		lb_try_duration 15s
+		fail_duration 30s
+		health_uri /health
+		health_interval 5s
+		health_timeout 3s
+	}
+}
