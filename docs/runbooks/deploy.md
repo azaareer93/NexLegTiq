@@ -80,7 +80,8 @@ that rule needs a database restore (backups runbook) instead.
 - `docker compose run --rm migrate` re-runs migrations + plan seed alone.
 - The ClamAV container needs a few minutes on first start (signature download); `up --wait` allows 10 minutes.
 
+Production releases (tags on `main`): [release.md](release.md) (D-225); backups: [backups.md](backups.md) (D-141).
+
 ## Not covered yet
 
-Sentry releases (monitoring story), production (release pipeline story; backups are in [backups.md](backups.md), D-141),
-provisioning as code (Terraform for VPS/DNS/bucket — waits for the provider choice, D-103).
+Sentry releases (monitoring story), provisioning as code (Terraform for VPS/DNS/bucket — waits for the provider choice, D-103).

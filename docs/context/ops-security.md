@@ -44,9 +44,11 @@
 - Pipeline: CI (lint/typecheck/test/build/coverage/security) → build images (api, worker) → push GHCR → SSH deploy
   (`docker compose pull && up -d`) → `prisma migrate deploy` (migrator role) as a one-off job → smoke tests `/health/ready` → Sentry release.
   Staging is built (D-103): `apps/backend-api/Dockerfile`, `infra/staging/`, `.github/workflows/deploy-staging.yml`,
-  runbook `docs/runbooks/deploy.md`.
+  runbook `docs/runbooks/deploy.md`. Production releases are built (D-225): `infra/production/` (Caddy → `api-a` +
+  `api-b`, rolling restart), `.github/workflows/release.yml` (reuses the staging-tested images), runbook
+  `docs/runbooks/release.md`.
 - SPAs → Cloudflare Pages (preview per PR). Env: `VITE_API_URL`, `VITE_WS_URL`, `VITE_SENTRY_DSN`, feature flags; office app also `VITE_SUPPORT_EMAIL`, `VITE_SUPPORT_WHATSAPP` (Help Center contact, D-185).
-- Migrations: expand/contract for zero downtime; backup before prod migrate (a provider snapshot, taken by hand until the release pipeline story automates it — D-141); rollback = restore + previous image.
+- Migrations: expand/contract for zero downtime; backup before prod migrate (release.yml takes an encrypted dump with the D-141 tools before every migrating release — D-225); rollback = previous image without migrating, or restore + previous image when a migration broke expand/contract.
 
 ## Backups & DR (right-sized)
 - Managed PG: daily snapshots (30d) + PITR (7d) → RPO ≤ 15 min target when PITR available (else up to 7 days, the weekly dump — D-141).
