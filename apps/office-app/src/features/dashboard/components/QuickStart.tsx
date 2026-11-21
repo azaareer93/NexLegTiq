@@ -40,10 +40,10 @@ export function QuickStart({ setup }: { readonly setup: DashboardSetup }) {
   const { t } = useTranslation();
   const { token } = theme.useToken();
   const navigate = useNavigate();
-  const userId = useSession((state) => state.user?.id ?? '');
-  const [dismissed, setDismissed] = useState(() => wasDismissed(userId));
+  const userId = useSession((state) => state.user?.id);
+  const [dismissed, setDismissed] = useState(() => !userId || wasDismissed(userId));
   const done = STEPS.filter(({ step }) => setup[step]).length;
-  if (dismissed || done === STEPS.length) return null;
+  if (!userId || dismissed || done === STEPS.length) return null;
   const dismiss = () => {
     try {
       localStorage.setItem(storageKey(userId), '1');

@@ -288,6 +288,7 @@ describe('clients list', () => {
       const queries = serveClients([]);
       const { router } = renderApp('/clients?clientType=NGO&search=zz');
       expect(await screen.findByTestId('clients-clear', {}, { timeout: COLD })).toBeTruthy();
+      expect(screen.queryByTestId('illustration-clients')).toBeNull();
       fireEvent.click(screen.getByTestId('clients-clear'));
       await waitFor(() => expect(router.state.location.search).toBe(''));
       expect(lastQuery(queries)).toEqual({});

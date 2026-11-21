@@ -148,6 +148,8 @@ describe('Dashboard (D-151)', () => {
       expect(screen.queryByTestId('kpi-clients')).toBeNull();
       expect(screen.queryByTestId('kpi-unpaid')).toBeNull();
       expect(screen.queryByTestId('dashboard-team')).toBeNull();
+      // No `manage:office`: the API sends no checklist (D-210).
+      expect(screen.queryByTestId('quick-start')).toBeNull();
     },
     SLOW,
   );

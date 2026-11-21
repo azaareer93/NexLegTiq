@@ -3,7 +3,6 @@ import { LeftOutlined, RightOutlined } from '@ant-design/icons';
 import { isErrorCode } from '@nexlegtiq/shared-types';
 import {
   DirectionalIcon,
-  EmptyState,
   ErrorState,
   isApiError,
   Ltr,
@@ -31,9 +30,10 @@ import dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useSearchParams } from 'react-router';
+import { useSearchParams } from 'react-router';
 
-import { HelpLink, HowItWorksLink } from '../help';
+import { HelpLink } from '../help';
+import { CalendarEmpty } from './CalendarEmpty';
 import { HearingDrawer } from './HearingDrawer';
 import { addDays, useCalendar } from './use-calendar';
 import type { CalendarEntry, CalendarRange } from './use-calendar';
@@ -127,34 +127,6 @@ function DayEntries({
 }
 
 /** `/calendar` (MVP-70, D-155): month, week and agenda of hearings and due tasks, in the office's time zone. */
-/** Nothing in the range: hearings are scheduled from a case's Sessions tab, so the way forward is the cases list. */
-function CalendarEmpty() {
-  const { t } = useTranslation();
-  const navigate = useNavigate();
-  const canSchedule = useCan('create:session');
-  return (
-    <EmptyState
-      illustration="calendar"
-      title={t('calendar.empty')}
-      description={canSchedule ? t('calendar.emptyHint') : undefined}
-      action={
-        <Flex vertical align="center" gap={4}>
-          {canSchedule ? (
-            <Button
-              type="primary"
-              onClick={() => void navigate('/cases')}
-              data-testid="calendar-empty-schedule"
-            >
-              {t('calendar.emptyAction')}
-            </Button>
-          ) : null}
-          <HowItWorksLink slug="hearings" />
-        </Flex>
-      }
-    />
-  );
-}
-
 export function CalendarPage() {
   const { t } = useTranslation();
   const format = useFormat();

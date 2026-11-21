@@ -21,9 +21,9 @@ export async function officeSetup(
     await Promise.all([
       db.client.findFirst({ ...one, where: { deletedAt: null } }),
       db.legalFile.findFirst({ ...one, where: { deletedAt: null } }),
-      db.session.findFirst({ ...one, where: { file: { deletedAt: null } } }),
+      db.session.findFirst({ ...one, where: { isCancelled: false, file: { deletedAt: null } } }),
       db.document.findFirst({ ...one, where: { deletedAt: null } }),
-      db.user.findFirst({ ...one, where: { id: { not: userId } } }),
+      db.user.findFirst({ ...one, where: { id: { not: userId }, isActive: true } }),
       db.officeInvitation.findFirst(one),
       db.aiSummary.findFirst(one),
     ]);

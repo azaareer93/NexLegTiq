@@ -22,7 +22,7 @@ export function Illustration({ kind }: { readonly kind: IllustrationKind }): Rea
       <ellipse cx={60} cy={72} rx={44} ry={5} fill={soft} />
       {kind === 'cases' ? (
         <>
-          <path d="M28 22h22l6 7h36v37H28z" {...stroke} fill={fill} />
+          <path d="M28 22h18l6 7h16l6-7h18v44H28z" {...stroke} fill={fill} />
           <path d="M44 46h32M44 54h32" {...stroke} />
         </>
       ) : null}
@@ -42,7 +42,7 @@ export function Illustration({ kind }: { readonly kind: IllustrationKind }): Rea
       {kind === 'documents' ? (
         <>
           <rect x={40} y={12} width={40} height={54} rx={3} {...stroke} fill={fill} />
-          <path d="M48 26h24M48 34h24M48 42h24M48 50h16" {...stroke} />
+          <path d="M48 26h24M48 34h24M48 42h24M52 50h16" {...stroke} />
         </>
       ) : null}
       {kind === 'start' ? (

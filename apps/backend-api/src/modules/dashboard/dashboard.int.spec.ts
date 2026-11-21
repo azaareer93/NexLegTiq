@@ -96,6 +96,15 @@ describe('dashboard (HTTP + PostgreSQL)', () => {
         dueDate: dateOnly(-2),
       },
     });
+    // A deleted client ticks nothing (D-210).
+    await raw.client.create({
+      data: {
+        officeId: other.officeId,
+        clientType: 'INDIVIDUAL',
+        displayName: 'Gone client',
+        deletedAt: new Date(),
+      },
+    });
     const officeId = manager.officeId;
     const file = (title: string, openingDaysAgo: number) =>
       raw.legalFile.create({

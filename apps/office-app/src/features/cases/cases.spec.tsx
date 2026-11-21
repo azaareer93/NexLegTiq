@@ -188,6 +188,8 @@ describe('cases list page', () => {
       expect(await screen.findByText('No cases yet', {}, { timeout: COLD })).toBeTruthy();
       router.navigate('/cases?priority=URGENT').catch(() => undefined);
       expect(await screen.findByText('No matching cases')).toBeTruthy();
+      // A filtered-empty list is not the first-run state: no drawing.
+      expect(screen.queryByTestId('illustration-cases')).toBeNull();
       fireEvent.click(screen.getByTestId('cases-clear'));
       expect(await screen.findByText('No cases yet')).toBeTruthy();
       expect(router.state.location.search).toBe('');

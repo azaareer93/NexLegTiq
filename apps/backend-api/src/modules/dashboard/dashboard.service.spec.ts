@@ -52,7 +52,7 @@ function setup(context: Partial<RequestContext>) {
     },
     client: { count: jest.fn().mockResolvedValue(6), findFirst: jest.fn().mockResolvedValue(null) },
     officeInvitation: { findFirst: jest.fn().mockResolvedValue({ id: ID(31) }) },
-    aiSummary: { findFirst: jest.fn().mockResolvedValue(null) },
+    aiSummary: { findFirst: jest.fn().mockResolvedValue({ id: ID(32) }) },
     invoice: {
       groupBy: jest
         .fn()
@@ -116,16 +116,19 @@ describe('DashboardService (D-151)', () => {
       permissions: ['manage:office'],
     } as never);
     const data = await service.get(NOW);
-    // A file exists and a colleague was invited (no other user yet); nothing else has happened.
+    // A file, an invitation and an AI summary exist (no other user yet); nothing else has happened.
     expect(data.setup).toEqual({
       client: false,
       case: true,
       hearing: false,
       document: false,
       colleague: true,
-      aiSummary: false,
+      aiSummary: true,
     });
-    expect(db.user.findFirst.mock.calls[0]?.[0].where).toEqual({ id: { not: ID(7) } });
+    expect(db.user.findFirst.mock.calls[0]?.[0].where).toEqual({
+      id: { not: ID(7) },
+      isActive: true,
+    });
   });
 
   it('should sum visible unpaid and paid-this-month invoices per currency for invoice viewers', async () => {
