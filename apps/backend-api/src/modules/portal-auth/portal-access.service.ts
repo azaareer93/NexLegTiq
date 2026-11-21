@@ -10,6 +10,7 @@ import { PORTAL_INVITATION_DAYS, SEND_CLIENT_INVITATION_JOB } from './portal-aut
 import { PortalSessions } from './portal-sessions';
 import { AuditService } from '../../common/audit/audit.service';
 import { hashOpaqueToken, newOpaqueToken } from '../../common/auth/opaque-token';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import {
   PermissionDeniedException,
@@ -22,7 +23,6 @@ import { QUEUE } from '../../common/queue/queues';
 import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { ScopedTransaction } from '../../database/unit-of-work';
-import type { ClientInfo } from '../auth/client-info';
 import { DAY_MS } from '../auth/link-limits';
 
 /** shortcut: no paging — one client has a handful of portal users; page it if that ever passes 200. */

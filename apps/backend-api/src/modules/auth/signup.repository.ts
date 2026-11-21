@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import type { RegisterRequest } from '@nexlegtiq/shared-contracts';
 
-import type { ClientInfo } from './client-info';
 import { USER_FOR_SESSION } from './refresh-token.repository';
 import { auditRow } from '../../common/audit/audit.service';
+import type { ClientInfo } from '../../common/context/client-info';
 import { AppException } from '../../common/errors/app.exception';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';

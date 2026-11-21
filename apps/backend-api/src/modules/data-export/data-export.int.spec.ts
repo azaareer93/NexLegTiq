@@ -12,6 +12,7 @@ import request from 'supertest';
 import { OfficeExportBuilder } from './office-export.builder';
 import { AppModule } from '../../app/app.module';
 import { configureApp } from '../../app/configure-app';
+import { tenantContextFor } from '../../common/context/client-info';
 import { MailService } from '../../common/mail/mail.service';
 import { StorageService } from '../../common/storage/storage.service';
 import { TenantRunner } from '../../common/tenancy/tenant-runner';
@@ -20,7 +21,6 @@ import { integrationEnv } from '../../config/env.fixture';
 import { PrismaService } from '../../database/prisma.service';
 import type { PrismaClient } from '../../generated/prisma/client';
 import { bearerFor } from '../auth/auth.test-helper';
-import { tenantContextFor } from '../auth/client-info';
 import { liveSubscription } from '../subscriptions/subscription.test-helper';
 
 type Person = { userId: string; officeId: string; role: Role };

@@ -43,13 +43,13 @@ import { DocumentRetry } from './document-retry';
 import { DocumentSharingService } from './document-sharing.service';
 import { DocumentsService } from './documents.service';
 import { AuditService } from '../../common/audit/audit.service';
+import { clientFromRequest } from '../../common/context/client-info';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import { ResourceNotFoundException } from '../../common/errors/app.exception';
 import { ZodValidationPipe } from '../../common/http/zod-validation.pipe';
 import { ApiZodBody, ApiZodQuery, ApiZodResponse } from '../../common/openapi/api-zod.decorators';
 import { RequireAnyPermission, RequirePermissions } from '../../common/rbac/permissions.decorator';
-import { clientFromRequest } from '../auth/client-info';
-import type { ClientInfo } from '../auth/client-info';
 import { AllowWhenReadOnly } from '../subscriptions/subscription.decorators';
 
 /** A malformed id is the same 404 as an unknown one (D-019). */

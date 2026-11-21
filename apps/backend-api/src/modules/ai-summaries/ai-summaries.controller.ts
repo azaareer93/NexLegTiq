@@ -28,11 +28,11 @@ import { ClsService } from 'nestjs-cls';
 
 import { AiSummariesService } from './ai-summaries.service';
 import { SessionSummariesService } from './session-summaries.service';
+import { clientFromRequest } from '../../common/context/client-info';
 import { ResourceNotFoundException } from '../../common/errors/app.exception';
 import { ZodValidationPipe } from '../../common/http/zod-validation.pipe';
 import { ApiZodBody, ApiZodResponse } from '../../common/openapi/api-zod.decorators';
 import { RequirePermissions } from '../../common/rbac/permissions.decorator';
-import { clientFromRequest } from '../auth/client-info';
 
 const summaryId = new ParseUUIDPipe({ exceptionFactory: () => new ResourceNotFoundException() });
 

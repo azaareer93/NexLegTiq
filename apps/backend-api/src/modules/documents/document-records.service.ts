@@ -15,6 +15,7 @@ import type { AccessibleDocument } from './document-access.service';
 import { UploadIntake } from './upload/upload-intake';
 import { auditRow } from '../../common/audit/audit.service';
 import { changes } from '../../common/audit/changes';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import {
   AppException,
@@ -28,7 +29,6 @@ import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { ScopedTransaction } from '../../database/unit-of-work';
 import type { Prisma } from '../../generated/prisma/client';
-import type { ClientInfo } from '../auth/client-info';
 import { CaseAccessService } from '../legal-files/case-access.service';
 
 /** Characters per page of `GET /documents/:id/text`. */

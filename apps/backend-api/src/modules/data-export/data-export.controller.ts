@@ -20,10 +20,10 @@ import type { Request } from 'express';
 import { ClsService } from 'nestjs-cls';
 
 import { DataExportService } from './data-export.service';
+import { clientFromRequest } from '../../common/context/client-info';
 import { ResourceNotFoundException } from '../../common/errors/app.exception';
 import { ApiZodResponse } from '../../common/openapi/api-zod.decorators';
 import { RequirePermissions } from '../../common/rbac/permissions.decorator';
-import { clientFromRequest } from '../auth/client-info';
 import { AllowWhenReadOnly } from '../subscriptions/subscription.decorators';
 
 const exportId = new ParseUUIDPipe({ exceptionFactory: () => new ResourceNotFoundException() });

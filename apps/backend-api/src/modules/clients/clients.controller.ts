@@ -39,14 +39,14 @@ import { z } from 'zod';
 
 import { ClientsService } from './clients.service';
 import { ContactPersonsService } from './contact-persons.service';
+import { clientFromRequest } from '../../common/context/client-info';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import { ResourceNotFoundException } from '../../common/errors/app.exception';
 import type { PaginatedResult } from '../../common/http/paginated-result';
 import { ZodValidationPipe } from '../../common/http/zod-validation.pipe';
 import { ApiZodBody, ApiZodQuery, ApiZodResponse } from '../../common/openapi/api-zod.decorators';
 import { RequirePermissions } from '../../common/rbac/permissions.decorator';
-import { clientFromRequest } from '../auth/client-info';
-import type { ClientInfo } from '../auth/client-info';
 
 /** A malformed id is the same 404 as an unknown one (D-019). */
 const uuid = () => new ParseUUIDPipe({ exceptionFactory: () => new ResourceNotFoundException() });

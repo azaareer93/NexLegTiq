@@ -16,6 +16,7 @@ import { changes, dueRange, taskAuditRow, toDbDateOrNull } from './task-fields';
 import type { AuditChange } from './task-fields';
 import { assignedNotification } from './task-notifications';
 import { dateOnly, TasksRepository, toDbDate } from './tasks.repository';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import {
   PermissionDeniedException,
@@ -29,7 +30,6 @@ import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { AfterCommit, ScopedTransaction } from '../../database/unit-of-work';
 import type { Prisma } from '../../generated/prisma/client';
-import type { ClientInfo } from '../auth/client-info';
 import { CaseAccessService } from '../legal-files/case-access.service';
 import { todayIn } from '../legal-files/cases.service';
 import { TimelineService } from '../timeline/timeline.service';

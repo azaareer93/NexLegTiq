@@ -1,11 +1,11 @@
 import type { ClsService } from 'nestjs-cls';
 
 import { TeamService } from './team.service';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import type { RealtimePublisher } from '../../common/realtime/realtime.publisher';
 import type { PrismaService } from '../../database/prisma.service';
 import type { UnitOfWork } from '../../database/unit-of-work';
-import type { ClientInfo } from '../auth/client-info';
 import type { ReminderScheduler } from '../sessions/reminder-scheduler';
 import type { EntitlementsService } from '../subscriptions/entitlements.service';
 import { testTimeline } from '../timeline/timeline.test-helper';

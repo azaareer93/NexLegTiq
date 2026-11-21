@@ -47,13 +47,13 @@ import type { PortalSignIn } from './portal-auth.service';
 import { PortalAuthGuard, PortalRealmGuard } from './portal-guards';
 import { PortalInvitationAcceptService } from './portal-invitation-accept.service';
 import { Public } from '../../common/auth/public.decorator';
+import { clientFromRequest } from '../../common/context/client-info';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import { AppException } from '../../common/errors/app.exception';
 import { ZodValidationPipe } from '../../common/http/zod-validation.pipe';
 import { ApiZodBody, ApiZodResponse } from '../../common/openapi/api-zod.decorators';
 import { AppConfig } from '../../config/app-config';
-import { clientFromRequest } from '../auth/client-info';
-import type { ClientInfo } from '../auth/client-info';
 import { assertCookieRequestOrigin } from '../auth/csrf';
 
 const MINUTE_MS = 60_000;

@@ -4,6 +4,8 @@ import type { Role } from '@nexlegtiq/shared-types';
 import { ClsService } from 'nestjs-cls';
 
 import { hashOpaqueToken, newOpaqueToken } from '../../common/auth/opaque-token';
+import type { ClientInfo } from '../../common/context/client-info';
+import { truncateUserAgent } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import {
   AppException,
@@ -15,8 +17,6 @@ import { QUEUE } from '../../common/queue/queues';
 import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { AfterCommit, ScopedTransaction } from '../../database/unit-of-work';
-import type { ClientInfo } from '../auth/client-info';
-import { truncateUserAgent } from '../auth/client-info';
 import { INVITATION_DAYS, SEND_INVITATION_JOB } from '../auth/invitation-links';
 import { DAY_MS } from '../auth/link-limits';
 import { EntitlementsService } from '../subscriptions/entitlements.service';

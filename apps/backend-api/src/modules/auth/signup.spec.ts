@@ -4,13 +4,13 @@ import type { PinoLogger } from 'nestjs-pino';
 
 import type { AccountMailer } from './account-mailer';
 import type { AuthService, IssuedSession } from './auth.service';
-import type { ClientInfo } from './client-info';
 import { isVerificationOverdue, verificationLinkExpiry, verifyBy } from './email-verification';
 import type { PasswordHasher } from './password-hasher';
 import { LEGAL_VERSIONS, SignupRepository } from './signup.repository';
 import type { ExistingAccount, NewOfficeAccount } from './signup.repository';
 import { SignupService, signupPlanCode } from './signup.service';
 import { hashOpaqueToken } from '../../common/auth/opaque-token';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import { TenantRunner } from '../../common/tenancy/tenant-runner';
 import { AppConfig } from '../../config/app-config';

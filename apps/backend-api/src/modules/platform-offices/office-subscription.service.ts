@@ -3,6 +3,7 @@ import type { SubscriptionActionRequest } from '@nexlegtiq/shared-contracts';
 import type { OfficeId } from '@nexlegtiq/shared-types';
 import { zonedDateTime } from '@nexlegtiq/shared-utils';
 
+import type { ClientInfo } from '../../common/context/client-info';
 import {
   BusinessRuleException,
   ResourceNotFoundException,
@@ -10,7 +11,6 @@ import {
 } from '../../common/errors/app.exception';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma, Subscription } from '../../generated/prisma/client';
-import type { ClientInfo } from '../auth/client-info';
 import { PlatformAuditService } from '../platform-auth/platform-audit.service';
 import { EntitlementsService } from '../subscriptions/entitlements.service';
 

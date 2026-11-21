@@ -13,6 +13,7 @@ import {
   releaseParalegalFiles,
 } from './team.rules';
 import { auditRow } from '../../common/audit/audit.service';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import {
   ResourceConflictException,
@@ -22,7 +23,6 @@ import { RealtimePublisher } from '../../common/realtime/realtime.publisher';
 import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { AfterCommit, ScopedTransaction } from '../../database/unit-of-work';
-import type { ClientInfo } from '../auth/client-info';
 import { recipientsWanting } from '../notifications/notification-preferences';
 import { ReminderScheduler } from '../sessions/reminder-scheduler';
 import { EntitlementsService } from '../subscriptions/entitlements.service';

@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 
-import { tenantContextFor } from './client-info';
-import type { ClientInfo } from './client-info';
+import { tenantContextFor } from '../../common/context/client-info';
+import type { ClientInfo } from '../../common/context/client-info';
 import { QueueProducer } from '../../common/queue/queue-producer';
 import { QUEUE } from '../../common/queue/queues';
 import { TenantRunner } from '../../common/tenancy/tenant-runner';

@@ -5,10 +5,10 @@ import { Injectable } from '@nestjs/common';
 import { PlatformAuditService } from './platform-audit.service';
 import { ADMIN_SESSION_IDLE_MS, ADMIN_SESSION_MAX_MS } from './platform-auth.constants';
 import { hashOpaqueToken, newOpaqueToken } from '../../common/auth/opaque-token';
+import type { ClientInfo } from '../../common/context/client-info';
 import { AppException } from '../../common/errors/app.exception';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
-import type { ClientInfo } from '../auth/client-info';
 
 export interface IssuedSession {
   readonly refreshToken: string;

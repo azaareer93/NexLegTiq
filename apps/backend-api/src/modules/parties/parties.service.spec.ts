@@ -3,6 +3,7 @@ import type { ClsService } from 'nestjs-cls';
 import type { ConflictsService } from './conflicts.service';
 import { PartiesService } from './parties.service';
 import { PartyRegistry } from './party-registry';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import { FieldCipher } from '../../common/crypto/field-cipher';
 import { AppConfig } from '../../config/app-config';
@@ -10,7 +11,6 @@ import { testEnv } from '../../config/env.fixture';
 import { parseEnv } from '../../config/env.schema';
 import type { PrismaService } from '../../database/prisma.service';
 import type { UnitOfWork } from '../../database/unit-of-work';
-import type { ClientInfo } from '../auth/client-info';
 import type { CaseAccessService } from '../legal-files/case-access.service';
 import { testTimeline } from '../timeline/timeline.test-helper';
 
