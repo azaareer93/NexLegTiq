@@ -1,3 +1,3 @@
 export { casesRoutes } from './routes';
 export { QuickCreateCaseHost } from './components/QuickCreateCaseHost';
-export { openQuickCreateCase } from './quick-create';
+export { isTyping, openQuickCreateCase, useCtrlAltShortcut } from './quick-create';

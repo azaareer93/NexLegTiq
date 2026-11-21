@@ -20,6 +20,7 @@ import { NotificationsBell } from '../../notifications';
 import { RealtimeBridge } from '../../realtime';
 import { TaskDrawerHost } from '../../tasks';
 import { navKeyOf, PRIMARY_KEYS, useNavItems } from '../nav';
+import { ShortcutsHelp } from '../shortcuts';
 
 /** Height of the phone bottom bar, which the content keeps clear of (plus the iPhone home-indicator area). */
 const BOTTOM_BAR_PX = 64;
@@ -164,6 +165,7 @@ export function AppShell(): React.JSX.Element {
         <VerifyBanner />
         <QuickCreateCaseHost />
         <TaskDrawerHost />
+        <ShortcutsHelp />
         <RealtimeBridge />
         <Layout.Content
           style={{

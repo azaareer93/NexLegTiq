@@ -153,6 +153,7 @@ export function SessionsTab({
             type="primary"
             icon={<PlusOutlined />}
             onClick={() => onOpen(null)}
+            aria-keyshortcuts="Control+Alt+H"
             data-testid="session-new"
           >
             {t('sessions.tab.schedule')}

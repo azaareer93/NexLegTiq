@@ -55,7 +55,7 @@ pnpm nx run e2e:e2e                                   # Cypress
 - Tests: Jest/Vitest unit, Supertest integration on real PG/Redis, Cypress journeys in both languages.
 
 ## Tooling available to Claude
-- MCP: Atlassian (Jira `MVP`, cloud `nexlegtiq.atlassian.net`), Notion (spec source), Ruflo `claude-flow` (memory/swarm) — `.mcp.json`.
+- MCP: Atlassian (Jira `MVP`, cloud `nexlegtiq.atlassian.net`), Notion (spec source), Ruflo (memory/swarm) via the `ruflo-core` plugin (`mcp__plugin_ruflo-core_ruflo__*`, D-189).
 - Subagents in `.claude/agents/`: `architect`, `backend-engineer`, `frontend-engineer`, `code-reviewer`, `security-auditor`,
   `qa-engineer`, `rtl-i18n-reviewer`, `spec-guardian`.
 - Skills in `.claude/skills/`: `nest-module`, `react-feature`, `prisma-change`, `jira-workflow`, `rtl-i18n`, `ai-feature`, `tenant-isolation`.
