@@ -84,7 +84,10 @@ services:
   # One-off: `docker compose run --rm migrate` (deploy.sh), never started by `up`.
   migrate:
     image: ${IMAGE_REPO:?}/backend-api-migrate:${IMAGE_TAG:?}
-    env_file: migrate.env
+    # Removed by deploy.sh after each migration; present only while a release runs.
+    env_file:
+      - path: migrate.env
+        required: false
     profiles: [tools]
     read_only: true
     tmpfs: [/tmp]

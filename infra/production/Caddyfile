@@ -1,9 +1,9 @@
 # Production API behind Caddy (automatic HTTPS; D-225). The backend runs with TRUST_PROXY_HOPS=1: Caddy is the only
 # proxy, so nothing may sit in front of it (no CDN proxying) or client IPs (lockout, rate limits, audit) would be wrong.
 {$API_DOMAIN} {
-	# Two years, subdomains included (app., portal., admin. are HTTPS-only on the CDN too); submit to the preload list
-	# only once every subdomain is known to stay on HTTPS.
-	header Strict-Transport-Security "max-age=63072000; includeSubDomains"
+	# One year (ops-security.md). includeSubDomains here covers only *.api.<domain>; app., portal. and admin. get HSTS
+	# from their own CDN setting (runbook, "Domains").
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
 
 	# Platform admin routes (D-145) answer only the listed ranges, at the edge as well as in the app (ADMIN_IP_ALLOWLIST).
 	@admin_outsider {

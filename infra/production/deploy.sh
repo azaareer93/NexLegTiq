@@ -14,24 +14,31 @@ echo "$repo" | grep -Eqx 'ghcr\.io/[a-z0-9._-]+/[a-z0-9._-]+' || { echo "invalid
 echo "$tag" | grep -Eqx '[0-9a-f]{40}' || { echo "invalid tag (full commit SHA expected)" >&2; exit 2; }
 echo "${API_DOMAIN:?}" | grep -Eqx '[a-z0-9.-]+' || { echo "invalid API_DOMAIN" >&2; exit 2; }
 echo "${ADMIN_ALLOWED_IPS:?}" | grep -Eqx '[0-9a-fA-F.:/ ]+' || { echo "invalid ADMIN_ALLOWED_IPS" >&2; exit 2; }
-[ -s app.env ] && [ -s migrate.env ] || { echo "app.env and migrate.env must exist (see docs/runbooks/release.md)" >&2; exit 2; }
+[ -z "${RELEASE_VERSION:-}" ] || echo "$RELEASE_VERSION" | grep -Eqx 'v[0-9]+\.[0-9]+\.[0-9]+' || { echo "invalid RELEASE_VERSION" >&2; exit 2; }
+[ -s app.env ] || { echo "app.env must exist (see docs/runbooks/release.md)" >&2; exit 2; }
+[ "${SKIP_MIGRATE:-0}" = 1 ] || [ -s migrate.env ] || { echo "migrate.env must exist to migrate" >&2; exit 2; }
 
 umask 077
+# .env (read by every later `docker compose`, also a manual restart) only names the new tag once it is pulled and migrated.
 printf 'IMAGE_REPO=%s\nIMAGE_TAG=%s\nAPI_DOMAIN=%s\nADMIN_ALLOWED_IPS=%s\n' \
-  "$repo" "$tag" "$API_DOMAIN" "$ADMIN_ALLOWED_IPS" > .env
+  "$repo" "$tag" "$API_DOMAIN" "$ADMIN_ALLOWED_IPS" > .env.next
 
 ready() {
   docker compose exec -T "$1" node -e \
     "fetch('http://127.0.0.1:3000/health/ready').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
 }
 
-docker compose --profile tools pull --quiet
+# Only the app images: a fresh upstream build of caddy or clamav must not recreate them mid-release (edge or scanner down).
+docker compose --env-file .env.next --profile tools pull --quiet api-a api-b worker migrate
 if [ "${SKIP_MIGRATE:-0}" = 1 ]; then
   echo "SKIP_MIGRATE=1: no migration (rollback to an image the current schema already serves)"
 else
   # Forward-only migrations (expand/contract): the running containers keep working while the schema changes.
-  docker compose run --rm migrate
+  docker compose --env-file .env.next run --rm migrate
 fi
+# The migrator's credentials only live on the host for the length of a release (the workflow writes them each time).
+rm -f migrate.env
+mv .env.next .env
 
 # Shared dependencies first (no-ops when unchanged; ClamAV's first start takes minutes).
 docker compose up -d --wait --wait-timeout 600 clamav caddy
@@ -46,6 +53,7 @@ docker compose up -d --remove-orphans --wait --wait-timeout 300
 # A changed Caddyfile is a bind mount: compose does not restart Caddy for it, so reload (graceful, keeps connections).
 docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile
 
-[ -f deployed-tag ] && cp deployed-tag previous-tag
+if [ -f deployed-tag ] && [ "$(cat deployed-tag)" != "$tag" ]; then cp deployed-tag previous-tag; fi
 echo "$tag" > deployed-tag
+[ -z "${RELEASE_VERSION:-}" ] || echo "$RELEASE_VERSION $tag" >> releases.log
 echo "production now runs $tag (previous: $(cat previous-tag 2>/dev/null || echo none))"

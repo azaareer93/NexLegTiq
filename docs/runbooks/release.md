@@ -5,7 +5,7 @@ A tag `vX.Y.Z` on `main` releases to production. Nothing is rebuilt: production 
 ```
 git tag vX.Y.Z <main commit> && git push origin vX.Y.Z
   └─ release.yml
-       resolve:  tag on main? → its tree == a develop commit with a successful staging deployment? → images exist?
+       resolve:  tag on main? → its tree == a develop commit marked `staging/deployed`? → images exist?
        deploy:   GitHub Environment `production` (required reviewer = the approval)
                  → encrypted pg_dump to the backup bucket (infra/backup, D-141)
                  → scp infra/production/{compose.yml,Caddyfile,deploy.sh}, render app.env + migrate.env from secrets
@@ -38,17 +38,22 @@ Same shape as staging ([deploy.md](deploy.md), "First setup") with production va
    /opt/nexlegtiq/production`. DNS `api.<domain>` A/AAAA → the host, **not** proxied by a CDN (`TRUST_PROXY_HOPS=1`).
 3. **Domains** — `app.`, `portal.` and `admin.` are Cloudflare Pages custom domains (one Pages project per SPA,
    production branch `main`, `VITE_API_URL=https://api.<domain>`); turn on "Always use HTTPS" and HSTS
-   (max-age ≥ 6 months, include subdomains) in Cloudflare; `api.` gets HSTS from the Caddyfile. **Admin panel:** a
+   (max-age 1 year, ops-security.md) in Cloudflare; `api.` gets HSTS from the Caddyfile. **Admin panel:** a
    Cloudflare Access policy (or a WAF IP rule) on `admin.<domain>` with the same ranges as `PROD_ADMIN_ALLOWED_IPS`; the
-   API refuses the admin routes from elsewhere twice over (Caddy 404 + `ADMIN_IP_ALLOWLIST` 403).
+   API refuses the admin routes from elsewhere twice over (Caddy 404 + `ADMIN_IP_ALLOWLIST` 403 — the release refuses a
+   `PROD_APP_ENV` without it).
 4. **Deploy key** — a new `ssh-keygen -t ed25519 -C deploy-production` key (never the staging one); host key from
    `ssh-keyscan -t ed25519 <host>`, checked against the provider console's fingerprint.
 5. **GitHub → Settings → Environments → `production`:**
    - **Required reviewers:** you (this is the manual approval). **Deployment branches and tags:** selected → tag rule
      `v*` and branch `main` (the rollback runs from `main`). Leave "allow administrators to bypass" off.
    - secrets: `PROD_SSH_KEY`, `PROD_SSH_KNOWN_HOSTS`, `PROD_APP_ENV` (the filled-in `infra/production/app.env.example`),
-     `PROD_MIGRATE_DATABASE_URL` (migrator role, TLS), `PROD_BACKUP_ENV` (the same content as the `backup` environment's
-     `BACKUP_ENV`, D-141 — a release refuses to migrate without it);
+     `PROD_MIGRATE_DATABASE_URL` (migrator role, TLS), `PROD_BACKUP_ENV` (the dump part of the `backup` environment's
+     `BACKUP_ENV`, D-141: `DATABASE_URL`, `AGE_RECIPIENTS`, `BACKUP_BUCKET`, `RCLONE_CONFIG_BACKUP_*` — not the documents
+     keys; a release refuses to migrate without it). The dump runs on a GitHub-hosted runner, so the managed database
+     must accept TLS connections from outside the host (password + `verify-full`); if you restrict it to the host's IP,
+     move the dump onto the host first. Values in `PROD_APP_ENV` are taken literally: no quotes, and no `$` (compose
+     would expand it);
    - variables: `PROD_SSH_TARGET` (`deploy@<host>`), `PROD_API_DOMAIN` (`api.<domain>`), `PROD_ADMIN_ALLOWED_IPS`
      (CIDRs separated by spaces).
 6. **Repository variable** `PROD_DEPLOY=true` switches the deploy job on. Until then a tag runs only the resolve job —
@@ -58,9 +63,11 @@ Same shape as staging ([deploy.md](deploy.md), "First setup") with production va
 
 ## Rollback
 
-Actions → **Release** → *Run workflow* (on `main`) with `version` = the previous tag (the one before is on the host in
-`/opt/nexlegtiq/production/previous-tag` as a SHA; the tag list is in Releases). Same approval, same rolling restart,
-**no dump and no migration** (`SKIP_MIGRATE=1`), no release notes. By hand on the host:
+Actions → **Release** → *Run workflow* (on `main`) with `version` = the previous tag (`releases.log` on the host lists
+`<version> <sha>` per release; also Releases). Same approval, same rolling restart, the **tag's own** infra files,
+**no dump and no migration** (`SKIP_MIGRATE=1`), no release notes. **Approver:** roll back only to a release the
+current schema still serves — normally the one just before; further back only if no migration since then contracted
+anything. By hand on the host:
 `SKIP_MIGRATE=1 API_DOMAIN=… ADMIN_ALLOWED_IPS='…' sh /opt/nexlegtiq/production/deploy.sh ghcr.io/<owner>/nexlegtiq <sha>`.
 
 **Migrations — expand/contract (ops-security.md):** rolling back the image never undoes a migration, and during a rolling

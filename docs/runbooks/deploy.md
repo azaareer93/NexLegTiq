@@ -60,7 +60,8 @@ add them to `docs/context/legal-facts.md`.
 
 Merge to `develop`. Watch Actions → CI → *Deploy staging*. The run fails (and the old containers keep running if
 `up` never started) when the migration, the health checks or the `/health/ready` smoke test fail. On the host,
-`/opt/nexlegtiq/staging/deployed-tag` holds the running SHA and `previous-tag` the one before.
+`/opt/nexlegtiq/staging/deployed-tag` holds the running SHA and `previous-tag` the one before. A green rollout sets the
+commit status `staging/deployed` on the images' SHA: production releases only commits that carry it (D-225).
 
 ## Rollback
 
