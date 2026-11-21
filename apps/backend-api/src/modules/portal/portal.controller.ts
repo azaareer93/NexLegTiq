@@ -36,10 +36,10 @@ import { ClsService } from 'nestjs-cls';
 import { PortalInvoicesService } from './portal-invoices.service';
 import { PortalService } from './portal.service';
 import { Public } from '../../common/auth/public.decorator';
+import { clientFromRequest } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import { ResourceNotFoundException } from '../../common/errors/app.exception';
 import { ApiZodResponse } from '../../common/openapi/api-zod.decorators';
-import { clientFromRequest } from '../auth/client-info';
 import { PortalAuthGuard, PortalRealmGuard } from '../portal-auth/portal-guards';
 
 type PortalRequest = Request & { clientUserId?: string };

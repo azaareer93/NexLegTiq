@@ -23,6 +23,7 @@ import type { Request } from 'express';
 import { ClsService } from 'nestjs-cls';
 
 import { FileLifecycleService } from './file-lifecycle.service';
+import { clientFromRequest } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import { ResourceNotFoundException } from '../../common/errors/app.exception';
 import { ZodValidationPipe } from '../../common/http/zod-validation.pipe';
@@ -31,7 +32,6 @@ import {
   PermissionConditionsCheckedByService,
   RequirePermissions,
 } from '../../common/rbac/permissions.decorator';
-import { clientFromRequest } from '../auth/client-info';
 
 const uuid = new ParseUUIDPipe({ exceptionFactory: () => new ResourceNotFoundException() });
 

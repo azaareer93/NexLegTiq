@@ -17,6 +17,7 @@ import {
 } from './party-registry';
 import type { PartyRow } from './party-registry';
 import { changes } from '../../common/audit/changes';
+import type { ClientInfo } from '../../common/context/client-info';
 import {
   BusinessRuleException,
   ResourceNotFoundException,
@@ -25,7 +26,6 @@ import {
 import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { ScopedTransaction } from '../../database/unit-of-work';
-import type { ClientInfo } from '../auth/client-info';
 import { CaseAccessService } from '../legal-files/case-access.service';
 import { TimelineService } from '../timeline/timeline.service';
 

@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 
-import type { ClientInfo } from './client-info';
 import { RefreshTokenRepository } from './refresh-token.repository';
 import { auditRow } from '../../common/audit/audit.service';
+import type { ClientInfo } from '../../common/context/client-info';
 import { PrismaService } from '../../database/prisma.service';
 
 /**

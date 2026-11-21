@@ -1,8 +1,8 @@
 import { PortalService } from './portal.service';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { StorageService } from '../../common/storage/storage.service';
 import type { TenantRunner } from '../../common/tenancy/tenant-runner';
 import type { PrismaService } from '../../database/prisma.service';
-import type { ClientInfo } from '../auth/client-info';
 import type { ClientUploadIntake } from '../documents/client-upload-intake';
 import { discardBody } from '../documents/upload/multipart';
 import type { PortalAccounts } from '../portal-auth/portal-accounts';

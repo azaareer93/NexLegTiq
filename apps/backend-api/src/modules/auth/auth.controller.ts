@@ -32,13 +32,13 @@ import { ClsService } from 'nestjs-cls';
 
 import { AuthService } from './auth.service';
 import type { IssuedSession } from './auth.service';
-import { clientFromRequest } from './client-info';
-import type { ClientInfo } from './client-info';
 import { assertCookieRequestOrigin } from './csrf';
 import { InvitationAcceptService } from './invitation-accept.service';
 import { REFRESH_COOKIE, refreshCookieOptions } from './refresh-token';
 import { SignupService } from './signup.service';
 import { Public } from '../../common/auth/public.decorator';
+import type { ClientInfo } from '../../common/context/client-info';
+import { clientFromRequest } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import { AppException } from '../../common/errors/app.exception';
 import { ZodValidationPipe } from '../../common/http/zod-validation.pipe';

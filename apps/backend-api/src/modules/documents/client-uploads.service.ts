@@ -12,6 +12,7 @@ import { documentJobId, PROCESS_DOCUMENT_JOB } from './document-jobs';
 import { UploadIntake } from './upload/upload-intake';
 import { auditRow } from '../../common/audit/audit.service';
 import type { AuditEntry } from '../../common/audit/audit.service';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import {
   BusinessRuleException,
@@ -24,7 +25,6 @@ import { DEFAULT_URL_TTL_SECONDS, StorageService } from '../../common/storage/st
 import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { ScopedTransaction } from '../../database/unit-of-work';
-import type { ClientInfo } from '../auth/client-info';
 import { CaseAccessService } from '../legal-files/case-access.service';
 import { TimelineService } from '../timeline/timeline.service';
 

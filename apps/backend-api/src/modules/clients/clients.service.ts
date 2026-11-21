@@ -10,6 +10,7 @@ import type {
 import { ClientContext, changedFields } from './client-context';
 import { ClientsRepository, OPEN_FILE_STATUSES, toContact, toListItem } from './clients.repository';
 import type { ClientRow } from './clients.repository';
+import type { ClientInfo } from '../../common/context/client-info';
 import { FieldCipher } from '../../common/crypto/field-cipher';
 import {
   BusinessRuleException,
@@ -19,7 +20,6 @@ import {
 import { PaginatedResult } from '../../common/http/paginated-result';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { ScopedTransaction } from '../../database/unit-of-work';
-import type { ClientInfo } from '../auth/client-info';
 
 const LAWYER_ROLES = ['OFFICE_MANAGER', 'SENIOR_LAWYER', 'LAWYER'] as const;
 const ENCRYPTED = { nationalId: 'clients.national_id', taxId: 'clients.tax_id' } as const;

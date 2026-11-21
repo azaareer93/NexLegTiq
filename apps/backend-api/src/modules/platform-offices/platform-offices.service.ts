@@ -9,12 +9,12 @@ import { PinoLogger } from 'nestjs-pino';
 
 import { isAtRisk, WRITE_ACTIONS } from './office-activity';
 import { officeStatistics } from './office-statistics';
+import type { ClientInfo } from '../../common/context/client-info';
 import { ResourceNotFoundException } from '../../common/errors/app.exception';
 import { PaginatedResult } from '../../common/http/paginated-result';
 import { RealtimePublisher } from '../../common/realtime/realtime.publisher';
 import { PrismaService } from '../../database/prisma.service';
 import { Prisma } from '../../generated/prisma/client';
-import type { ClientInfo } from '../auth/client-info';
 import { PlatformAuditService } from '../platform-auth/platform-audit.service';
 import { EntitlementsService } from '../subscriptions/entitlements.service';
 

@@ -10,6 +10,7 @@ import type {
 } from '@nexlegtiq/shared-contracts';
 
 import { deleteOrInUse, ReferenceContext } from './reference-context';
+import type { ClientInfo } from '../../common/context/client-info';
 import {
   PermissionDeniedException,
   ResourceNotFoundException,
@@ -18,7 +19,6 @@ import { PaginatedResult } from '../../common/http/paginated-result';
 import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { Prisma } from '../../generated/prisma/client';
-import type { ClientInfo } from '../auth/client-info';
 import { changedFields } from '../clients/client-context';
 
 const COURT_SELECT = {

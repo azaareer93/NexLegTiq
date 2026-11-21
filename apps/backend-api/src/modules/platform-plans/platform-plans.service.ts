@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { AdminPlan, CreatePlanRequest, UpdatePlanRequest } from '@nexlegtiq/shared-contracts';
 
+import type { ClientInfo } from '../../common/context/client-info';
 import {
   BusinessRuleException,
   ResourceNotFoundException,
@@ -8,7 +9,6 @@ import {
 import { isPrismaError } from '../../common/errors/prisma-error';
 import { PrismaService } from '../../database/prisma.service';
 import type { Plan } from '../../generated/prisma/client';
-import type { ClientInfo } from '../auth/client-info';
 import { PlatformAuditService } from '../platform-auth/platform-audit.service';
 import { EntitlementsService } from '../subscriptions/entitlements.service';
 

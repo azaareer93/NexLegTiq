@@ -12,12 +12,12 @@ import type { OfficeId } from '@nexlegtiq/shared-types';
 import type { Request } from 'express';
 
 import { auditRow } from '../../common/audit/audit.service';
+import type { ClientInfo } from '../../common/context/client-info';
 import { ResourceNotFoundException } from '../../common/errors/app.exception';
 import { DEFAULT_URL_TTL_SECONDS, StorageService } from '../../common/storage/storage.service';
 import { TenantRunner } from '../../common/tenancy/tenant-runner';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
-import type { ClientInfo } from '../auth/client-info';
 import { ClientUploadIntake } from '../documents/client-upload-intake';
 import { portalUploadSelect, toPortalUpload } from '../documents/client-upload-presenter';
 import { discardBody } from '../documents/upload/multipart';

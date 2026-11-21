@@ -11,11 +11,11 @@ import type { Request } from 'express';
 import { ClsService } from 'nestjs-cls';
 
 import { AuditLogService } from './audit-log.service';
+import { clientFromRequest } from '../../common/context/client-info';
 import { ResourceNotFoundException } from '../../common/errors/app.exception';
 import { ZodValidationPipe } from '../../common/http/zod-validation.pipe';
 import { ApiZodResponse } from '../../common/openapi/api-zod.decorators';
 import { RequirePermissions } from '../../common/rbac/permissions.decorator';
-import { clientFromRequest } from '../auth/client-info';
 
 const fileId = new ParseUUIDPipe({ exceptionFactory: () => new ResourceNotFoundException() });
 

@@ -4,13 +4,13 @@ import type { Conflict, ConflictQuery, ConflictReason } from '@nexlegtiq/shared-
 import { ClsService } from 'nestjs-cls';
 
 import { auditRow } from '../../common/audit/audit.service';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import { AppException, ResourceNotFoundException } from '../../common/errors/app.exception';
 import { PaginatedResult } from '../../common/http/paginated-result';
 import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { Prisma } from '../../generated/prisma/client';
-import type { ClientInfo } from '../auth/client-info';
 import { CaseAccessService } from '../legal-files/case-access.service';
 
 const FILE = { select: { id: true, fileNumber: true, title: true } } as const;

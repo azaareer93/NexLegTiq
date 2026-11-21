@@ -9,13 +9,13 @@ import { ClsService } from 'nestjs-cls';
 
 import { auditRow } from '../../common/audit/audit.service';
 import { changes } from '../../common/audit/changes';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import { ValidationException } from '../../common/errors/app.exception';
 import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { ScopedTransaction } from '../../database/unit-of-work';
 import { Prisma } from '../../generated/prisma/client';
-import type { ClientInfo } from '../auth/client-info';
 import { parseFileNumberFormat } from '../legal-files/file-number';
 
 const PROFILE = {

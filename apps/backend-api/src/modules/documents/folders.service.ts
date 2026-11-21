@@ -5,6 +5,7 @@ import { ClsService } from 'nestjs-cls';
 
 import { FolderTree, MAX_FOLDER_DEPTH, MAX_FOLDERS_PER_FILE } from './folder-tree';
 import { auditRow } from '../../common/audit/audit.service';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import {
   BusinessRuleException,
@@ -16,7 +17,6 @@ import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { ScopedTransaction } from '../../database/unit-of-work';
 import type { Prisma } from '../../generated/prisma/client';
-import type { ClientInfo } from '../auth/client-info';
 import { changedFields } from '../clients/client-context';
 import { CaseAccessService } from '../legal-files/case-access.service';
 

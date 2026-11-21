@@ -7,11 +7,11 @@ import type {
 } from '@nexlegtiq/shared-contracts';
 
 import { AccountMailer } from './account-mailer';
-import { tenantContextFor } from './client-info';
-import type { ClientInfo } from './client-info';
 import { PasswordHasher } from './password-hasher';
 import { PasswordRepository } from './password.repository';
 import { hashOpaqueToken } from '../../common/auth/opaque-token';
+import type { ClientInfo } from '../../common/context/client-info';
+import { tenantContextFor } from '../../common/context/client-info';
 import type { AuthPrincipal } from '../../common/context/request-context';
 import { AppException, ValidationException } from '../../common/errors/app.exception';
 import { TenantRunner } from '../../common/tenancy/tenant-runner';

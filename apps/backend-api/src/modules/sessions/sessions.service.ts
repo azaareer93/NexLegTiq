@@ -26,6 +26,7 @@ import {
 import { assertAttendingLawyer, SessionWriter, STATE_SELECT } from './session-writer';
 import type { SessionState, Slot } from './session-writer';
 import { SessionsRepository } from './sessions.repository';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import {
   BusinessRuleException,
@@ -38,7 +39,6 @@ import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { ScopedTransaction } from '../../database/unit-of-work';
 import type { Prisma } from '../../generated/prisma/client';
-import type { ClientInfo } from '../auth/client-info';
 import { nextCourtRefs } from '../courts/court-refs';
 import { CaseAccessService } from '../legal-files/case-access.service';
 

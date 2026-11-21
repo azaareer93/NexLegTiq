@@ -2,11 +2,11 @@ import type { ClsService } from 'nestjs-cls';
 
 import { syncConflicts } from './conflict-detection';
 import { ConflictsService } from './conflicts.service';
+import type { ClientInfo } from '../../common/context/client-info';
 import type { RequestContext } from '../../common/context/request-context';
 import { AppException, ResourceNotFoundException } from '../../common/errors/app.exception';
 import type { PrismaService } from '../../database/prisma.service';
 import type { ScopedTransaction, UnitOfWork } from '../../database/unit-of-work';
-import type { ClientInfo } from '../auth/client-info';
 import type { CaseAccessService } from '../legal-files/case-access.service';
 
 const client: ClientInfo = { ip: '127.0.0.1', userAgent: 'jest', requestId: 'req-12345678' };
