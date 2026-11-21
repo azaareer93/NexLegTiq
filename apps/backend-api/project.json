@@ -104,6 +104,13 @@
         "cwd": "apps/backend-api"
       }
     },
+    "seed-perf": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsx prisma/seed-perf.ts",
+        "cwd": "apps/backend-api"
+      }
+    },
     "seed-demo": {
       "executor": "nx:run-commands",
       "options": {
