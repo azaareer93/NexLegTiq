@@ -27,6 +27,7 @@
     "open": "Search",
     "placeholder": "Search cases, clients, documents…",
     "minChars": "Type at least 2 characters to search.",
+    "searchingDocuments": "Searching inside documents…",
     "recent": "Recent searches",
     "groups": {
       "cases": "Cases",

@@ -193,7 +193,8 @@ export function SearchPanel({ onClose }: { readonly onClose: () => void }): Reac
   };
 
   const activeKey = options[active]?.key;
-  const loaded = searching && data !== undefined;
+  // "Nothing found" and the count wait for the document step (D-240); names show as soon as they arrive.
+  const loaded = searching && data !== undefined && !query.documentsPending;
 
   return (
     <Flex vertical gap={token.marginSM}>
@@ -224,6 +225,11 @@ export function SearchPanel({ onClose }: { readonly onClose: () => void }): Reac
         count={count}
         error={query.error}
       />
+      {searching && query.documentsPending ? (
+        <Typography.Text type="secondary" data-testid="search-documents-pending">
+          {t('shell.search.searchingDocuments')}
+        </Typography.Text>
+      ) : null}
       <ResultList
         id={listId}
         groups={groups}
