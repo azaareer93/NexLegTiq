@@ -10,6 +10,7 @@ import { parseTenantJob } from './tenant-job';
 import type { TenantJobData } from './tenant-job';
 import { withTimeout } from './with-timeout';
 import type { PrismaService } from '../../database/prisma.service';
+import { reportError } from '../monitoring/error-reporting';
 import type { TenantRunner } from '../tenancy/tenant-runner';
 
 /** Log fields for one job attempt: worker logs have no HTTP request, so the request id comes from the payload (D-076). */
@@ -74,7 +75,9 @@ export abstract class TenantProcessor<T extends object> extends WorkerHost {
         jobLogFields(job, tenant?.requestId ?? null),
         'Invalid job payload; not retried',
       );
-      throw new UnrecoverableError('Invalid job payload');
+      const error = new UnrecoverableError('Invalid job payload');
+      reportIfFinal(job, jobLogFields(job, tenant?.requestId ?? null), error);
+      throw error;
     }
     const policy = QUEUE_POLICY[job.queueName as QueueName];
     if (!policy) throw new UnrecoverableError(`No queue policy for ${job.queueName}`);
@@ -96,7 +99,16 @@ export abstract class TenantProcessor<T extends object> extends WorkerHost {
       );
     } catch (error) {
       this.logger.warn({ ...fields, err: error }, 'Job attempt failed');
+      reportIfFinal(job, fields, error);
       throw error;
     }
+  }
+}
+
+/** Only the attempt that fails the job is reported; retried attempts are only logged (D-230). */
+function reportIfFinal(job: Job, fields: ReturnType<typeof jobLogFields>, error: unknown): void {
+  if (error instanceof UnrecoverableError || fields.attempt >= (job.opts?.attempts ?? 1)) {
+    const { queue, job: name, jobId, attempt, requestId } = fields;
+    reportError(error, { queue, job: name, jobId, attempt, requestId });
   }
 }

@@ -194,10 +194,10 @@ describe('navigation states and errors', () => {
   /** The app's routes plus extra pages inside the shell, for loading and error cases. */
   function renderWithExtraPages(extra: RouteObject[], path: string) {
     const [root] = routes;
-    // Adds `extra` next to the shell's pages (the pathless route that carries the shell's errorElement).
+    // Adds `extra` next to the shell's pages (the pathless route that carries the shell's errorElement; the shell is lazy).
     const withExtra = (route: RouteObject): RouteObject => {
       const pages = route.children?.[0];
-      if (route.element !== undefined && pages?.errorElement !== undefined) {
+      if ((route.element ?? route.lazy) !== undefined && pages?.errorElement !== undefined) {
         return {
           ...route,
           children: [{ ...pages, children: [...extra, ...(pages.children ?? [])] } as RouteObject],

@@ -111,6 +111,7 @@ describe('SessionSummariesService (D-179)', () => {
 
   it('should create tasks only from the picked steps, dated from dueInDays in the office zone', async () => {
     const { service, tasks } = setup();
+    // The due date is counted from today: pin the clock so the expected date does not expire.
     jest.useFakeTimers({ now: NOW, advanceTimers: true });
     const created = await service
       .createTasks(
