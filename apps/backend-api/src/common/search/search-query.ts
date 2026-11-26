@@ -12,7 +12,7 @@ export const SEARCH_TARGETS = {
     table: 'parties',
     trigram: 'nlq_normalize_ar(coalesce(t."full_name", t."company_name"))',
   },
-  tasks: { table: 'tasks', trigram: 'nlq_normalize_ar(t."title")' },
+  tasks: { table: 'tasks', trigram: 'nlq_normalize_ar(t."title")', recent: true },
   documents: { table: 'document_texts', trigram: null, recent: true },
   statements: { table: 'witness_statements', trigram: null },
 } as const;
@@ -28,7 +28,8 @@ export const RANKED_CANDIDATES = 1_000;
 /**
  * `recent` targets look in the office's newest `RECENT_WINDOW` rows first, in `(office_id, id)` index order, and search
  * the whole office only when those hold fewer matches than the limit (D-240): a common word reads a thousand rows instead
- * of the 15k it matches (188 → 20 ms on the perf seed); a rare word pays the window (~13 ms), then the GIN path.
+ * of the 15k it matches (188 → 20 ms on the perf seed); a rare word pays the window (~13 ms), then the GIN path. Tasks
+ * too: their GIN path scans the matches of every office before keeping one office's.
  */
 export const RECENT_WINDOW = 1_000;
 

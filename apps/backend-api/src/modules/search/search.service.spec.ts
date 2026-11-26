@@ -129,6 +129,16 @@ describe('SearchService (D-167)', () => {
     expect(db.legalFile.findMany).toHaveBeenCalledTimes(1);
   });
 
+  it('should search every group but document text for names (D-240)', async () => {
+    const { service, db } = build(ctxOf('OFFICE_MANAGER'), {});
+    await service.search({ q: 'rent', type: 'names', limit: 5 });
+    const sql = db.$queryRaw.mock.calls.map(([query]) => ('sql' in query ? query.sql : ''));
+    for (const table of ['legal_files', 'clients', 'parties', 'tasks']) {
+      expect(sql.some((s) => s.includes(`FROM "${table}" t`))).toBe(true);
+    }
+    expect(sql.some((s) => s.includes('FROM "document_texts" t'))).toBe(false);
+  });
+
   it('should keep only current-version documents that pass the re-check, with their snippet', async () => {
     const { service } = build(ctxOf('SENIOR_LAWYER'), {
       textsHits: [hit('x1'), hit('x2'), hit('x3')],

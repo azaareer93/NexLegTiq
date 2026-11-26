@@ -45,7 +45,10 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     cls: ClsService<RequestContext>,
   ) {
     this.#client = new PrismaClient({
-      adapter: new PrismaPg({ connectionString: config.database.url }),
+      adapter: new PrismaPg({
+        connectionString: config.database.url,
+        max: config.database.poolMax,
+      }),
     });
     this.db = createScopedClient(this.#client, cls);
   }

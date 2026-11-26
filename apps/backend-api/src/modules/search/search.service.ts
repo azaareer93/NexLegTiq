@@ -51,7 +51,9 @@ export class SearchService {
     const caller = this.caller();
     const may = (...wanted: Permission[]) => wanted.some((p) => caller.permissions.includes(p));
     const run = <T>(t: SearchType, allowed: boolean, find: () => Promise<T[]>): Promise<T[]> =>
-      (type === 'all' || type === t) && allowed ? find() : Promise.resolve([]);
+      (type === 'all' || type === t || (type === 'names' && t !== 'documents')) && allowed
+        ? find()
+        : Promise.resolve([]);
     const hits = (target: SearchTarget, where: Prisma.Sql) =>
       this.prisma.db.$queryRaw<SearchHit[]>(
         searchQuery(target, caller.officeId, q, limit + 1, where),

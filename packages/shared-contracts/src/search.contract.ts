@@ -6,10 +6,13 @@ import { searchText } from './fields.js';
 export const SEARCH_TYPES = ['cases', 'clients', 'parties', 'documents', 'tasks'] as const;
 export type SearchType = (typeof SEARCH_TYPES)[number];
 
-/** `GET /search` (D-167): at least 2 characters; `limit` is per group. */
+/**
+ * `GET /search` (D-167): at least 2 characters; `limit` is per group. `names` is every group but documents — the first
+ * step of the overlay, whose document text follows as `type=documents` (D-240).
+ */
 export const SearchQuerySchema = z.object({
   q: searchText(200).pipe(z.string().min(2, 'validation.tooShort')),
-  type: z.enum(['all', ...SEARCH_TYPES]).default('all'),
+  type: z.enum(['all', 'names', ...SEARCH_TYPES]).default('all'),
   limit: z.coerce.number().int().min(1).max(20).default(5),
 });
 export type SearchQuery = z.infer<typeof SearchQuerySchema>;

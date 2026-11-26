@@ -91,6 +91,7 @@ describe('parseEnv', () => {
     ['TRUST_PROXY_HOPS', '6'],
     ['HOST', '  '],
     ['DATABASE_URL', 'mysql://user:pass@localhost/db'],
+    ['DATABASE_POOL_MAX', '0'],
     ['REDIS_URL', 'http://localhost:6379'],
     ['BULLMQ_PREFIX', 'Has Spaces'],
     ['S3_ENDPOINT', 'ftp://localhost:9000'],
@@ -317,7 +318,7 @@ describe('AppConfig', () => {
       host: 'localhost',
       port: 9100,
     });
-    expect(config.database).toEqual({ url: REQUIRED_TEST_ENV['DATABASE_URL'] });
+    expect(config.database).toEqual({ url: REQUIRED_TEST_ENV['DATABASE_URL'], poolMax: 20 });
     expect(config.redis).toEqual({
       url: REQUIRED_TEST_ENV['REDIS_URL'],
       bullmqPrefix: 'nlq',

@@ -221,9 +221,12 @@ describe('searchQuery (PostgreSQL)', () => {
       async (tx) => {
         const a = await office(tx);
         // The oldest client matches best (the word twice); 1,000 newer ones once each.
-        const oldest = await tx.client.create({
-          data: { officeId: a.officeId, clientType: 'CORPORATION', displayName: 'زيتون زيتون' },
-        });
+        // Its id comes from the database clock too: a JS-made UUIDv7 can sort after the rows below when the clocks differ.
+        const [oldest] = await tx.$queryRaw<{ id: string }[]>`
+          INSERT INTO clients (id, office_id, client_type, display_name, updated_at)
+          VALUES (nlq_uuid_v7(), ${a.officeId}::uuid, 'CORPORATION', 'زيتون زيتون', now()) RETURNING id::text`;
+        if (!oldest) throw new Error('no client');
+        await tx.$executeRaw`SELECT pg_sleep(0.002)`; // the ids below start in a later millisecond
         await tx.$executeRaw`
           INSERT INTO clients (id, office_id, client_type, display_name, updated_at)
           SELECT nlq_uuid_v7(), ${a.officeId}::uuid, 'CORPORATION', 'زيتون ' || g, now()

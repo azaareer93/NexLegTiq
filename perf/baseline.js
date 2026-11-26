@@ -42,6 +42,8 @@ export const options = {
     // Reported apart, never failing (no budget of their own): the two halves of the search mix.
     'http_req_duration{endpoint:search,term:common}': ['p(95)<100000'],
     'http_req_duration{endpoint:search,term:rare}': ['p(95)<100000'],
+    'http_req_duration{endpoint:search,step:names}': ['p(95)<100000'],
+    'http_req_duration{endpoint:search,step:documents}': ['p(95)<100000'],
     'http_req_duration{endpoint:dashboard}': ['p(95)<500'],
     'http_req_duration{endpoint:upload}': ['p(95)<2000'],
     http_req_failed: ['rate<0.01'],
@@ -127,9 +129,17 @@ export function search(data) {
   const s = session(data);
   const term = Math.random() < 0.5 ? 'common' : 'rare';
   const q = encodeURIComponent(term === 'common' ? pick(COMMON) : rare());
-  ok(
-    http.get(`${BASE}/search?q=${q}`, { headers: headers(s), tags: { endpoint: 'search', term } }),
-  );
+  // The overlay's two steps (D-240): names at once, document text after the typing pause (DOCUMENTS_PAUSE_MS).
+  const get = (type) =>
+    ok(
+      http.get(`${BASE}/search?q=${q}&type=${type}`, {
+        headers: headers(s),
+        tags: { endpoint: 'search', term, step: type },
+      }),
+    );
+  get('names');
+  sleep(0.6);
+  get('documents');
   sleep(1);
 }
 

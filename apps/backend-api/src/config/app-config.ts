@@ -65,8 +65,8 @@ export class AppConfig {
     };
   }
 
-  get database(): { readonly url: string } {
-    return { url: this.#env.DATABASE_URL };
+  get database(): { readonly url: string; readonly poolMax: number } {
+    return { url: this.#env.DATABASE_URL, poolMax: this.#env.DATABASE_POOL_MAX };
   }
 
   get bullBoardEnabled(): boolean {

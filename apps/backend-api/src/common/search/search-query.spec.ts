@@ -22,10 +22,12 @@ describe('searchQuery (D-165)', () => {
     expect(sql).toMatch(new RegExp(`ORDER BY t\\."id" DESC\\s+LIMIT ${RANKED_CANDIDATES}\\b`));
   });
 
-  it('should look in the newest rows first for documents only (D-240)', () => {
-    const documents = searchQuery('documents', OFFICE, 'عقد', 5, ALL).sql;
-    expect(documents).toMatch(new RegExp(`ORDER BY t\\."id" DESC LIMIT ${RECENT_WINDOW}\\)`));
-    expect(documents).toContain('(SELECT count(*) FROM recent) <');
+  it('should look in the newest rows first for documents and tasks only (D-240)', () => {
+    for (const target of ['documents', 'tasks'] as const) {
+      const { sql } = searchQuery(target, OFFICE, 'عقد', 5, ALL);
+      expect(sql).toMatch(new RegExp(`ORDER BY t\\."id" DESC LIMIT ${RECENT_WINDOW}\\)`));
+      expect(sql).toContain('(SELECT count(*) FROM recent) <');
+    }
     expect(searchQuery('files', OFFICE, 'عقد', 5, ALL).sql).not.toContain('recent');
   });
 

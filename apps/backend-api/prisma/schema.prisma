@@ -1652,6 +1652,7 @@ model Task {
   // "My tasks" (assignee, status, due date) and a file's Tasks tab.
   @@index([officeId, assignedToId, status, dueDate])
   @@index([officeId, fileId])
+  @@index([officeId, id])
   @@map("tasks")
 }
 
