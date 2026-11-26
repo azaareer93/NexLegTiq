@@ -5,6 +5,7 @@ import { Logger } from 'nestjs-pino';
 import { AppModule } from './app/app.module';
 import { configureApp } from './app/configure-app';
 import { API_PREFIX } from './bootstrap';
+import { initErrorReporting } from './common/monitoring/error-reporting';
 import { useRealtimeAdapter } from './common/realtime/redis-io.adapter';
 import { AppConfig } from './config/app-config';
 
@@ -13,6 +14,7 @@ async function bootstrap(): Promise<void> {
     bufferLogs: true,
     bodyParser: false,
   });
+  initErrorReporting(app.get(AppConfig), 'api');
   configureApp(app);
   await useRealtimeAdapter(app);
   const { host, port } = app.get(AppConfig).http;

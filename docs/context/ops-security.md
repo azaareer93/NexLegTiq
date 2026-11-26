@@ -63,8 +63,9 @@
   local drill `bash scripts/backup-drill.sh`. PITR, snapshots and bucket versioning are provider settings (owner).
 
 ## Monitoring & incidents
-Sentry (errors, releases, perf traces sampled), UptimeRobot (1 min) on `/health/ready` + SPAs, logs to a hosted log sink,
-queue depth + failed jobs alerts, AI cost daily alert, SSL expiry. Severity: CRITICAL (0–15 min), HIGH (≤1h), MEDIUM (≤4h),
+Sentry EU (errors, releases) and Better Stack EU (log sink, 1-min uptime on `/health/ready` + SPAs, status page, alert
+rules over `/metrics` incl. queue depth + failed jobs, SSL expiry, disk), AI cost daily alert — D-230,
+`docs/runbooks/incident.md` (alert table, setup checklist, templates). Severity: CRITICAL (0–15 min), HIGH (≤1h), MEDIUM (≤4h),
 LOW (≤2d). Post-mortem within 24h for CRITICAL/HIGH. Public status page before paid launch.
 
 ## Support (product hooks)
