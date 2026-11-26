@@ -11,6 +11,7 @@ import type { GenericErrorCode } from './error-catalog';
 import { loggableError } from './error-log';
 import { isPrismaError, mapPrismaError } from './prisma-error';
 import type { RequestContext } from '../context/request-context';
+import { reportError } from '../monitoring/error-reporting';
 
 interface NormalizedError {
   readonly status: number;
@@ -118,8 +119,17 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       code: error.code,
       status: error.status,
     };
-    if (error.status >= 500) this.logger.error(payload, 'Request failed');
-    else this.logger.debug(payload, 'Request rejected');
+    if (error.status >= 500) {
+      this.logger.error(payload, 'Request failed');
+      // A dependency outage (SYS-002) would be one report per request; the uptime check on /health/ready alerts on it.
+      if (error.code !== 'SYS-002') {
+        reportError(exception, {
+          code: error.code,
+          status: error.status,
+          requestId: this.requestId(),
+        });
+      }
+    } else this.logger.debug(payload, 'Request rejected');
   }
 
   private requestId(): string {

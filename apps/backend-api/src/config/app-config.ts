@@ -53,6 +53,18 @@ export class AppConfig {
     };
   }
 
+  get errorReporting(): {
+    readonly dsn: string | undefined;
+    readonly environment: string;
+    readonly release: string | undefined;
+  } {
+    return {
+      dsn: this.#env.SENTRY_DSN,
+      environment: this.#env.SENTRY_ENVIRONMENT ?? this.#env.NODE_ENV,
+      release: this.#env.SENTRY_RELEASE,
+    };
+  }
+
   get database(): { readonly url: string } {
     return { url: this.#env.DATABASE_URL };
   }
