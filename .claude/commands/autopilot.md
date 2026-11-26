@@ -26,6 +26,11 @@ Stop at once when `.git/nexlegtiq/autopilot-stop` exists. Each iteration appends
    - **Parent merged** (base is not `develop` and the base branch's PR is merged): `gh pr edit <n> --base develop`,
      `git switch <branch> && git merge --no-edit origin/develop` (squash merges leave the parent's original commits on the
      branch — merging develop resolves them; never rebase or force-push), re-verify, push, `git config --unset branch.<branch>.nlqParent`.
+   - **Stacked tickets reach `develop`** (D-250): a PR merged into a parent branch does not close its Jira issue, and the
+     parent's squash merge closes only the parent. After any merge into `develop`, take every MVP issue *In Review* whose
+     PR is merged (`gh pr list --state merged --search "MVP-<n>"`); when its changes are in `develop` — compare content
+     (`git diff <its merge commit>^1 <its merge commit> -- <paths>` against `origin/develop`), never ancestry, which a
+     squash merge breaks — transition it to *Done* and comment which `develop` commit carries it.
    - **After every merge of `develop` (or a parent) into a branch**: `pnpm nx run backend-api:prisma-generate` before
      committing — the commit hook lints with the generated client, and a stale one fails on new models. Push branches
      **one at a time** in the foreground: each push runs the pre-push typecheck + tests, and two at once exhaust memory.
