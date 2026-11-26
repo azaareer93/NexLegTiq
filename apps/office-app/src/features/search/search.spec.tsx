@@ -51,11 +51,24 @@ const RESULTS: SearchResults = {
   },
 };
 
+/** Answers like the API: `names` leaves documents empty, `documents` answers documents only (D-240). */
 function serve(results: SearchResults = RESULTS) {
   const calls: URLSearchParams[] = [];
   server.use(
     http.get(api('search'), ({ request }) => {
-      calls.push(new URL(request.url).searchParams);
+      const params = new URL(request.url).searchParams;
+      calls.push(params);
+      const type = params.get('type');
+      if (type === 'names') return ok({ ...results, documents: EMPTY });
+      if (type === 'documents') {
+        return ok({
+          cases: EMPTY,
+          clients: EMPTY,
+          parties: EMPTY,
+          documents: results.documents,
+          tasks: EMPTY,
+        });
+      }
       return ok(results);
     }),
   );
@@ -88,8 +101,15 @@ describe('search overlay (D-172)', () => {
       type(input, 'cl');
       type(input, 'claim');
       const list = await screen.findByTestId('search-option-cases-' + FILE.id);
-      expect(calls.map((c) => c.get('q'))).toEqual(['claim']);
+      // Names first, document text in a second request once typing has paused (D-240).
+      expect(calls[0]?.get('type')).toBe('names');
       expect(calls[0]?.get('limit')).toBe('5');
+      await screen.findByTestId('search-option-documents-' + id(4));
+      expect(calls.map((c) => [c.get('q'), c.get('type')])).toEqual([
+        ['claim', 'names'],
+        ['claim', 'documents'],
+      ]);
+      expect(screen.queryByTestId('search-documents-pending')).toBeNull();
 
       const results = screen.getByTestId('search-results');
       const titles = within(results)
@@ -133,15 +153,19 @@ describe('search overlay (D-172)', () => {
       fireEvent.click(await screen.findByTestId('search-option-more-documents'));
       await waitFor(() => expect(calls.at(-1)?.get('type')).toBe('documents'));
       expect(calls.at(-1)?.get('limit')).toBe('20');
+      const expandedAt = calls.length;
       fireEvent.click(await screen.findByTestId('search-option-back'));
-      await waitFor(() => expect(calls.at(-1)?.get('type')).toBeNull());
+      await waitFor(() =>
+        expect(calls.slice(expandedAt).map((c) => c.get('type'))).toContain('names'),
+      );
 
       fireEvent.click(await screen.findByTestId('search-option-more-documents'));
       await screen.findByTestId('search-option-back');
       const before = calls.length;
       type(screen.getByTestId('search-input'), 'claims');
       await waitFor(() => expect(calls.at(-1)?.get('q')).toBe('claims'));
-      expect(calls.slice(before).map((c) => c.get('type'))).not.toContain('documents');
+      // Typing leaves "see all": the new query asks for groups of 5, not one type in full.
+      expect(calls.slice(before).map((c) => c.get('limit'))).not.toContain('20');
     },
     SLOW,
   );
@@ -162,6 +186,39 @@ describe('search overlay (D-172)', () => {
       server.use(http.get(api('search'), () => fail(500, 'SYS-001')));
       type(input, 'contract');
       expect(await screen.findByTestId('search-error', {}, { timeout: 5000 })).toBeTruthy();
+    },
+    SLOW,
+  );
+
+  it(
+    'should show names first and say "nothing found" only after the document step (D-240)',
+    async () => {
+      let answer: () => void = () => undefined;
+      const documentsHeld = new Promise<void>((resolve) => (answer = resolve));
+      server.use(
+        http.get(api('search'), async ({ request }) => {
+          if (new URL(request.url).searchParams.get('type') === 'documents') await documentsHeld;
+          return ok({
+            cases: EMPTY,
+            clients: EMPTY,
+            parties: EMPTY,
+            documents: EMPTY,
+            tasks: EMPTY,
+          });
+        }),
+      );
+      signedIn();
+      renderApp('/');
+      type(await openSearch(), 'zzz');
+      expect(
+        await screen.findByTestId('search-documents-pending', {}, { timeout: 5000 }),
+      ).toBeTruthy();
+      expect(screen.getByTestId('search-status').textContent).toBe('');
+      answer();
+      await waitFor(() =>
+        expect(screen.getByTestId('search-status').textContent).toMatch(/^Nothing found for.*zzz/),
+      );
+      expect(screen.queryByTestId('search-documents-pending')).toBeNull();
     },
     SLOW,
   );

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { RANKED_CANDIDATES, searchQuery } from './search-query';
+import { RANKED_CANDIDATES, RECENT_WINDOW, searchQuery } from './search-query';
 import type { SearchHit, SearchTarget } from './search-query';
 import { createSeedClient } from '../../../prisma/seed';
 import {
@@ -221,8 +221,14 @@ describe('searchQuery (PostgreSQL)', () => {
       async (tx) => {
         const a = await office(tx);
         // The oldest client matches best (the word twice); 1,000 newer ones once each.
+        // A fixed early UUIDv7 (2020): older than every row below whatever the clocks of Node and the database say.
         const oldest = await tx.client.create({
-          data: { officeId: a.officeId, clientType: 'CORPORATION', displayName: 'زيتون زيتون' },
+          data: {
+            id: '016fd76a-1000-7000-8000-000000000001',
+            officeId: a.officeId,
+            clientType: 'CORPORATION',
+            displayName: 'زيتون زيتون',
+          },
         });
         await tx.$executeRaw`
           INSERT INTO clients (id, office_id, client_type, display_name, updated_at)
@@ -234,6 +240,82 @@ describe('searchQuery (PostgreSQL)', () => {
         expect(hits).toHaveLength(20);
         expect(hits.map((hit) => hit.id)).not.toContain(oldest.id);
         expect(hits.every((hit) => hit.rank > 1)).toBe(true);
+      },
+      60_000,
+    );
+  });
+
+  it('should find documents in the newest rows first and older ones when those hold too few (D-240)', async () => {
+    await inRollback(
+      prisma,
+      async (tx) => {
+        const a = await office(tx);
+        const old = await documentTextIn(tx, a);
+        await tx.documentText.update({ where: { id: old.id }, data: { text: 'رخصة قديمة' } });
+        // A full window of newer texts: a fifth of them say "زيتون", none says "رخصة".
+        const fileId = (await fileIn(tx, a)).id;
+        await tx.$executeRaw`
+          CREATE TEMP TABLE window_docs ON COMMIT DROP AS
+          SELECT nlq_uuid_v7() AS id, g FROM generate_series(1, ${RECENT_WINDOW}) g`;
+        await tx.$executeRaw`
+          INSERT INTO documents (id, office_id, file_id, name, original_filename, mime_type, size_bytes,
+                                 checksum_sha256, storage_key, uploaded_by_id, updated_at)
+          SELECT d.id, ${a.officeId}::uuid, ${fileId}::uuid, 'd.pdf', 'd.pdf', 'application/pdf', 1, repeat('a', 64),
+                 ${a.officeId} || '/' || d.id || '.pdf', ${a.userId}::uuid, now()
+          FROM window_docs d`;
+        await tx.$executeRaw`
+          INSERT INTO document_versions (id, office_id, document_id, version_number, storage_key, original_filename,
+                                         mime_type, size_bytes, checksum_sha256, created_by_id)
+          SELECT nlq_uuid_v7(), ${a.officeId}::uuid, d.id, 1, ${a.officeId} || '/' || d.id || '.pdf', 'd.pdf',
+                 'application/pdf', 1, repeat('a', 64), ${a.userId}::uuid
+          FROM window_docs d`;
+        await tx.$executeRaw`
+          INSERT INTO document_texts (id, office_id, document_id, version_number, text, updated_at)
+          SELECT nlq_uuid_v7(), ${a.officeId}::uuid, d.id, 1, CASE WHEN d.g % 5 = 0 THEN 'زيتون' ELSE 'نص' END, now()
+          FROM window_docs d`;
+        const ids = async (q: string) =>
+          (await tx.$queryRaw<SearchHit[]>(searchQuery('documents', a.officeId, q, 5, ALL))).map(
+            (hit) => hit.id,
+          );
+        expect(await ids('رخصة')).toEqual([old.id]);
+        expect(await ids('زيتون')).toHaveLength(5);
+      },
+      60_000,
+    );
+  });
+
+  it("should walk only the office's own newest tasks, and fall back to older ones (D-240)", async () => {
+    await inRollback(
+      prisma,
+      async (tx) => {
+        const a = await office(tx);
+        const b = await office(tx);
+        const tasks = (o: { officeId: string; userId: string }, title: Prisma.Sql) =>
+          tx.$executeRaw`
+            INSERT INTO tasks (id, office_id, title, assigned_to_id, created_by_id, updated_at)
+            SELECT nlq_uuid_v7(), ${o.officeId}::uuid, ${title}, ${o.userId}::uuid, ${o.userId}::uuid, now()
+            FROM generate_series(1, ${RECENT_WINDOW}) g`;
+        const old = await tx.task.create({
+          data: {
+            id: '016fd76a-1000-7000-8000-000000000002',
+            officeId: a.officeId,
+            title: 'رخصة قديمة',
+            assignedToId: a.userId,
+            createdById: a.userId,
+          },
+        });
+        // A full window in office A, a fifth of it "زيتون"; a newer full window of "زيتون" in office B.
+        await tasks(a, Prisma.sql`CASE WHEN g % 5 = 0 THEN 'زيتون' ELSE 'نص' END`);
+        await tasks(b, Prisma.sql`'زيتون'`);
+        const ids = async (q: string, limit: number) =>
+          (await tx.$queryRaw<SearchHit[]>(searchQuery('tasks', a.officeId, q, limit, ALL))).map(
+            (hit) => hit.id,
+          );
+        expect(await ids('رخصة', 5)).toEqual([old.id]);
+        const found = await ids('زيتون', 21);
+        expect(found).toHaveLength(21);
+        const inB = await tx.task.count({ where: { id: { in: found }, officeId: b.officeId } });
+        expect(inB).toBe(0);
       },
       60_000,
     );

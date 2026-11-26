@@ -6,7 +6,7 @@ import type { ApiClient } from './api-client.js';
 /** What `GET /search` takes (D-167): `limit` is per group. */
 export interface SearchParams {
   readonly q: string;
-  readonly type?: 'all' | SearchType;
+  readonly type?: 'all' | 'names' | SearchType;
   readonly limit?: number;
 }
 

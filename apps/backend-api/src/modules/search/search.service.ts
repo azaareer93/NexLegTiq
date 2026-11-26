@@ -51,7 +51,9 @@ export class SearchService {
     const caller = this.caller();
     const may = (...wanted: Permission[]) => wanted.some((p) => caller.permissions.includes(p));
     const run = <T>(t: SearchType, allowed: boolean, find: () => Promise<T[]>): Promise<T[]> =>
-      (type === 'all' || type === t) && allowed ? find() : Promise.resolve([]);
+      (type === 'all' || type === t || (type === 'names' && t !== 'documents')) && allowed
+        ? find()
+        : Promise.resolve([]);
     const hits = (target: SearchTarget, where: Prisma.Sql) =>
       this.prisma.db.$queryRaw<SearchHit[]>(
         searchQuery(target, caller.officeId, q, limit + 1, where),
@@ -239,10 +241,14 @@ function documentTextVisibleSql(c: SearchCaller): Prisma.Sql {
       AND ${fileVisibleSql('f', c)} ${confidential})`;
 }
 
-/** Tasks on a visible file, plus the caller's personal tasks (`TaskAccessService.visibleWhere`). */
+/**
+ * Tasks on a visible file, plus the caller's personal tasks (`TaskAccessService.visibleWhere`). The file's office is the
+ * bound office id, not `t."office_id"`: under the OR the planner hashes the subquery, and correlated it read every office's
+ * files (100k rows, 30–90 ms per search on the perf seed, D-240). Same rows: `searchQuery` pins `t."office_id"` to it.
+ */
 function taskVisibleSql(c: SearchCaller): Prisma.Sql {
   return Prisma.sql`(
     (t."file_id" IS NULL AND (t."created_by_id" = ${c.userId}::uuid OR t."assigned_to_id" = ${c.userId}::uuid))
     OR EXISTS (SELECT 1 FROM "legal_files" f
-               WHERE f."id" = t."file_id" AND f."office_id" = t."office_id" AND ${fileVisibleSql('f', c)}))`;
+               WHERE f."id" = t."file_id" AND f."office_id" = ${c.officeId}::uuid AND ${fileVisibleSql('f', c)}))`;
 }

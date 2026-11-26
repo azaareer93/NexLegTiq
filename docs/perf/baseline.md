@@ -10,14 +10,14 @@ process, Prisma's default pool of 10 connections).
 |---|---|---|---|---|
 | `GET /cases` (list, page 1–3, half `status=OPEN`) | 500 ms | 54.6 ms | 70.8 ms | ✓ |
 | `GET /cases/:id` | 500 ms | 150.7 ms | 178.2 ms | ✓ |
-| `GET /search?q=` (mix) | 200 ms | 8.11 s ¹ | 3.06 s | ✗ |
-| — common words (in ~75% of the documents) | | 8.11 s | 3.33 s | |
-| — rare words, file numbers | | — | 2.78 s | |
+| `GET /search?q=` (mix) | 200 ms | 8.11 s ¹ | 3.06 s → 104–139 ms ² | ✓ |
+| — common words (in ~75% of the documents) | | 8.11 s | 3.33 s → 81–137 ms | |
+| — rare words, file numbers | | — | 2.78 s → 125–139 ms | |
 | `GET /dashboard` | 500 ms | 1.71 s | 208.6 ms | ✓ |
 | `POST /documents` (10 KB PDF, 202 ack) | 2 s | 186.2 ms | 160.7 ms | ✓ |
 | Errors | < 1% | 0.00% | 0.00% | ✓ |
 
-¹ The first run searched common words only.
+¹ The first run searched common words only. ² MVP-172 (D-240): two-step search, both requests counted; see below.
 
 The list and case-read code did not change between the runs: their differences (54.6 → 70.8 ms, 151 → 178 ms) are
 run-to-run noise on a shared laptop. The upload gate is the k6 table's 2 s (`quality-testing.md`), tighter than the
@@ -27,6 +27,15 @@ run-to-run noise on a shared laptop. The upload gate is the k6 table's 2 s (`qua
 database time (the document-text query, below); 50 of them a second saturate the database CPU, and rare searches queue
 behind them. Follow-up story MVP-172: document search for common words (options: per-user cache, two-step search, an
 ordered index, a bigger pool).
+
+**After MVP-172 (D-240):** two-step search (`type=names`, then `type=documents` after a pause), documents and tasks read
+the office's newest 1,000 rows first (`(office_id, id)` indexes: `Index Scan Backward` on 1,000 rows and a nested-loop
+visibility check instead of matching 15k document vectors against a hash of the office's 20k documents), task visibility
+bound to the office (no hashed scan of every office's files), and a pool of 20. Search at 50 VUs, warm: p95 **104–139 ms**
+(common 81–137 ms, rare 125–139 ms; names step 119–166 ms, documents step 100–119 ms) ✓ — two warm runs; 195 ms on the first run after a
+restart. Per query (`pg_stat_statements` mean under load): documents 18–22 ms, tasks 11–22 ms, files 7–8 ms, clients 2.6 ms;
+plans in [top-queries](top-queries.md#after-mvp-172-d-240-the-newest-rows-window). `search-query.performance.int.spec.ts` still
+passes (P95 6–73 ms).
 
 Trade-off of the cap: for a word with more than 1,000 matches in the office, an older row that would rank higher is
 not returned (nor added by the trigram pass); the newest matches are.

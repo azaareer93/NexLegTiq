@@ -317,3 +317,32 @@ _No execution over 15 ms in the plan-capture run._
 5688 calls · mean 1.9 ms · max 28.7 ms · total 11.0 s
 
 _No execution over 15 ms in the plan-capture run._
+
+## After MVP-172 (D-240): the newest-rows window
+
+Same perf seed, warm, `EXPLAIN ANALYZE` of the `recent` branch for "عقد" (a word in ~75% of the documents). Under the
+50-VU run (`pg_stat_statements` mean): documents 18–22 ms, tasks 11–22 ms, files 7–8 ms, clients 2.6 ms.
+
+Document text, office-wide reader — 18.1 ms (was 188 ms, plan 2 above):
+
+```
+Limit (17.954 ms, rows=6)
+  ->  Sort (17.952 ms, rows=6)
+        ->  Nested Loop Semi Join (17.799 ms, rows=778)
+              ->  Subquery Scan on t (8.292 ms, rows=778)
+                    ->  Limit (1.872 ms, rows=1000)
+                          ->  Index Scan Backward using document_texts_office_id_id_idx on document_texts t_1 (1.803 ms)
+              ->  Nested Loop (0.003 ms, rows=1, loops=778)
+                    ->  Index Scan using documents_pkey on documents d (0.002 ms, rows=1, loops=778)
+                    ->  Index Scan using legal_files_pkey on legal_files f (0.001 ms, rows=1, loops=778)
+```
+
+Tasks, assigned-scope reader — 3.9 ms for the window (16 visible matches of 1,000; with at least the group limit of 6 the window
+answers alone, otherwise plan 3 above runs as the fallback):
+
+```
+Subquery Scan on t (3.762 ms, rows=16)
+  ->  Limit (0.718 ms, rows=1000)
+        ->  Index Scan Backward using tasks_office_id_id_idx on tasks t_1 (0.663 ms, rows=1000)
+  SubPlan: Index Scan using legal_files_id_office_id_key on legal_files f (0.007 ms, rows=0, loops=51)
+```

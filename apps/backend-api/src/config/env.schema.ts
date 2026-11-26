@@ -44,6 +44,8 @@ const EnvObject = z.object({
   TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).optional(),
 
   DATABASE_URL: databaseUrl,
+  // Connections per process (pg pool). A search runs five group queries at once: 10 queued them at 50 users (D-240).
+  DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(100).default(20),
   REDIS_URL: redisUrl,
   // Prefix of every BullMQ key (D-011), so environments can share a Redis without clashing.
   BULLMQ_PREFIX: z
