@@ -1,6 +1,7 @@
 import { LoadingSkeleton } from '@nexlegtiq/shared-ui';
 import type { RouteObject } from 'react-router';
 
+// Only `routes` files here, never a feature's barrel: a barrel's components would land in the entry chunk (D-245).
 import { auditRoutes } from '../features/audit/routes';
 import { authRoutes, RequireAuth } from '../features/auth';
 import { calendarRoutes } from '../features/calendar/routes';
