@@ -10,7 +10,7 @@ import { gzipSync } from 'node:zlib';
 
 const KB = 1024;
 const BUDGETS = {
-  'office-app': { initial: 700 * KB, chunk: 150 * KB, worker: 390 * KB },
+  'office-app': { initial: 430 * KB, chunk: 150 * KB, worker: 390 * KB },
   'client-portal': { initial: 410 * KB, chunk: 60 * KB, worker: 0 },
   'admin-panel': { initial: 415 * KB, chunk: 100 * KB, worker: 0 },
 };

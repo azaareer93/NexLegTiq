@@ -57,7 +57,7 @@ Production builds (`VITE_API_URL` set), gzip sizes from `pnpm perf:bundle`:
 
 | App | First load (index.html) | Largest later chunk | Largest worker | Budget (CI) |
 |---|---|---|---|---|
-| office-app | 674.5 kB | 124.9 kB (`pdf`, the PDF viewer) | 367.3 kB (PDF.js) | 700 / 150 / 390 kB |
+| office-app | 405.8 kB (674.5 kB before D-245) | 124.9 kB (`pdf`, the PDF viewer) | 367.3 kB (PDF.js) | 430 / 150 / 390 kB |
 | client-portal | 389.8 kB | 26.8 kB (`FileDetailPage`) | — | 410 / 60 / 0 kB |
 | admin-panel | 394.6 kB | 82.6 kB (`table`) | — | 415 / 100 / 0 kB |
 
@@ -70,11 +70,12 @@ The budgets guard against regressions; they are not the 4G target. Lighthouse 12
 |---|---|---|---|---|---|
 | Mobile, simulated slow 4G, 4× CPU | 0.47 | 6.7 s | **7.2 s** ✗ | 520 ms | 845 KiB |
 | Desktop | 0.91 | 1.3 s | 1.4 s | 10 ms | |
+| Mobile, after the shell split (D-245) | 0.58 | 4.7 s | **5.4 s** ✗ | 420 ms | 624 KiB |
 
-The sign-in page loads the whole shell: `index.html` preloads the case list, client drawer, quick-create and AntD table /
-date-picker chunks (321 KiB of unused JavaScript on `/login`). Follow-up story MVP-173: split the shell so the public pages
-load without it, and measure the authenticated pages on staging — they were not measured here: the production build talks
-to an https API only.
+Before D-245 the sign-in page loaded the whole shell: `index.html` preloaded the case list, client drawer, quick-create and
+AntD table / date-picker chunks (321 KiB of unused JavaScript on `/login`). D-245 made the shell a lazy route and the route
+table import feature `routes` files instead of barrels; the remaining gap to 2.5 s and the next levers are in D-245. The
+authenticated pages were not measured: the production build talks to an https API only (staging).
 
 ## How to run
 
