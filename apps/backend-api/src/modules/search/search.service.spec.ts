@@ -42,7 +42,7 @@ const TABLES: [string, string][] = [
   ['FROM "legal_files" t', 'files'],
   ['FROM "clients" t', 'clients'],
   ['FROM "parties" t', 'parties'],
-  ['FROM "document_texts" t, q', 'texts'],
+  ['FROM "document_texts" t', 'texts'],
   ['FROM "tasks" t', 'tasks'],
 ];
 

@@ -18,6 +18,13 @@ export const SEARCH_TARGETS = {
 } as const;
 export type SearchTarget = keyof typeof SEARCH_TARGETS;
 
+/**
+ * Word matches ranked per query (D-235): the newest 1,000 (ids are UUIDv7). A common word ("عقد") matches most of an
+ * office's documents, and `ts_rank` over 15k document vectors took 0.5 s alone; past a thousand matches the word does not
+ * tell rows apart anyway, recency does.
+ */
+export const RANKED_CANDIDATES = 1_000;
+
 export interface SearchHit {
   readonly id: string;
   readonly rank: number;
@@ -28,7 +35,8 @@ export interface SearchHit {
  * (Arabic-normalised) and `english` vectors, or a trigram match on the name/title, ranked by `ts_rank` (+ similarity).
  * `where` is required: the caller states which rows the reader may see (deleted, confidential, personal tasks…) on the
  * alias `t`, before the limit applies. Word matches rank `1 + ts_rank…` (> 1) and always come before trigram matches,
- * `word_similarity` (≤ 1), which fill the remaining places only (a typo, a partial name). `documents` returns
+ * `word_similarity` (≤ 1), which fill the remaining places only (a typo, a partial name). Only the newest
+ * `RANKED_CANDIDATES` word matches are ranked. `documents` returns
  * `document_texts.id` (one row per version), `statements` the statement id.
  */
 export function searchQuery(
@@ -69,10 +77,15 @@ export function searchQuery(
              nlq_normalize_ar(${query}::text) AS n
     ),
     hits AS (
-      SELECT t."id", (1 + ts_rank(t."search_vector_simple", q.s) + ts_rank(t."search_vector_english", q.e))::float8 AS rank
-      FROM ${from} t, q
-      WHERE ${scope} AND (${words})
-      ORDER BY rank DESC, t."id"
+      SELECT c."id", (1 + ts_rank(c."search_vector_simple", q.s) + ts_rank(c."search_vector_english", q.e))::float8 AS rank
+      FROM (
+        SELECT t."id", t."search_vector_simple", t."search_vector_english"
+        FROM ${from} t
+        WHERE ${scope} AND (${words})
+        ORDER BY t."id" DESC
+        LIMIT ${Prisma.raw(String(RANKED_CANDIDATES))} -- a literal, so every plan (generic ones too) knows the cap
+      ) c, q
+      ORDER BY rank DESC, c."id"
       LIMIT ${limit}
     )
     SELECT id::text AS id, rank FROM (SELECT * FROM hits ${fuzzy}) found

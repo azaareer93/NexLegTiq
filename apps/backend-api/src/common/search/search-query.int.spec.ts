@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { searchQuery } from './search-query';
+import { RANKED_CANDIDATES, searchQuery } from './search-query';
 import type { SearchHit, SearchTarget } from './search-query';
 import { createSeedClient } from '../../../prisma/seed';
 import {
@@ -213,5 +213,29 @@ describe('searchQuery (PostgreSQL)', () => {
       );
       expect(only.map((hit) => hit.id)).toEqual([one.id]);
     });
+  });
+
+  it('should rank only the newest 1,000 word matches, without trigram rows filling in (D-235)', async () => {
+    await inRollback(
+      prisma,
+      async (tx) => {
+        const a = await office(tx);
+        // The oldest client matches best (the word twice); 1,000 newer ones once each.
+        const oldest = await tx.client.create({
+          data: { officeId: a.officeId, clientType: 'CORPORATION', displayName: 'زيتون زيتون' },
+        });
+        await tx.$executeRaw`
+          INSERT INTO clients (id, office_id, client_type, display_name, updated_at)
+          SELECT nlq_uuid_v7(), ${a.officeId}::uuid, 'CORPORATION', 'زيتون ' || g, now()
+          FROM generate_series(1, ${RANKED_CANDIDATES}) g`;
+        const hits = await tx.$queryRaw<SearchHit[]>(
+          searchQuery('clients', a.officeId, 'زيتون', 20, ALL),
+        );
+        expect(hits).toHaveLength(20);
+        expect(hits.map((hit) => hit.id)).not.toContain(oldest.id);
+        expect(hits.every((hit) => hit.rank > 1)).toBe(true);
+      },
+      60_000,
+    );
   });
 });

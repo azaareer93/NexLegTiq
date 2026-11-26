@@ -17,12 +17,22 @@ export async function officeSetup(
 ): Promise<DashboardSetup | null> {
   if (!permissions.includes('manage:office')) return null;
   const one = { select: { id: true } } as const;
+  // The big tables are ordered by their (officeId, …) index (D-235): without an order, "any row" plans as a table scan,
+  // which reads every other office's rows first when this office's sit at the end of the table (a new office).
   const [client, legalFile, hearing, document, colleague, invitation, aiSummary] =
     await Promise.all([
-      db.client.findFirst({ ...one, where: { deletedAt: null } }),
-      db.legalFile.findFirst({ ...one, where: { deletedAt: null } }),
-      db.session.findFirst({ ...one, where: { isCancelled: false, file: { deletedAt: null } } }),
-      db.document.findFirst({ ...one, where: { deletedAt: null } }),
+      db.client.findFirst({ ...one, where: { deletedAt: null }, orderBy: { displayName: 'asc' } }),
+      db.legalFile.findFirst({
+        ...one,
+        where: { deletedAt: null },
+        orderBy: { responsibleLawyerId: 'asc' },
+      }),
+      db.session.findFirst({
+        ...one,
+        where: { isCancelled: false, file: { deletedAt: null } },
+        orderBy: { startsAt: 'asc' },
+      }),
+      db.document.findFirst({ ...one, where: { deletedAt: null }, orderBy: { fileId: 'asc' } }),
       db.user.findFirst({ ...one, where: { id: { not: userId }, isActive: true } }),
       db.officeInvitation.findFirst(one),
       db.aiSummary.findFirst(one),

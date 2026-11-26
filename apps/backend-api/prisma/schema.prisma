@@ -1170,6 +1170,8 @@ model CaseTimelineEvent {
   actor  User?     @relation(fields: [actorId, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([officeId, fileId, occurredAt(sort: Desc)])
+  // The office's newest events (dashboard recent activity, D-235): read in order, no sort of every event.
+  @@index([officeId, occurredAt(sort: Desc), id(sort: Desc)])
   @@map("case_timeline_events")
 }
 
@@ -1521,6 +1523,8 @@ model Document {
   @@index([officeId, fileId, folderId])
   // Foreign-key lookup for a session (session documents).
   @@index([sessionId])
+  // Documents uploaded since a date (dashboard "new documents", D-235).
+  @@index([officeId, createdAt])
   @@map("documents")
 }
 

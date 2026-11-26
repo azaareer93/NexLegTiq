@@ -22,6 +22,27 @@ services:
       timeout: 5s
       retries: 20
 
+  # Load tests only (MVP-117, D-235): `pnpm perf:db` starts it. The same PostgreSQL with pg_stat_statements loaded (the
+  # dev one does not preload it), on 5435 with its own volume, so the perf seed never touches dev data.
+  postgres-perf:
+    profiles: ['perf']
+    image: pgvector/pgvector:pg17
+    command:
+      ['postgres', '-c', 'shared_preload_libraries=pg_stat_statements', '-c', 'max_connections=200']
+    environment:
+      POSTGRES_USER: nexlegtiq
+      POSTGRES_PASSWORD: nexlegtiq
+      POSTGRES_DB: nexlegtiq
+    ports: ['127.0.0.1:5435:5432']
+    volumes:
+      - pg-perf-data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U nexlegtiq -d nexlegtiq']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   redis:
     image: redis:7-alpine
     # AOF so queued BullMQ jobs survive a container restart.
@@ -117,6 +138,7 @@ services:
 
 volumes:
   pg-data:
+  pg-perf-data:
   redis-data:
   s3-data:
   mailpit-data:
