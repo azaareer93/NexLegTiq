@@ -1582,7 +1582,7 @@ model DocumentText {
   version  DocumentVersion @relation(fields: [documentId, versionNumber], references: [documentId, versionNumber], onDelete: Cascade, onUpdate: Restrict)
 
   @@unique([documentId, versionNumber])
-  @@index([officeId])
+  @@index([officeId, id])
   @@index([searchVectorSimple], map: "document_texts_search_simple_idx", type: Gin)
   @@index([searchVectorEnglish], map: "document_texts_search_english_idx", type: Gin)
   @@map("document_texts")

@@ -13,7 +13,7 @@ export const SEARCH_TARGETS = {
     trigram: 'nlq_normalize_ar(coalesce(t."full_name", t."company_name"))',
   },
   tasks: { table: 'tasks', trigram: 'nlq_normalize_ar(t."title")' },
-  documents: { table: 'document_texts', trigram: null },
+  documents: { table: 'document_texts', trigram: null, recent: true },
   statements: { table: 'witness_statements', trigram: null },
 } as const;
 export type SearchTarget = keyof typeof SEARCH_TARGETS;
@@ -24,6 +24,13 @@ export type SearchTarget = keyof typeof SEARCH_TARGETS;
  * tell rows apart anyway, recency does.
  */
 export const RANKED_CANDIDATES = 1_000;
+
+/**
+ * `recent` targets look in the office's newest `RECENT_WINDOW` rows first, in `(office_id, id)` index order, and search
+ * the whole office only when those hold fewer matches than the limit (D-240): a common word reads a thousand rows instead
+ * of the 15k it matches (188 → 20 ms on the perf seed); a rare word pays the window (~13 ms), then the GIN path.
+ */
+export const RECENT_WINDOW = 1_000;
 
 export interface SearchHit {
   readonly id: string;
@@ -36,7 +43,7 @@ export interface SearchHit {
  * `where` is required: the caller states which rows the reader may see (deleted, confidential, personal tasks…) on the
  * alias `t`, before the limit applies. Word matches rank `1 + ts_rank…` (> 1) and always come before trigram matches,
  * `word_similarity` (≤ 1), which fill the remaining places only (a typo, a partial name). Only the newest
- * `RANKED_CANDIDATES` word matches are ranked. `documents` returns
+ * `RANKED_CANDIDATES` word matches are ranked — of the newest `RECENT_WINDOW` rows first, for `recent` targets. `documents` returns
  * `document_texts.id` (one row per version), `statements` the statement id.
  */
 export function searchQuery(
@@ -70,21 +77,39 @@ export function searchQuery(
         LIMIT ${limit}
       ) near`
     : Prisma.empty;
+  // The caps are literals, so every plan (generic ones too) knows them.
+  const capped = Prisma.sql`
+    SELECT t."id", t."search_vector_simple", t."search_vector_english"
+    FROM ${from} t
+    WHERE ${scope} AND (${words})
+    ORDER BY t."id" DESC
+    LIMIT ${Prisma.raw(String(RANKED_CANDIDATES))}`;
+  // A CTE read twice is computed once; exactly one branch returns rows, the other is skipped by its one-time filter.
+  const candidates =
+    'recent' in SEARCH_TARGETS[target]
+      ? Prisma.sql`
+    recent AS (
+      SELECT t."id", t."search_vector_simple", t."search_vector_english"
+      FROM (SELECT * FROM ${from} t WHERE t."office_id" = ${officeId}::uuid
+            ORDER BY t."id" DESC LIMIT ${Prisma.raw(String(RECENT_WINDOW))}) t
+      WHERE (${where}) AND (${words})
+    ),
+    candidates AS (
+      SELECT * FROM recent WHERE (SELECT count(*) FROM recent) >= ${limit}
+      UNION ALL
+      SELECT * FROM (${capped}) older WHERE (SELECT count(*) FROM recent) < ${limit}
+    ),`
+      : Prisma.sql`candidates AS (${capped}),`;
   return Prisma.sql`
     WITH q AS (
       SELECT websearch_to_tsquery('simple', nlq_normalize_ar(unaccent(${query}::text))) AS s,
              websearch_to_tsquery('english', unaccent(${query}::text)) AS e,
              nlq_normalize_ar(${query}::text) AS n
     ),
+    ${candidates}
     hits AS (
       SELECT c."id", (1 + ts_rank(c."search_vector_simple", q.s) + ts_rank(c."search_vector_english", q.e))::float8 AS rank
-      FROM (
-        SELECT t."id", t."search_vector_simple", t."search_vector_english"
-        FROM ${from} t
-        WHERE ${scope} AND (${words})
-        ORDER BY t."id" DESC
-        LIMIT ${Prisma.raw(String(RANKED_CANDIDATES))} -- a literal, so every plan (generic ones too) knows the cap
-      ) c, q
+      FROM candidates c, q
       ORDER BY rank DESC, c."id"
       LIMIT ${limit}
     )

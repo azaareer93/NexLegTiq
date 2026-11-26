@@ -239,10 +239,14 @@ function documentTextVisibleSql(c: SearchCaller): Prisma.Sql {
       AND ${fileVisibleSql('f', c)} ${confidential})`;
 }
 
-/** Tasks on a visible file, plus the caller's personal tasks (`TaskAccessService.visibleWhere`). */
+/**
+ * Tasks on a visible file, plus the caller's personal tasks (`TaskAccessService.visibleWhere`). The file's office is the
+ * bound office id, not `t."office_id"`: under the OR the planner hashes the subquery, and correlated it read every office's
+ * files (100k rows, 30–90 ms per search on the perf seed, D-240).
+ */
 function taskVisibleSql(c: SearchCaller): Prisma.Sql {
   return Prisma.sql`(
     (t."file_id" IS NULL AND (t."created_by_id" = ${c.userId}::uuid OR t."assigned_to_id" = ${c.userId}::uuid))
     OR EXISTS (SELECT 1 FROM "legal_files" f
-               WHERE f."id" = t."file_id" AND f."office_id" = t."office_id" AND ${fileVisibleSql('f', c)}))`;
+               WHERE f."id" = t."file_id" AND f."office_id" = ${c.officeId}::uuid AND ${fileVisibleSql('f', c)}))`;
 }
