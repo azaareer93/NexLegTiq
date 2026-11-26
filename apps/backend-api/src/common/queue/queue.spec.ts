@@ -20,8 +20,11 @@ import { withTimeout } from './with-timeout';
 import type { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
 import type { RequestContext } from '../context/request-context';
+import { reportError } from '../monitoring/error-reporting';
 import { TenantRunner } from '../tenancy/tenant-runner';
 import { TenantContextMissingError } from '../tenancy/tenant.errors';
+
+jest.mock('../monitoring/error-reporting');
 
 const OFFICE = '01920000-0000-7000-8000-00000000000a';
 const cls = ClsServiceManager.getClsService<RequestContext>();
@@ -300,6 +303,27 @@ describe('TenantProcessor', () => {
       expect.objectContaining({ requestId: 'req-99999999', attempt: 1 }),
       'Job attempt failed',
     );
+  });
+
+  it('should report a failure to the error tracker only on the attempt that fails the job', async () => {
+    const { processor } = setup();
+    const data = { officeId: OFFICE, requestId: 'req-99999999', fail: true };
+    const attempt = (attemptsMade: number) =>
+      ({ ...job(data), attemptsMade, opts: { attempts: 3 } }) as Job<never>;
+    jest.mocked(reportError).mockClear();
+
+    await expect(processor.process(attempt(0))).rejects.toThrow('boom');
+    expect(reportError).not.toHaveBeenCalled();
+
+    await expect(processor.process(attempt(2))).rejects.toThrow('boom');
+    // Ids only: the payload never reaches the report (D-230).
+    expect(reportError).toHaveBeenCalledWith(expect.any(Error), {
+      queue: 'notification',
+      job: 'test',
+      jobId: '7',
+      attempt: 3,
+      requestId: 'req-99999999',
+    });
   });
 
   it('should log worker connection errors instead of crashing', () => {

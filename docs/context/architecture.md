@@ -108,8 +108,8 @@ PostgreSQL 17 + extensions `pgvector`, `pg_trgm`, `unaccent`, `citext`. Prisma s
 | staging | 1 VPS (Docker Compose: api, worker, caddy) + managed PG/Redis (small) + object storage | auto-deploy from `develop` |
 | prod | 1–2 VPS (api ×2, worker ×1 behind Caddy) + managed PG (daily backups + PITR) + managed Redis + R2/S3 | deploy from `main` tag, manual approval |
 SPAs on Cloudflare Pages (or S3+CloudFront). Secrets in GitHub Environments → injected as env at deploy.
-Observability: Sentry (FE+BE), Pino JSON logs → Better Stack/Grafana Cloud free tier, `/health` + `/metrics`
-(Prometheus format), UptimeRobot. **Graduate to ECS/RDS** when any of: >50 paying offices, sustained CPU >60%,
+Observability (D-230): Sentry EU (API + worker; SPAs later), Pino JSON logs → Better Stack EU, `/health` + `/metrics`
+(Prometheus format, incl. `bullmq_queue_jobs`), Better Stack uptime + alert rules. **Graduate to ECS/RDS** when any of: >50 paying offices, sustained CPU >60%,
 enterprise/government contract requiring Multi-AZ/SLA, or DR RTO < 1h required.
 
 ## Performance budgets
