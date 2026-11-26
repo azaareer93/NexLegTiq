@@ -111,11 +111,14 @@ describe('SessionSummariesService (D-179)', () => {
 
   it('should create tasks only from the picked steps, dated from dueInDays in the office zone', async () => {
     const { service, tasks } = setup();
-    const created = await service.createTasks(
-      SUMMARY,
-      { selected: [{ index: 0 }, { index: 1, title: 'Call Omar', dueDate: '2026-11-20' }] },
-      CLIENT,
-    );
+    jest.useFakeTimers({ now: NOW, advanceTimers: true });
+    const created = await service
+      .createTasks(
+        SUMMARY,
+        { selected: [{ index: 0 }, { index: 1, title: 'Call Omar', dueDate: '2026-11-20' }] },
+        CLIENT,
+      )
+      .finally(() => jest.useRealTimers());
     expect(created).toEqual([{ id: 't1' }, { id: 't2' }]);
     const [inputs, , source] = tasks.createAll.mock.calls[0] as [
       { dueDate?: string }[],

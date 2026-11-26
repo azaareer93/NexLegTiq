@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { RANKED_CANDIDATES, searchQuery } from './search-query';
+import { RANKED_CANDIDATES, RECENT_WINDOW, searchQuery } from './search-query';
 import type { SearchHit, SearchTarget } from './search-query';
 import { createSeedClient } from '../../../prisma/seed';
 import {
@@ -234,6 +234,45 @@ describe('searchQuery (PostgreSQL)', () => {
         expect(hits).toHaveLength(20);
         expect(hits.map((hit) => hit.id)).not.toContain(oldest.id);
         expect(hits.every((hit) => hit.rank > 1)).toBe(true);
+      },
+      60_000,
+    );
+  });
+
+  it('should find documents in the newest rows first and older ones when those hold too few (D-240)', async () => {
+    await inRollback(
+      prisma,
+      async (tx) => {
+        const a = await office(tx);
+        const old = await documentTextIn(tx, a);
+        await tx.documentText.update({ where: { id: old.id }, data: { text: 'رخصة قديمة' } });
+        // A full window of newer texts: a fifth of them say "زيتون", none says "رخصة".
+        const fileId = (await fileIn(tx, a)).id;
+        await tx.$executeRaw`
+          CREATE TEMP TABLE window_docs ON COMMIT DROP AS
+          SELECT nlq_uuid_v7() AS id, g FROM generate_series(1, ${RECENT_WINDOW}) g`;
+        await tx.$executeRaw`
+          INSERT INTO documents (id, office_id, file_id, name, original_filename, mime_type, size_bytes,
+                                 checksum_sha256, storage_key, uploaded_by_id, updated_at)
+          SELECT d.id, ${a.officeId}::uuid, ${fileId}::uuid, 'd.pdf', 'd.pdf', 'application/pdf', 1, repeat('a', 64),
+                 ${a.officeId} || '/' || d.id || '.pdf', ${a.userId}::uuid, now()
+          FROM window_docs d`;
+        await tx.$executeRaw`
+          INSERT INTO document_versions (id, office_id, document_id, version_number, storage_key, original_filename,
+                                         mime_type, size_bytes, checksum_sha256, created_by_id)
+          SELECT nlq_uuid_v7(), ${a.officeId}::uuid, d.id, 1, ${a.officeId} || '/' || d.id || '.pdf', 'd.pdf',
+                 'application/pdf', 1, repeat('a', 64), ${a.userId}::uuid
+          FROM window_docs d`;
+        await tx.$executeRaw`
+          INSERT INTO document_texts (id, office_id, document_id, version_number, text, updated_at)
+          SELECT nlq_uuid_v7(), ${a.officeId}::uuid, d.id, 1, CASE WHEN d.g % 5 = 0 THEN 'زيتون' ELSE 'نص' END, now()
+          FROM window_docs d`;
+        const ids = async (q: string) =>
+          (await tx.$queryRaw<SearchHit[]>(searchQuery('documents', a.officeId, q, 5, ALL))).map(
+            (hit) => hit.id,
+          );
+        expect(await ids('رخصة')).toEqual([old.id]);
+        expect(await ids('زيتون')).toHaveLength(5);
       },
       60_000,
     );

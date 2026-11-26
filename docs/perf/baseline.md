@@ -28,6 +28,12 @@ database time (the document-text query, below); 50 of them a second saturate the
 behind them. Follow-up story MVP-172: document search for common words (options: per-user cache, two-step search, an
 ordered index, a bigger pool).
 
+**MVP-172 (D-240):** document search reads the office's newest 1,000 texts first (`document_texts (office_id, id)`;
+common word 188 → 20–25 ms: `Index Scan Backward` on 1,000 rows + nested-loop visibility instead of matching 15k rows
+and a hash of the office's 20k documents) and task visibility binds the file's office (no hashed scan of every office's
+files). Search at 50 VUs: p95 3.06 s → 1.08 s (common 1.11 s, rare 1.04 s); still over the 200 ms budget — remaining
+database time per search ~70 ms (tasks' trigram pass, documents, files), and a bigger pool made each query slower.
+
 Trade-off of the cap: for a word with more than 1,000 matches in the office, an older row that would rank higher is
 not returned (nor added by the trigram pass); the newest matches are.
 
