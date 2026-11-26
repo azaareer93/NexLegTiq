@@ -92,6 +92,7 @@ describe('parseEnv', () => {
     ['HOST', '  '],
     ['DATABASE_URL', 'mysql://user:pass@localhost/db'],
     ['DATABASE_POOL_MAX', '0'],
+    ['DATABASE_POOL_MAX', '101'],
     ['REDIS_URL', 'http://localhost:6379'],
     ['BULLMQ_PREFIX', 'Has Spaces'],
     ['S3_ENDPOINT', 'ftp://localhost:9000'],

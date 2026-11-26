@@ -172,7 +172,9 @@ export function SearchPanel({ onClose }: { readonly onClose: () => void }): Reac
   );
   const options = groups.flatMap((group) => group.items);
   const count = options.filter((item) => item.href).length;
-  useEffect(() => setActive(0), [q, expanded, data]);
+  // Not on `data`: the document step arrives later and must not move the selection (D-240).
+  useEffect(() => setActive(0), [q, expanded]);
+  const current = Math.min(active, Math.max(options.length - 1, 0));
 
   const pick = (item: SearchItem | undefined) => {
     if (item?.onPick) return item.onPick();
@@ -188,11 +190,11 @@ export function SearchPanel({ onClose }: { readonly onClose: () => void }): Reac
     const enter = event.key === 'Enter' && text.trim() === q;
     if (options.length === 0 || (step === undefined && !enter)) return;
     event.preventDefault();
-    if (step === undefined) pick(options[active]);
-    else setActive((i) => (i + step + options.length) % options.length);
+    if (step === undefined) pick(options[current]);
+    else setActive((current + step + options.length) % options.length);
   };
 
-  const activeKey = options[active]?.key;
+  const activeKey = options[current]?.key;
   // "Nothing found" and the count wait for the document step (D-240); names show as soon as they arrive.
   const loaded = searching && data !== undefined && !query.documentsPending;
 
@@ -226,7 +228,7 @@ export function SearchPanel({ onClose }: { readonly onClose: () => void }): Reac
         error={query.error}
       />
       {searching && query.documentsPending ? (
-        <Typography.Text type="secondary" data-testid="search-documents-pending">
+        <Typography.Text type="secondary" role="status" data-testid="search-documents-pending">
           {t('shell.search.searchingDocuments')}
         </Typography.Text>
       ) : null}

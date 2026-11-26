@@ -221,12 +221,15 @@ describe('searchQuery (PostgreSQL)', () => {
       async (tx) => {
         const a = await office(tx);
         // The oldest client matches best (the word twice); 1,000 newer ones once each.
-        // Its id comes from the database clock too: a JS-made UUIDv7 can sort after the rows below when the clocks differ.
-        const [oldest] = await tx.$queryRaw<{ id: string }[]>`
-          INSERT INTO clients (id, office_id, client_type, display_name, updated_at)
-          VALUES (nlq_uuid_v7(), ${a.officeId}::uuid, 'CORPORATION', 'زيتون زيتون', now()) RETURNING id::text`;
-        if (!oldest) throw new Error('no client');
-        await tx.$executeRaw`SELECT pg_sleep(0.002)`; // the ids below start in a later millisecond
+        // A fixed early UUIDv7 (2020): older than every row below whatever the clocks of Node and the database say.
+        const oldest = await tx.client.create({
+          data: {
+            id: '016fd76a-1000-7000-8000-000000000001',
+            officeId: a.officeId,
+            clientType: 'CORPORATION',
+            displayName: 'زيتون زيتون',
+          },
+        });
         await tx.$executeRaw`
           INSERT INTO clients (id, office_id, client_type, display_name, updated_at)
           SELECT nlq_uuid_v7(), ${a.officeId}::uuid, 'CORPORATION', 'زيتون ' || g, now()
@@ -276,6 +279,43 @@ describe('searchQuery (PostgreSQL)', () => {
           );
         expect(await ids('رخصة')).toEqual([old.id]);
         expect(await ids('زيتون')).toHaveLength(5);
+      },
+      60_000,
+    );
+  });
+
+  it("should walk only the office's own newest tasks, and fall back to older ones (D-240)", async () => {
+    await inRollback(
+      prisma,
+      async (tx) => {
+        const a = await office(tx);
+        const b = await office(tx);
+        const tasks = (o: { officeId: string; userId: string }, title: Prisma.Sql) =>
+          tx.$executeRaw`
+            INSERT INTO tasks (id, office_id, title, assigned_to_id, created_by_id, updated_at)
+            SELECT nlq_uuid_v7(), ${o.officeId}::uuid, ${title}, ${o.userId}::uuid, ${o.userId}::uuid, now()
+            FROM generate_series(1, ${RECENT_WINDOW}) g`;
+        const old = await tx.task.create({
+          data: {
+            id: '016fd76a-1000-7000-8000-000000000002',
+            officeId: a.officeId,
+            title: 'رخصة قديمة',
+            assignedToId: a.userId,
+            createdById: a.userId,
+          },
+        });
+        // A full window in office A, a fifth of it "زيتون"; a newer full window of "زيتون" in office B.
+        await tasks(a, Prisma.sql`CASE WHEN g % 5 = 0 THEN 'زيتون' ELSE 'نص' END`);
+        await tasks(b, Prisma.sql`'زيتون'`);
+        const ids = async (q: string, limit: number) =>
+          (await tx.$queryRaw<SearchHit[]>(searchQuery('tasks', a.officeId, q, limit, ALL))).map(
+            (hit) => hit.id,
+          );
+        expect(await ids('رخصة', 5)).toEqual([old.id]);
+        const found = await ids('زيتون', 21);
+        expect(found).toHaveLength(21);
+        const inB = await tx.task.count({ where: { id: { in: found }, officeId: b.officeId } });
+        expect(inB).toBe(0);
       },
       60_000,
     );

@@ -191,6 +191,39 @@ describe('search overlay (D-172)', () => {
   );
 
   it(
+    'should show names first and say "nothing found" only after the document step (D-240)',
+    async () => {
+      let answer: () => void = () => undefined;
+      const documentsHeld = new Promise<void>((resolve) => (answer = resolve));
+      server.use(
+        http.get(api('search'), async ({ request }) => {
+          if (new URL(request.url).searchParams.get('type') === 'documents') await documentsHeld;
+          return ok({
+            cases: EMPTY,
+            clients: EMPTY,
+            parties: EMPTY,
+            documents: EMPTY,
+            tasks: EMPTY,
+          });
+        }),
+      );
+      signedIn();
+      renderApp('/');
+      type(await openSearch(), 'zzz');
+      expect(
+        await screen.findByTestId('search-documents-pending', {}, { timeout: 5000 }),
+      ).toBeTruthy();
+      expect(screen.getByTestId('search-status').textContent).toBe('');
+      answer();
+      await waitFor(() =>
+        expect(screen.getByTestId('search-status').textContent).toMatch(/^Nothing found for.*zzz/),
+      );
+      expect(screen.queryByTestId('search-documents-pending')).toBeNull();
+    },
+    SLOW,
+  );
+
+  it(
     'should pass axe with results shown',
     async () => {
       serve();

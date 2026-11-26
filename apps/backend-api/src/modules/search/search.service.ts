@@ -244,7 +244,7 @@ function documentTextVisibleSql(c: SearchCaller): Prisma.Sql {
 /**
  * Tasks on a visible file, plus the caller's personal tasks (`TaskAccessService.visibleWhere`). The file's office is the
  * bound office id, not `t."office_id"`: under the OR the planner hashes the subquery, and correlated it read every office's
- * files (100k rows, 30–90 ms per search on the perf seed, D-240).
+ * files (100k rows, 30–90 ms per search on the perf seed, D-240). Same rows: `searchQuery` pins `t."office_id"` to it.
  */
 function taskVisibleSql(c: SearchCaller): Prisma.Sql {
   return Prisma.sql`(

@@ -43,8 +43,8 @@ export function useSearch(q: string, expanded: SearchType | null) {
       search.search({ q: settled, type: 'documents', limit: GROUP_LIMIT }, signal),
     enabled: wantDocuments && settled === q,
   });
-  const documentsReady = documents.data !== undefined && settled === q;
-  // Memoised: the panel resets its keyboard selection whenever `data` changes identity.
+  // Names kept from the previous query (placeholder) never merge with the new query's documents.
+  const documentsReady = documents.data !== undefined && settled === q && !names.isPlaceholderData;
   const data = useMemo(
     () =>
       names.data && wantDocuments && documentsReady && documents.data

@@ -39,9 +39,9 @@ export const options = {
     'http_req_duration{endpoint:list}': ['p(95)<500'],
     'http_req_duration{endpoint:get}': ['p(95)<500'],
     'http_req_duration{endpoint:search}': ['p(95)<200'],
-    // Reported apart, never failing (no budget of their own): the two halves of the search mix.
-    'http_req_duration{endpoint:search,term:common}': ['p(95)<100000'],
-    'http_req_duration{endpoint:search,term:rare}': ['p(95)<100000'],
+    // Each half of the search mix within the budget too (MVP-172); the two steps reported apart, never failing.
+    'http_req_duration{endpoint:search,term:common}': ['p(95)<200'],
+    'http_req_duration{endpoint:search,term:rare}': ['p(95)<200'],
     'http_req_duration{endpoint:search,step:names}': ['p(95)<100000'],
     'http_req_duration{endpoint:search,step:documents}': ['p(95)<100000'],
     'http_req_duration{endpoint:dashboard}': ['p(95)<500'],

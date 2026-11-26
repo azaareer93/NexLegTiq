@@ -32,8 +32,10 @@ ordered index, a bigger pool).
 the office's newest 1,000 rows first (`(office_id, id)` indexes: `Index Scan Backward` on 1,000 rows and a nested-loop
 visibility check instead of matching 15k document vectors against a hash of the office's 20k documents), task visibility
 bound to the office (no hashed scan of every office's files), and a pool of 20. Search at 50 VUs, warm: p95 **104–139 ms**
-(common 81–137 ms, rare 125–139 ms; names step 119–166 ms, documents step 100–119 ms) ✓; 195 ms on the first run after a
-restart. Per query (`pg_stat_statements` mean under load): documents 18–22 ms, tasks 11–22 ms, files 7–8 ms, clients 2.6 ms.
+(common 81–137 ms, rare 125–139 ms; names step 119–166 ms, documents step 100–119 ms) ✓ — two warm runs; 195 ms on the first run after a
+restart. Per query (`pg_stat_statements` mean under load): documents 18–22 ms, tasks 11–22 ms, files 7–8 ms, clients 2.6 ms;
+plans in [top-queries](top-queries.md#after-mvp-172-d-240-the-newest-rows-window). `search-query.performance.int.spec.ts` still
+passes (P95 6–73 ms).
 
 Trade-off of the cap: for a word with more than 1,000 matches in the office, an older row that would rank higher is
 not returned (nor added by the trigram pass); the newest matches are.
