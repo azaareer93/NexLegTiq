@@ -230,7 +230,7 @@ describe('portal data (HTTP + PostgreSQL)', () => {
 
     const detail = dataOf<PortalFileDetail>(await as(`/files/${mine.id}`).expect(200));
     expect(detail.timeline).toEqual([{ eventType: 'FILE_OPENED', occurredAt: expect.any(String) }]);
-    expect(JSON.stringify(detail)).not.toMatch(/Internal strategy|secret|\+970|300/);
+    expect(JSON.stringify(detail)).not.toMatch(/Internal strategy|secret|\+970|\b300\b/); // \b: random UUIDs contain "300"
     for (const id of [sameOffice.id, otherOffice.id, randomUUID()]) {
       expect(codeOf(await as(`/files/${id}`).expect(404))).toBe('RES-001');
       await as(`/files/${id}/documents`).expect(404);
