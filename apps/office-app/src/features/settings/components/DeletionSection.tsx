@@ -162,7 +162,9 @@ export function DeletionSection(): React.JSX.Element | null {
           </Typography.Paragraph>
           <ul data-testid="deletion-consequences">
             <li>{t('settings.deletion.consequences.readOnly')}</li>
-            <li>{t('settings.deletion.consequences.purge')}</li>
+            <li>
+              {t('settings.deletion.consequences.purge', { days: OFFICE_DELETION_GRACE_DAYS })}
+            </li>
             <li>{t('settings.deletion.consequences.kept')}</li>
           </ul>
           <Button
