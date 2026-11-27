@@ -28,7 +28,7 @@ ALTER TABLE "retained_invoices" ADD CONSTRAINT "retained_invoices_office_id_fkey
 
 -- The irreversible step. The app role cannot UPDATE audit_logs (D-079), so anonymizing them needs the migrator's rights
 -- (SECURITY DEFINER, search_path pinned, as nlq_purge_audit_logs, D-136). The function refuses an office that is not past
--- its scheduled deletion, so the app role cannot use it to erase a live office.
+-- its scheduled deletion; it enforces that date only — the app role, which writes the date, already has DML on every row.
 -- Kept: the office row, its settings (audit retention), the anonymized audit log, subscriptions, platform payments (our own
 -- accounting records) and retained invoices. Every other table with an office_id is read from the catalogue, so a tenant
 -- table added later is purged without changing this function. Foreign-key order is found by retrying: a table still
@@ -87,16 +87,19 @@ BEGIN
     pending := blocked;
   END LOOP;
 
-  -- Portal accounts that belonged to this office only; one still referenced elsewhere (another office's audit) stays.
+  -- Portal accounts that belonged to this office only. One another office's rows still reference (its audit, uploads)
+  -- cannot be deleted: it is anonymized instead, so no name, email or password survives.
   FOREACH u IN ARRAY portal_users LOOP
+    CONTINUE WHEN EXISTS (SELECT 1 FROM public.client_portal_accesses a WHERE a.client_user_id = u);
     BEGIN
-      DELETE FROM public.client_users cu
-        WHERE cu.id = u
-          AND NOT EXISTS (SELECT 1 FROM public.client_portal_accesses a WHERE a.client_user_id = u);
+      DELETE FROM public.client_users WHERE id = u;
       GET DIAGNOSTICS n = ROW_COUNT;
       removed := removed + n;
     EXCEPTION WHEN foreign_key_violation THEN
-      NULL;
+      UPDATE public.client_users
+        SET email = id::text || '@purged.invalid', full_name = '', password_hash = '!', is_active = false,
+            email_verified_at = NULL, last_login_at = NULL, updated_at = now()
+        WHERE id = u;
     END;
   END LOOP;
 

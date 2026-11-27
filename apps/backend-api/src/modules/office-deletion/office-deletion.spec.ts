@@ -6,7 +6,7 @@ import { totpCode, totpStep } from '../platform-auth/totp';
 const OFFICE = '01920000-0000-7000-8000-000000000001';
 const USER = '01920000-0000-7000-8000-000000000002';
 const SECRET = 'JBSWY3DPEHPK3PXP';
-const client = { ip: null, userAgent: null, requestId: null };
+const client = { ip: '127.0.0.1', userAgent: null, requestId: null };
 const later = new Date(Date.now() + 10 * 86_400_000);
 
 function build(
@@ -223,7 +223,7 @@ describe('OfficePurge', () => {
     jest
       .spyOn(purge, 'purge')
       .mockRejectedValueOnce(new Error('storage down'))
-      .mockResolvedValueOnce(undefined);
+      .mockResolvedValueOnce(true);
     await expect(purge.run()).resolves.toEqual({ purged: 1, expired: 3 });
     expect(logger.error).toHaveBeenCalledTimes(1);
   });

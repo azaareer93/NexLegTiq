@@ -197,9 +197,12 @@ export class OfficeDeletionService {
     if (!body.mfaCode) {
       throw new ValidationException([{ field: 'mfaCode', message: 'validation.required' }]);
     }
-    // shortcut: office MFA has no enrolment yet; the secret context follows the platform's (D-145) for when it comes.
-    const secret = this.cipher.decrypt(user.mfaSecret ?? '', `users.mfa_secret:${user.id}`);
-    if (verifyTotp(secret, body.mfaCode, new Date(), null) === null) {
+    // shortcut: office MFA has no enrolment yet; the secret context follows the platform's (D-145), and replay protection
+    // (a last-used step per user) comes with enrolment.
+    const secret = user.mfaSecret
+      ? this.cipher.decrypt(user.mfaSecret, `users.mfa_secret:${user.id}`)
+      : null;
+    if (!secret || verifyTotp(secret, body.mfaCode, new Date(), null) === null) {
       throw new ValidationException([{ field: 'mfaCode', message: 'validation.totpWrong' }]);
     }
   }

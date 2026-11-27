@@ -289,6 +289,10 @@ describe('office deletion (HTTP + PostgreSQL)', () => {
     expect(
       Object.entries(await rowsOf(leaving.officeId)).filter(([t, n]) => !KEPT.has(t) && n > 0),
     ).toEqual([]);
+
+    // A cancel between the run's listing and the office's turn: the locked re-check skips it, and its files stay.
+    await expect(app.get(OfficePurge).purge(staying.officeId as OfficeId)).resolves.toBe(false);
+    expect(await exists(staying, stayingKey)).not.toBeNull();
     await tenant.run({ officeId: staying.officeId as OfficeId }, () => storage.delete(stayingKey));
   }, 120_000);
 });

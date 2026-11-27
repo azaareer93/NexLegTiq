@@ -48,8 +48,7 @@ export class OfficePurge {
     let purged = 0;
     for (const { id } of due) {
       try {
-        await this.purge(id);
-        purged += 1;
+        if (await this.purge(id as OfficeId)) purged += 1;
       } catch (error) {
         this.logger.error({ err: error, officeId: id }, 'Office purge failed; retried tomorrow');
       }
@@ -61,17 +60,27 @@ export class OfficePurge {
     return { purged, expired };
   }
 
-  /** One office. Storage first: a failure there leaves every row, so the next run starts again from the top. */
-  async purge(officeId: string): Promise<void> {
-    const storageObjects = await this.tenant.run({ officeId: officeId as OfficeId }, () =>
-      this.storage.deleteOfficeObjects(),
-    );
+  /**
+   * One office; false when it is no longer due (cancelled since the run listed it). The office row is locked and re-checked
+   * first, so a cancel waits and then gets 409; storage goes under that lock, then the rows. A failure rolls the rows back
+   * and the next run tries again (the storage objects stay gone: the office is still due, so nobody can cancel in between
+   * unless the failure persists). After the commit a second sweep removes files a running job (export, PDF) wrote late.
+   */
+  async purge(officeId: OfficeId): Promise<boolean> {
+    const deleteObjects = () =>
+      this.tenant.run({ officeId }, () => this.storage.deleteOfficeObjects());
     const years = this.config.retainedRecordsYears;
     const retainUntil = new Date();
     retainUntil.setUTCFullYear(retainUntil.getUTCFullYear() + years);
     // unscoped: the purge works on one office by id, including tables the tenant extension does not cover.
-    await this.prisma.unscoped().$transaction(
+    const purged = await this.prisma.unscoped().$transaction(
       async (tx) => {
+        const locked = await tx.$queryRaw<{ id: string }[]>`
+          SELECT id::text FROM offices
+          WHERE id = ${officeId}::uuid AND purged_at IS NULL AND deletion_scheduled_for <= now()
+          FOR UPDATE`;
+        if (locked.length === 0) return false;
+        const storageObjects = await deleteObjects();
         const invoicesRetained = await this.retainInvoices(tx, officeId, retainUntil);
         const [row] = await tx.$queryRaw<{ removed: number }[]>`
           SELECT nlq_purge_office(${officeId}::uuid) AS removed`;
@@ -85,6 +94,11 @@ export class OfficePurge {
             isActive: false,
             purgedAt: new Date(),
           },
+        });
+        // Kept receipts lose their stored PDF (it was under the office prefix); the receipt re-renders on demand (D-174).
+        await tx.platformPayment.updateMany({
+          where: { officeId },
+          data: { pdfStorageKey: null, pdfLanguage: null, pdfRenderedFor: null },
         });
         // The anonymized audit rows age out with the invoices (the D-136 purge reads the highest retention ever set).
         await tx.officeSettings.updateMany({
@@ -109,10 +123,18 @@ export class OfficePurge {
             {},
           ),
         });
+        return true;
       },
       { timeout: PURGE_TX_TIMEOUT_MS },
     );
-    this.logger.info({ officeId, storageObjects }, 'Office purged');
+    if (!purged) return false;
+    // Best effort: a job that was writing under the prefix during the transaction leaves nothing behind.
+    const late = await deleteObjects().catch((error: unknown) => {
+      this.logger.warn({ err: error, officeId }, 'Late storage sweep failed');
+      return 0;
+    });
+    this.logger.info({ officeId, late }, 'Office purged');
+    return true;
   }
 
   /** Issued invoices (those with a number) as issued, voided ones included: the legal record (D-251). */
