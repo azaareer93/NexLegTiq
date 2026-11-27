@@ -13,6 +13,7 @@ import { invoicesRoutes } from '../features/invoices/routes';
 import { notificationsRoutes } from '../features/notifications/routes';
 import { onboardingRoutes } from '../features/onboarding/routes';
 import { profileRoutes } from '../features/profile/routes';
+import { researchRoutes } from '../features/research/routes';
 import { settingsRoutes } from '../features/settings/routes';
 import { NAV_ITEMS, NotFoundPage, RequirePermission, RouteError } from '../features/shell';
 import type { NavKey } from '../features/shell';
@@ -34,6 +35,7 @@ const FEATURE_ROUTES: Partial<Record<NavKey, RouteObject[]>> = {
   clients: clientsRoutes,
   dashboard: dashboardRoutes,
   invoices: invoicesRoutes,
+  research: researchRoutes,
   settings: settingsRoutes,
   // Under Settings, with its own right: an Admin reads it without managing the office (D-180).
   audit: auditRoutes,

@@ -30,6 +30,7 @@ export const I18N_NAMESPACES = [
   'onboarding',
   'audit',
   'portal',
+  'research',
 ] as const;
 
 export type I18nNamespace = (typeof I18N_NAMESPACES)[number];
