@@ -52,7 +52,9 @@ function setup(research = 'fake') {
       client: {
         findMany: jest
           .fn()
-          .mockResolvedValue([{ displayName: CLIENT, fullName: CLIENT, companyName: null }]),
+          .mockResolvedValue([
+            { clientType: 'INDIVIDUAL', displayName: CLIENT, fullName: CLIENT, companyName: null },
+          ]),
       },
       contactPerson: { findMany: jest.fn().mockResolvedValue([]) },
       party: { findMany: jest.fn().mockResolvedValue([]) },
@@ -86,7 +88,11 @@ function setup(research = 'fake') {
     cls as unknown as ClsService<RequestContext>,
   );
   const jobs = {
-    enqueue: jest.fn().mockResolvedValue({ jobId: JOB, status: 'QUEUED' }),
+    // Like AiJobs: `onCreate` runs in the job row's transaction.
+    enqueue: jest.fn(async (job: { onCreate?: (tx: unknown, id: string) => Promise<void> }) => {
+      await job.onCreate?.({}, JOB);
+      return { jobId: JOB, status: 'QUEUED' };
+    }),
     get: jest.fn(),
   };
   const audit = { log: jest.fn() };
@@ -99,7 +105,7 @@ function setup(research = 'fake') {
     cls as unknown as ClsService<RequestContext>,
     new PiiRedactor(),
   );
-  return { researcher, service, fake: providers.fake, cache, usage, jobs, audit };
+  return { researcher, service, fake: providers.fake, cache, usage, jobs, audit, prisma };
 }
 
 const fields = { question: QUESTION, language: 'EN', jurisdiction: 'PALESTINE' } as const;
@@ -168,6 +174,23 @@ describe('LegalResearcher (D-256)', () => {
       86_400,
     );
   });
+
+  it("hides a client named by part of the name, looked up by the question's words", async () => {
+    const { researcher, fake, prisma } = setup();
+    fake.script({ json: { answer: 'Yes.', jurisdictionNote: null }, sources: [SOURCE] });
+    const partial = {
+      question: 'Can Mr Odeh still appeal the ruling?',
+      language: 'EN',
+      jurisdiction: 'PALESTINE',
+    } as const;
+    await researcher.run(
+      { ...partial, hash: researchHash(partial, LEGAL_RESEARCH_V1.version) },
+      context,
+    );
+    expect(fake.requests[0]?.user).not.toContain('Odeh');
+    const [{ where }] = prisma.db.client.findMany.mock.calls[0] as [{ where: { OR: object[] } }];
+    expect(where.OR).toContainEqual({ fullName: { contains: 'odeh', mode: 'insensitive' } });
+  });
 });
 
 describe('LegalResearchService (D-256)', () => {
@@ -185,11 +208,14 @@ describe('LegalResearchService (D-256)', () => {
       status: 202,
       accepted: { jobId: JOB, status: 'QUEUED' },
     });
-    expect(jobs.enqueue).toHaveBeenCalledWith({
-      type: LEGAL_RESEARCH_JOB,
-      fields: { ...fields, hash },
-      dedupeKey: `research:${hash}`,
-    });
+    expect(jobs.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: LEGAL_RESEARCH_JOB,
+        research: true,
+        fields: { ...fields, hash },
+        dedupeKey: `research:${hash}`,
+      }),
+    );
     const [, entry] = audit.log.mock.calls[0] as [unknown, { newValues: { question: string } }];
     expect(entry).toMatchObject({ entityType: 'LegalResearch', entityId: JOB, action: 'CREATE' });
     for (const pii of [CLIENT, PHONE, EMAIL]) expect(entry.newValues.question).not.toContain(pii);

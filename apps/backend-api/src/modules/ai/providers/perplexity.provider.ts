@@ -4,7 +4,7 @@ import type { AiCompletion, AiProvider, AiRequest, AiSource } from './ai-provide
 import { ProviderUnavailableError, providerSchema } from './ai-provider';
 import { postJson } from './http-provider';
 
-const URL = 'https://api.perplexity.ai/v1/agent';
+const ENDPOINT = 'https://api.perplexity.ai/v1/agent';
 const MAX_SOURCES = 20;
 const MAX_SEARCH_RESULTS = 10;
 
@@ -50,7 +50,14 @@ const ResponseSchema = z.object({
 });
 type Output = z.infer<typeof ResponseSchema>['output'];
 
-const isWeb = (url: string): boolean => /^https?:\/\//i.test(url);
+// A link the reader can open: parsable, http(s) only (never javascript: or data:).
+function isWeb(url: string): boolean {
+  try {
+    return ['http:', 'https:'].includes(new URL(url).protocol);
+  } catch {
+    return false;
+  }
+}
 
 /**
  * The pages the answer cites (`url_citation` annotations), else the search results; with the date a search result gives.
@@ -102,7 +109,7 @@ export class PerplexityProvider implements AiProvider {
 
   async complete(request: AiRequest): Promise<AiCompletion> {
     const domains = request.webSearch?.domains ?? [];
-    const raw = await postJson(this.name, URL, {
+    const raw = await postJson(this.name, ENDPOINT, {
       headers: { authorization: `Bearer ${this.apiKey}` },
       body: {
         model: this.model,
@@ -150,7 +157,8 @@ export class PerplexityProvider implements AiProvider {
       inputTokens: usage.input_tokens,
       outputTokens: usage.output_tokens,
       sources: sourcesOf(output),
-      ...(usage.cost && { costUsd: usage.cost.total_cost }),
+      // The JSON number as written, into Decimal later (never float arithmetic).
+      ...(usage.cost && { costUsd: String(usage.cost.total_cost) }),
     };
   }
 }

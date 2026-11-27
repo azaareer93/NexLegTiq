@@ -45,7 +45,12 @@ export const AI_ENV = {
 };
 
 /** The key and model each provider needs when it is configured. */
-export const AI_PROVIDER_ENV: Partial<Record<string, readonly (keyof typeof AI_ENV)[]>> = {
+export const AI_PROVIDER_ENV: Partial<
+  Record<
+    (typeof AI_PROVIDERS | typeof RESEARCH_PROVIDERS)[number],
+    readonly (keyof typeof AI_ENV)[]
+  >
+> = {
   openai: ['OPENAI_API_KEY', 'OPENAI_MODEL'],
   gemini: ['GEMINI_API_KEY', 'GEMINI_MODEL'],
   perplexity: ['PERPLEXITY_API_KEY', 'PERPLEXITY_MODEL'],

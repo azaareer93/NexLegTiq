@@ -21,7 +21,6 @@
     "sources": "Sources",
     "unsourced": "Unsourced",
     "unsourcedHint": "No source was found for this answer. Check it against the law before relying on it.",
-    "note": "Jurisdiction note",
-    "meta": "{{model}} · {{jurisdiction}}"
+    "note": "Jurisdiction note"
   }
 }

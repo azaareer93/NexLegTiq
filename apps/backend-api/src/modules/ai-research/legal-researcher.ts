@@ -55,7 +55,7 @@ export class LegalResearcher extends BaseAiService implements OnModuleInit {
       language: fields.language,
       jurisdiction: JURISDICTION_NAMES[fields.jurisdiction],
     });
-    const redactionContext = await officeRedactionContext(this.prisma);
+    const redactionContext = await officeRedactionContext(this.prisma, fields.question);
     const ask = (domains: readonly string[], partial: boolean) =>
       this.execute({
         feature: LEGAL_RESEARCH_FEATURE,

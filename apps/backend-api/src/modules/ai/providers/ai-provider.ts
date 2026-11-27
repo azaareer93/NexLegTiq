@@ -37,8 +37,11 @@ export interface AiCompletion {
   readonly outputTokens: number;
   /** The pages a web-search answer cites (D-256). */
   readonly sources?: readonly AiSource[];
-  /** The provider's own price of the call in USD (search included), when it reports one; else the token prices. */
-  readonly costUsd?: number;
+  /**
+   * The provider's own price of the call in USD (search included), when it reports one, as a decimal string
+   * (never a float, D-017); else the token prices.
+   */
+  readonly costUsd?: string;
 }
 
 export type ProviderName = 'openai' | 'gemini' | 'perplexity' | 'fake';

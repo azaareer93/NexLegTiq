@@ -44,6 +44,7 @@ describe('Legal research (integration)', () => {
   let lawyer: Person;
   let outsiderRole: Person;
   let outsider: Person;
+  let colleague: Person;
   const officeIds: string[] = [];
   const savedEnv = { ...process.env };
 
@@ -112,10 +113,11 @@ describe('Legal research (integration)', () => {
       app.get(AppConfig),
       app.get(ModuleRef),
     );
-    [lawyer, outsiderRole] = (await seedOffice('Research office A', [
+    [lawyer, outsiderRole, colleague] = (await seedOffice('Research office A', [
       'LAWYER',
       'EXTERNAL_COLLABORATOR',
-    ])) as [Person, Person];
+      'SENIOR_LAWYER',
+    ])) as [Person, Person, Person];
     [outsider] = (await seedOffice('Research office B', ['LAWYER'])) as [Person];
   }, 120_000);
 
@@ -153,7 +155,9 @@ describe('Legal research (integration)', () => {
       unsourced: false,
       jurisdiction: 'PALESTINE',
     });
+    // Another office (cross-tenant) and a colleague (the job is its creator's) both get 404.
     expect((await read(outsider, jobId)).status).toBe(404);
+    expect((await read(colleague, jobId)).status).toBe(404);
 
     const usage = await raw.aiUsage.findFirstOrThrow({
       where: { officeId: lawyer.officeId, feature: 'legal-research' },
@@ -167,6 +171,8 @@ describe('Legal research (integration)', () => {
     const again = await ask(lawyer, { question, language: 'EN' });
     expect(again.status).toBe(200);
     expect(again.body.data).toMatchObject({ answer: 'One month in writing.' });
+    // The answer cache is the office's: another office asking the same question gets its own job.
+    expect((await ask(outsider, { question, language: 'EN' })).status).toBe(202);
   });
 
   it('refuses holders without use:ai and validates the question', async () => {

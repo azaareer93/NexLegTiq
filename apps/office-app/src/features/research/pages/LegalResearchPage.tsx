@@ -58,9 +58,15 @@ function ResearchAnswer({ research }: { readonly research: LegalResearch }) {
                   <a href={citation.url} target="_blank" rel="noopener noreferrer">
                     <Bdi>{citation.title}</Bdi>
                   </a>{' '}
-                  <Typography.Text type="secondary" dir="ltr">
-                    {new URL(citation.url).hostname}
-                    {citation.date ? ` · ${citation.date}` : ''}
+                  <Typography.Text type="secondary">
+                    <Bdi>{new URL(citation.url).hostname}</Bdi>
+                    {/* The source's own date, as the site gives it (not always a full date). */}
+                    {citation.date ? (
+                      <>
+                        {' · '}
+                        <Bdi>{citation.date}</Bdi>
+                      </>
+                    ) : null}
                   </Typography.Text>
                 </li>
               ))}
@@ -68,10 +74,9 @@ function ResearchAnswer({ research }: { readonly research: LegalResearch }) {
           </section>
         )}
         <Typography.Text type="secondary">
-          {t('research.answer.meta', {
-            model: research.model,
-            jurisdiction: t(`enums.jurisdiction.${research.jurisdiction}`),
-          })}
+          <Bdi>{research.model}</Bdi>
+          {' · '}
+          {t(`enums.jurisdiction.${research.jurisdiction}`)}
         </Typography.Text>
       </Flex>
     </Card>
@@ -137,6 +142,7 @@ export function LegalResearchPage() {
           >
             <Input.TextArea
               rows={4}
+              dir="auto"
               maxLength={2000}
               showCount
               placeholder={t('research.form.questionPlaceholder')}

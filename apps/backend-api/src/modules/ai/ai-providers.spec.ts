@@ -175,6 +175,45 @@ describe('AiProviders (fallback matrix, D-130)', () => {
   });
 });
 
+describe('AiProviders (research routing, D-256)', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it('should send a web-search request only to the research provider, never to the summary chain', async () => {
+    const calls = scriptFetch({ openai: [200] });
+    const only = providers({ AI_RESEARCH_PROVIDER: 'none' });
+    expect(only.researchConfigured).toBe(false);
+    await expect(only.complete({ ...request, webSearch: { domains: [] } })).rejects.toMatchObject({
+      code: 'AI-001',
+    });
+    expect(calls).toHaveLength(0);
+  });
+
+  it('should answer research from its own provider while the summary chain is off', async () => {
+    const research = providers({
+      NODE_ENV: 'test',
+      AI_PRIMARY_PROVIDER: 'none',
+      AI_FALLBACK_PROVIDER: 'none',
+      AI_RESEARCH_PROVIDER: 'fake',
+    });
+    expect([research.configured, research.researchConfigured]).toEqual([false, true]);
+    await expect(
+      research.complete({ ...request, webSearch: { domains: [] } }),
+    ).resolves.toMatchObject({ provider: 'fake', sources: [] });
+    await expect(research.complete(request)).rejects.toMatchObject({ code: 'AI-001' });
+  });
+
+  it('should count Perplexity as sending text out (the PII redactor is then required)', () => {
+    const perplexity = providers({
+      AI_PRIMARY_PROVIDER: 'none',
+      AI_FALLBACK_PROVIDER: 'none',
+      AI_RESEARCH_PROVIDER: 'perplexity',
+      PERPLEXITY_API_KEY: 'pplx-test',
+      PERPLEXITY_MODEL: 'perplexity/sonar',
+    });
+    expect(perplexity.sendsOut).toBe(true);
+  });
+});
+
 describe('CircuitBreaker', () => {
   it('should open after the threshold, let one trial through after the cool-down, and close on success', () => {
     let now = 0;

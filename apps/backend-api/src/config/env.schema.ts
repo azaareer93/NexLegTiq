@@ -209,7 +209,7 @@ const PRODUCTION_RULES: readonly (readonly [keyof RawEnv, (env: RawEnv) => boole
   [
     'AI_RESEARCH_PROVIDER',
     (env) => env.AI_RESEARCH_PROVIDER === 'fake',
-    'must not use the fake AI provider in production',
+    'must not use the fake research provider in production',
   ],
   [
     'GOOGLE_VISION_ENDPOINT',

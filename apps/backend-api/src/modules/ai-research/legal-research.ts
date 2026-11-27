@@ -38,36 +38,80 @@ export function researchHash(
     .digest('hex');
 }
 
-/** Names the office knows, newest first: enough for a question that mentions a client by name. */
-const MAX_NAMES = 2000;
+/** Words of a question looked up among the office's names, and rows read per table. */
+const MAX_WORDS = 30;
+const MAX_ROWS = 500;
+
+/** The words of a question that could be part of a name (3+ letters), lower-cased, at most `MAX_WORDS`. */
+export function questionWords(question: string): string[] {
+  const words = question
+    .normalize('NFKC')
+    .toLowerCase()
+    .split(/[^\p{L}\p{M}]+/u)
+    .filter((word) => word.length >= 3);
+  return [...new Set(words)].slice(0, MAX_WORDS);
+}
+
+const present = (values: readonly (string | null)[]): string[] => [
+  ...new Set(values.filter((value): value is string => Boolean(value?.trim()))),
+];
 
 /**
- * Who a research question must not name to the provider (D-256): the office's clients, their contacts, parties and
- * users. Passed as `organisations` so they match only whole — a general question shares many words with names
- * (أمين، عادل), and those must stay. Phones, emails, ids and IBANs are found by pattern without a list.
+ * Who a research question must not name to the provider (D-256): every client, contact person, party and user of the
+ * office with a name sharing a word with the question — looked up across all rows, so an old client is hidden too.
+ * People are matched whole and by their identifying words (a first and family name alone); companies only whole.
+ * Phones, emails, ids and IBANs are found by pattern without a list. A name the office does not know (a third party
+ * the user types) is not hidden: the page asks not to type case details.
+ * shortcut: `contains` scans the four tables per question; add trigram indexes if offices grow past ~100k names.
  */
-export async function officeRedactionContext(prisma: PrismaService): Promise<RedactionContext> {
-  const take = MAX_NAMES;
-  const orderBy = { createdAt: 'desc' } as const;
+export async function officeRedactionContext(
+  prisma: PrismaService,
+  question: string,
+): Promise<RedactionContext> {
+  const words = questionWords(question);
+  if (words.length === 0) return { names: [], organisations: [] };
+  const like = <F extends string>(field: F) =>
+    words.map(
+      (word) =>
+        ({ [field]: { contains: word, mode: 'insensitive' } }) as Record<
+          F,
+          { contains: string; mode: 'insensitive' }
+        >,
+    );
+  const take = MAX_ROWS;
   const [clients, contacts, parties, users] = await Promise.all([
     prisma.db.client.findMany({
       take,
-      orderBy,
-      select: { displayName: true, fullName: true, companyName: true },
+      where: { OR: [...like('displayName'), ...like('fullName'), ...like('companyName')] },
+      select: { clientType: true, displayName: true, fullName: true, companyName: true },
     }),
-    prisma.db.contactPerson.findMany({ take, orderBy, select: { fullName: true } }),
+    prisma.db.contactPerson.findMany({
+      take,
+      where: { OR: like('fullName') },
+      select: { fullName: true },
+    }),
     prisma.db.party.findMany({
       take,
-      orderBy,
-      select: { fullName: true, companyName: true, legalRepresentative: true },
+      where: {
+        OR: [...like('fullName'), ...like('companyName'), ...like('legalRepresentative')],
+      },
+      select: { isIndividual: true, fullName: true, companyName: true, legalRepresentative: true },
     }),
-    prisma.db.user.findMany({ take, orderBy, select: { fullName: true } }),
+    prisma.db.user.findMany({ take, where: { OR: like('fullName') }, select: { fullName: true } }),
   ]);
-  const names = [
-    ...clients.flatMap((c) => [c.displayName, c.fullName, c.companyName]),
-    ...contacts.map((c) => c.fullName),
-    ...parties.flatMap((p) => [p.fullName, p.companyName, p.legalRepresentative]),
-    ...users.map((u) => u.fullName),
-  ].filter((name): name is string => Boolean(name?.trim()));
-  return { names: [], organisations: [...new Set(names)] };
+  const people = clients.filter((client) => client.clientType === 'INDIVIDUAL');
+  const bodies = clients.filter((client) => client.clientType !== 'INDIVIDUAL');
+  return {
+    names: present([
+      ...people.flatMap((client) => [client.displayName, client.fullName]),
+      ...contacts.map((contact) => contact.fullName),
+      ...parties.filter((party) => party.isIndividual).map((party) => party.fullName),
+      ...parties.map((party) => party.legalRepresentative),
+      ...users.map((user) => user.fullName),
+    ]),
+    organisations: present([
+      ...bodies.flatMap((client) => [client.displayName, client.companyName]),
+      ...parties.filter((party) => !party.isIndividual).map((party) => party.companyName),
+    ]),
+  };
 }

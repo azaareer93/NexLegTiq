@@ -48,7 +48,7 @@ export class LegalResearchService {
 
   async request(body: CreateLegalResearchRequest): Promise<ResearchAnswer> {
     this.access.assertResearch();
-    await this.access.assertEnabled();
+    await this.access.assertEnabled({ research: true });
     const jurisdiction =
       body.jurisdiction ??
       (await this.prisma.db.office.findFirstOrThrow({ select: { jurisdiction: true } }))
@@ -59,21 +59,24 @@ export class LegalResearchService {
       await this.cache.get(this.officeId(), researchKeys.question(hash)),
     );
     if (hit.success) return { status: 200, research: hit.data };
-    const accepted = await this.jobs.enqueue({
-      type: LEGAL_RESEARCH_JOB,
-      fields: { ...fields, hash },
-      dedupeKey: `research:${hash}`,
-    });
     // The audit keeps what the provider is sent — the redacted question, never the typed PII.
     const [question = ''] = this.redactor.redact(
       [body.question],
-      await officeRedactionContext(this.prisma),
+      await officeRedactionContext(this.prisma, body.question),
     ).texts;
-    await this.audit.log(this.prisma.db, {
-      entityType: 'LegalResearch',
-      entityId: accepted.jobId,
-      action: 'CREATE',
-      newValues: { question, language: body.language, jurisdiction },
+    const accepted = await this.jobs.enqueue({
+      type: LEGAL_RESEARCH_JOB,
+      research: true,
+      fields: { ...fields, hash },
+      dedupeKey: `research:${hash}`,
+      // In the job row's transaction: no question leaves unaudited; a joined job was audited when it was created.
+      onCreate: (tx, jobId) =>
+        this.audit.log(tx, {
+          entityType: 'LegalResearch',
+          entityId: jobId,
+          action: 'CREATE',
+          newValues: { question, language: body.language, jurisdiction },
+        }),
     });
     return { status: 202, accepted };
   }

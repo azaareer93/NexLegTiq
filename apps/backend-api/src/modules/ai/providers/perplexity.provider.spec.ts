@@ -125,7 +125,7 @@ describe('PerplexityProvider (D-256)', () => {
       sources: [
         { url: 'https://muqtafi.birzeit.edu/law/1', title: 'Civil Code', date: '2012-01-01' },
       ],
-      costUsd: 0.0061,
+      costUsd: '0.0061',
     });
   });
 

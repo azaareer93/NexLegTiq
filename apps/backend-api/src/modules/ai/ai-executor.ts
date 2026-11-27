@@ -91,7 +91,7 @@ export class AiExecutor {
 
   async execute<T>(options: ExecuteOptions<T>): Promise<AiResult<T>> {
     const officeId = this.officeId();
-    await this.access.assertEnabled();
+    await this.access.assertEnabled({ research: options.webSearch !== undefined });
     const key = options.cacheKey && [options.feature, ...options.cacheKey, options.prompt.version];
     const hit = key ? await this.fromCache(officeId, key, options) : null;
     if (hit) return hit;
@@ -237,8 +237,9 @@ export class AiExecutor {
         .reduce(
           (sum, answer) =>
             sum.plus(
-              answer.costUsd ??
-                this.usage.cost(answer.priceModel, answer.inputTokens, answer.outputTokens),
+              answer.costUsd !== undefined
+                ? new Decimal(answer.costUsd)
+                : this.usage.cost(answer.priceModel, answer.inputTokens, answer.outputTokens),
             ),
           new Decimal(0),
         )

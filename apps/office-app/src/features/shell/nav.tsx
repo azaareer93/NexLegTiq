@@ -55,6 +55,7 @@ export const NAV_ITEMS = [
     perform: 'view:assigned:invoices',
   },
   // Legal research (D-256): `use:ai` holders; the server answers AI-001 while the platform switch is off.
+  // shortcut: shown even while research is off; hide it on a capability flag once the session payload carries one.
   { key: 'research', path: '/research', icon: <ReadOutlined />, perform: 'use:ai' },
   { key: 'reports', path: '/reports', icon: <BarChartOutlined />, perform: 'view:reports' },
   { key: 'team', path: '/team', icon: <TeamOutlined />, perform: 'manage:users' },
