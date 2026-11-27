@@ -18,6 +18,7 @@ const api = () =>
   exportsApi(
     createApiClient({
       baseURL: ORIGIN,
+      realm: 'office',
       getToken: () => 'access',
       setToken: () => undefined,
       onAuthFailure: vi.fn(),
