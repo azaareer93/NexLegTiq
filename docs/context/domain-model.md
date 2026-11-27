@@ -39,8 +39,9 @@
 
 ## Legal files (cases)
 - **LegalFile** 🔒 — fileNumber (`@@unique([officeId, fileNumber])`), title, description,
-  `fileType: LITIGATION|CRIMINAL|CONTRACT_DRAFTING|LEGAL_ADVISORY|COMPLIANCE|CONFLICT_RESOLUTION|BUSINESS_SUPPORT|
-  NDA_REVIEW|WILL_TRUST|COMPANY_FORMATION|RENTAL_AGREEMENT|EMPLOYMENT_CONTRACT`, subType?,
+  fileType (a LegalFileType code of its jurisdiction — seeded: LITIGATION, CRIMINAL, CONTRACT_DRAFTING, LEGAL_ADVISORY,
+  COMPLIANCE, CONFLICT_RESOLUTION, BUSINESS_SUPPORT, NDA_REVIEW, WILL_TRUST, COMPANY_FORMATION, RENTAL_AGREEMENT,
+  EMPLOYMENT_CONTRACT; D-261), subTypeId?, legacySubType? (read-only free text),
   `status: OPEN|SUSPENDED|CLOSED|ARCHIVED`, `priority: LOW|MEDIUM|HIGH|URGENT`, openingDate, closingDate?,
   responsibleLawyerId, responsibleParalegalId?, courtId?, judgeId?, courtCaseNumber?, jurisdiction,
   `billingMethod: HOURLY|FIXED_FEE|RETAINER|CONTINGENCY`, hourlyRate?, fixedFee?, retainerBalance Decimal,
@@ -58,6 +59,8 @@
   role, null = responsible lawyer), isActive.
 
 ## Courts & hearings
+- **LegalFileType** (global, per jurisdiction; D-261) — code (fixed), numberCode (`{TYPE}`, fixed), nameAr, nameEn,
+  sortOrder, isActive; **LegalFileSubType** — of one type: nameAr, nameEn, sortOrder, isActive. Deactivated, never deleted.
 - **Court** (officeId? — global or office) — nameAr, nameEn? (required on platform rows), `courtType: CourtType`
   (D-037), jurisdiction, city, address, phone, email. Unique: platform rows by (jurisdiction, nameEn), office rows by
   (officeId, jurisdiction, nameAr) (D-115).

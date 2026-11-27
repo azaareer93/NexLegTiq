@@ -27,6 +27,12 @@ export const routes: RouteObject[] = [
             }),
           },
           {
+            path: 'file-types',
+            lazy: async () => ({
+              Component: (await import('../features/file-types/pages/FileTypesPage')).FileTypesPage,
+            }),
+          },
+          {
             path: 'usage',
             lazy: async () => ({
               Component: (await import('../features/usage/pages/UsagePage')).UsagePage,

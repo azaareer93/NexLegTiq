@@ -23,6 +23,9 @@ export function HomePage(): React.JSX.Element {
             <Link to="/plans" data-testid="nav-plans">
               {t('admin.plans.title')}
             </Link>
+            <Link to="/file-types" data-testid="nav-file-types">
+              {t('admin.fileTypes.title')}
+            </Link>
             <Link to="/usage" data-testid="nav-usage">
               {t('admin.usage.title')}
             </Link>
