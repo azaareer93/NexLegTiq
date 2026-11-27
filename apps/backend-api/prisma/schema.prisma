@@ -1268,6 +1268,7 @@ model LegalFileType {
   legalFiles LegalFile[]
 
   @@unique([jurisdiction, code])
+  @@unique([jurisdiction, numberCode])
   @@map("legal_file_types")
 }
 

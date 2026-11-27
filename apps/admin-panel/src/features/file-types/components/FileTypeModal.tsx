@@ -137,7 +137,11 @@ export function FileTypeModal({
         <Form.Item name="sortOrder" label={t('admin.fileTypes.fields.sortOrder')}>
           <InputNumber dir="ltr" style={{ inlineSize: '100%' }} min={0} max={10_000} />
         </Form.Item>
-        <Form.Item name="isActive" valuePropName="checked">
+        <Form.Item
+          name="isActive"
+          valuePropName="checked"
+          extra={t('admin.fileTypes.fields.isActiveHelp')}
+        >
           <Checkbox data-testid="file-type-active">{t('admin.fileTypes.fields.isActive')}</Checkbox>
         </Form.Item>
       </Form>

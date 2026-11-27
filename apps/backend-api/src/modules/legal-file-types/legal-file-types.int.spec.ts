@@ -279,22 +279,33 @@ describe('legal file types (HTTP + PostgreSQL)', () => {
     ]);
   });
 
-  it('should keep legacy sub-type text read-only until a sub-type replaces it', async () => {
-    const opened = (await openFile({ fileType: 'CRIMINAL' }).expect(201)).body as Body<{
-      id: string;
-    }>;
+  /** A type of my own in Kuwait (removed with the test's rows), with one sub-type. */
+  async function ownType(name: string, numberCode: string) {
+    const code = `T${tag}_${name}`;
+    const created = (
+      await http()
+        .post('/api/v1/admin/file-types')
+        .set(admin)
+        .send({ jurisdiction: 'KUWAIT', code, numberCode, nameAr: `نوع ${name}`, nameEn: name })
+        .expect(201)
+    ).body as Body<AdminType>;
+    const withSub = (
+      await http()
+        .post(`/api/v1/admin/file-types/${created.data.id}/sub-types`)
+        .set(admin)
+        .send({ nameAr: 'فرعي', nameEn: 'Sub' })
+        .expect(201)
+    ).body as Body<AdminType>;
+    return { code, typeId: created.data.id, subTypeId: withSub.data.subTypes[0]?.id as string };
+  }
+
+  it('should keep legacy sub-type text read-only until a sub-type replaces it, and re-index a renamed one', async () => {
+    const { code, subTypeId } = await ownType('LEGACY', 'LGC');
+    const opened = (await openFile({ fileType: code }).expect(201)).body as Body<{ id: string }>;
     await raw.legalFile.update({
       where: { id: opened.data.id },
       data: { legacySubType: 'Theft (old text)' },
     });
-    const sub = (
-      await http()
-        .post(`/api/v1/admin/file-types/${await typeIdOf('KUWAIT', 'CRIMINAL')}/sub-types`)
-        .set(admin)
-        .send({ nameAr: `سرقة ${tag}`, nameEn: `Theft ${tag}` })
-        .expect(201)
-    ).body as Body<AdminType>;
-    const subTypeId = sub.data.subTypes.find((s) => s.nameEn === `Theft ${tag}`)?.id;
     const before = (await http().get(`/api/v1/cases/${opened.data.id}`).set(as(kuwait)).expect(200))
       .body as Body<Record<string, unknown>>;
     expect(before.data).toMatchObject({ subType: null, legacySubType: 'Theft (old text)' });
@@ -306,15 +317,83 @@ describe('legal file types (HTTP + PostgreSQL)', () => {
         .expect(200)
     ).body as Body<Record<string, unknown>>;
     expect(after.data).toMatchObject({ subType: { id: subTypeId }, legacySubType: null });
-    // The sub-type is not one of mine: clean it up with the test's own rows.
-    await raw.legalFile.update({ where: { id: opened.data.id }, data: { subTypeId: null } });
-    await raw.legalFileSubType.delete({ where: { id: subTypeId as string } });
+
+    // A renamed sub-type is searchable under its new name on the files that have it (D-165).
+    const renamed = `Embezzlement${tag}`;
+    await http()
+      .patch(`/api/v1/admin/file-sub-types/${subTypeId}`)
+      .set(admin)
+      .send({ nameEn: renamed })
+      .expect(200);
+    const rows = await raw.$queryRaw<{ text: string }[]>`
+      SELECT search_vector_simple::text AS text FROM legal_files WHERE id = ${opened.data.id}::uuid`;
+    expect(rows[0]?.text).toContain(renamed.toLowerCase());
   });
 
-  async function typeIdOf(jurisdiction: Jurisdiction, code: string): Promise<string> {
+  it('should keep offices and anonymous callers out of the platform endpoints', async () => {
+    const { typeId, subTypeId } = await ownType('GUARD', 'GRD');
+    await http().get('/api/v1/file-types').expect(401);
+    const writes = [
+      () => http().post('/api/v1/admin/file-types'),
+      () => http().patch(`/api/v1/admin/file-types/${typeId}`),
+      () => http().post(`/api/v1/admin/file-types/${typeId}/sub-types`),
+      () => http().patch(`/api/v1/admin/file-sub-types/${subTypeId}`),
+    ];
+    for (const write of writes) {
+      const res = await write().set(as(kuwait)).send({ nameEn: 'Hijacked' });
+      expect([401, 403]).toContain(res.status);
+    }
     const type = await raw.legalFileType.findUniqueOrThrow({
-      where: { jurisdiction_code: { jurisdiction, code } },
+      where: { id: typeId },
+      include: { subTypes: true },
     });
-    return type.id;
-  }
+    expect([type.nameEn, type.subTypes[0]?.nameEn]).toEqual(['GUARD', 'Sub']);
+    // A second type may not reuse a number code of its country (the type's part of the file number), nor a sub-type
+    // its type's name.
+    await http()
+      .post('/api/v1/admin/file-types')
+      .set(admin)
+      .send({
+        jurisdiction: 'KUWAIT',
+        code: `T${tag}_OTHER`,
+        numberCode: 'GRD',
+        nameAr: 'أ',
+        nameEn: 'B',
+      })
+      .expect(409);
+    await http()
+      .post(`/api/v1/admin/file-types/${typeId}/sub-types`)
+      .set(admin)
+      .send({ nameAr: 'فرعي', nameEn: 'Sub' })
+      .expect(409);
+  });
+
+  it("should refuse another country's type, in the API and in the database", async () => {
+    const { code, typeId } = await ownType('KUWAITONLY', 'KWO');
+    const palestineClient = (
+      await raw.client.create({
+        data: { officeId: palestine.officeId, clientType: 'INDIVIDUAL', displayName: 'Client' },
+      })
+    ).id;
+    const refused = await http()
+      .post('/api/v1/cases')
+      .set(as(palestine))
+      .send({
+        title: 'Wrong country',
+        fileType: code,
+        clientIds: [palestineClient],
+        primaryClientId: palestineClient,
+        responsibleLawyerId: palestine.userId,
+      })
+      .expect(400);
+    expect((refused.body as Body<unknown>).error?.details).toEqual([
+      { field: 'fileType', message: 'validation.unknownFileType' },
+    ]);
+    const opened = (await openFile({ fileType: code }).expect(201)).body as Body<{ id: string }>;
+    // Composite foreign keys: the type must be of the file's country, and a type in use cannot be deleted.
+    await expect(
+      raw.legalFile.update({ where: { id: opened.data.id }, data: { jurisdiction: 'JORDAN' } }),
+    ).rejects.toThrow();
+    await expect(raw.legalFileType.delete({ where: { id: typeId } })).rejects.toThrow();
+  });
 });

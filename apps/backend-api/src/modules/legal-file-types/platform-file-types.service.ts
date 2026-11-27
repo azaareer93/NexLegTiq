@@ -13,10 +13,11 @@ import { changes } from '../../common/audit/changes';
 import type { ClientInfo } from '../../common/context/client-info';
 import { ResourceNotFoundException } from '../../common/errors/app.exception';
 import { PrismaService } from '../../database/prisma.service';
-import type { LegalFileSubType, LegalFileType, Prisma } from '../../generated/prisma/client';
+import type { LegalFileSubType, LegalFileType } from '../../generated/prisma/client';
+import type { Prisma } from '../../generated/prisma/client';
 import { PlatformAuditService } from '../platform-auth/platform-audit.service';
 
-type Tx = Parameters<Parameters<ReturnType<PrismaService['unscoped']>['$transaction']>[0]>[0];
+type Tx = Prisma.TransactionClient;
 
 const WITH_SUB_TYPES = { subTypes: { orderBy: ORDER } } as const;
 
@@ -101,7 +102,11 @@ export class PlatformFileTypesService {
       const created = await tx.legalFileSubType.create({
         data: { ...body, jurisdiction: type.jurisdiction, typeCode: type.code },
       });
-      const newValues = { ...snapshot(created), typeCode: type.code };
+      const newValues = {
+        ...snapshot(created),
+        jurisdiction: type.jurisdiction,
+        typeCode: type.code,
+      };
       return { typeId, action: 'FILE_SUB_TYPE_CREATED', entityId: created.id, newValues };
     });
   }
@@ -121,6 +126,11 @@ export class PlatformFileTypesService {
       const { old, next } = changes(snapshot(before), body);
       if (Object.keys(next).length > 0)
         await tx.legalFileSubType.update({ where: { id }, data: next });
+      // Files are found by their sub-type's names (search trigger, D-165): re-index them after a rename, in every
+      // office. Touching the column fires the trigger without changing the row's updatedAt.
+      if ('nameAr' in next || 'nameEn' in next) {
+        await tx.$executeRaw`UPDATE legal_files SET sub_type_id = sub_type_id WHERE sub_type_id = ${id}::uuid`;
+      }
       return {
         typeId: before.type.id,
         action: 'FILE_SUB_TYPE_UPDATED',

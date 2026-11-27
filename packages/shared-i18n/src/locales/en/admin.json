@@ -324,7 +324,7 @@
   "fileTypes": {
     "title": "Case types",
     "country": "Country",
-    "newType": "New type",
+    "newType": "Add type",
     "newSubType": "Add sub-type",
     "empty": "No case types for this country yet",
     "noSubTypes": "No sub-types",
@@ -337,7 +337,8 @@
       "nameAr": "Arabic name",
       "nameEn": "English name",
       "sortOrder": "Display order",
-      "isActive": "Active (offices can choose it for new cases)"
+      "isActive": "Active",
+      "isActiveHelp": "Offices can choose it for new cases. Cases that have it keep it."
     },
     "modal": {
       "newType": "New case type",

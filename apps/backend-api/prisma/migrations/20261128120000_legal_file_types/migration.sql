@@ -37,6 +37,9 @@ CREATE TABLE "legal_file_sub_types" (
 -- CreateIndex
 CREATE UNIQUE INDEX "legal_file_types_jurisdiction_code_key" ON "legal_file_types"("jurisdiction", "code");
 
+-- CreateIndex (one number code per type in a country: it is the type's part of the file number)
+CREATE UNIQUE INDEX "legal_file_types_jurisdiction_number_code_key" ON "legal_file_types"("jurisdiction", "number_code");
+
 -- CreateIndex
 CREATE UNIQUE INDEX "legal_file_sub_types_id_jurisdiction_type_code_key" ON "legal_file_sub_types"("id", "jurisdiction", "type_code");
 
@@ -80,16 +83,8 @@ ALTER TABLE "legal_files" ADD CONSTRAINT "legal_files_jurisdiction_file_type_fke
 -- AddForeignKey (MATCH SIMPLE: no sub-type, no check; a sub-type must belong to the file's own type)
 ALTER TABLE "legal_files" ADD CONSTRAINT "legal_files_sub_type_id_jurisdiction_file_type_fkey" FOREIGN KEY ("sub_type_id", "jurisdiction", "file_type") REFERENCES "legal_file_sub_types"("id", "jurisdiction", "type_code") ON DELETE RESTRICT ON UPDATE RESTRICT;
 
--- Free-text sub-types that equal a sub-type name of the file's type (Arabic or English, case and outer spaces ignored)
--- point at it; the rest stay as legacy text. The migration seeds no sub-types, so on an existing database this matches
--- nothing yet; it is here so a database that already holds sub-types converts the same way.
-UPDATE "legal_files" f
-SET "sub_type_id" = s."id", "sub_type" = NULL
-FROM "legal_file_sub_types" s
-WHERE f."sub_type" IS NOT NULL
-  AND s."jurisdiction" = f."jurisdiction"
-  AND s."type_code" = f."file_type"
-  AND lower(btrim(f."sub_type")) IN (lower(btrim(s."name_ar")), lower(btrim(s."name_en")));
+-- No sub-type catalogue exists yet (D-261), so no free-text sub-type can match one: every value stays in "sub_type" as the
+-- read-only legacy text, and the file keeps it until a sub-type is picked.
 
 -- Task templates name a type code of the office's jurisdiction (checked by the API; no jurisdiction column to key on).
 ALTER TABLE "task_templates" ALTER COLUMN "file_type" TYPE TEXT USING "file_type"::text;

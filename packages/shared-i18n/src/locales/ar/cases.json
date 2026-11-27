@@ -49,7 +49,7 @@
     "responsible": "المحامي المسؤول: <name>{{name}}</name>",
     "notSet": "—",
     "noSubTypes": "لا أنواع فرعية لهذا النوع",
-    "legacySubType": "النص السابق:",
+    "legacySubType": "النوع الفرعي المُدخل سابقًا:",
     "no": "لا",
     "primaryClient": "الموكل الرئيسي",
     "noClients": "لا يوجد موكلون مرتبطون.",
