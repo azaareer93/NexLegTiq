@@ -14,7 +14,7 @@ import {
 } from '@nexlegtiq/shared-ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, App, Button, Card, Form, Input, Modal, Typography } from 'antd';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { apiClient, subscriptionKey } from '../../auth';
@@ -57,6 +57,13 @@ function RequestModal({
   const [form] = Form.useForm<{ password?: string; mfaCode?: string }>();
   // The code field appears when the server asks for it (MFA on), so users without MFA never see it.
   const [needsCode, setNeedsCode] = useState(false);
+  // That first error is applied once the field exists: setting it on a field not yet rendered would be lost.
+  const [codeError, setCodeError] = useState<unknown>(null);
+  useEffect(() => {
+    if (!needsCode || codeError === null) return;
+    applyToForm(form, codeError, FIELDS);
+    setCodeError(null);
+  }, [needsCode, codeError, applyToForm, form]);
 
   const submit = () => {
     const values = form.getFieldsValue();
@@ -70,8 +77,11 @@ function RequestModal({
     request.mutate(body, {
       onSuccess: onClose,
       onError: (error) => {
-        if (isApiError(error) && error.details?.some((d) => d.field === 'mfaCode'))
+        if (!needsCode && isApiError(error) && error.details?.some((d) => d.field === 'mfaCode')) {
           setNeedsCode(true);
+          setCodeError(error);
+          return;
+        }
         applyToForm(form, error, FIELDS);
       },
     });
@@ -82,7 +92,7 @@ function RequestModal({
       open
       title={t('settings.deletion.modal.title')}
       okText={t('settings.deletion.modal.ok')}
-      cancelText={t('common.actions.cancel')}
+      cancelText={t('common.actions.close')}
       okButtonProps={{ danger: true, 'data-testid': 'deletion-confirm' }}
       cancelButtonProps={{ 'data-testid': 'deletion-dismiss' }}
       confirmLoading={request.isPending}

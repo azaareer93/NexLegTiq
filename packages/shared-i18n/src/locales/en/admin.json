@@ -176,7 +176,7 @@
       }
     },
     "deletion": {
-      "scheduled": "Deletion scheduled for",
+      "scheduled": "Deletion scheduled from",
       "requested": "Requested by the office on",
       "purged": "Deleted (purged) on",
       "cancel": {

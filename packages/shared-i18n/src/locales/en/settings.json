@@ -124,7 +124,7 @@
       "kept": "Kept by law: the invoices as issued and an anonymized activity log, for the legal retention period; and our own record of your subscription and payments."
     },
     "request": "Delete the office",
-    "scheduled": "This office will be deleted for good on {{date}}. It is read-only until then.",
+    "scheduled": "This office will be deleted for good from {{date}}. It is read-only until then.",
     "cancel": "Cancel the deletion",
     "cancelled": "The deletion was cancelled. The office works as usual again.",
     "modal": {

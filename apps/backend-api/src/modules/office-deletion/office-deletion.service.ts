@@ -74,6 +74,7 @@ export class OfficeDeletionService {
     const now = new Date();
     const scheduledFor = new Date(now.getTime() + OFFICE_DELETION_GRACE_DAYS * DAY_MS);
     await this.uow.run(async (tx) => {
+      await waitBriefly(tx);
       // Conditional update: a second request (or a race) changes and audits nothing.
       const { count } = await tx.office.updateMany({
         where: { id: this.officeId(), deletionScheduledFor: null, purgedAt: null },
@@ -90,6 +91,7 @@ export class OfficeDeletionService {
 
   async cancel(client: ClientInfo): Promise<OfficeDeletionStatus> {
     await this.uow.run(async (tx) => {
+      await waitBriefly(tx);
       const { count } = await tx.office.updateMany({
         where: { id: this.officeId(), deletionScheduledFor: { not: null }, purgedAt: null },
         data: { deletionRequestedAt: null, deletionScheduledFor: null },
@@ -110,6 +112,7 @@ export class OfficeDeletionService {
   ): Promise<void> {
     const raw = this.prisma.unscoped(); // unscoped: platform admin code changes any office (D-080).
     await raw.$transaction(async (tx) => {
+      await waitBriefly(tx);
       const before = await this.scheduledOf(tx, officeId);
       await tx.office.update({
         where: { id: officeId },
@@ -142,6 +145,7 @@ export class OfficeDeletionService {
   ): Promise<void> {
     const raw = this.prisma.unscoped(); // unscoped: platform admin code changes any office (D-080).
     await raw.$transaction(async (tx) => {
+      await waitBriefly(tx);
       const before = await this.scheduledOf(tx, officeId);
       if (scheduledFor.getTime() < Date.now() || scheduledFor >= before) {
         throw new ValidationException([
@@ -242,6 +246,14 @@ export class OfficeDeletionService {
     if (!officeId) throw new Error('No office in the request context');
     return officeId;
   }
+}
+
+/**
+ * The office row may be locked by a running purge (minutes): wait at most 3 s, then the request fails with 409 RES-003
+ * (lock_not_available, mapped in prisma-error.ts) instead of hanging until the purge ends.
+ */
+async function waitBriefly(tx: Pick<Prisma.TransactionClient, '$executeRaw'>): Promise<void> {
+  await tx.$executeRaw`SET LOCAL lock_timeout = '3s'`;
 }
 
 function present(office: {

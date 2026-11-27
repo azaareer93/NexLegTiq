@@ -35,7 +35,7 @@ STO-001 upload failed · 002 download failed · 003 delete failed · 004 malware
 EXT-001 email provider · 002 OCR provider
 RATE-001 rate limit · SYS-001 internal · SYS-002 service unavailable (readiness check failed, 503) · DB-001 database
 Canonical list in code: `packages/shared-types/src/api/error-codes.ts`; HTTP status per code: `apps/backend-api/src/common/errors/error-catalog.ts`.
-Prisma mapping: P2002 → 409 RES-002, P2025 → 404 RES-001, P2034 → 409 RES-003, else 500 DB-001.
+Prisma mapping: P2002 → 409 RES-002, P2025 → 404 RES-001, P2034 → 409 RES-003, a `lock_timeout` wait (PostgreSQL 55P03, D-251) → 409 RES-003, else 500 DB-001.
 HTTP status per code and framework-error mapping: D-075. A `ZodError` thrown by server code (not the request pipe) is 500 SYS-001.
 Request ids: D-076.
 

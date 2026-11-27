@@ -17,6 +17,7 @@ function build(
   const tx = {
     office: { updateMany: jest.fn().mockResolvedValue({ count: updated }), update: jest.fn() },
     auditLog: { create: jest.fn() },
+    $executeRaw: jest.fn(),
     $queryRaw: jest.fn().mockResolvedValue([{ scheduled, purged: null }]),
   };
   const prisma = {

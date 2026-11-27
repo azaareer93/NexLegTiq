@@ -78,7 +78,7 @@ function DeletionModal({
       open
       title={t(`admin.offices.deletion.${kind}.title`)}
       okText={t(`admin.offices.deletion.${kind}.ok`)}
-      cancelText={t('common.actions.cancel')}
+      cancelText={t('common.actions.close')}
       okButtonProps={{ danger: kind === 'reschedule', 'data-testid': 'deletion-action-confirm' }}
       confirmLoading={action.isPending}
       onOk={() => void submit()}

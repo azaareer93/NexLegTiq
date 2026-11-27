@@ -457,8 +457,27 @@ describe('platform admin offices (HTTP + PostgreSQL)', () => {
   });
 
   it("should bring an office's deletion forward only to an earlier future time, and cancel it (D-251)", async () => {
-    const { office } = await seedOffice('Deleting', 'PALESTINE', 1);
+    const { office, users } = await seedOffice('Deleting', 'PALESTINE', 1);
     const route = (action: string) => `/api/v1/admin/offices/${office.id}/deletion/${action}`;
+    // The office's own token is not a platform admin's, on either action.
+    const officeToken = (await officeLogin(users[0]?.email ?? '').expect(200)).body.data
+      .accessToken as string;
+    for (const action of ['cancel', 'reschedule']) {
+      await http()
+        .post(route(action))
+        .set('Authorization', `Bearer ${officeToken}`)
+        .send({ reason: 'mine', scheduledFor: new Date().toISOString() })
+        .expect(401);
+    }
+    // A blank or too short reason, and a malformed office id.
+    for (const reason of ['', '   ', 'ab']) {
+      await http().post(route('cancel')).set(auth).send({ reason }).expect(400);
+    }
+    await http()
+      .post('/api/v1/admin/offices/not-a-uuid/deletion/reschedule')
+      .set(auth)
+      .send({ scheduledFor: new Date().toISOString(), reason: 'Letter 12' })
+      .expect(404);
     await http().post(route('cancel')).set(auth).send({ reason: 'none yet' }).expect(409);
     await http()
       .post(`/api/v1/admin/offices/${randomUUID()}/deletion/cancel`)

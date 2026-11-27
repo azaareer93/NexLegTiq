@@ -59,11 +59,11 @@ export const OFFICE_DELETION_COPY = {
   'office-deletion-requested': copy(
     {
       subject: 'طلب حذف NAME',
-      body: `طُلب حذف NAME وكل بياناته. أصبح المكتب للقراءة فقط، وسيُحذف نهائيًا في DATE. يبقى تصدير البيانات متاحًا حتى ذلك الحين، ويمكن لأي مدير مكتب إلغاء الحذف. ${NOT_YOU.ar}`,
+      body: `طُلب حذف NAME وكل بياناته. أصبح المكتب للقراءة فقط، وسيُحذف نهائيًا اعتبارًا من DATE. يبقى تصدير البيانات متاحًا حتى ذلك الحين، ويمكن لأي مدير مكتب إلغاء الحذف. ${NOT_YOU.ar}`,
     },
     {
       subject: 'Deletion of NAME requested',
-      body: `Someone asked to delete NAME and all its data. The office is now read-only and will be deleted for good on DATE. The data export stays available until then, and any office manager can cancel the deletion. ${NOT_YOU.en}`,
+      body: `Someone asked to delete NAME and all its data. The office is now read-only and will be deleted for good from DATE. The data export stays available until then, and any office manager can cancel the deletion. ${NOT_YOU.en}`,
     },
   ),
   'office-deletion-cancelled': copy(
@@ -79,11 +79,11 @@ export const OFFICE_DELETION_COPY = {
   'office-deletion-rescheduled': copy(
     {
       subject: 'موعد جديد لحذف NAME',
-      body: `بناءً على طلب مكتبك المكتوب، سيُحذف NAME نهائيًا في DATE. ${NOT_YOU.ar}`,
+      body: `بناءً على طلب مكتبك المكتوب، سيُحذف NAME نهائيًا اعتبارًا من DATE. ${NOT_YOU.ar}`,
     },
     {
       subject: 'New deletion date for NAME',
-      body: `At your office's written request, NAME will now be deleted for good on DATE. ${NOT_YOU.en}`,
+      body: `At your office's written request, NAME will now be deleted for good from DATE. ${NOT_YOU.en}`,
     },
   ),
 } as const;

@@ -86,9 +86,11 @@ describe('Settings → Delete the office (MVP-152, D-251)', () => {
 
       fireEvent.change(screen.getByTestId('deletion-password'), { target: { value: 'right' } });
       fireEvent.click(screen.getByTestId('deletion-confirm'));
-      fireEvent.change(await screen.findByTestId('deletion-code'), {
-        target: { value: '123456' },
-      });
+      // The code field appears with the server's error already on it, not empty.
+      const code = await screen.findByTestId('deletion-code');
+      expect(await screen.findByText('This field is required.')).toBeTruthy();
+      expect(screen.getByTestId('deletion-dismiss').textContent).toBe('Close');
+      fireEvent.change(code, { target: { value: '123456' } });
       fireEvent.click(screen.getByTestId('deletion-confirm'));
       await screen.findByTestId('deletion-scheduled', {}, { timeout: COLD });
       expect(bodies.at(-1)).toEqual({ password: 'right', mfaCode: '123456' });

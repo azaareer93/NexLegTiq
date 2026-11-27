@@ -13,7 +13,6 @@ export const PURGE_OFFICES_JOB = 'purge-offices';
 /** Daily at 02:30 UTC, before the audit retention purge (03:00) ages out what this keeps. */
 export const PURGE_OFFICES_SCHEDULE = { pattern: '30 2 * * *', tz: 'UTC' } as const;
 
-const DAYS_PER_YEAR = 365;
 /** A large office's purge is one transaction; allow it time (the default is 5 s). */
 const PURGE_TX_TIMEOUT_MS = 10 * 60_000;
 
@@ -82,8 +81,9 @@ export class OfficePurge {
         if (locked.length === 0) return false;
         const storageObjects = await deleteObjects();
         const invoicesRetained = await this.retainInvoices(tx, officeId, retainUntil);
+        // The function also sets records_retained_until: the anonymized audit ages out on the invoices' date (D-251).
         const [row] = await tx.$queryRaw<{ removed: number }[]>`
-          SELECT nlq_purge_office(${officeId}::uuid) AS removed`;
+          SELECT nlq_purge_office(${officeId}::uuid, ${retainUntil}::timestamptz) AS removed`;
         await tx.office.update({
           where: { id: officeId },
           data: {
@@ -99,11 +99,6 @@ export class OfficePurge {
         await tx.platformPayment.updateMany({
           where: { officeId },
           data: { pdfStorageKey: null, pdfLanguage: null, pdfRenderedFor: null },
-        });
-        // The anonymized audit rows age out with the invoices (the D-136 purge reads the highest retention ever set).
-        await tx.officeSettings.updateMany({
-          where: { officeId },
-          data: { auditRetentionDays: years * DAYS_PER_YEAR },
         });
         await tx.auditLog.create({
           data: auditRow(
