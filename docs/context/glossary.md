@@ -4,10 +4,7 @@ Use these exact Arabic terms in i18n files and AI prompts. Add new terms here fi
 
 | English | Arabic | Code term |
 |---|---|---|
-| Legal file / Case | ملف قانوني / الدعوى | `LegalFile` (UI: "Case"/"ملف") |
-| Legal research · Sources · Unsourced | البحث القانوني · المصادر · دون مصدر | `LegalResearch` (D-256) |
-| Jurisdiction | الولاية القضائية | `jurisdiction` |
-| Case number (office) | رقم الملف | `fileNumber` |
+| Legal file / Case | ملف قانوني / الدعوى | `LegalFile` (UI: "Case"/"ملف") || Case number (office) | رقم الملف | `fileNumber` |
 | Court case number | رقم الدعوى في المحكمة | `courtCaseNumber` |
 | Client | الموكل / العميل | `Client` |
 | Party | طرف | `Party` |
