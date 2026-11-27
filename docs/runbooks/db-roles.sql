@@ -75,6 +75,10 @@ BEGIN
   IF to_regprocedure('public.nlq_purge_audit_logs(uuid)') IS NOT NULL THEN
     GRANT EXECUTE ON FUNCTION public.nlq_purge_audit_logs(uuid) TO nexlegtiq_app;
   END IF;
+  -- The final purge of an office past its deletion date (D-251); it refuses any other office.
+  IF to_regprocedure('public.nlq_purge_office(uuid)') IS NOT NULL THEN
+    GRANT EXECUTE ON FUNCTION public.nlq_purge_office(uuid) TO nexlegtiq_app;
+  END IF;
   -- A file's timeline is append-only too (D-095); DELETE stays so a purged file takes its events with it.
   IF to_regclass('public.case_timeline_events') IS NOT NULL THEN
     REVOKE UPDATE, TRUNCATE ON public.case_timeline_events FROM nexlegtiq_app;

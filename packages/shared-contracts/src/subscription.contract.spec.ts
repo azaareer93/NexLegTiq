@@ -6,6 +6,7 @@ describe('subscription contract (D-122)', () => {
       plan: { code: 'PS_FREE', name: 'Palestine Free' },
       status: 'TRIALING',
       readOnly: false,
+      deletionScheduledFor: null,
       periodEnd: '2027-04-01T00:00:00.000Z',
       trialEndsAt: '2027-04-01T00:00:00.000Z',
       limits: null,

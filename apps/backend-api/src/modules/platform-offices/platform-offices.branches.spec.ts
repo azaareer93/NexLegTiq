@@ -278,7 +278,12 @@ describe('PlatformOfficesController', () => {
     };
     const subscription = { apply: jest.fn().mockResolvedValue(undefined) };
     const cls = { isActive: jest.fn().mockReturnValue(false), getId: jest.fn() };
-    const c = new PlatformOfficesController(offices as never, subscription as never, cls as never);
+    const c = new PlatformOfficesController(
+      offices as never,
+      subscription as never,
+      {} as never,
+      cls as never,
+    );
     return { c, offices, subscription };
   }
   const req = (id?: string) =>

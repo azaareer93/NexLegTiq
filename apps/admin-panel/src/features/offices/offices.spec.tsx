@@ -46,6 +46,7 @@ const DETAIL = {
     },
   ],
   suspension: null,
+  deletion: null,
   statistics: {
     signedIn30d: 1,
     filesByStatus: { OPEN: 1, SUSPENDED: 0, CLOSED: 0, ARCHIVED: 0 },
@@ -258,6 +259,73 @@ describe('office detail', () => {
     expect(screen.getByTestId(`office-at-risk-${ID}`).textContent).toBe('Needs follow-up');
     expect(screen.getByTestId('office-subscriptions').textContent).toContain('Free plan');
     expect(screen.queryByTestId('office-suspension')).toBeNull();
+    expect(screen.queryByTestId('office-deletion')).toBeNull();
+  });
+
+  it(
+    'should show a scheduled deletion, need a date to bring it forward, and cancel it with a reason (D-251)',
+    { timeout: 30_000 },
+    async () => {
+      const deleting = {
+        ...DETAIL,
+        deletion: {
+          requestedAt: '2026-11-27T10:00:00.000Z',
+          scheduledFor: '2026-12-27T10:00:00.000Z',
+          purgedAt: null,
+        },
+      };
+      const posts = detailServer(deleting);
+      server.use(
+        http.post(api(`admin/offices/${ID}/deletion/cancel`), async ({ request }) => {
+          posts.push({ path: 'cancel', body: await request.json() });
+          return ok(DETAIL);
+        }),
+      );
+      renderAt(`/offices/${ID}`);
+      expect((await screen.findByTestId('office-deletion')).textContent).toContain(
+        'Deletion scheduled for',
+      );
+
+      fireEvent.click(screen.getByTestId('deletion-reschedule'));
+      fireEvent.change(await screen.findByTestId('deletion-reason'), {
+        target: { value: 'Letter ref 12' },
+      });
+      fireEvent.click(screen.getByTestId('deletion-action-confirm'));
+      await waitFor(() =>
+        expect(document.querySelector('.ant-form-item-explain-error')).toBeTruthy(),
+      );
+      expect(posts).toEqual([]);
+    },
+  );
+
+  it('should cancel a scheduled deletion with a reason (D-251)', { timeout: 30_000 }, async () => {
+    const posts = detailServer({
+      ...DETAIL,
+      deletion: { requestedAt: null, scheduledFor: '2026-12-27T10:00:00.000Z', purgedAt: null },
+    });
+    server.use(
+      http.post(api(`admin/offices/${ID}/deletion/cancel`), async ({ request }) => {
+        posts.push({ path: 'cancel', body: await request.json() });
+        return ok(DETAIL);
+      }),
+    );
+    renderAt(`/offices/${ID}`);
+    fireEvent.click(await screen.findByTestId('deletion-cancel'));
+    fireEvent.change(await screen.findByTestId('deletion-reason'), {
+      target: { value: 'Office changed its mind' },
+    });
+    fireEvent.click(screen.getByTestId('deletion-action-confirm'));
+    await waitFor(() => expect(screen.queryByTestId('office-deletion')).toBeNull());
+    expect(posts).toEqual([{ path: 'cancel', body: { reason: 'Office changed its mind' } }]);
+  });
+
+  it('should show when a purged office was deleted', async () => {
+    detailServer({
+      ...DETAIL,
+      deletion: { requestedAt: null, scheduledFor: null, purgedAt: '2026-12-27T10:00:00.000Z' },
+    });
+    renderAt(`/offices/${ID}`);
+    expect((await screen.findByTestId('office-purged')).textContent).toContain('Deleted');
   });
 
   it(

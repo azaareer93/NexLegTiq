@@ -36,10 +36,10 @@ export const subscriptionKey = ['office', 'subscription'] as const;
 
 export const queryClient: QueryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
-  // A write refused because the subscription ended (AUTH-104): reload it, so the read-only banner shows at once.
+  // A write refused because the subscription ended (AUTH-104) or a deletion is scheduled (AUTH-105): reload it, so the read-only banner shows at once.
   mutationCache: new MutationCache({
     onError: (error) => {
-      if (error instanceof ApiError && error.code === 'AUTH-104') {
+      if (error instanceof ApiError && (error.code === 'AUTH-104' || error.code === 'AUTH-105')) {
         void queryClient.invalidateQueries({ queryKey: subscriptionKey });
       }
     },

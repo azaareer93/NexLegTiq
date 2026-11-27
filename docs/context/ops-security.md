@@ -27,11 +27,12 @@
 - Product analytics (D-215): first-party per-office event counts in our own DB (no vendor, no cookie); honours DNT/GPC
   and the office setting `enableProductAnalytics`. DNT/GPC applies to request-time events; background events (AI
   summaries) follow the office setting only. No retention purge yet (rows are counts, cascade-deleted with the office).
-- Data subject rights: export user data; office export (JSON/CSV + documents zip, async) ; account deletion = 30-day grace then hard
-  delete of documents + anonymization of audit actors; block if legal hold.
+- Data subject rights: export user data; office export (JSON/CSV + documents zip, async) ; office deletion = 30-day read-only
+  grace, then the per-tenant purge (`nlq_purge_office`, D-251): every office row and stored object goes, issued invoices
+  (as issued) and the anonymized audit log stay `RETAINED_RECORDS_YEARS` (7, pending legal confirmation). No legal hold yet.
 - Retention defaults: audit 365d (configurable up), time entries 3y, invoices 6y, closed cases 5y then flag for review
   (never auto-delete legal records without office confirmation), ingested email 90d (Phase 2). Targets: only the audit
-  purge exists; account deletion and the 3y/6y/5y periods are not implemented (`legal-facts.md` §4).
+  purge and office deletion (D-251) exist; the 3y/6y/5y periods are not implemented (`legal-facts.md` §4).
 - Sub-processors, data region (EU, D-021), AI data handling and retention as the legal texts may state them:
   **`legal-facts.md`** (D-220) — Facts checked against the code, and what is still pending the owner. Google Vision
   receives **unredacted scan images** (D-142: never confidential documents, only offices that opt in) — the privacy

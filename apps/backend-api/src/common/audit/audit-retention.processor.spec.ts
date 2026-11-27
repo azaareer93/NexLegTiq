@@ -6,6 +6,7 @@ import {
   PURGE_AUDIT_LOGS_JOB,
 } from './audit-retention.processor';
 import { RENDER_INVOICE_PDF_JOB } from '../../modules/invoices/pdf/invoice-pdf.renderer';
+import { PURGE_OFFICES_JOB } from '../../modules/office-deletion/office-purge';
 import { RENDER_PAYMENT_RECEIPT_JOB } from '../../modules/platform-payments/receipt-pdf.renderer';
 import { TenantProcessor } from '../queue/tenant-processor';
 
@@ -36,6 +37,7 @@ function build(queue: unknown = { upsertJobScheduler: jest.fn() }) {
     pdfs as never,
     receipts as never,
     { run: jest.fn() } as never,
+    { run: jest.fn().mockResolvedValue({ purged: 1, expired: 0 }) } as never,
   );
   return { processor, logger, overdue, pdfs, receipts };
 }
@@ -44,14 +46,27 @@ const ID = '01920000-0000-7000-8000-000000000001';
 const job = (name: string, data: object = {}) => ({ name, data, id: 'j1' }) as never;
 
 describe('AuditRetentionProcessor', () => {
-  it('should register both daily schedulers, and only log when Redis is down at boot', async () => {
+  it('should register the three daily schedulers, and only log when Redis is down at boot', async () => {
     const queue = { upsertJobScheduler: jest.fn() };
     await build(queue).processor.onApplicationBootstrap();
-    expect(queue.upsertJobScheduler).toHaveBeenCalledTimes(2);
+    expect(queue.upsertJobScheduler).toHaveBeenCalledTimes(3);
 
     const down = build(null);
     await down.processor.onApplicationBootstrap();
     expect(down.logger.warn).toHaveBeenCalled();
+  });
+
+  it("should run the office purge for the scheduler's job only, never one queued for an office", async () => {
+    const { processor } = build();
+    await expect(processor.process(job(PURGE_OFFICES_JOB))).resolves.toEqual({
+      purged: 1,
+      expired: 0,
+    });
+    const tenant = jest.spyOn(TenantProcessor.prototype, 'process').mockResolvedValue('tenant');
+    await expect(processor.process(job(PURGE_OFFICES_JOB, { officeId: 'o1' }))).resolves.toBe(
+      'tenant',
+    );
+    tenant.mockRestore();
   });
 
   it('should purge office by office, counting an office that returned no row as none', async () => {
