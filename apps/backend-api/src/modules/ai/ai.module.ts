@@ -32,6 +32,7 @@ import { AI_REDACTOR } from './redaction';
     { provide: AI_REDACTOR, useClass: PiiRedactor },
   ],
   // AiProviders stays inside: features reach a model only through AiExecutor (redaction, quota, usage).
-  exports: [AiExecutor, AiJobs, AiJobRegistry, AiAccess, AiCostAlert],
+  // AiCache and AI_REDACTOR: legal research keeps its answers there and audits the redacted question (D-256).
+  exports: [AiExecutor, AiJobs, AiJobRegistry, AiAccess, AiCostAlert, AiCache, AI_REDACTOR],
 })
 export class AiModule {}

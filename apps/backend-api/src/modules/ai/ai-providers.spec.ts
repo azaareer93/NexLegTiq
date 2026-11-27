@@ -85,6 +85,7 @@ describe('AiProviders (fallback matrix, D-130)', () => {
       priceModel: 'gpt-test',
       inputTokens: 10,
       outputTokens: 5,
+      sources: [],
     });
     const body = JSON.parse(String(calls[0]?.init.body)) as Record<string, unknown>;
     expect(body).toMatchObject({

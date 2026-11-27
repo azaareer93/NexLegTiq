@@ -14,6 +14,18 @@ export interface AiRequest {
   readonly maxOutputTokens: number;
   readonly temperature: number;
   readonly signal: AbortSignal;
+  /**
+   * Answer from a web search (legal research, D-256): only the research provider takes it. `domains` limits the
+   * search to those sites; empty = the open web.
+   */
+  readonly webSearch?: { readonly domains: readonly string[] };
+}
+
+/** A web page the answer is grounded in, as the provider found it (never written by the model). */
+export interface AiSource {
+  readonly url: string;
+  readonly title: string;
+  readonly date?: string;
 }
 
 export interface AiCompletion {
@@ -23,9 +35,13 @@ export interface AiCompletion {
   readonly model: string;
   readonly inputTokens: number;
   readonly outputTokens: number;
+  /** The pages a web-search answer cites (D-256). */
+  readonly sources?: readonly AiSource[];
+  /** The provider's own price of the call in USD (search included), when it reports one; else the token prices. */
+  readonly costUsd?: number;
 }
 
-export type ProviderName = 'openai' | 'gemini' | 'fake';
+export type ProviderName = 'openai' | 'gemini' | 'perplexity' | 'fake';
 
 export interface AiProvider {
   readonly name: ProviderName;

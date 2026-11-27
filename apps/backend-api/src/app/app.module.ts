@@ -16,6 +16,7 @@ import { DatabaseModule } from '../database/database.module';
 import { HealthModule } from '../health/health.module';
 import { MetricsModule } from '../metrics/metrics.module';
 import { AiModule } from '../modules/ai/ai.module';
+import { AiResearchModule } from '../modules/ai-research/ai-research.module';
 import { AiSummariesModule } from '../modules/ai-summaries/ai-summaries.module';
 import { AuditLogModule } from '../modules/audit-log/audit-log.module';
 import { AuthModule } from '../modules/auth/auth.module';
@@ -81,6 +82,7 @@ import { WitnessesModule } from '../modules/witnesses/witnesses.module';
     WitnessesModule,
     AiModule,
     AiSummariesModule,
+    AiResearchModule,
     ClientsModule,
     CourtsModule,
     LegalFilesModule,

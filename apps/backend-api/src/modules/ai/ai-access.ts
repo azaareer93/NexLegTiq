@@ -36,6 +36,13 @@ export class AiAccess {
     await this.entitlements.assertFeature('ai');
   }
 
+  /** Legal research is switched on for the platform (D-256): off → AI-001 before anything is queued. */
+  assertResearch(): void {
+    if (!this.providers.researchConfigured) {
+      throw new AiFinalException('AI-001', 'Legal research is not enabled');
+    }
+  }
+
   /** The month's quota — checked only before a provider call: a cached answer is free. */
   assertQuota(): Promise<void> {
     return this.entitlements.assertAiQuota();

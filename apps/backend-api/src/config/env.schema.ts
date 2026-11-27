@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { AI_ENV, AI_PROVIDER_ENV } from './ai-env';
 import { parseIpEntry } from './ip-entry';
 import { MONITORING_ENV } from './monitoring-env';
 import { RECEIPT_ENV } from './receipt-env';
@@ -20,7 +21,6 @@ const redisUrl = z.url({ protocol: /^rediss?$/ });
 // Documented dev/CI credentials (compose.dev.yml, .env.example, ci.yml): a production boot with one of them is a mistake.
 const PLACEHOLDER_SECRET = /^(nexlegtiq|nexlegtiq-dev-only|ci-only-.*|change-me.*)$/;
 const TLS_SSLMODES = new Set(['require', 'verify-ca', 'verify-full']);
-const AI_PROVIDERS = ['openai', 'gemini', 'fake', 'none'] as const;
 
 /**
  * Environment contract of backend-api (HTTP + worker). Boot fails on invalid env. Unknown keys are ignored.
@@ -117,37 +117,7 @@ const EnvObject = z.object({
   // Bull Board at /admin/queues (D-084). Unauthenticated Express middleware: local debugging only, refused in production.
   BULL_BOARD_ENABLED: z.stringbool().default(false),
 
-  // AI providers (ai-ocr.md, D-130). `none` = AI off for the whole deployment (AI-001); `fake` = deterministic answers
-  // for tests and local work, refused in production. Model names are configuration, never code.
-  AI_PRIMARY_PROVIDER: z.enum(AI_PROVIDERS).default('none'),
-  AI_FALLBACK_PROVIDER: z.enum(AI_PROVIDERS).default('none'),
-  OPENAI_API_KEY: required.optional(),
-  OPENAI_MODEL: required.optional(),
-  GEMINI_API_KEY: required.optional(),
-  GEMINI_MODEL: required.optional(),
-  AI_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(256).max(32_768).default(4096),
-  AI_TEMPERATURE: z.coerce.number().min(0).max(1).default(0.2),
-  // One provider attempt; a slower answer counts as unavailable (fallback). Inside the ai queue's 120 s job timeout.
-  AI_TIMEOUT_MS: z.coerce.number().int().min(1000).max(90_000).default(45_000),
-  AI_CACHE_TTL: z.coerce
-    .number()
-    .int()
-    .min(0)
-    .max(30 * 86_400)
-    .default(86_400),
-  // USD per million tokens by model, for AiUsage.costUsd: {"model":{"input":0.15,"output":0.6}}. A model not listed costs 0.
-  AI_MODEL_PRICES: z
-    .string()
-    .transform((value, ctx) => {
-      try {
-        return JSON.parse(value) as unknown;
-      } catch {
-        ctx.addIssue({ code: 'custom', message: 'must be JSON' });
-        return z.NEVER;
-      }
-    })
-    .pipe(z.record(z.string(), z.object({ input: z.number().min(0), output: z.number().min(0) })))
-    .default({}),
+  ...AI_ENV,
   // Daily platform AI cost alert (D-144): yesterday's cost of every office above this many USD emails the address below.
   AI_COST_ALERT_THRESHOLD_USD: z.coerce.number().positive().optional(),
   AI_COST_ALERT_EMAIL: z.email().optional(),
@@ -237,6 +207,11 @@ const PRODUCTION_RULES: readonly (readonly [keyof RawEnv, (env: RawEnv) => boole
     'must not use the fake AI provider in production',
   ],
   [
+    'AI_RESEARCH_PROVIDER',
+    (env) => env.AI_RESEARCH_PROVIDER === 'fake',
+    'must not use the fake AI provider in production',
+  ],
+  [
     'GOOGLE_VISION_ENDPOINT',
     // The key and unredacted scans go there (D-142): only Google's own hosts.
     (env) =>
@@ -251,11 +226,6 @@ const PRODUCTION_RULES: readonly (readonly [keyof RawEnv, (env: RawEnv) => boole
   ],
 ];
 
-const AI_PROVIDER_ENV: Partial<Record<(typeof AI_PROVIDERS)[number], readonly (keyof RawEnv)[]>> = {
-  openai: ['OPENAI_API_KEY', 'OPENAI_MODEL'],
-  gemini: ['GEMINI_API_KEY', 'GEMINI_MODEL'],
-};
-
 /** Credentials that must not be the documented dev/CI placeholders in production. */
 const secretsOf = (env: RawEnv): Record<string, string> => ({
   DATABASE_URL: decodeURIComponent(new URL(env.DATABASE_URL).password),
@@ -268,6 +238,7 @@ const secretsOf = (env: RawEnv): Record<string, string> => ({
   RESEND_API_KEY: env.RESEND_API_KEY ?? '',
   OPENAI_API_KEY: env.OPENAI_API_KEY ?? '',
   GEMINI_API_KEY: env.GEMINI_API_KEY ?? '',
+  PERPLEXITY_API_KEY: env.PERPLEXITY_API_KEY ?? '',
   GOOGLE_VISION_CREDENTIALS: env.GOOGLE_VISION_CREDENTIALS ?? '',
 });
 
@@ -287,7 +258,8 @@ export const EnvSchema = EnvObject.refine(
   })
   .superRefine((env, ctx) => {
     // Each configured provider needs its key and model; a fallback must differ from the primary.
-    for (const provider of new Set([env.AI_PRIMARY_PROVIDER, env.AI_FALLBACK_PROVIDER])) {
+    const providers = [env.AI_PRIMARY_PROVIDER, env.AI_FALLBACK_PROVIDER, env.AI_RESEARCH_PROVIDER];
+    for (const provider of new Set(providers)) {
       const needs = AI_PROVIDER_ENV[provider] ?? [];
       for (const key of needs) {
         if (env[key] === undefined) {
