@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { OnModuleInit } from '@nestjs/common';
+import { LegalResearchSchema } from '@nexlegtiq/shared-contracts';
 import type { LegalResearch } from '@nexlegtiq/shared-contracts';
 import type { OfficeId } from '@nexlegtiq/shared-types';
 import { ClsService } from 'nestjs-cls';
@@ -70,12 +71,13 @@ export class LegalResearcher extends BaseAiService implements OnModuleInit {
     let result = await ask(official, false);
     // The open-web retry is paid and recorded, but one question counts once against the quota (D-148).
     if (official.length > 0 && result.sources.length === 0) result = await ask([], true);
-    const research: LegalResearch = {
+    // Parsed before it is kept: an answer the reader would refuse fails the job instead of a silent 404 later.
+    const research: LegalResearch = LegalResearchSchema.parse({
       answer: result.value.answer,
       citations: result.sources.map((source) => ({
         url: source.url,
         title: source.title,
-        date: source.date ?? null,
+        date: source.date?.slice(0, 40) ?? null,
       })),
       jurisdictionNote: result.value.jurisdictionNote,
       unsourced: result.sources.length === 0,
@@ -85,7 +87,7 @@ export class LegalResearcher extends BaseAiService implements OnModuleInit {
       model: result.model,
       promptVersion: result.promptVersion,
       createdAt: new Date().toISOString(),
-    };
+    });
     const officeId = this.officeId();
     await this.cache.set(
       officeId,
