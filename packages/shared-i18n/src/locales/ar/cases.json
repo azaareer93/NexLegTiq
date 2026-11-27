@@ -48,6 +48,8 @@
   "file": {
     "responsible": "المحامي المسؤول: <name>{{name}}</name>",
     "notSet": "—",
+    "noSubTypes": "لا أنواع فرعية لهذا النوع",
+    "legacySubType": "النص السابق:",
     "no": "لا",
     "primaryClient": "الموكل الرئيسي",
     "noClients": "لا يوجد موكلون مرتبطون.",

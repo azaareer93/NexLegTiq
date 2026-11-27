@@ -98,7 +98,7 @@ async function seedPerfOffice(
                                  responsible_paralegal_id, jurisdiction, currency, is_confidential, opening_date,
                                  created_at, updated_at)
         SELECT nlq_uuid_v7(), ${o}, 'P-' || lpad(g::text, 5, '0'), ${TITLE},
-               (ARRAY['LITIGATION','RENTAL_AGREEMENT','CONTRACT_DRAFTING','LEGAL_ADVISORY']::"FileType"[])[1 + g % 4],
+               (ARRAY['LITIGATION','RENTAL_AGREEMENT','CONTRACT_DRAFTING','LEGAL_ADVISORY']::text[])[1 + g % 4],
                CASE WHEN g % 5 = 0 THEN 'CLOSED' ELSE 'OPEN' END::"FileStatus",
                (${lawyerArray})[1 + g % 4], CASE WHEN g % 3 = 0 THEN ${users['paralegal']}::uuid END,
                'PALESTINE', 'ILS', g % 50 = 0, (now() - (g % 1095) * interval '1 day')::date,

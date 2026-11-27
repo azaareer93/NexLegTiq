@@ -5,6 +5,7 @@ import type { TableColumnType, TableProps } from 'antd';
 import type { MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { useLocalName } from '../api/use-file-types';
 import type { ListChanges } from '../list-params';
 import { FileStatusTag, TitleLink } from './case-cells';
 
@@ -23,6 +24,7 @@ export interface CasesViewProps {
 function useColumns(state: CaseQuery): TableProps<CaseListItem>['columns'] {
   const { t } = useTranslation();
   const format = useFormat();
+  const name = useLocalName();
   const sort = state.sort[0];
   const sortable = (field: CaseSortField): TableColumnType<CaseListItem> => ({
     key: field,
@@ -38,7 +40,7 @@ function useColumns(state: CaseQuery): TableProps<CaseListItem>['columns'] {
     {
       key: 'fileType',
       title: t('cases.list.columns.fileType'),
-      render: (_, row) => t(`enums.fileType.${row.fileType}`),
+      render: (_, row) => <Bdi>{name(row.fileTypeName)}</Bdi>,
     },
     {
       key: 'client',

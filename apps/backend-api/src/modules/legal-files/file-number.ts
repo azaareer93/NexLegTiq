@@ -1,6 +1,9 @@
-import type { FileType } from '../../generated/prisma/enums';
+import type { FileType } from '@nexlegtiq/shared-types';
 
-/** `{TYPE}` codes of the file number (D-031, D-034 adds CRM for criminal files). */
+/**
+ * `{TYPE}` codes of the seeded file types (D-031, D-034 adds CRM for criminal files). The live code is the type's
+ * `numberCode` (LegalFileType, D-261); the MVP-175 migration seeded these, the demo seed reuses them.
+ */
 export const FILE_TYPE_CODES = {
   LITIGATION: 'LIT',
   CRIMINAL: 'CRM',
@@ -23,7 +26,8 @@ type Part =
 export interface FileNumberFormat {
   readonly usesYear: boolean;
   readonly usesType: boolean;
-  render(values: { year: number; fileType: FileType; seq: number }): string;
+  /** `typeCode` = the file type's `numberCode`. */
+  render(values: { year: number; typeCode: string; seq: number }): string;
 }
 
 const TOKEN = /\{([^{}]*)\}/g;
@@ -63,8 +67,8 @@ export function parseFileNumberFormat(format: string): FileNumberFormat {
   return {
     usesYear: has('YEAR'),
     usesType: has('TYPE'),
-    render: ({ year, fileType, seq }) =>
-      parts.map((part) => renderPart(part, year, fileType, seq)).join(''),
+    render: ({ year, typeCode, seq }) =>
+      parts.map((part) => renderPart(part, year, typeCode, seq)).join(''),
   };
 }
 
@@ -75,9 +79,9 @@ function tokenOf(name: string, format: string): Part {
   throw new RangeError(`Invalid file number format "${format}": unknown {${name}}`);
 }
 
-function renderPart(part: Part, year: number, fileType: FileType, seq: number): string {
+function renderPart(part: Part, year: number, typeCode: string, seq: number): string {
   if ('literal' in part) return part.literal;
   if (part.token === 'YEAR') return String(year);
-  if (part.token === 'TYPE') return FILE_TYPE_CODES[fileType];
+  if (part.token === 'TYPE') return typeCode;
   return String(seq).padStart(part.width, '0');
 }

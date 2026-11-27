@@ -2,6 +2,10 @@
  * Legal-file enums shared by the API and the apps (domain-model.md, D-033, D-034). They mirror the Prisma enums of the
  * same names; a backend test keeps them in sync with the schema. Labels: `enums.<name>.<VALUE>`.
  */
+/**
+ * The file type codes the MVP-175 migration seeded for every country (D-261). Types are platform reference data now
+ * (`GET /file-types`): platform staff add, rename and deactivate them, so a file's type is any code, not only these.
+ */
 export const FILE_TYPES = [
   'LITIGATION',
   'CRIMINAL',

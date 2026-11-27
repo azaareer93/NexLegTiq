@@ -60,6 +60,18 @@ export const EMPTY_DASHBOARD = {
   setup: null,
 };
 
+/** `GET /file-types` of a Palestinian office: three seeded types, Litigation with one sub-type. */
+export const FILE_TYPE_OPTIONS = [
+  {
+    code: 'LITIGATION',
+    nameAr: 'تقاضٍ',
+    nameEn: 'Litigation',
+    subTypes: [{ id: '01920000-0000-7000-8000-0000000005b1', nameAr: 'عمالي', nameEn: 'Labour' }],
+  },
+  { code: 'CRIMINAL', nameAr: 'قضية جزائية', nameEn: 'Criminal', subTypes: [] },
+  { code: 'RENTAL_AGREEMENT', nameAr: 'عقد إيجار', nameEn: 'Rental agreement', subTypes: [] },
+];
+
 /**
  * Calls the shell makes on every page (the bell, D-149) and the home page (D-151) answer "nothing" unless a test says otherwise; `resetHandlers`
  * keeps these.
@@ -72,6 +84,8 @@ const SHELL_DEFAULTS = [
   http.get(api('time-entries/timer'), () => ok(null)),
   // The Parties tab's witnesses (D-163): none.
   http.get(api('cases/:id/witnesses'), () => ok([])),
+  // The office's file types (D-261).
+  http.get(api('file-types'), () => ok(FILE_TYPE_OPTIONS)),
 ];
 
 export const server = setupServer(...SHELL_DEFAULTS);

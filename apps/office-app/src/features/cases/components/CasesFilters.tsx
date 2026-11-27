@@ -1,8 +1,9 @@
 import type { CaseQuery } from '@nexlegtiq/shared-contracts';
-import { FILE_STATUSES, FILE_TYPES, PRIORITIES } from '@nexlegtiq/shared-types';
+import { FILE_STATUSES, PRIORITIES } from '@nexlegtiq/shared-types';
 import { Button, Flex, Grid, Input, Select, Tag } from 'antd';
 import { useTranslation } from 'react-i18next';
 
+import { useFileTypeLabel, useFileTypes } from '../api/use-file-types';
 import { VIEW_KEYS } from '../list-params';
 import type { ListChanges, ViewKey } from '../list-params';
 
@@ -23,6 +24,12 @@ export function CasesFilters({
 }: CasesFiltersProps): React.JSX.Element {
   const { t } = useTranslation();
   const narrow = Grid.useBreakpoint().md === false;
+  const types = useFileTypes();
+  const typeLabel = useFileTypeLabel(types.data);
+  // The office's active types, plus any code the URL already filters on (a view, or a type deactivated since).
+  const typeCodes = [
+    ...new Set([...(types.data ?? []).map((type) => type.code), ...(state.fileType ?? [])]),
+  ];
   return (
     <>
       <Flex gap={8} wrap role="group" aria-label={t('cases.list.views.label')}>
@@ -71,7 +78,7 @@ export function CasesFilters({
           aria-label={t('cases.list.filters.fileType')}
           value={state.fileType ?? []}
           onChange={(value: string[]) => onChange({ fileType: value.join(',') })}
-          options={FILE_TYPES.map((value) => ({ value, label: t(`enums.fileType.${value}`) }))}
+          options={typeCodes.map((value) => ({ value, label: typeLabel(value) }))}
           style={{ minInlineSize: 200 }}
           data-testid="cases-filter-type"
         />

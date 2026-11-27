@@ -159,7 +159,7 @@ function fileRow(
     id: uuidV7(),
     title: at(TITLES[type] ?? ['ملف تجريبي'], i),
     description: 'ملف تجريبي لأغراض العرض — Demo file for presentations.',
-    fileType: type as never,
+    fileType: type,
     status,
     priority: at(['MEDIUM', 'HIGH', 'LOW', 'URGENT'] as const, i),
     openingDate: opened,
@@ -210,7 +210,11 @@ async function createFiles(
     rows.push({
       ...row,
       officeId,
-      fileNumber: format.render({ year, fileType: type as never, seq: counter.lastValue }),
+      fileNumber: format.render({
+        year,
+        typeCode: FILE_TYPE_CODES[type as keyof typeof FILE_TYPE_CODES],
+        seq: counter.lastValue,
+      }),
     });
     files.push({
       id: row.id,

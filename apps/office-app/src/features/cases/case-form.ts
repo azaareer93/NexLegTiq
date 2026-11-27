@@ -6,7 +6,7 @@ export const CREATE_FIELDS = [
   'title',
   'clientId',
   'fileType',
-  'subType',
+  'subTypeId',
   'priority',
   'responsibleLawyerId',
   'responsibleParalegalId',

@@ -44,6 +44,8 @@
   "file": {
     "responsible": "Responsible lawyer: <name>{{name}}</name>",
     "notSet": "—",
+    "noSubTypes": "No sub-types for this type",
+    "legacySubType": "Earlier text:",
     "no": "No",
     "primaryClient": "Primary client",
     "noClients": "No clients linked.",

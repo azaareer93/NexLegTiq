@@ -4,13 +4,13 @@ import {
   COURT_TYPES,
   FILE_STATUSES,
   FILE_TEAM_ROLES,
-  FILE_TYPES,
   JURISDICTIONS,
   PRIORITIES,
 } from '@nexlegtiq/shared-types';
 import { z } from 'zod';
 
 import { longText, MoneySchema, plainText, searchText, sortParam } from './fields.js';
+import { FileSubTypeSchema, FileTypeCodeSchema } from './legal-file-type.contract.js';
 
 /**
  * `POST /cases` (W6, D-095/D-096). The number, office, currency, jurisdiction and opening date come from the server;
@@ -21,8 +21,10 @@ export const CreateCaseSchema = z
   .object({
     title: plainText(300),
     description: longText(5000).optional(),
-    fileType: z.enum(FILE_TYPES),
-    subType: plainText(100).optional(),
+    /** An active type of the office's country (`GET /file-types`, D-261). */
+    fileType: FileTypeCodeSchema,
+    /** An active sub-type of that type. */
+    subTypeId: z.uuid().optional(),
     clientIds: z
       .array(z.uuid())
       .min(1, 'validation.required')
@@ -61,7 +63,8 @@ export const UpdateCaseSchema = z
   .object({
     title: plainText(300),
     description: longText(5000).nullable(),
-    subType: plainText(100).nullable(),
+    /** A sub-type of the file's type (`null` clears it); either way the legacy free text is dropped (D-261). */
+    subTypeId: z.uuid().nullable(),
     priority: z.enum(PRIORITIES),
     billingMethod: z.enum(BILLING_METHODS),
     hourlyRate: MoneySchema.nullable(),
@@ -89,13 +92,13 @@ export type CaseSortField = (typeof CASE_SORT_FIELDS)[number];
 /** `GET /cases` query (api-conventions.md): filters, `scope=mine|all`, `sort=field:dir,…`, `page`, `limit` ≤ 100. */
 export const CaseQuerySchema = z.object({
   status: z.enum(FILE_STATUSES).optional(),
-  /** One type or a comma-separated list (`CONTRACT_DRAFTING,NDA_REVIEW`): the "Contracts" view spans several types. */
+  /** One type code or a comma-separated list (`CONTRACT_DRAFTING,NDA_REVIEW`): the "Contracts" view spans several types. */
   fileType: z
     .string()
     .transform((value) => value.split(',').map((type) => type.trim()))
-    .pipe(z.array(z.enum(FILE_TYPES)).min(1).max(FILE_TYPES.length))
+    .pipe(z.array(FileTypeCodeSchema).min(1).max(50))
     .optional()
-    .meta({ description: `One or more of ${FILE_TYPES.join(', ')}, comma-separated` }),
+    .meta({ description: 'One or more file type codes, comma-separated' }),
   priority: z.enum(PRIORITIES).optional(),
   /** `mine`: only files assigned to the caller, even with `view:all:cases`. */
   scope: z.enum(['mine', 'all']).default('all'),
@@ -130,7 +133,9 @@ export const CaseListItemSchema = z.object({
   id: z.uuid(),
   fileNumber: z.string(),
   title: z.string(),
-  fileType: z.enum(FILE_TYPES),
+  /** A type code of the file's country, with its names (also when the type was deactivated since). */
+  fileType: z.string(),
+  fileTypeName: z.object({ nameAr: z.string(), nameEn: z.string() }),
   status: z.enum(FILE_STATUSES),
   priority: z.enum(PRIORITIES),
   openingDate: DateOnlySchema,
@@ -144,7 +149,9 @@ export type CaseListItem = z.infer<typeof CaseListItemSchema>;
 /** `GET /cases/:id` (and the answer of create/update): the Details tab; heavy tabs load separately. */
 export const CaseSchema = CaseListItemSchema.extend({
   description: z.string().nullable(),
-  subType: z.string().nullable(),
+  subType: FileSubTypeSchema.nullable(),
+  /** Free text from before sub-types were reference data (D-261): read-only. */
+  legacySubType: z.string().nullable(),
   closingDate: DateOnlySchema.nullable(),
   responsibleParalegal: PersonSchema.nullable(),
   courtCaseNumber: z.string().nullable(),

@@ -78,7 +78,8 @@ describe('CaseQuerySchema', () => {
       'NDA_REVIEW',
       'RENTAL_AGREEMENT',
     ]);
-    expect(CaseQuerySchema.safeParse({ fileType: 'LITIGATION,PIZZA' }).success).toBe(false);
+    // Any code shape is accepted (types are reference data, D-261); a malformed one is not.
+    expect(CaseQuerySchema.safeParse({ fileType: 'LITIGATION,pizza' }).success).toBe(false);
     expect(CaseQuerySchema.safeParse({ fileType: '' }).success).toBe(false);
   });
 

@@ -1,15 +1,15 @@
-import { FILE_TYPES } from '@nexlegtiq/shared-types';
 import { z } from 'zod';
 
 import { longText, plainText } from './fields.js';
+import { FileTypeCodeSchema } from './legal-file-type.contract.js';
 
 /** Who gets a template's task on a new file (D-156): its responsible lawyer or its paralegal. */
 export const TEMPLATE_ASSIGNEE_ROLES = ['RESPONSIBLE_LAWYER', 'PARALEGAL'] as const;
 
 const Fields = z.object({
   name: plainText(200).pipe(z.string().min(1, 'validation.required')),
-  /** null = every file type. */
-  fileType: z.enum(FILE_TYPES).nullable(),
+  /** A type code of the office's country (D-261); null = every file type. */
+  fileType: FileTypeCodeSchema.nullable(),
   defaultTitle: plainText(300).pipe(z.string().min(1, 'validation.required')),
   defaultDescription: longText(5000).nullable(),
   dueDaysAfterOpen: z

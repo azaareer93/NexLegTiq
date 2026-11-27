@@ -27,6 +27,7 @@ import { UnitOfWork } from '../../database/unit-of-work';
 import type { ScopedTransaction } from '../../database/unit-of-work';
 import { Prisma } from '../../generated/prisma/client';
 import { assertCourtRefs, nextCourtRefs } from '../courts/court-refs';
+import { assertNewFileType, nextSubType } from '../legal-file-types/file-type-refs';
 import { applyTaskTemplates } from '../tasks/task-templates';
 import { TimelineService } from '../timeline/timeline.service';
 
@@ -66,16 +67,13 @@ export class CasesService {
           select: { defaultBillingMethod: true, defaultBillingRate: true },
         }),
       ]);
-      await Promise.all([
+      const [numberCode] = await Promise.all([
+        assertNewFileType(tx, office.jurisdiction, input.fileType, input.subTypeId),
         assertParticipants(tx, input, this.officeId()),
         assertCourtRefs(tx, input),
       ]);
       const openingDate = todayIn(office.timezone, new Date());
-      const fileNumber = await this.numbers.next(
-        tx,
-        input.fileType,
-        Number(openingDate.slice(0, 4)),
-      );
+      const fileNumber = await this.numbers.next(tx, numberCode, Number(openingDate.slice(0, 4)));
       const file = await tx.legalFile.create({
         data: {
           ...fileColumns(input, office, settings),
@@ -141,6 +139,7 @@ export class CasesService {
       const { old, next } = changes(before, {
         ...input,
         ...(await nextCourtRefs(tx, before, input)),
+        ...(await nextSubType(tx, before, input.subTypeId)),
         description: emptyToNull(input.description),
       });
       if (Object.keys(next).length === 0) return;
@@ -258,7 +257,8 @@ const BILLING_FIELDS = ['billingMethod', 'hourlyRate', 'fixedFee'] as const;
 const EDITABLE = {
   title: true,
   description: true,
-  subType: true,
+  subTypeId: true,
+  legacySubType: true,
   priority: true,
   billingMethod: true,
   hourlyRate: true,
@@ -268,6 +268,9 @@ const EDITABLE = {
   judgeId: true,
   isConfidential: true,
   responsibleLawyerId: true,
+  // Read for the sub-type check, never changed by PATCH.
+  jurisdiction: true,
+  fileType: true,
 } satisfies Prisma.LegalFileSelect;
 
 /** Writes may only reach a live, non-archived file, also when it was deleted or archived after the access check. */
@@ -296,7 +299,7 @@ function fileColumns(
     title: input.title,
     description: input.description || null,
     fileType: input.fileType,
-    subType: orNull(input.subType),
+    subTypeId: orNull(input.subTypeId),
     priority: input.priority,
     responsibleLawyerId: input.responsibleLawyerId,
     responsibleParalegalId: orNull(input.responsibleParalegalId),

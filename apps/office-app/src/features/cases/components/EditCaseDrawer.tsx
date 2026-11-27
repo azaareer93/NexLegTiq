@@ -1,18 +1,25 @@
 import type { Case } from '@nexlegtiq/shared-contracts';
 import { UpdateCaseSchema } from '@nexlegtiq/shared-contracts';
 import { BILLING_METHODS, PRIORITIES } from '@nexlegtiq/shared-types';
-import { ApiErrorAlert, Ltr, useApiErrorHandler } from '@nexlegtiq/shared-ui';
+import { ApiErrorAlert, Bdi, Ltr, useApiErrorHandler } from '@nexlegtiq/shared-ui';
 import { App, Button, Drawer, Flex, Form, Input, Select, Switch } from 'antd';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { SubTypeSelect } from './FileTypeSelects';
 import { parseForm, zodRule } from '../../auth/forms';
 import { useUpdateCase } from '../api/use-cases';
 import type { FileActions } from '../file-page';
 
-const TEXT_FIELDS = ['title', 'description', 'subType', 'courtCaseNumber'] as const;
+const TEXT_FIELDS = ['title', 'description', 'courtCaseNumber'] as const;
 const BILLING_FIELDS = ['billingMethod', 'hourlyRate', 'fixedFee'] as const;
-const FIELDS = [...TEXT_FIELDS, 'priority', ...BILLING_FIELDS, 'isConfidential'] as const;
+const FIELDS = [
+  ...TEXT_FIELDS,
+  'subTypeId',
+  'priority',
+  ...BILLING_FIELDS,
+  'isConfidential',
+] as const;
 type Field = (typeof FIELDS)[number];
 type Values = Partial<Record<Field, string | boolean | null>>;
 
@@ -21,7 +28,8 @@ function valuesOf(file: Case): Values {
   return {
     title: file.title,
     description: file.description ?? '',
-    subType: file.subType ?? '',
+    // undefined, not '': an empty select shows its placeholder.
+    subTypeId: file.subType?.id,
     courtCaseNumber: file.courtCaseNumber ?? '',
     priority: file.priority,
     billingMethod: file.billingMethod,
@@ -29,6 +37,12 @@ function valuesOf(file: Case): Values {
     fixedFee: file.fixedFee ?? '',
     isConfidential: file.isConfidential,
   };
+}
+
+/** A field's value, trimmed. A cleared select is undefined: for the sub-type that means none (''). */
+function formValue(values: Values, field: Field): Values[Field] {
+  const raw = field === 'subTypeId' ? (values[field] ?? '') : values[field];
+  return typeof raw === 'string' ? raw.trim() : raw;
 }
 
 /**
@@ -39,14 +53,15 @@ export function changesOf(file: Case, values: Values, actions: FileActions): Val
   const before = valuesOf(file);
   const editable: readonly Field[] = [
     ...TEXT_FIELDS,
+    'subTypeId',
     'priority',
     ...(actions.billing ? BILLING_FIELDS : []),
     ...(actions.confidentiality ? (['isConfidential'] as const) : []),
   ];
   const changes: Values = {};
   for (const field of editable) {
-    const value = typeof values[field] === 'string' ? values[field].trim() : values[field];
-    if (value !== undefined && value !== before[field]) {
+    const value = formValue(values, field);
+    if (value !== undefined && value !== formValue(before, field)) {
       changes[field] = value === '' && field !== 'title' ? null : value;
     }
   }
@@ -154,8 +169,24 @@ function CaseEditDrawer({ file, actions, open, onClose }: EditCaseDrawerProps): 
               }))}
             />
           </Form.Item>
-          <Form.Item name="subType" label={t('cases.file.fields.subType')} rules={rules('subType')}>
-            <Input dir="auto" data-testid="case-subtype-input" />
+          <Form.Item
+            name="subTypeId"
+            label={t('cases.file.fields.subType')}
+            rules={rules('subTypeId')}
+            // Free text from before sub-types were reference data (D-261): shown until a sub-type replaces it.
+            extra={
+              file.legacySubType ? (
+                <span data-testid="case-legacy-subtype">
+                  {t('cases.file.legacySubType')} <Bdi>{file.legacySubType}</Bdi>
+                </span>
+              ) : undefined
+            }
+          >
+            <SubTypeSelect
+              typeCode={file.fileType}
+              current={file.subType}
+              data-testid="case-subtype-input"
+            />
           </Form.Item>
           <Form.Item
             name="courtCaseNumber"

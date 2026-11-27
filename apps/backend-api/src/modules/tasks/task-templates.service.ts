@@ -33,6 +33,7 @@ import { ApiZodBody, ApiZodResponse } from '../../common/openapi/api-zod.decorat
 import { RequirePermissions } from '../../common/rbac/permissions.decorator';
 import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
+import { assertOfficeFileType } from '../legal-file-types/file-type-refs';
 
 const SELECT = {
   id: true,
@@ -92,6 +93,7 @@ export class TaskTemplatesService {
 
   async create(input: CreateTaskTemplateRequest): Promise<TaskTemplate> {
     const row = await this.uow.run(async (tx) => {
+      await assertOfficeFileType(tx, input.fileType);
       const created = await tx.taskTemplate.create({
         data: { ...input, officeId: this.cls.get('officeId') as string },
         select: SELECT,
@@ -116,6 +118,7 @@ export class TaskTemplatesService {
       if (!before) throw new ResourceNotFoundException();
       const { old, next } = changes(before, input);
       if (Object.keys(next).length === 0) return before;
+      if ('fileType' in next) await assertOfficeFileType(tx, input.fileType);
       const updated = await tx.taskTemplate.update({ where: { id }, data: next, select: SELECT });
       await this.audit.log(tx, {
         entityType: 'TaskTemplate',

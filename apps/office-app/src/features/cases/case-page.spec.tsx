@@ -36,6 +36,7 @@ const FILE: Case = {
   fileNumber: '2026-LIT-00007',
   title: 'Land dispute',
   fileType: 'LITIGATION',
+  fileTypeName: { nameAr: 'تقاضٍ', nameEn: 'Litigation' },
   status: 'OPEN',
   priority: 'HIGH',
   openingDate: '2026-10-01',
@@ -45,6 +46,7 @@ const FILE: Case = {
   updatedAt: '2026-10-05T09:00:00.000Z',
   description: 'Boundary of the olive grove',
   subType: null,
+  legacySubType: null,
   closingDate: null,
   responsibleParalegal: { id: PARALEGAL_ID, fullName: 'Rana Odeh' },
   courtCaseNumber: '123/2026',
@@ -156,7 +158,7 @@ describe('file page rules', () => {
     const values = {
       title: ' Land dispute (appeal) ',
       description: '',
-      subType: '',
+      subTypeId: '',
       courtCaseNumber: '123/2026',
       priority: 'HIGH',
       billingMethod: 'HOURLY',
@@ -174,6 +176,12 @@ describe('file page rules', () => {
     expect(changesOf(FILE, values, paralegal)).toEqual({
       title: 'Land dispute (appeal)',
       description: null,
+    });
+    // A picked sub-type is sent; clearing the select (undefined) removes the file's one (D-261).
+    const sub = { id: '01920000-0000-7000-8000-0000000005b1', nameAr: 'عمالي', nameEn: 'Labour' };
+    expect(changesOf(FILE, { subTypeId: sub.id }, manager)).toEqual({ subTypeId: sub.id });
+    expect(changesOf({ ...FILE, subType: sub }, { subTypeId: undefined }, manager)).toEqual({
+      subTypeId: null,
     });
   });
 });
