@@ -227,6 +227,11 @@ export class AppConfig {
         env.GEMINI_API_KEY && env.GEMINI_MODEL
           ? { apiKey: env.GEMINI_API_KEY, model: env.GEMINI_MODEL }
           : undefined,
+      research: env.AI_RESEARCH_PROVIDER,
+      perplexity:
+        env.PERPLEXITY_API_KEY && env.PERPLEXITY_MODEL
+          ? { apiKey: env.PERPLEXITY_API_KEY, model: env.PERPLEXITY_MODEL }
+          : undefined,
       maxOutputTokens: env.AI_MAX_OUTPUT_TOKENS,
       temperature: env.AI_TEMPERATURE,
       timeoutMs: env.AI_TIMEOUT_MS,
@@ -249,6 +254,9 @@ export interface AiConfig {
   readonly fallback: AiProviderName;
   readonly openai?: { readonly apiKey: string; readonly model: string };
   readonly gemini?: { readonly apiKey: string; readonly model: string };
+  /** The legal-research provider (D-256); `none` = research off. */
+  readonly research: Env['AI_RESEARCH_PROVIDER'];
+  readonly perplexity?: { readonly apiKey: string; readonly model: string };
   readonly maxOutputTokens: number;
   readonly temperature: number;
   readonly timeoutMs: number;

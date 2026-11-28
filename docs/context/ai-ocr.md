@@ -43,6 +43,11 @@ Architecture (`modules/ai`):
 - `BaseAiService.execute({feature, cacheKey, prompt, schema, ttl})`: quota check → cache → **PII redact** → provider call
   (JSON mode, temperature 0.2, max tokens from config) → parse → Zod validate (1 repair retry) → **re-hydrate PII** →
   store AiSummary + AiUsage → cache → WS notify.
+- **Legal research (D-256, `modules/ai-research`)**: `POST /ai/research` sends a general question (never case data) to
+  `PerplexityProvider` (Agent API, explicit `PERPLEXITY_MODEL` + `web_search`, `store: false`), its own chain with no
+  fallback, behind the platform switch `AI_RESEARCH_PROVIDER` (default `none` → AI-001). Official legal domains of the
+  jurisdiction first, one open-web retry when nothing is found (paid, counted once). Citations come from the search
+  annotations, never the model; the answer is kept in the AI cache (24 h per job, cache TTL per question), not in a table.
 - `PromptBuilder` with versioned prompts in `modules/ai/prompts/*.v1.ts` (`promptVersion` stored with every output).
   System prompt: legal assistant for MENA law offices; accurate, structured, neutral; **not legal advice**; answer in requested
   language (MSA for Arabic); never invent citations; say "not stated in the document" when unsure.

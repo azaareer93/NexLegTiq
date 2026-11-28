@@ -10,6 +10,7 @@ import { StorageModule } from '../common/storage/storage.module';
 import { DatabaseModule } from '../database/database.module';
 import { AiModule } from '../modules/ai/ai.module';
 import { AiProcessor } from '../modules/ai/workers/ai.processor';
+import { LegalResearcher } from '../modules/ai-research/legal-researcher';
 import { DocumentSummarizer } from '../modules/ai-summaries/document-summarizer';
 import { SessionSummarizer } from '../modules/ai-summaries/session-summarizer';
 import { InvitationLinks } from '../modules/auth/invitation-links';
@@ -73,6 +74,7 @@ import { TimelineModule } from '../modules/timeline/timeline.module';
     TaskReminders,
     AiProcessor,
     DocumentSummarizer,
+    LegalResearcher,
     OfficeExportBuilder,
     OfficePurge,
     SessionSummarizer,

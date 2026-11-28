@@ -10,6 +10,7 @@ import { AiCache } from './ai-cache';
 import { AiFinalException, AiProviders } from './ai-providers';
 import type { ProviderAnswer } from './ai-providers';
 import { AiUsageRecorder } from './ai-usage';
+import type { AiSource } from './providers/ai-provider';
 import { AI_REDACTOR, restoreDeep } from './redaction';
 import type { AiRedactor, RedactionContext } from './redaction';
 import type { RequestContext } from '../../common/context/request-context';
@@ -46,6 +47,8 @@ export interface ExecuteOptions<T> {
    * recorded (it is paid) but not counted, so one summary of a long document costs the office one operation.
    */
   readonly partial?: boolean;
+  /** Answer from a web search, limited to these domains (empty = open web): the research provider only (D-256). */
+  readonly webSearch?: { readonly domains: readonly string[] };
 }
 
 export interface AiResult<T> {
@@ -54,6 +57,8 @@ export interface AiResult<T> {
   readonly model: string;
   readonly promptVersion: string;
   readonly cached: boolean;
+  /** The pages a web-search answer is grounded in, from the provider (D-256); empty otherwise. */
+  readonly sources: readonly AiSource[];
 }
 
 /** Longest user text sent at once; longer documents are chunked by the feature (map-reduce), else AI-003. */
@@ -86,7 +91,7 @@ export class AiExecutor {
 
   async execute<T>(options: ExecuteOptions<T>): Promise<AiResult<T>> {
     const officeId = this.officeId();
-    await this.access.assertEnabled();
+    await this.access.assertEnabled({ research: options.webSearch !== undefined });
     const key = options.cacheKey && [options.feature, ...options.cacheKey, options.prompt.version];
     const hit = key ? await this.fromCache(officeId, key, options) : null;
     if (hit) return hit;
@@ -105,7 +110,10 @@ export class AiExecutor {
     key: readonly string[],
     options: ExecuteOptions<T>,
   ): Promise<AiResult<T> | null> {
-    const hit = await this.cache.get<Cached<T>>(officeId, key);
+    // Entries cached before D-256 have no `sources`.
+    const hit = await this.cache.get<
+      Partial<Pick<Cached<T>, 'sources'>> & Omit<Cached<T>, 'sources'>
+    >(officeId, key);
     const value = hit ? options.schema.safeParse(hit.value) : null;
     if (!hit || !value?.success) return null;
     await this.usage.record({
@@ -119,7 +127,7 @@ export class AiExecutor {
       costUsd: '0',
       userId: options.userId ?? null,
     });
-    return { ...hit, value: value.data, cached: true };
+    return { ...hit, sources: hit.sources ?? [], value: value.data, cached: true };
   }
 
   /**
@@ -162,6 +170,7 @@ export class AiExecutor {
       provider: last.provider,
       model: last.model,
       promptVersion: options.prompt.version,
+      sources: last.sources,
     };
   }
 
@@ -181,6 +190,7 @@ export class AiExecutor {
       maxOutputTokens: this.config.ai.maxOutputTokens,
       temperature: this.config.ai.temperature,
       signal: options.signal ? AbortSignal.any([options.signal, deadline]) : deadline,
+      ...(options.webSearch && { webSearch: options.webSearch }),
     };
     try {
       const first = await this.providers.complete(request);
@@ -226,7 +236,11 @@ export class AiExecutor {
       costUsd: answers
         .reduce(
           (sum, answer) =>
-            sum.plus(this.usage.cost(answer.priceModel, answer.inputTokens, answer.outputTokens)),
+            sum.plus(
+              answer.costUsd !== undefined
+                ? new Decimal(answer.costUsd)
+                : this.usage.cost(answer.priceModel, answer.inputTokens, answer.outputTokens),
+            ),
           new Decimal(0),
         )
         .toFixed(6),

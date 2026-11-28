@@ -103,6 +103,7 @@ describe('AiExecutor (D-130)', () => {
       model: 'fake-1',
       promptVersion: 'summary.v1',
       cached: false,
+      sources: [],
     });
     expect(usage.record).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -130,7 +131,11 @@ describe('AiExecutor (D-130)', () => {
       promptVersion: 'summary.v1',
     };
     const { executor, fake, usage } = setup({ cached: hit });
-    await expect(executor.execute(options())).resolves.toEqual({ ...hit, cached: true });
+    await expect(executor.execute(options())).resolves.toEqual({
+      ...hit,
+      sources: [],
+      cached: true,
+    });
     expect(fake.requests).toHaveLength(0);
     expect(usage.record).toHaveBeenCalledWith(
       expect.objectContaining({ cached: true, inputTokens: 0, outputTokens: 0 }),

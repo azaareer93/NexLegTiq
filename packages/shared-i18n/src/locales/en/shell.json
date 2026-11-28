@@ -15,7 +15,8 @@
     "collapse": "Collapse menu",
     "expand": "Expand menu",
     "audit": "Audit log",
-    "invoices": "Invoices"
+    "invoices": "Invoices",
+    "research": "Legal research"
   },
   "quick": {
     "label": "Create",
