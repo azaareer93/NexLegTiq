@@ -277,12 +277,41 @@ describe('PlatformOfficesController', () => {
       get: jest.fn().mockResolvedValue('after'),
     };
     const subscription = { apply: jest.fn().mockResolvedValue(undefined) };
+    const deletion = {
+      adminCancel: jest.fn().mockResolvedValue(undefined),
+      adminReschedule: jest.fn().mockResolvedValue(undefined),
+    };
     const cls = { isActive: jest.fn().mockReturnValue(false), getId: jest.fn() };
-    const c = new PlatformOfficesController(offices as never, subscription as never, cls as never);
-    return { c, offices, subscription };
+    const c = new PlatformOfficesController(
+      offices as never,
+      subscription as never,
+      deletion as never,
+      cls as never,
+    );
+    return { c, offices, subscription, deletion };
   }
   const req = (id?: string) =>
     ({ platformAdminId: id, ip: '1.2.3.4', get: () => undefined }) as never;
+
+  it("should cancel or bring forward an office's deletion with the trimmed reason, then answer the detail (D-251)", async () => {
+    const { c, deletion } = controller();
+    await expect(c.cancelDeletion('o1', { reason: '  Asked  ' }, req('a1'))).resolves.toBe('after');
+    expect(deletion.adminCancel).toHaveBeenCalledWith('o1', 'Asked', 'a1', expect.anything());
+    const when = '2026-12-01T10:00:00.000Z';
+    await expect(
+      c.rescheduleDeletion('o1', { scheduledFor: when, reason: ' Letter 12 ' }, req('a1')),
+    ).resolves.toBe('after');
+    expect(deletion.adminReschedule).toHaveBeenCalledWith(
+      'o1',
+      new Date(when),
+      'Letter 12',
+      'a1',
+      expect.anything(),
+    );
+    await expect(c.cancelDeletion('o1', { reason: 'Asked' }, req())).rejects.toThrow(
+      'AdminAuthGuard did not run',
+    );
+  });
 
   it('should apply a subscription action and answer with the fresh detail', async () => {
     const { c, subscription } = controller();

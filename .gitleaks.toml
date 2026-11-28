@@ -14,4 +14,5 @@ regexes = [
   '''^nexlegtiq-dev-only$''',
   '''^change-me[a-z0-9-]*$''',
   '''^test-(access|secret)-key$''',
+  '''^Deletion-Correct-Horse-9$''', # test password in office-deletion.int.spec.ts
 ]

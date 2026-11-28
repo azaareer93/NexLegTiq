@@ -41,6 +41,7 @@ function setup({
   ]);
   const repository = {
     subscriptionOf,
+    deletionScheduledFor: jest.fn().mockResolvedValue(null),
     activeUsers: jest.fn().mockResolvedValue(users),
     pendingInvitations: jest.fn().mockResolvedValue(invitations),
     aiCallsSince: jest.fn().mockResolvedValue(aiCalls),
@@ -83,6 +84,17 @@ describe('EntitlementsService (D-122)', () => {
     service.invalidate(OFFICE);
     await service.current();
     expect(subscriptionOf).toHaveBeenCalledTimes(4);
+  });
+
+  it('should make an office with a scheduled deletion read-only whatever its plan (D-251)', async () => {
+    const { service, repository } = setup();
+    const when = new Date('2026-12-27T10:00:00Z');
+    jest.mocked(repository.deletionScheduledFor).mockResolvedValue(when);
+    await expect(service.forOffice(OFFICE)).resolves.toMatchObject({
+      status: 'TRIALING',
+      readOnly: true,
+      deletionScheduledFor: when,
+    });
   });
 
   it('should count pending invitations as seats and allow unlimited plans', async () => {

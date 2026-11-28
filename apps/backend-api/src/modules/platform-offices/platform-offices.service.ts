@@ -15,6 +15,7 @@ import { PaginatedResult } from '../../common/http/paginated-result';
 import { RealtimePublisher } from '../../common/realtime/realtime.publisher';
 import { PrismaService } from '../../database/prisma.service';
 import { Prisma } from '../../generated/prisma/client';
+import { deletionOf } from '../office-deletion/office-deletion.service';
 import { PlatformAuditService } from '../platform-auth/platform-audit.service';
 import { EntitlementsService } from '../subscriptions/entitlements.service';
 
@@ -102,6 +103,7 @@ export class PlatformOfficesService {
         createdAt: s.createdAt.toISOString(),
       })),
       suspension,
+      deletion: deletionOf(office),
       statistics: await officeStatistics(raw, id),
     };
   }

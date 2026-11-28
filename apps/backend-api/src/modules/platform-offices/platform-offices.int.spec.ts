@@ -455,4 +455,81 @@ describe('platform admin offices (HTTP + PostgreSQL)', () => {
     expect(rows[0]).toMatchObject({ adminId, entityType: 'Office', entityId: office.id });
     expect(rows[0]?.newValues).toEqual({ reason: 'Unpaid invoice' });
   });
+
+  it("should bring an office's deletion forward only to an earlier future time, and cancel it (D-251)", async () => {
+    const { office, users } = await seedOffice('Deleting', 'PALESTINE', 1);
+    const route = (action: string) => `/api/v1/admin/offices/${office.id}/deletion/${action}`;
+    // The office's own token is not a platform admin's, on either action.
+    const officeToken = (await officeLogin(users[0]?.email ?? '').expect(200)).body.data
+      .accessToken as string;
+    for (const action of ['cancel', 'reschedule']) {
+      await http()
+        .post(route(action))
+        .set('Authorization', `Bearer ${officeToken}`)
+        .send({ reason: 'mine', scheduledFor: new Date().toISOString() })
+        .expect(401);
+    }
+    // A blank or too short reason, and a malformed office id.
+    for (const reason of ['', '   ', 'ab']) {
+      await http().post(route('cancel')).set(auth).send({ reason }).expect(400);
+    }
+    await http()
+      .post('/api/v1/admin/offices/not-a-uuid/deletion/reschedule')
+      .set(auth)
+      .send({ scheduledFor: new Date().toISOString(), reason: 'Letter 12' })
+      .expect(404);
+    await http().post(route('cancel')).set(auth).send({ reason: 'none yet' }).expect(409);
+    await http()
+      .post(`/api/v1/admin/offices/${randomUUID()}/deletion/cancel`)
+      .set(auth)
+      .send({ reason: 'ghost' })
+      .expect(404);
+    const scheduled = new Date(Date.now() + 30 * 86_400_000);
+    await raw.office.update({
+      where: { id: office.id },
+      data: { deletionRequestedAt: new Date(), deletionScheduledFor: scheduled },
+    });
+    const detail = await http().get(`/api/v1/admin/offices/${office.id}`).set(auth).expect(200);
+    expect(detail.body.data.deletion).toMatchObject({
+      scheduledFor: scheduled.toISOString(),
+      purgedAt: null,
+    });
+
+    const later = new Date(scheduled.getTime() + 86_400_000).toISOString();
+    const past = new Date(Date.now() - 60_000).toISOString();
+    for (const when of [later, past]) {
+      await http()
+        .post(route('reschedule'))
+        .set(auth)
+        .send({ scheduledFor: when, reason: 'Letter 12' })
+        .expect(400);
+    }
+    await http().post(route('reschedule')).set(auth).send({ scheduledFor: past }).expect(400);
+    const sooner = new Date(Date.now() + 86_400_000).toISOString();
+    const moved = await http()
+      .post(route('reschedule'))
+      .set(auth)
+      .send({ scheduledFor: sooner, reason: 'Office letter of 2026-11-27, ref 12' })
+      .expect(200);
+    expect(moved.body.data.deletion.scheduledFor).toBe(sooner);
+
+    const cancelled = await http()
+      .post(route('cancel'))
+      .set(auth)
+      .send({ reason: 'Office changed its mind' })
+      .expect(200);
+    expect(cancelled.body.data.deletion).toBeNull();
+    const rows = await raw.platformAuditLog.findMany({
+      where: { targetOfficeId: office.id, action: { startsWith: 'OFFICE_DELETION' } },
+      orderBy: { createdAt: 'asc' },
+    });
+    expect(rows.map((r) => r.action)).toEqual([
+      'OFFICE_DELETION_RESCHEDULED',
+      'OFFICE_DELETION_CANCELLED',
+    ]);
+    expect(rows[0]?.newValues).toEqual({
+      scheduledFor: sooner,
+      reason: 'Office letter of 2026-11-27, ref 12',
+    });
+  });
 });

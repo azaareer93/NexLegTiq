@@ -47,6 +47,16 @@ export class SubscriptionsRepository {
     return newest ? [newest] : [];
   }
 
+  /** When the office's scheduled deletion runs (D-251), null when none is. */
+  async deletionScheduledFor(officeId: OfficeId): Promise<Date | null> {
+    // unscoped: as subscriptionOf, read by the guard before the tenant context exists.
+    const office = await this.prisma.unscoped().office.findUnique({
+      where: { id: officeId },
+      select: { deletionScheduledFor: true },
+    });
+    return office?.deletionScheduledFor ?? null;
+  }
+
   activeUsers(): Promise<number> {
     return this.prisma.db.user.count({ where: { isActive: true } });
   }

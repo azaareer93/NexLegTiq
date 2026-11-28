@@ -25,7 +25,7 @@
 ## Error codes
 AUTH-001 invalid credentials · 002 token expired · 003 token invalid · 004 refresh expired · 005 refresh invalid ·
 006 user inactive · 007 locked · 008 MFA required · 009 MFA invalid · 010 email not verified
-AUTH-100 permission denied · 101 insufficient role · 102 plan feature not available · 103 quota exceeded · 104 subscription ended (office read-only, D-122)
+AUTH-100 permission denied · 101 insufficient role · 102 plan feature not available · 103 quota exceeded · 104 subscription ended (office read-only, D-122) · 105 office deletion scheduled (office read-only, D-251)
 VAL-001 invalid input · 002 email · 003 phone · 004 date · 005 file type · 006 file too large · 007 required
 RES-001 not found (incl. cross-tenant) · 002 already exists · 003 conflict/version · 004 deleted
 BIZ-001 last office manager · 002 case already closed · 003 open tasks block close · 004 session conflict ·
@@ -35,7 +35,7 @@ STO-001 upload failed · 002 download failed · 003 delete failed · 004 malware
 EXT-001 email provider · 002 OCR provider
 RATE-001 rate limit · SYS-001 internal · SYS-002 service unavailable (readiness check failed, 503) · DB-001 database
 Canonical list in code: `packages/shared-types/src/api/error-codes.ts`; HTTP status per code: `apps/backend-api/src/common/errors/error-catalog.ts`.
-Prisma mapping: P2002 → 409 RES-002, P2025 → 404 RES-001, P2034 → 409 RES-003, else 500 DB-001.
+Prisma mapping: P2002 → 409 RES-002, P2025 → 404 RES-001, P2034 → 409 RES-003, a `lock_timeout` wait (PostgreSQL 55P03, D-251) → 409 RES-003, else 500 DB-001.
 HTTP status per code and framework-error mapping: D-075. A `ZodError` thrown by server code (not the request pipe) is 500 SYS-001.
 Request ids: D-076.
 
@@ -52,7 +52,7 @@ POST `auth/invites/preview` (`{token}` in the body, never in a URL; same 410)
 GET `users/invitations` · POST `users/invitations/:id/resend` · DELETE `users/invitations/:id` (204) · PATCH `users/:id/role` · POST `users/:id/deactivate` (with reassignment) ·
 POST `users/:id/reactivate` (seat check, BIZ-008) · GET `users/:id/open-files` — D-124
 **offices**: GET/PATCH `offices/me` · GET/PATCH `offices/me/settings` (`manage:office`, D-125) · GET `offices/me/subscription` (every office user, D-122) ·
-GET `offices/me/statistics` · POST `offices/me/export` (202)
+GET `offices/me/statistics` · POST `offices/me/export` (202) · GET/POST `offices/me/delete-request` (password + MFA code re-auth; 409 RES-003 when scheduled) · POST `offices/me/delete-request/cancel` (D-251)
 **clients**: CRUD `clients` (+ `?search, clientType, sort`) · `clients/:id/contacts` CRUD · GET `clients/:id/files` ·
 GET `clients/:id/invoices` · `clients/:id/notes` · portal access (D-158): POST `clients/:id/portal-invitations` `{email, contactPersonId?}` · DELETE `clients/:id/portal-invitations/:invitationId` · GET `clients/:id/portal-users` · DELETE `clients/:id/portal-users/:accessId`
 **cases** (legal files): POST/GET `cases` (`?status, fileType, priority, scope=mine|all, search, clientId, sort`) · GET/PATCH/DELETE `cases/:id` ·
@@ -83,7 +83,7 @@ POST `files/:id/uploads` (multipart `file`, 10/min → 202 SCANNING; the grant c
 **admin auth** (D-145, public + realm guard): POST `admin/auth/login` `{email, password, code?|recoveryCode?}` (401 AUTH-008 without a code — detail `mfaEnrollment` when not set up; AUTH-009 wrong code) · POST `admin/auth/enroll` `{email, password}` → `{otpauthUri, secret}` · POST `admin/auth/enroll/confirm` `{email, password, code}` → 201 session + `recoveryCodes` once · POST `admin/auth/refresh|logout` (cookie `nlq_admin_rt` + Origin + X-Requested-With) · GET `admin/auth/me`. Realm off (no `ADMIN_JWT_SECRET`) → 404; outside `ADMIN_IP_ALLOWLIST` → 403 AUTH-100.
 **exports**: POST `offices/me/export` (`export:office`; 202, one at a time) · GET `offices/me/exports` · GET `offices/me/exports/:id/download` (15-minute link; not ready/failed/expired → 422 BIZ-026) · GET `users/me/export` (own data; D-184)
 
-**admin** (`/api/v1/admin`, platform realm + MFA): offices list/detail/suspend · GET/POST `admin/plans`, PATCH/DELETE `admin/plans/:id` (code fixed; a plan any subscription used → 422 BIZ-022) · POST `admin/offices/:id/subscription` `{action: CHANGE_PLAN|EXTEND_PERIOD|SET_TRIAL, planId|until, reason?}` (trial on a paid subscription → 422 BIZ-023; D-173) · GET/POST `admin/offices/:id/payments` `{amount, currency, method: CASH|BANK_TRANSFER|OTHER, reference?, paidAt, emailOffice}` (numbered receipt `RCT-{YEAR}-{SEQ:4}`, emailed as a PDF; never changes the subscription) · POST `admin/payments/:id/void` `{reason}` (already voided → 422 BIZ-024) · GET `admin/payments/:id/receipt?language=` (200 link / 202 rendering; D-174) ·
+**admin** (`/api/v1/admin`, platform realm + MFA): offices list/detail/suspend · POST `admin/offices/:id/deletion/cancel|reschedule` (reason required; reschedule only earlier, D-251) · GET/POST `admin/plans`, PATCH/DELETE `admin/plans/:id` (code fixed; a plan any subscription used → 422 BIZ-022) · POST `admin/offices/:id/subscription` `{action: CHANGE_PLAN|EXTEND_PERIOD|SET_TRIAL, planId|until, reason?}` (trial on a paid subscription → 422 BIZ-023; D-173) · GET/POST `admin/offices/:id/payments` `{amount, currency, method: CASH|BANK_TRANSFER|OTHER, reference?, paidAt, emailOffice}` (numbered receipt `RCT-{YEAR}-{SEQ:4}`, emailed as a PDF; never changes the subscription) · POST `admin/payments/:id/void` `{reason}` (already voided → 422 BIZ-024) · GET `admin/payments/:id/receipt?language=` (200 link / 202 rendering; D-174) ·
 usage (AI, storage) · platform audit
 **health** (not under the `/api/v1` prefix): GET `/health` (liveness) · GET `/health/ready` (checks registered in
 `ReadinessRegistry` by the db/redis/storage modules; 503 SYS-002 naming failed checks) · GET `/metrics` on its own internal

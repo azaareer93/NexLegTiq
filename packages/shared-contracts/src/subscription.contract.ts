@@ -27,6 +27,8 @@ export const OfficeSubscriptionSchema = z.object({
   plan: z.object({ code: z.string(), name: z.string() }).nullable(),
   status: z.enum(SUBSCRIPTION_STATUSES),
   readOnly: z.boolean(),
+  /** Set while the office's deletion is scheduled (D-251): read-only too, writes get 403 AUTH-105. */
+  deletionScheduledFor: z.iso.datetime().nullable(),
   periodEnd: z.iso.datetime().nullable(),
   trialEndsAt: z.iso.datetime().nullable(),
   /** Limits and usage only for `manage:subscription` holders; `null` for everyone else. */

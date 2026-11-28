@@ -82,7 +82,8 @@
     "body": "This part of NexLegTiq is being built."
   },
   "readOnly": {
-    "banner": "Your office's subscription has ended, so the office is read-only: you can view everything but not add or change anything. Contact us to renew it."
+    "banner": "Your office's subscription has ended, so the office is read-only: you can view everything but not add or change anything. Contact us to renew it.",
+    "deletion": "This office is scheduled for deletion from {{date}}, so it is read-only. An office manager can cancel the deletion in Settings."
   },
   "verify": {
     "banner": "Please confirm your email address. We sent you a link when you signed up.",

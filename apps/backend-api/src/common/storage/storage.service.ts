@@ -2,9 +2,11 @@ import type { Readable } from 'node:stream';
 
 import {
   DeleteObjectCommand,
+  DeleteObjectsCommand,
   GetObjectCommand,
   HeadBucketCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   S3Client,
   S3ServiceException,
 } from '@aws-sdk/client-s3';
@@ -141,6 +143,31 @@ export class StorageService implements OnModuleInit, OnModuleDestroy {
     } catch (error) {
       if (isNotFound(error)) return null;
       throw storageError('STO-002', 'Storage lookup failed', error);
+    }
+  }
+
+  /**
+   * Deletes every object of the current office (`{officeId}/…`): the office purge (D-251). Lists from the start again after
+   * each page it deletes, so no continuation token outlives the objects it pointed at; idempotent. Returns how many went.
+   */
+  async deleteOfficeObjects(): Promise<number> {
+    const prefix = `${this.officeId()}/`;
+    let removed = 0;
+    try {
+      for (;;) {
+        const page = await this.client.send(
+          new ListObjectsV2Command({ Bucket: this.bucket, Prefix: prefix, MaxKeys: 1000 }),
+        );
+        const keys = (page.Contents ?? []).flatMap((o) => (o.Key ? [{ Key: o.Key }] : []));
+        if (keys.length === 0) return removed;
+        const result = await this.client.send(
+          new DeleteObjectsCommand({ Bucket: this.bucket, Delete: { Objects: keys, Quiet: true } }),
+        );
+        if (result.Errors?.length) throw new Error(`${result.Errors.length} objects not deleted`);
+        removed += keys.length;
+      }
+    } catch (error) {
+      throw storageError('STO-003', 'Delete from storage failed', error);
     }
   }
 

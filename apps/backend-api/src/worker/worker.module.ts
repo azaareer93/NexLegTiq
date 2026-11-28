@@ -25,6 +25,7 @@ import { InvoiceOverdueSweep } from '../modules/invoices/invoice-overdue.sweep';
 import { InvoicePdfRenderer } from '../modules/invoices/pdf/invoice-pdf.renderer';
 import { NotificationsModule } from '../modules/notifications/notifications.module';
 import { NotificationProcessor } from '../modules/notifications/workers/notification.processor';
+import { OfficePurge } from '../modules/office-deletion/office-purge';
 import { ReceiptPdfRenderer } from '../modules/platform-payments/receipt-pdf.renderer';
 import {
   PortalInvitationLinks,
@@ -73,6 +74,7 @@ import { TimelineModule } from '../modules/timeline/timeline.module';
     AiProcessor,
     DocumentSummarizer,
     OfficeExportBuilder,
+    OfficePurge,
     SessionSummarizer,
     OcrProcessor,
     DocumentScan,
