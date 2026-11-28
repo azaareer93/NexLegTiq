@@ -16,6 +16,7 @@ import { useOfficeProfile, useOfficeSettings } from '../api/use-office';
 import { AuditLink } from '../components/AuditLink';
 import { DataSection } from '../components/DataSection';
 import { DefaultsSection, SecuritySection } from '../components/DefaultsSections';
+import { DeletionSection } from '../components/DeletionSection';
 import { PreferencesSection, ProfileSection } from '../components/ProfileSections';
 import { SubscriptionSection } from '../components/SubscriptionSection';
 import { TaskTemplatesSection } from '../components/TaskTemplatesSection';
@@ -104,6 +105,7 @@ export function SettingsPage(): React.JSX.Element {
       {sections()}
       <SubscriptionSection />
       <DataSection />
+      <DeletionSection />
       <AuditLink />
       <ConfirmModal
         open={blocker.state === 'blocked'}

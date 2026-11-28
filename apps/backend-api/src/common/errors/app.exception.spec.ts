@@ -57,6 +57,15 @@ describe('Prisma error mapping', () => {
     expect(mapPrismaError(prismaError(prismaCode))).toBe(expected);
   });
 
+  it('should map a lock wait past lock_timeout (PostgreSQL 55P03) to RES-003, other driver codes to DB-001', () => {
+    const withPg = (originalCode: string) =>
+      Object.assign(prismaError('P2010'), {
+        meta: { driverAdapterError: { cause: { originalCode } } },
+      });
+    expect(mapPrismaError(withPg('55P03'))).toBe('RES-003');
+    expect(mapPrismaError(withPg('22P02'))).toBe('DB-001');
+  });
+
   it('should recognise Prisma errors by class name only', () => {
     expect(isPrismaError(prismaError('P2002'))).toBe(true);
     expect(isPrismaError(prismaError(undefined, 'PrismaClientInitializationError'))).toBe(true);

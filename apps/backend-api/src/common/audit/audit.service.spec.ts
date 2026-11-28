@@ -145,6 +145,7 @@ describe('AuditRetentionProcessor (D-136)', () => {
       {} as never,
       {} as never,
       { run: jest.fn() } as never,
+      { run: jest.fn().mockResolvedValue({ purged: 1, expired: 0 }) } as never,
     );
     await expect(
       processor.process({ name: PURGE_AUDIT_LOGS_JOB, data: {} } as never),
@@ -168,6 +169,7 @@ describe('AuditRetentionProcessor (D-136)', () => {
       {} as never,
       {} as never,
       { run: jest.fn() } as never,
+      { run: jest.fn().mockResolvedValue({ purged: 1, expired: 0 }) } as never,
     );
     await expect(
       processor.process({ name: MARK_OVERDUE_INVOICES_JOB, data: {} } as never),
@@ -185,6 +187,7 @@ describe('AuditRetentionProcessor (D-136)', () => {
       pdfs as never,
       {} as never,
       { run: jest.fn() } as never,
+      { run: jest.fn().mockResolvedValue({ purged: 1, expired: 0 }) } as never,
     );
     const signal = new AbortController().signal;
     const data = {

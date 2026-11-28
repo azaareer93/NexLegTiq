@@ -1,8 +1,10 @@
 import { AdminOfficeDetailSchema, AdminOfficeListItemSchema } from '@nexlegtiq/shared-contracts';
 import type {
+  AdminCancelDeletionRequest,
   AdminOfficeDetail,
   AdminOfficeListItem,
   AdminOfficeQuerySchema,
+  AdminRescheduleDeletionRequest,
   ReactivateOfficeRequest,
   SubscriptionActionRequest,
   SuspendOfficeRequest,
@@ -38,6 +40,21 @@ export function adminOfficesApi(client: ApiClient) {
     reactivate: (id: string, body: ReactivateOfficeRequest): Promise<AdminOfficeDetail> =>
       client.request(
         { method: 'POST', path: `${path(id)}/reactivate`, body },
+        AdminOfficeDetailSchema,
+      ),
+    /** Cancel the office's scheduled deletion (D-251). */
+    cancelDeletion: (id: string, body: AdminCancelDeletionRequest): Promise<AdminOfficeDetail> =>
+      client.request(
+        { method: 'POST', path: `${path(id)}/deletion/cancel`, body },
+        AdminOfficeDetailSchema,
+      ),
+    /** Bring the deletion forward on the office's written request: earlier only (D-251). */
+    rescheduleDeletion: (
+      id: string,
+      body: AdminRescheduleDeletionRequest,
+    ): Promise<AdminOfficeDetail> =>
+      client.request(
+        { method: 'POST', path: `${path(id)}/deletion/reschedule`, body },
         AdminOfficeDetailSchema,
       ),
     /** Change plan, extend the paid period or start/extend a trial (MVP-151). */

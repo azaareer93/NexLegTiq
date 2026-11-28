@@ -48,6 +48,28 @@ beforeEach(() => {
 });
 
 describe('StorageService (unit)', () => {
+  it("should delete the office's objects page by page until none is left, and map a failure to STO-003", async () => {
+    const send = jest
+      .fn()
+      .mockResolvedValueOnce({ Contents: [{ Key: KEY }, {}] })
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({ Contents: [] });
+    const { service } = setup(send);
+    await expect(inOffice(() => service.deleteOfficeObjects())).resolves.toBe(1);
+    expect(send.mock.calls[0][0].input).toMatchObject({ Prefix: `${OFFICE}/` });
+    expect(send.mock.calls[1][0].input).toMatchObject({ Delete: { Objects: [{ Key: KEY }] } });
+
+    const failing = setup(
+      jest
+        .fn()
+        .mockResolvedValueOnce({ Contents: [{ Key: KEY }] })
+        .mockResolvedValueOnce({ Errors: [{ Key: KEY }] }),
+    );
+    await expect(inOffice(() => failing.service.deleteOfficeObjects())).rejects.toMatchObject({
+      code: 'STO-003',
+    });
+  });
+
   it('should build keys under the current office from safe segments only', async () => {
     const { service } = setup();
     await inOffice(async () => {

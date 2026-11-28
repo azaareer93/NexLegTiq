@@ -83,6 +83,15 @@ describe('SubscriptionGuard (D-122)', () => {
     await expect(run('write', 'POST', ACTIVE, OFFICE).result).resolves.toBe(true);
   });
 
+  it('should refuse writes with AUTH-105 while a deletion is scheduled, the allowed routes aside (D-251)', async () => {
+    const deleting = { ...ACTIVE, readOnly: true, deletionScheduledFor: new Date() };
+    await expect(run('write', 'POST', deleting, OFFICE).result).rejects.toMatchObject({
+      code: 'AUTH-105',
+    });
+    await expect(run('own', 'POST', deleting, OFFICE).result).resolves.toBe(true);
+    await expect(run('read', 'GET', deleting, OFFICE).result).resolves.toBe(true);
+  });
+
   it('should not load entitlements for an ungated read, a public route or a platform admin', async () => {
     for (const [handler, method, user] of [
       ['read', 'GET', OFFICE],

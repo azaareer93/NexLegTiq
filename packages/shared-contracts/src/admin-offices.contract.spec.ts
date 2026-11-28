@@ -67,6 +67,7 @@ describe('admin offices contracts', () => {
         },
       ],
       suspension: null,
+      deletion: null,
       statistics: {
         signedIn30d: 1,
         filesByStatus: { OPEN: 1, SUSPENDED: 0, CLOSED: 0, ARCHIVED: 0 },

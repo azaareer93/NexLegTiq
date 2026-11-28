@@ -69,6 +69,11 @@ export class AppConfig {
     return { url: this.#env.DATABASE_URL, poolMax: this.#env.DATABASE_POOL_MAX };
   }
 
+  /** Years a purged office's issued invoices and anonymized audit rows are kept (D-251). */
+  get retainedRecordsYears(): number {
+    return this.#env.RETAINED_RECORDS_YEARS;
+  }
+
   get bullBoardEnabled(): boolean {
     return this.#env.BULL_BOARD_ENABLED;
   }
