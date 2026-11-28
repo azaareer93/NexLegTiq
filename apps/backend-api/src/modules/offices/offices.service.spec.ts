@@ -72,6 +72,22 @@ describe('OfficesService', () => {
     expect(tx.auditLog.create).not.toHaveBeenCalled();
   });
 
+  it('should write and audit a changed profile field', async () => {
+    const { service, tx } = setup();
+    await service.updateProfile({ name: 'Renamed' }, CALLER);
+    expect(tx.office.update).toHaveBeenCalledWith({
+      where: { id: 'o1' },
+      data: { name: 'Renamed' },
+    });
+    expect(tx.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        entityType: 'Office',
+        oldValues: { name: 'Office' },
+        newValues: { name: 'Renamed' },
+      }),
+    });
+  });
+
   it('should audit the old and new value of a changed field', async () => {
     const { service, tx } = setup();
     await service.updateSettings({ enableOcr: false }, CALLER);
