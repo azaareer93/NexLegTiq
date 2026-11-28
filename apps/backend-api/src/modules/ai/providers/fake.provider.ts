@@ -1,9 +1,10 @@
 import { createHash } from 'node:crypto';
 
-import type { AiCompletion, AiProvider, AiRequest } from './ai-provider';
+import type { AiCompletion, AiProvider, AiRequest, AiSource } from './ai-provider';
 
-/** A scripted answer: a value to send as JSON, raw text (invalid JSON), or an error to throw. */
-export type FakeStep = { json: unknown } | { text: string } | { error: Error };
+/** A scripted answer: a value to send as JSON (with the web pages it cites), raw text (invalid JSON), or an error to throw. */
+export type FakeStep =
+  { json: unknown; sources?: readonly AiSource[] } | { text: string } | { error: Error };
 
 type Fixture = (request: AiRequest) => unknown;
 
@@ -56,6 +57,11 @@ export class FakeAiProvider implements AiProvider {
       model: this.model,
       inputTokens: tokens(request.system) + tokens(request.user),
       outputTokens: tokens(text),
+      ...sourcesOf(step),
     });
   }
+}
+
+function sourcesOf(step: FakeStep | undefined): Pick<AiCompletion, 'sources'> {
+  return step && 'sources' in step ? { sources: step.sources } : {};
 }

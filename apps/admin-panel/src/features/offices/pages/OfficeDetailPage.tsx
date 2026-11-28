@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router';
 
 import { AtRiskTag } from '../components/AtRiskTag';
+import { DeletionCard } from '../components/DeletionCard';
 import { OfficeActionModal } from '../components/OfficeActionModal';
 import { PaymentsCard } from '../components/PaymentsCard';
 import { SubscriptionActionModal } from '../components/SubscriptionActionModal';
@@ -178,6 +179,7 @@ function Detail({ office }: { readonly office: AdminOfficeDetail }): React.JSX.E
           }
         />
       ) : null}
+      <DeletionCard office={office} />
       <Card title={t('admin.offices.detail.profile')} style={{ marginBlockEnd: 16 }}>
         <Descriptions column={{ xs: 1, md: 2 }}>
           <Descriptions.Item label={t('admin.offices.columns.jurisdiction')}>

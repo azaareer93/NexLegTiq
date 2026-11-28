@@ -16,6 +16,7 @@ import { DatabaseModule } from '../database/database.module';
 import { HealthModule } from '../health/health.module';
 import { MetricsModule } from '../metrics/metrics.module';
 import { AiModule } from '../modules/ai/ai.module';
+import { AiResearchModule } from '../modules/ai-research/ai-research.module';
 import { AiSummariesModule } from '../modules/ai-summaries/ai-summaries.module';
 import { AuditLogModule } from '../modules/audit-log/audit-log.module';
 import { AuthModule } from '../modules/auth/auth.module';
@@ -30,6 +31,7 @@ import { InvoicesModule } from '../modules/invoices/invoices.module';
 import { LegalFilesModule } from '../modules/legal-files/legal-files.module';
 import { NotesModule } from '../modules/notes/notes.module';
 import { NotificationsModule } from '../modules/notifications/notifications.module';
+import { OfficeDeletionModule } from '../modules/office-deletion/office-deletion.module';
 import { OfficesModule } from '../modules/offices/offices.module';
 import { PartiesModule } from '../modules/parties/parties.module';
 import { PlatformAuthModule } from '../modules/platform-auth/platform-auth.module';
@@ -81,10 +83,12 @@ import { WitnessesModule } from '../modules/witnesses/witnesses.module';
     WitnessesModule,
     AiModule,
     AiSummariesModule,
+    AiResearchModule,
     ClientsModule,
     CourtsModule,
     LegalFilesModule,
     OfficesModule,
+    OfficeDeletionModule,
     SessionsModule,
     DocumentsModule,
     TasksModule,

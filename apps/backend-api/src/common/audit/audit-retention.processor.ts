@@ -22,6 +22,11 @@ import {
 } from '../../modules/invoices/pdf/invoice-pdf.renderer';
 import type { InvoicePdfJob } from '../../modules/invoices/pdf/invoice-pdf.renderer';
 import {
+  OfficePurge,
+  PURGE_OFFICES_JOB,
+  PURGE_OFFICES_SCHEDULE,
+} from '../../modules/office-deletion/office-purge';
+import {
   ReceiptJobSchema,
   ReceiptPdfRenderer,
   RENDER_PAYMENT_RECEIPT_JOB,
@@ -50,7 +55,7 @@ export const PURGE_SCHEDULE = { pattern: '0 3 * * *', tz: 'UTC' } as const;
  * The `report` queue's single consumer for now (BullMQ gives every job of a queue to its workers — report jobs join this
  * processor when they arrive). `purge-audit-logs` (daily scheduler, no office) removes audit rows older than each office's
  * retention (D-060, D-136) through `nlq_purge_audit_logs`, the only DELETE the app role may cause on the log;
- * `mark-overdue-invoices` (daily, D-162); `render-invoice-pdf` (an office's job, MVP-92, D-171); `render-payment-receipt` (an office's job, MVP-170, D-174).
+ * `mark-overdue-invoices` (daily, D-162); `purge-offices` (daily, D-251: offices past their deletion date); `render-invoice-pdf` (an office's job, MVP-92, D-171); `render-payment-receipt` (an office's job, MVP-170, D-174).
  * Office jobs pass when they match one of the job schemas; `handle` parses each by its job name.
  */
 @Injectable()
@@ -70,6 +75,7 @@ export class AuditRetentionProcessor
     private readonly pdfs: InvoicePdfRenderer,
     private readonly receipts: ReceiptPdfRenderer,
     private readonly exports: OfficeExportBuilder,
+    private readonly offices: OfficePurge,
   ) {
     super(tenant, prisma, logger);
   }
@@ -80,6 +86,10 @@ export class AuditRetentionProcessor
       const queue = getQueue(this.moduleRef, QUEUE.REPORT);
       await queue.upsertJobScheduler(PURGE_AUDIT_LOGS_JOB, PURGE_SCHEDULE, {
         name: PURGE_AUDIT_LOGS_JOB,
+        data: {},
+      });
+      await queue.upsertJobScheduler(PURGE_OFFICES_JOB, PURGE_OFFICES_SCHEDULE, {
+        name: PURGE_OFFICES_JOB,
         data: {},
       });
       await queue.upsertJobScheduler(MARK_OVERDUE_INVOICES_JOB, OVERDUE_SCHEDULE, {
@@ -97,6 +107,9 @@ export class AuditRetentionProcessor
     // A platform job: only the scheduler's (no office in its data) may run it, never a job someone queued for an office.
     if (job.name === MARK_OVERDUE_INVOICES_JOB && !('officeId' in (job.data ?? {}))) {
       return this.overdue.run();
+    }
+    if (job.name === PURGE_OFFICES_JOB && !('officeId' in (job.data ?? {}))) {
+      return this.offices.run();
     }
     return super.process(job);
   }

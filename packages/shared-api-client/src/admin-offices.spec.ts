@@ -31,6 +31,7 @@ const detail = {
   timezone: 'Asia/Hebron',
   subscriptions: [],
   suspension: null,
+  deletion: null,
   statistics: {
     signedIn30d: 1,
     filesByStatus: { OPEN: 1, SUSPENDED: 0, CLOSED: 0, ARCHIVED: 0 },
@@ -111,6 +112,25 @@ describe('adminOfficesApi', () => {
     );
     await api().changeSubscription(ID, { action: 'SET_TRIAL', until: '2027-01-31' });
     expect(body).toEqual({ action: 'SET_TRIAL', until: '2027-01-31' });
+  });
+
+  it("should cancel and reschedule an office's deletion (D-251)", async () => {
+    const bodies: unknown[] = [];
+    const record = (path: string) =>
+      http.post(url(`admin/offices/${ID}/deletion/${path}`), async ({ request }) => {
+        bodies.push(await request.json());
+        return HttpResponse.json({ success: true, data: detail, meta });
+      });
+    server.use(record('cancel'), record('reschedule'));
+    await api().cancelDeletion(ID, { reason: 'Asked' });
+    await api().rescheduleDeletion(ID, {
+      scheduledFor: '2026-12-01T10:00:00.000Z',
+      reason: 'Letter',
+    });
+    expect(bodies).toEqual([
+      { reason: 'Asked' },
+      { scheduledFor: '2026-12-01T10:00:00.000Z', reason: 'Letter' },
+    ]);
   });
 
   it('should reject a 404 as an ApiError', async () => {

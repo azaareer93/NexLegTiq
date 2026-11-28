@@ -40,4 +40,18 @@ export const PLATFORM_RESOURCES: readonly TenantResource[] = [
       db.courtReport.create({ data: { officeId, reportedById: userId, name: 'Isolation court' } }),
     update: { note: 'Changed' },
   },
+  // A purged office's issued invoices (D-251): written by the purge job by office id.
+  {
+    model: 'RetainedInvoice',
+    create: (db, { officeId }) =>
+      db.retainedInvoice.create({
+        data: {
+          officeId,
+          invoiceNumber: `INV-${String(Math.floor(Math.random() * 1e8)).padStart(8, '0')}`,
+          snapshot: {},
+          retainUntil: new Date('2033-11-27'),
+        },
+      }),
+    update: { snapshot: { changed: true } },
+  },
 ];

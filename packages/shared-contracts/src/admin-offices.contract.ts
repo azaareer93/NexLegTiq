@@ -103,6 +103,14 @@ export const AdminOfficeDetailSchema = AdminOfficeListItemSchema.extend({
   subscriptions: z.array(AdminSubscriptionRowSchema),
   /** While suspended: when and why (from the platform audit log). */
   suspension: z.object({ at: z.iso.datetime(), reason: z.string() }).nullable(),
+  /** The office's deletion (D-251): scheduled (cancel or bring forward) or done (`purgedAt`); null when never asked. */
+  deletion: z
+    .object({
+      requestedAt: z.iso.datetime().nullable(),
+      scheduledFor: z.iso.datetime().nullable(),
+      purgedAt: z.iso.datetime().nullable(),
+    })
+    .nullable(),
   statistics: AdminOfficeStatisticsSchema,
 });
 export type AdminOfficeDetail = z.infer<typeof AdminOfficeDetailSchema>;

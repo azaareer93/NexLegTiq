@@ -114,5 +114,25 @@
       "READY": "Ready",
       "FAILED": "Failed"
     }
+  },
+  "deletion": {
+    "title": "Delete the office",
+    "hint": "Leaving NexLegTiq? You can ask for the office and all its data to be deleted. Nothing is deleted for {{days}} days, and any office manager can cancel during that time.",
+    "consequences": {
+      "readOnly": "The office becomes read-only at once: everyone can still view everything and export the data, but nothing can be added or changed.",
+      "purge": "After {{days}} days, its cases, clients, documents, users and every other record are deleted for good, and the documents are removed from storage.",
+      "kept": "Kept by law: the invoices as issued and an anonymized activity log, for the legal retention period; and our own record of your subscription and payments."
+    },
+    "request": "Delete the office",
+    "scheduled": "This office will be deleted for good from {{date}}. It is read-only until then.",
+    "cancel": "Cancel the deletion",
+    "cancelled": "The deletion was cancelled. The office works as usual again.",
+    "modal": {
+      "title": "Delete the office and all its data?",
+      "intro": "Enter your password to confirm. Every office manager gets an email, and the office is deleted after {{days}} days unless someone cancels.",
+      "password": "Your password",
+      "code": "Code from your authenticator app",
+      "ok": "Delete the office"
+    }
   }
 }

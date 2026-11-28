@@ -14,6 +14,7 @@ import type { JobFields } from '../../common/queue/tenant-job';
 import { RealtimePublisher } from '../../common/realtime/realtime.publisher';
 import { PrismaService } from '../../database/prisma.service';
 import { UnitOfWork } from '../../database/unit-of-work';
+import type { ScopedTransaction } from '../../database/unit-of-work';
 import type { Prisma } from '../../generated/prisma/client';
 
 /** What a feature hands to the worker: its job name, what it is about, and the job's own fields (ids, language). */
@@ -29,6 +30,10 @@ export interface NewAiJob {
    * creator too: `GET /jobs/:id` shows a job to its creator only.
    */
   readonly dedupeKey?: string;
+  /** Web-search research (D-256): needs the research provider, not the summary chain. */
+  readonly research?: boolean;
+  /** Writes that commit with the new AiJob row (an audit row); not called when a live job is joined. */
+  readonly onCreate?: (tx: ScopedTransaction, jobId: string) => Promise<void>;
 }
 
 const LIVE = ['QUEUED', 'RUNNING'] as const;
@@ -78,7 +83,7 @@ export class AiJobs {
     const userId = job.createdById ?? this.cls.get('userId');
     const officeId = this.cls.get('officeId');
     if (!userId || !officeId) throw new Error('No caller in the context of an AI job');
-    await this.access.assertAvailable();
+    await this.access.assertAvailable({ research: job.research === true });
     if (!job.dedupeKey) return this.create(job, officeId, userId, undefined);
     return this.joinOrCreate(job, officeId, userId, `${job.dedupeKey}:${userId}`);
   }
@@ -111,7 +116,7 @@ export class AiJobs {
   }
 
   private async create(
-    { type, sourceType, sourceId, fields = {} }: NewAiJob,
+    { type, sourceType, sourceId, fields = {}, onCreate }: NewAiJob,
     officeId: string,
     userId: string,
     dedupeKey: string | undefined,
@@ -121,6 +126,7 @@ export class AiJobs {
         data: { officeId, type, sourceType, sourceId, createdById: userId, dedupeKey },
         select: { id: true, status: true },
       });
+      await onCreate?.(tx, row.id);
       afterCommit(
         () =>
           this.queues.enqueue<AiJobData>(

@@ -15,6 +15,7 @@ export const ERROR_CODES = [
   'AUTH-102',
   'AUTH-103',
   'AUTH-104',
+  'AUTH-105',
   'VAL-001',
   'VAL-002',
   'VAL-003',

@@ -141,3 +141,32 @@ describe('aiApi (D-148)', () => {
     expect(seen).toEqual([`?sourceType=SESSION&sourceId=${DOC}`, '{"selected":[{"index":1}]}']);
   });
 });
+
+describe('aiApi research (D-256)', () => {
+  const RESEARCH = {
+    answer: 'One month.',
+    citations: [{ url: 'https://muqtafi.birzeit.edu/law/9', title: 'Labour Law', date: null }],
+    jurisdictionNote: null,
+    unsourced: false,
+    jurisdiction: 'PALESTINE',
+    language: 'EN',
+    provider: 'fake',
+    model: 'fake-1',
+    promptVersion: 'legal-research.v1',
+    createdAt: '2026-11-27T09:00:00.000Z',
+  };
+
+  it('should tell a queued job from a recent answer and read a job answer', async () => {
+    let calls = 0;
+    server.use(
+      http.post(url('ai/research'), () =>
+        ++calls === 1 ? ok({ jobId: JOB, status: 'QUEUED' }, 202) : ok(RESEARCH),
+      ),
+      http.get(url(`ai/research/${JOB}`), () => ok(RESEARCH)),
+    );
+    const body = { question: 'Notice period?', language: 'EN' } as const;
+    await expect(api().research(body)).resolves.toEqual({ jobId: JOB, status: 'QUEUED' });
+    await expect(api().research(body)).resolves.toEqual(RESEARCH);
+    await expect(api().researchResult(JOB)).resolves.toEqual(RESEARCH);
+  });
+});

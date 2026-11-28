@@ -19,14 +19,15 @@ export class AiAccess {
   ) {}
 
   /** Everything, before work is queued. */
-  async assertAvailable(): Promise<void> {
-    await this.assertEnabled();
+  async assertAvailable(options: { research?: boolean } = {}): Promise<void> {
+    await this.assertEnabled(options);
     await this.assertQuota();
   }
 
   /** Configured, switched on by the office and in the plan — checked before the cache. */
-  async assertEnabled(): Promise<void> {
-    if (!this.providers.configured) {
+  async assertEnabled({ research = false }: { research?: boolean } = {}): Promise<void> {
+    // Research runs on its own provider (D-256): the summary chain may be off.
+    if (!(research ? this.providers.researchConfigured : this.providers.configured)) {
       throw new AiFinalException('AI-001', 'No AI provider is configured');
     }
     const settings = await this.prisma.db.officeSettings.findFirst({ select: { enableAi: true } });
@@ -34,6 +35,13 @@ export class AiAccess {
       throw new AppException('AI-005', 'AI is disabled for this office');
     }
     await this.entitlements.assertFeature('ai');
+  }
+
+  /** Legal research is switched on for the platform (D-256): off → AI-001 before anything is queued. */
+  assertResearch(): void {
+    if (!this.providers.researchConfigured) {
+      throw new AiFinalException('AI-001', 'Legal research is not enabled');
+    }
   }
 
   /** The month's quota — checked only before a provider call: a cached answer is free. */

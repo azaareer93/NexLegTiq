@@ -10,6 +10,7 @@ import { StorageModule } from '../common/storage/storage.module';
 import { DatabaseModule } from '../database/database.module';
 import { AiModule } from '../modules/ai/ai.module';
 import { AiProcessor } from '../modules/ai/workers/ai.processor';
+import { LegalResearcher } from '../modules/ai-research/legal-researcher';
 import { DocumentSummarizer } from '../modules/ai-summaries/document-summarizer';
 import { SessionSummarizer } from '../modules/ai-summaries/session-summarizer';
 import { InvitationLinks } from '../modules/auth/invitation-links';
@@ -25,6 +26,7 @@ import { InvoiceOverdueSweep } from '../modules/invoices/invoice-overdue.sweep';
 import { InvoicePdfRenderer } from '../modules/invoices/pdf/invoice-pdf.renderer';
 import { NotificationsModule } from '../modules/notifications/notifications.module';
 import { NotificationProcessor } from '../modules/notifications/workers/notification.processor';
+import { OfficePurge } from '../modules/office-deletion/office-purge';
 import { ReceiptPdfRenderer } from '../modules/platform-payments/receipt-pdf.renderer';
 import {
   PortalInvitationLinks,
@@ -72,7 +74,9 @@ import { TimelineModule } from '../modules/timeline/timeline.module';
     TaskReminders,
     AiProcessor,
     DocumentSummarizer,
+    LegalResearcher,
     OfficeExportBuilder,
+    OfficePurge,
     SessionSummarizer,
     OcrProcessor,
     DocumentScan,

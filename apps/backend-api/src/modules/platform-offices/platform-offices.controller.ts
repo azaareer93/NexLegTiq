@@ -14,17 +14,21 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import {
+  AdminCancelDeletionSchema,
   AdminOfficeDetailSchema,
   AdminOfficeListItemSchema,
+  AdminRescheduleDeletionSchema,
   AdminOfficeQuerySchema,
   ReactivateOfficeSchema,
   SubscriptionActionSchema,
   SuspendOfficeSchema,
 } from '@nexlegtiq/shared-contracts';
 import type {
+  AdminCancelDeletionRequest,
   AdminOfficeDetail,
   AdminOfficeListItem,
   AdminOfficeQuery,
+  AdminRescheduleDeletionRequest,
   ReactivateOfficeRequest,
   SubscriptionActionRequest,
   SuspendOfficeRequest,
@@ -42,6 +46,7 @@ import { ResourceNotFoundException } from '../../common/errors/app.exception';
 import type { PaginatedResult } from '../../common/http/paginated-result';
 import { ZodValidationPipe } from '../../common/http/zod-validation.pipe';
 import { ApiZodBody, ApiZodQuery, ApiZodResponse } from '../../common/openapi/api-zod.decorators';
+import { OfficeDeletionService } from '../office-deletion/office-deletion.service';
 import { AdminAuthGuard, AdminRealmGuard } from '../platform-auth/admin-guards';
 
 const uuid = () => new ParseUUIDPipe({ exceptionFactory: () => new ResourceNotFoundException() });
@@ -58,6 +63,7 @@ export class PlatformOfficesController {
   constructor(
     private readonly offices: PlatformOfficesService,
     private readonly subscription: OfficeSubscriptionService,
+    private readonly deletion: OfficeDeletionService,
     private readonly cls: ClsService<RequestContext>,
   ) {}
 
@@ -122,6 +128,46 @@ export class PlatformOfficesController {
     @Req() req: AdminRequest,
   ): Promise<AdminOfficeDetail> {
     await this.subscription.apply(id, body, this.adminId(req), this.client(req));
+    return this.offices.get(id);
+  }
+
+  @Post(':id/deletion/cancel')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 30, ttl: MINUTE_MS } })
+  @ApiOperation({ summary: "Cancel an office's scheduled deletion (reason required, audited)" })
+  @ApiZodBody(AdminCancelDeletionSchema)
+  @ApiZodResponse(HttpStatus.OK, AdminOfficeDetailSchema)
+  async cancelDeletion(
+    @Param('id', uuid()) id: string,
+    @Body(new ZodValidationPipe(AdminCancelDeletionSchema)) body: AdminCancelDeletionRequest,
+    @Req() req: AdminRequest,
+  ): Promise<AdminOfficeDetail> {
+    await this.deletion.adminCancel(id, body.reason.trim(), this.adminId(req), this.client(req));
+    return this.offices.get(id);
+  }
+
+  @Post(':id/deletion/reschedule')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 30, ttl: MINUTE_MS } })
+  @ApiOperation({
+    summary:
+      "Bring an office's deletion forward on its written request: earlier only, not in the past (audited)",
+  })
+  @ApiZodBody(AdminRescheduleDeletionSchema)
+  @ApiZodResponse(HttpStatus.OK, AdminOfficeDetailSchema)
+  async rescheduleDeletion(
+    @Param('id', uuid()) id: string,
+    @Body(new ZodValidationPipe(AdminRescheduleDeletionSchema))
+    body: AdminRescheduleDeletionRequest,
+    @Req() req: AdminRequest,
+  ): Promise<AdminOfficeDetail> {
+    await this.deletion.adminReschedule(
+      id,
+      new Date(body.scheduledFor),
+      body.reason.trim(),
+      this.adminId(req),
+      this.client(req),
+    );
     return this.offices.get(id);
   }
 
