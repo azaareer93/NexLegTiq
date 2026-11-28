@@ -15,4 +15,5 @@ regexes = [
   '''^change-me[a-z0-9-]*$''',
   '''^test-(access|secret)-key$''',
   '''^Deletion-Correct-Horse-9$''', # test password in office-deletion.int.spec.ts
+  '''^perplexity/sonar$''', # a model id next to the fake key in perplexity.provider.spec.ts, not a secret
 ]

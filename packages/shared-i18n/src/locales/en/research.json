@@ -1,0 +1,26 @@
+{
+  "title": "Legal research",
+  "intro": "Ask a general legal question. The answer is searched in official legal sources first, then on the web, and every source is shown.",
+  "noCaseData": "Do not include names or details from a case: only the question is sent, after personal data is hidden, to an external research service.",
+  "form": {
+    "question": "Your question",
+    "questionPlaceholder": "For example: what is the notice period for ending an employment contract?",
+    "language": "Answer language",
+    "jurisdiction": "Jurisdiction",
+    "jurisdictionHint": "Your office's jurisdiction is used unless you pick another one.",
+    "submit": "Research"
+  },
+  "language": {
+    "AR": "Arabic",
+    "EN": "English"
+  },
+  "pending": "Researching your question…",
+  "failed": "The research could not be completed",
+  "answer": {
+    "title": "Answer",
+    "sources": "Sources",
+    "unsourced": "Unsourced",
+    "unsourcedHint": "No source was found for this answer. Check it against the law before relying on it.",
+    "note": "Jurisdiction note"
+  }
+}

@@ -228,6 +228,14 @@ describe('parseEnv', () => {
       ),
     ).toThrow(/AI_FALLBACK_PROVIDER: must differ/);
     expect(() => parseEnv(testEnv({ AI_PRIMARY_PROVIDER: 'fake' }))).toThrow(/fake AI provider/);
+    // Legal research (D-256): off by default; Perplexity needs its key and model; never fake in production.
+    expect(parseEnv(testEnv()).AI_RESEARCH_PROVIDER).toBe('none');
+    expect(() => parseEnv(testEnv({ AI_RESEARCH_PROVIDER: 'perplexity' }))).toThrow(
+      /PERPLEXITY_API_KEY: is required[\s\S]*PERPLEXITY_MODEL: is required/,
+    );
+    expect(() => parseEnv(testEnv({ AI_RESEARCH_PROVIDER: 'fake' }))).toThrow(
+      /fake research provider/,
+    );
     // Google Vision gets the key and unredacted scans (D-142): only Google's hosts in production.
     expect(() =>
       parseEnv(testEnv({ GOOGLE_VISION_ENDPOINT: 'https://vision.example.com' })),

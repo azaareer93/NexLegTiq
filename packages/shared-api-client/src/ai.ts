@@ -5,6 +5,7 @@ import {
   AiSummaryListItemSchema,
   AiSummarySchema,
   AiUsageSummarySchema,
+  LegalResearchSchema,
   TaskSchema,
 } from '@nexlegtiq/shared-contracts';
 import type {
@@ -16,7 +17,9 @@ import type {
   AiSummaryListItem,
   AiUsageSummary,
   CreateAiSummaryRequest,
+  CreateLegalResearchRequest,
   CreateTasksFromSummaryRequest,
+  LegalResearch,
   Task,
 } from '@nexlegtiq/shared-contracts';
 import { z } from 'zod';
@@ -25,6 +28,8 @@ import type { ApiClient } from './api-client.js';
 
 /** The two answers of `POST /ai/summaries` (D-148): a stored summary (200) or a queued job (202), told apart by `jobId`. */
 const RequestAnswerSchema = z.union([AiJobAcceptedSchema, AiSummarySchema]);
+/** The two answers of `POST /ai/research` (D-256): a recent answer (200) or a queued job (202). */
+const ResearchAnswerSchema = z.union([AiJobAcceptedSchema, LegalResearchSchema]);
 
 /** AI summaries, jobs and usage (D-130, D-144, D-148). */
 export function aiApi(client: ApiClient) {
@@ -78,6 +83,15 @@ export function aiApi(client: ApiClient) {
       client.request(
         { method: 'GET', path: `jobs/${encodeURIComponent(jobId)}`, signal },
         AiJobSchema,
+      ),
+    /** A general legal question (D-256): a recent answer comes back as is, otherwise a job to follow. */
+    research: (body: CreateLegalResearchRequest): Promise<LegalResearch | AiJobAccepted> =>
+      client.request({ method: 'POST', path: 'ai/research', body }, ResearchAnswerSchema),
+    /** The answer of a finished research job of the caller (kept 24 h). */
+    researchResult: (jobId: string, signal?: AbortSignal): Promise<LegalResearch> =>
+      client.request(
+        { method: 'GET', path: `ai/research/${encodeURIComponent(jobId)}`, signal },
+        LegalResearchSchema,
       ),
     usage: (signal?: AbortSignal): Promise<AiUsageSummary> =>
       client.request({ method: 'GET', path: 'ai/usage', signal }, AiUsageSummarySchema),
