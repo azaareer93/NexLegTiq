@@ -134,8 +134,16 @@ describe('PlatformCourtsService', () => {
       sessionCount: 2,
       judgeCount: 1,
     });
+    // Defensive defaults for a row without its office (the select names office rows only).
+    db.court.findMany.mockResolvedValueOnce([
+      { ...court(), office: null, _count: { legalFiles: 0, sessions: 0, judges: 0 } },
+    ]);
+    expect((await service.listOfficeCourts({ page: 1, limit: 50 })).items[0]).toMatchObject({
+      officeId: '',
+      officeName: '',
+    });
     await service.listOfficeCourts({ page: 1, limit: 50 });
-    expect(db.court.findMany.mock.calls[1]?.[0].where).toEqual({ officeId: { not: null } });
+    expect(db.court.findMany.mock.calls[2]?.[0].where).toEqual({ officeId: { not: null } });
   });
 
   it("should replace an office court: judges first, then that office's files and sessions, then delete", async () => {
