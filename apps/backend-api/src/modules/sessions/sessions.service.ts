@@ -253,6 +253,8 @@ export class SessionsService {
           fieldPrefix: 'nextSession.',
           // A judge carried over from this session may have retired since; they stay on the continuation.
           keepRetiredJudge: next.judgeId === undefined,
+          // So may its court (a legacy office court or a deactivated one, D-266).
+          keepCourt: next.courtId === undefined || next.courtId === session.courtId,
           previousSessionId: id,
         }));
       const minutes = input.minutes === undefined ? session.minutes : input.minutes || null;

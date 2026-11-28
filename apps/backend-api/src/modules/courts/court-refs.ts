@@ -9,7 +9,9 @@ interface CourtRefs {
 /**
  * A file's court must be visible to the office (a platform court or one of its own) and its judge must sit at that
  * court, else 400 VAL-001 (`validation.unknownCourt` / `validation.unknownJudge`). A newly assigned judge must be active
- * (a retired judge stays on the files that already name them). The database triggers are the backstop (D-115).
+ * (a retired judge stays on the files that already name them), and a newly assigned court an active platform court of
+ * the office's country (D-266: a legacy office court or a deactivated one stays where it is). The database triggers are
+ * the backstop (D-115).
  */
 export async function assertCourtRefs(
   tx: ScopedTransaction,
@@ -17,9 +19,10 @@ export async function assertCourtRefs(
   newJudge = true,
   /** Prepended to the error fields, e.g. `nextSession.` for a nested object. */
   fieldPrefix = '',
+  newCourt = true,
 ): Promise<void> {
   const [courtOk, judgeOk] = await Promise.all([
-    courtId === null || tx.court.count({ where: { id: courtId } }).then((n) => n === 1),
+    courtVisible(tx, courtId, newCourt),
     judgeId === null || judgeAt(tx, judgeId, courtId, newJudge),
   ]);
   const details = [
@@ -27,6 +30,21 @@ export async function assertCourtRefs(
     ...(judgeOk ? [] : [{ field: `${fieldPrefix}judgeId`, message: 'validation.unknownJudge' }]),
   ];
   if (details.length > 0) throw new ValidationException(details);
+}
+
+/**
+ * No court, or a visible one — pickable (an active platform court of the office's country) when newly assigned.
+ */
+async function courtVisible(
+  tx: ScopedTransaction,
+  id: string | null,
+  pickable: boolean,
+): Promise<boolean> {
+  if (id === null) return true;
+  if (!pickable) return (await tx.court.count({ where: { id } })) === 1;
+  const { jurisdiction } = await tx.office.findFirstOrThrow({ select: { jurisdiction: true } });
+  const where = { id, officeId: null, isActive: true, jurisdiction };
+  return (await tx.court.count({ where })) === 1;
 }
 
 /** The judge sits at the court (a judge needs a court), and is active when newly assigned. */
@@ -58,6 +76,12 @@ export async function nextCourtRefs(
       : courtId === before.courtId
         ? before.judgeId
         : null;
-  await assertCourtRefs(tx, { courtId, judgeId }, judgeId !== before.judgeId);
+  await assertCourtRefs(
+    tx,
+    { courtId, judgeId },
+    judgeId !== before.judgeId,
+    '',
+    courtId !== before.courtId,
+  );
   return { courtId, judgeId };
 }

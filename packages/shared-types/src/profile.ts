@@ -32,5 +32,6 @@ export const NOTIFICATION_TYPES = [
   'FILE_TEAM_ADDED',
   'CONFLICT_DETECTED',
   'CLIENT_UPLOAD',
+  'COURT_REPORT_RESOLVED',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];

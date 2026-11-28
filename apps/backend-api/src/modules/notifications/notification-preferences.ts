@@ -23,6 +23,7 @@ export const CATEGORY_OF_TYPE: Readonly<Record<NotificationType, NotificationCat
   FILE_TEAM_ADDED: 'FILES',
   CONFLICT_DETECTED: 'FILES',
   CLIENT_UPLOAD: 'DOCUMENTS',
+  COURT_REPORT_RESOLVED: 'FILES',
 };
 
 const ChannelsSchema = z.object({ email: z.boolean().optional(), inApp: z.boolean().optional() });

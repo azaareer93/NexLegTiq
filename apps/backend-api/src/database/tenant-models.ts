@@ -60,6 +60,8 @@ export const TENANT_MODELS = [
   'ClientUpload',
   // Product analytics (D-215): written unscoped by office id, read by the platform realm as counts.
   'ProductEvent',
+  // Written by the office, resolved by the platform admin (D-266).
+  'CourtReport',
 ] as const satisfies readonly Prisma.ModelName[];
 
 export type TenantModel = (typeof TENANT_MODELS)[number];

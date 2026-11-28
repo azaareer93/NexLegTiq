@@ -1,5 +1,5 @@
 import { AI_FEEDBACK_REASONS, AI_JOB_STATUSES, AI_SOURCE_TYPES } from './ai.js';
-import { COURT_TYPES } from './court.js';
+import { COURT_REPORT_STATUSES, COURT_TYPES } from './court.js';
 import {
   CLIENT_UPLOAD_STATUSES,
   DOCUMENT_LANGUAGES,
@@ -40,6 +40,7 @@ describe('enum value lists', () => {
       PARTY_TYPES,
       BILLING_METHODS,
       COURT_TYPES,
+      COURT_REPORT_STATUSES,
       SESSION_TYPES,
       SESSION_OUTCOMES,
       SESSION_STATUSES,

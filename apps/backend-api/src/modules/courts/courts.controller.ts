@@ -16,19 +16,15 @@ import { ApiBearerAuth, ApiNoContentResponse, ApiOperation, ApiTags } from '@nes
 import {
   CourtQuerySchema,
   CourtSchema,
-  CreateCourtSchema,
   CreateJudgeSchema,
   JudgeSchema,
-  UpdateCourtSchema,
   UpdateJudgeSchema,
 } from '@nexlegtiq/shared-contracts';
 import type {
   Court,
   CourtQuery,
-  CreateCourtRequest,
   CreateJudgeRequest,
   Judge,
-  UpdateCourtRequest,
   UpdateJudgeRequest,
 } from '@nexlegtiq/shared-contracts';
 import type { Request } from 'express';
@@ -50,8 +46,9 @@ import { RequireAnyPermission } from '../../common/rbac/permissions.decorator';
 const uuid = () => new ParseUUIDPipe({ exceptionFactory: () => new ResourceNotFoundException() });
 
 /**
- * Courts and judges (api-conventions.md#courts, MVP-66, D-115): platform rows and the office's own. Everyone in the
- * office reads them; whoever opens files or schedules hearings adds the office's own. Platform rows → 403 on write.
+ * Courts and judges (api-conventions.md#courts, MVP-66, D-115, D-266): everyone in the office reads the active platform
+ * courts of its country; courts are written by the platform admin only. Whoever opens files or schedules hearings adds
+ * the office's own judges (platform judges → 403 on write).
  */
 @ApiTags('courts')
 @ApiBearerAuth('JWT')
@@ -64,7 +61,7 @@ export class CourtsController {
 
   @Get()
   @RequireAnyPermission(...READ_REFERENCE)
-  @ApiOperation({ summary: 'Platform courts and the office own, by Arabic name' })
+  @ApiOperation({ summary: 'Active platform courts of the office country, by Arabic name' })
   @ApiZodQuery(CourtQuerySchema)
   @ApiZodResponse(HttpStatus.OK, CourtSchema, { paginated: true })
   list(
@@ -79,40 +76,6 @@ export class CourtsController {
   @ApiZodResponse(HttpStatus.OK, CourtSchema)
   get(@Param('id', uuid()) id: string): Promise<Court> {
     return this.courts.get(id);
-  }
-
-  @Post()
-  @RequireAnyPermission(...WRITE_REFERENCE)
-  @ApiOperation({ summary: 'Add an office court' })
-  @ApiZodBody(CreateCourtSchema)
-  @ApiZodResponse(HttpStatus.CREATED, CourtSchema)
-  create(
-    @Body(new ZodValidationPipe(CreateCourtSchema)) body: CreateCourtRequest,
-    @Req() req: Request,
-  ): Promise<Court> {
-    return this.courts.create(body, this.caller(req));
-  }
-
-  @Patch(':id')
-  @RequireAnyPermission(...WRITE_REFERENCE)
-  @ApiOperation({ summary: 'Edit an office court (a platform court → 403 AUTH-100)' })
-  @ApiZodBody(UpdateCourtSchema)
-  @ApiZodResponse(HttpStatus.OK, CourtSchema)
-  update(
-    @Param('id', uuid()) id: string,
-    @Body(new ZodValidationPipe(UpdateCourtSchema)) body: UpdateCourtRequest,
-    @Req() req: Request,
-  ): Promise<Court> {
-    return this.courts.update(id, body, this.caller(req));
-  }
-
-  @Delete(':id')
-  @RequireAnyPermission(...WRITE_REFERENCE)
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Delete an office court (422 BIZ-011 while files or judges use it)' })
-  @ApiNoContentResponse({ description: 'Deleted' })
-  remove(@Param('id', uuid()) id: string, @Req() req: Request): Promise<void> {
-    return this.courts.remove(id, this.caller(req));
   }
 
   @Get(':id/judges')

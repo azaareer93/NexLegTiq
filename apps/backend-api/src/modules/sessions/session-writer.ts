@@ -79,10 +79,10 @@ export class SessionWriter {
     afterCommit: AfterCommit,
     input: NewSession,
     client: ClientInfo,
-    { fieldPrefix = '', keepRetiredJudge = false, previousSessionId = '' } = {},
+    { fieldPrefix = '', keepRetiredJudge = false, keepCourt = false, previousSessionId = '' } = {},
   ): Promise<string> {
     await assertAttendingLawyer(tx, input.attendingLawyerId, input.fileId, fieldPrefix);
-    await assertCourtRefs(tx, input, !keepRetiredJudge, fieldPrefix);
+    await assertCourtRefs(tx, input, !keepRetiredJudge, fieldPrefix, !keepCourt);
     if (!input.acknowledgeConflict) await this.assertNoConflict(tx, input, null, fieldPrefix);
     const reminderDays =
       input.reminderDays ??

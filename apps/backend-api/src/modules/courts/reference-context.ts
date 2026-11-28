@@ -20,7 +20,7 @@ export class ReferenceContext {
     return officeId;
   }
 
-  private actorId(): UserId {
+  actorId(): UserId {
     const userId = this.cls.get('userId');
     if (!userId) throw new Error('No caller in the request context');
     return userId;
@@ -28,7 +28,7 @@ export class ReferenceContext {
 
   auditRow(
     caller: ClientInfo,
-    entityType: 'Court' | 'Judge' | 'PublicProsecutor',
+    entityType: 'Court' | 'CourtReport' | 'Judge' | 'PublicProsecutor',
     entityId: string,
     action: 'CREATE' | 'UPDATE' | 'DELETE',
     oldValues: Record<string, unknown> | null,

@@ -3,7 +3,7 @@ const { join } = require('path');
 const { NxAppWebpackPlugin } = require('@nx/webpack/app-plugin');
 const nodeExternals = require('webpack-node-externals');
 
-// Entrypoints from one codebase: `main` (HTTP API), `worker` (BullMQ consumers, D-011) and `seed` (plans, D-103).
+// Entrypoints from one codebase: `main` (HTTP API), `worker` (BullMQ consumers, D-011) and `seed` (plans; courts are dev data, D-103, D-266).
 module.exports = {
   output: {
     path: join(__dirname, 'dist'),

@@ -70,6 +70,7 @@ function setup(row: SessionState = state(), role: Role = 'LAWYER') {
       findMany: jest.fn().mockResolvedValue([]),
     },
     court: { count: jest.fn().mockResolvedValue(1) },
+    office: { findFirstOrThrow: jest.fn().mockResolvedValue({ jurisdiction: 'PALESTINE' }) },
     judge: { count: jest.fn().mockResolvedValue(1) },
     officeSettings: {
       findFirstOrThrow: jest.fn().mockResolvedValue({ courtReminderDays: [7, 3, 1] }),
