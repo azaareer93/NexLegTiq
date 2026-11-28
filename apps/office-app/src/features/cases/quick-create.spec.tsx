@@ -149,6 +149,7 @@ function serveCourts(): void {
     phone: null,
     email: null,
     isPlatform: true,
+    isActive: true,
     createdAt: '2026-10-01T10:00:00.000Z',
     updatedAt: '2026-10-01T10:00:00.000Z',
   });

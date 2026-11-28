@@ -48,6 +48,7 @@
   "BIZ-026": "This export is not available: it is still being prepared, it failed or it has expired.",
   "BIZ-027": "This client has reached the limit of files waiting for review. Ask the office to review them first.",
   "BIZ-028": "This file has already been reviewed.",
+  "BIZ-029": "This court report has already been resolved.",
   "DB-001": "Something went wrong while saving. Try again.",
   "EXT-001": "The email could not be sent. Try again later.",
   "EXT-002": "Text recognition is unavailable right now. Try again later.",

@@ -7,8 +7,8 @@ import type {
   AddTeamMemberRequest,
   Case,
   CreateCaseSchema,
-  CreateCourtSchema,
   CreateJudgeSchema,
+  ReportCourtRequest,
   UpdateCaseRequest,
 } from '@nexlegtiq/shared-contracts';
 import type { FileTeamRole } from '@nexlegtiq/shared-types';
@@ -22,7 +22,6 @@ const users = usersApi(apiClient);
 const courts = courtsApi(apiClient);
 
 type CreateCaseInput = z.input<typeof CreateCaseSchema>;
-type CreateCourtInput = z.input<typeof CreateCourtSchema>;
 type CreateJudgeInput = z.input<typeof CreateJudgeSchema>;
 
 export const caseKeys = {
@@ -196,14 +195,9 @@ export const useJudges = (courtId: string | undefined) =>
     enabled: courtId !== undefined,
   });
 
-/** `POST /courts`: an office court (D-115); court searches refetch. */
-export function useCreateCourt() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (body: CreateCourtInput) => courts.create(body),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['courts', 'list'] }),
-  });
-}
+/** `POST /court-reports`: a court missing from the list, for the platform team to add (D-266). */
+export const useReportCourt = () =>
+  useMutation({ mutationFn: (body: ReportCourtRequest) => courts.report(body) });
 
 /** `POST /courts/:id/judges`: an office judge at that court; its judge list refetches. */
 export function useCreateJudge(courtId: string | undefined) {

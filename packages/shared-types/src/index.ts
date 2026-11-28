@@ -33,8 +33,8 @@ export type {
 } from './legal-file.js';
 export { PRIORITIES } from './priority.js';
 export type { Priority } from './priority.js';
-export { COURT_TYPES } from './court.js';
-export type { CourtType } from './court.js';
+export { COURT_REPORT_STATUSES, COURT_TYPES } from './court.js';
+export type { CourtReportStatus, CourtType } from './court.js';
 export { PLAN_MARKETS, PLATFORM_PAYMENT_METHODS, SUBSCRIPTION_STATUSES } from './subscription.js';
 export {
   DIGIT_STYLES,

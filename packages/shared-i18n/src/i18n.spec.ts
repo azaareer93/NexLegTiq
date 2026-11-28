@@ -29,6 +29,7 @@ const ENUM_LABELS = {
   INVOICE_PAYMENT_METHODS: 'invoicePaymentMethod',
   RETAINER_ENTRY_KINDS: 'retainerEntryKind',
   COURT_TYPES: 'courtType',
+  COURT_REPORT_STATUSES: 'courtReportStatus',
   SESSION_TYPES: 'sessionType',
   SESSION_OUTCOMES: 'sessionOutcome',
   SESSION_STATUSES: 'sessionStatus',

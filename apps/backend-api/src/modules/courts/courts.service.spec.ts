@@ -30,6 +30,7 @@ const court = (officeId: string | null, overrides: Record<string, unknown> = {})
   address: null,
   phone: null,
   email: null,
+  isActive: true,
   createdAt: NOW,
   updatedAt: NOW,
   ...overrides,
@@ -90,72 +91,38 @@ function setup() {
 }
 
 describe('CourtsService', () => {
-  it('should list with filters and search, flagging platform rows', async () => {
+  it("should list the active platform courts of the office's country, with filters and search", async () => {
     const { db, courts } = setup();
-    db.court.findMany.mockResolvedValue([court(null), court(OFFICE, { id: 'c2' })]);
-    db.court.count.mockResolvedValue(2);
-    const page = await courts.list({
-      jurisdiction: 'PALESTINE',
-      courtType: 'MAGISTRATE',
-      search: 'رام',
-      page: 2,
-      limit: 10,
-    });
-    expect(page.items.map((row) => row.isPlatform)).toEqual([true, false]);
-    expect(page.pagination).toMatchObject({ page: 2, total: 2 });
+    db.court.findMany.mockResolvedValue([court(null)]);
+    db.court.count.mockResolvedValue(1);
+    const page = await courts.list({ courtType: 'MAGISTRATE', search: 'رام', page: 2, limit: 10 });
+    expect(page.items.map((row) => [row.isPlatform, row.isActive])).toEqual([[true, true]]);
+    expect(page.pagination).toMatchObject({ page: 2, total: 1 });
     const args = db.court.findMany.mock.calls[0]?.[0] as { where: Record<string, unknown> };
-    expect(args).toMatchObject({ skip: 10, take: 10 });
-    expect(Object.keys(args.where).sort()).toEqual(['OR', 'courtType', 'jurisdiction']);
+    expect(args).toMatchObject({
+      skip: 10,
+      take: 10,
+      where: { officeId: null, isActive: true, jurisdiction: 'JORDAN' },
+    });
+    expect(Object.keys(args.where).sort()).toEqual([
+      'OR',
+      'courtType',
+      'isActive',
+      'jurisdiction',
+      'officeId',
+    ]);
     await courts.list({ page: 1, limit: 50 });
-    expect(db.court.findMany.mock.calls[1]?.[0]).toMatchObject({ where: {} });
+    expect(db.court.findMany.mock.calls[1]?.[0]).toMatchObject({
+      where: { officeId: null, isActive: true, jurisdiction: 'JORDAN' },
+    });
   });
 
-  it('should 404 an unknown court', async () => {
+  it('should get a court the office sees (also a legacy office court) and 404 an unknown one', async () => {
     const { db, courts } = setup();
+    db.court.findFirst.mockResolvedValue(court(OFFICE));
+    expect((await courts.get('c1')).isPlatform).toBe(false);
     db.court.findFirst.mockResolvedValue(null);
     await expect(courts.get('x')).rejects.toBeInstanceOf(ResourceNotFoundException);
-  });
-
-  it('should create in the office jurisdiction unless one is given, with an audit row', async () => {
-    const { db, courts } = setup();
-    db.court.create.mockResolvedValue(court(OFFICE));
-    await courts.create({ courtType: 'MAGISTRATE', nameAr: 'م' }, CALLER);
-    expect(db.court.create.mock.calls[0]?.[0]).toMatchObject({
-      data: { jurisdiction: 'JORDAN', officeId: OFFICE },
-    });
-    await courts.create({ courtType: 'MAGISTRATE', nameAr: 'م', jurisdiction: 'EGYPT' }, CALLER);
-    expect(db.court.create.mock.calls[1]?.[0]).toMatchObject({ data: { jurisdiction: 'EGYPT' } });
-    expect(db.office.findFirstOrThrow).toHaveBeenCalledTimes(1);
-    expect(db.auditLog.create).toHaveBeenCalledTimes(2);
-  });
-
-  it('should refuse to change a platform court, and write only real changes', async () => {
-    const { db, courts } = setup();
-    db.court.findFirst.mockResolvedValue(court(null));
-    await expect(courts.update('c1', { city: 'x' }, CALLER)).rejects.toBeInstanceOf(
-      PermissionDeniedException,
-    );
-    await expect(courts.remove('c1', CALLER)).rejects.toBeInstanceOf(PermissionDeniedException);
-    db.court.findFirst.mockResolvedValue(court(OFFICE));
-    await courts.update('c1', { city: 'رام الله' }, CALLER);
-    expect(db.court.updateMany).not.toHaveBeenCalled();
-    await courts.update('c1', { city: 'نابلس' }, CALLER);
-    expect(db.court.updateMany).toHaveBeenCalledWith({
-      where: { id: 'c1' },
-      data: { city: 'نابلس' },
-    });
-    expect(db.auditLog.create).toHaveBeenCalledTimes(1);
-  });
-
-  it('should delete an office court, 422 BIZ-011 while referenced, other errors untouched', async () => {
-    const { db, courts } = setup();
-    db.court.findFirst.mockResolvedValue(court(OFFICE));
-    await courts.remove('c1', CALLER);
-    expect(db.auditLog.create).toHaveBeenCalledTimes(1);
-    db.court.deleteMany.mockRejectedValueOnce(foreignKeyError());
-    await expect(courts.remove('c1', CALLER)).rejects.toBeInstanceOf(BusinessRuleException);
-    db.court.deleteMany.mockRejectedValueOnce(new Error('boom'));
-    await expect(courts.remove('c1', CALLER)).rejects.toThrow('boom');
   });
 
   it('should list, add, edit and delete judges of a visible court', async () => {
@@ -185,6 +152,11 @@ describe('CourtsService', () => {
       BusinessRuleException,
     );
     await courts.removeJudge('c1', 'j1', CALLER);
+    // Deleted by someone else between the read and the delete.
+    db.judge.deleteMany.mockResolvedValueOnce({ count: 0 });
+    await expect(courts.removeJudge('c1', 'j1', CALLER)).rejects.toBeInstanceOf(
+      ResourceNotFoundException,
+    );
     db.judge.findFirst.mockResolvedValue(null);
     await expect(courts.removeJudge('c1', 'jX', CALLER)).rejects.toBeInstanceOf(
       ResourceNotFoundException,

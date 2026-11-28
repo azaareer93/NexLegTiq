@@ -340,5 +340,75 @@
       "office": "Office",
       "changes": "Changes"
     }
+  },
+  "courts": {
+    "title": "Courts",
+    "tabs": {
+      "courts": "Platform courts",
+      "reports": "Missing-court reports",
+      "officeCourts": "Office courts"
+    },
+    "country": "Country",
+    "search": "Search by name or city",
+    "searchOffice": "Search by court, city or office",
+    "new": "New court",
+    "empty": "No courts in this country yet",
+    "active": "Active",
+    "inactive": "Inactive",
+    "activate": "Activate",
+    "deactivate": "Deactivate",
+    "activated": "The court is active again.",
+    "deactivated": "The court was deactivated. Files and hearings that use it keep it.",
+    "columns": {
+      "nameAr": "Arabic name",
+      "nameEn": "English name",
+      "type": "Type",
+      "city": "City",
+      "status": "Status",
+      "actions": "Actions",
+      "office": "Office",
+      "usage": "Used by",
+      "name": "Reported name",
+      "note": "Note",
+      "reportedBy": "Reported by",
+      "reportedAt": "Reported on"
+    },
+    "usage": "Files: {{files}} · hearings: {{sessions}} · judges: {{judges}}",
+    "fields": {
+      "address": "Address",
+      "phone": "Phone",
+      "email": "Email"
+    },
+    "modal": {
+      "createTitle": "New platform court",
+      "editTitle": "Edit court",
+      "addReportedTitle": "Add the reported court",
+      "created": "The court was added.",
+      "updated": "The court was updated."
+    },
+    "reports": {
+      "status": "Status",
+      "all": "All",
+      "empty": "No reports",
+      "add": "Add court",
+      "dismiss": "Dismiss",
+      "dismissTitle": "Dismiss this report?",
+      "reason": "Reason the office will read (optional)",
+      "added": "The court was added and the office notified.",
+      "dismissed": "The report was dismissed and the office notified."
+    },
+    "officeCourts": {
+      "empty": "No office courts",
+      "hint": "Courts offices added before the platform list. Replace each with a platform court, or turn it into one.",
+      "replace": "Replace",
+      "replaceTitle": "Replace with a platform court",
+      "replaceHint": "The office's files, hearings and judges move to the chosen court, and this court is deleted.",
+      "target": "Platform court",
+      "replaced": "Replaced: {{files}} files, {{sessions}} hearings, {{judges}} judges moved.",
+      "promote": "Make platform court",
+      "promoteTitle": "Turn into a platform court",
+      "promoteHint": "Every office of this country will be able to pick it. It needs an English name.",
+      "promoted": "The court is now a platform court."
+    }
   }
 }

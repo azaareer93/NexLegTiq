@@ -2,12 +2,16 @@ import { assertCourtRefs, nextCourtRefs } from './court-refs';
 import { ValidationException } from '../../common/errors/app.exception';
 import type { ScopedTransaction } from '../../database/unit-of-work';
 
-/** A transaction where `courts` and `judges` (judgeId → courtId) are the rows the office can see. */
-function txWith(courts: string[], judges: Record<string, string>) {
+/**
+ * A transaction where `courts` and `judges` (judgeId → courtId) are the rows the office can see, and `pickable` the
+ * active platform courts of its country (D-266).
+ */
+function txWith(courts: string[], judges: Record<string, string>, pickable = courts) {
   return {
+    office: { findFirstOrThrow: jest.fn().mockResolvedValue({ jurisdiction: 'PALESTINE' }) },
     court: {
-      count: jest.fn(({ where }: { where: { id: string } }) =>
-        Promise.resolve(courts.includes(where.id) ? 1 : 0),
+      count: jest.fn(({ where }: { where: { id: string; isActive?: boolean } }) =>
+        Promise.resolve((where.isActive ? pickable : courts).includes(where.id) ? 1 : 0),
       ),
     },
     judge: {
@@ -45,6 +49,30 @@ describe('assertCourtRefs', () => {
     expect(await fieldsOf(assertCourtRefs(tx, { courtId: null, judgeId: 'j1' }))).toEqual([
       'validation.unknownJudge',
     ]);
+  });
+});
+
+describe('assertCourtRefs with legacy courts (D-266)', () => {
+  // c1 is pickable; c3 is an office's legacy court (or a deactivated one) the office still sees.
+  const legacy = txWith(['c1', 'c3'], { j3: 'c3' }, ['c1']);
+
+  it('should refuse a newly assigned court that is not an active platform court of the country', async () => {
+    expect(await fieldsOf(assertCourtRefs(legacy, { courtId: 'c3' }))).toEqual([
+      'validation.unknownCourt',
+    ]);
+    expect(await fieldsOf(assertCourtRefs(legacy, { courtId: 'c1' }))).toEqual([]);
+  });
+
+  it('should keep a court the row already has', async () => {
+    expect(
+      await fieldsOf(assertCourtRefs(legacy, { courtId: 'c3', judgeId: 'j3' }, true, '', false)),
+    ).toEqual([]);
+    expect(
+      await fieldsOf(nextCourtRefs(legacy, { courtId: 'c3', judgeId: null }, { judgeId: 'j3' })),
+    ).toEqual([]);
+    expect(
+      await fieldsOf(nextCourtRefs(legacy, { courtId: 'c1', judgeId: null }, { courtId: 'c3' })),
+    ).toEqual(['validation.unknownCourt']);
   });
 });
 

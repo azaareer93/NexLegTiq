@@ -177,7 +177,13 @@ describe('sessions API (HTTP + PostgreSQL)', () => {
     secretFileId = (await seedFile('lawyer2', [], { isConfidential: true })).id;
     courtId = (
       await raw.court.create({
-        data: { officeId, jurisdiction: 'PALESTINE', courtType: 'MAGISTRATE', nameAr: 'محكمة صلح' },
+        // A platform court of the office's country: the only kind a new hearing may name (D-266).
+        data: {
+          jurisdiction: 'PALESTINE',
+          courtType: 'MAGISTRATE',
+          nameAr: 'محكمة صلح',
+          nameEn: `Sessions court ${randomUUID()}`,
+        },
       })
     ).id;
     otherOffice = await seedUser(await seedOffice('Other sessions office'), 'OFFICE_MANAGER');
@@ -192,6 +198,7 @@ describe('sessions API (HTTP + PostgreSQL)', () => {
         await (raw as unknown as Record<string, Delegate>)[name]?.deleteMany({ where });
       }
       await raw.court.deleteMany({ where });
+      if (courtId) await raw.court.deleteMany({ where: { id: courtId } });
       await raw.user.deleteMany({ where });
       await raw.office.deleteMany({ where: { id: { in: officeIds } } });
     }

@@ -44,6 +44,9 @@
     "saved": "تم الحفظ"
   },
   "notifications": {
-    "taskAssigned": "أُسندت إليك مهمة جديدة: {{title}}"
+    "taskAssigned": "أُسندت إليك مهمة جديدة: {{title}}",
+    "courtReportAdded": "أُضيفت المحكمة التي أبلغت عنها: {{name}}",
+    "courtReportDismissed": "لم يُقبل بلاغك عن محكمة غير مدرجة: {{name}}",
+    "courtReportDismissedReason": "لم يُقبل بلاغك عن محكمة غير مدرجة: {{name}} ({{reason}})"
   }
 }
