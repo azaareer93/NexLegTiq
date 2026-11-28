@@ -142,6 +142,49 @@ describe('PerplexityProvider (D-256)', () => {
     ]);
   });
 
+  it('reads a sparse response: follow-up sent, untitled page named by its url, no cost', async () => {
+    const fetch = respond({
+      model: 'm',
+      status: 'completed',
+      output: [
+        { type: 'search_results' },
+        { type: 'message' },
+        {
+          type: 'message',
+          content: [
+            { type: 'reasoning', text: 'ignored' },
+            { type: 'output_text' },
+            {
+              type: 'output_text',
+              text: '{}',
+              annotations: [
+                { type: 'file_citation', url: 'https://example.com/a' },
+                { type: 'url_citation' },
+                { type: 'url_citation', url: 'https://example.com/b' },
+              ],
+            },
+          ],
+        },
+      ],
+      usage: { input_tokens: 1, output_tokens: 2 },
+    });
+    const completion = await new PerplexityProvider('k', 'm', 30_000).complete(
+      request({ webSearch: undefined, followUp: 'Return JSON only.' }),
+    );
+    expect(completion).toEqual({
+      text: '{}',
+      model: 'm',
+      inputTokens: 1,
+      outputTokens: 2,
+      sources: [{ url: 'https://example.com/b', title: 'https://example.com/b' }],
+    });
+    const body = JSON.parse(String(fetch.mock.calls[0]?.[1]?.body)) as { input: object[] };
+    expect(body.input).toEqual([
+      { role: 'user', content: 'What is the limitation period for a civil claim?' },
+      { role: 'user', content: 'Return JSON only.' },
+    ]);
+  });
+
   it('treats a failed or malformed response as unavailable', async () => {
     respond({ ...answer, status: 'failed' });
     await expect(

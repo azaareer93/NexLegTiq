@@ -105,7 +105,7 @@ function setup(research = 'fake') {
     cls as unknown as ClsService<RequestContext>,
     new PiiRedactor(),
   );
-  return { researcher, service, fake: providers.fake, cache, usage, jobs, audit, prisma };
+  return { researcher, service, fake: providers.fake, cache, usage, jobs, audit, prisma, cls };
 }
 
 const fields = { question: QUESTION, language: 'EN', jurisdiction: 'PALESTINE' } as const;
@@ -191,6 +191,28 @@ describe('LegalResearcher (D-256)', () => {
     const [{ where }] = prisma.db.client.findMany.mock.calls[0] as [{ where: { OR: object[] } }];
     expect(where.OR).toContainEqual({ fullName: { contains: 'odeh', mode: 'insensitive' } });
   });
+
+  it('searches the open web once for a jurisdiction without official sources', async () => {
+    const { researcher, fake, cache } = setup();
+    fake.script({
+      json: { answer: 'Yes.', jurisdictionNote: null },
+      sources: [{ url: SOURCE.url, title: SOURCE.title }],
+    });
+    const other = { ...fields, jurisdiction: 'OTHER' } as const;
+    await researcher.run(
+      { ...other, hash: researchHash(other, LEGAL_RESEARCH_V1.version) },
+      context,
+    );
+    expect(fake.requests.map((r) => r.webSearch)).toEqual([{ domains: [] }]);
+    expect(cache.set).toHaveBeenCalledWith(
+      OFFICE,
+      researchKeys.job(JOB),
+      expect.objectContaining({
+        citations: [{ url: SOURCE.url, title: SOURCE.title, date: null }],
+      }),
+      86_400,
+    );
+  });
 });
 
 describe('LegalResearchService (D-256)', () => {
@@ -251,4 +273,42 @@ describe('LegalResearchService (D-256)', () => {
     jobs.get.mockResolvedValueOnce({});
     await expect(service.get(JOB)).rejects.toMatchObject({ code: 'RES-001' });
   });
+
+  it("returns the kept answer of the caller's own job", async () => {
+    const { service, cache } = setup();
+    cache.get.mockResolvedValueOnce(STORED);
+    await expect(service.get(JOB)).resolves.toEqual(STORED);
+    expect(cache.get).toHaveBeenCalledWith(OFFICE, researchKeys.job(JOB));
+  });
+
+  it('uses the asked jurisdiction without reading the office', async () => {
+    const { service, jobs, prisma } = setup();
+    await service.request({ question: QUESTION, language: 'EN', jurisdiction: 'JORDAN' });
+    expect(prisma.db.office.findFirstOrThrow).not.toHaveBeenCalled();
+    expect(jobs.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({ fields: expect.objectContaining({ jurisdiction: 'JORDAN' }) }),
+    );
+  });
+
+  it('refuses outside an office context', async () => {
+    const { service, cls, jobs } = setup();
+    cls.get.mockReturnValue(undefined);
+    await expect(service.request({ question: QUESTION, language: 'EN' })).rejects.toThrow(
+      'No office',
+    );
+    expect(jobs.enqueue).not.toHaveBeenCalled();
+  });
 });
+
+const STORED = {
+  answer: 'Thirty days.',
+  citations: [SOURCE],
+  jurisdictionNote: null,
+  unsourced: false,
+  jurisdiction: 'PALESTINE',
+  language: 'EN',
+  provider: 'fake',
+  model: 'fake-1',
+  promptVersion: 'legal-research.v1',
+  createdAt: '2026-11-28T00:00:00.000Z',
+};
