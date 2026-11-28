@@ -122,7 +122,12 @@ export class PlatformCourtReportsService {
       action: 'COURT_REPORT_DISMISSED',
       newValues: { status: 'DISMISSED', dismissReason },
     }));
-    await this.notify(report, 'common.notifications.courtReportDismissed');
+    await this.notify(
+      report,
+      dismissReason
+        ? 'common.notifications.courtReportDismissedReason'
+        : 'common.notifications.courtReportDismissed',
+    );
     return toPublic(report);
   }
 
@@ -184,7 +189,11 @@ export class PlatformCourtReportsService {
           {
             type: 'COURT_REPORT_RESOLVED',
             titleKey,
-            params: { name: report.name, reason: report.dismissReason },
+            // The reason is shown to the office as the admin wrote it (D-266).
+            params: {
+              name: report.name,
+              ...(report.dismissReason && { reason: report.dismissReason }),
+            },
             link: null,
           },
           { jobId: `court-report-${report.id}` },

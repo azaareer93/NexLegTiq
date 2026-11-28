@@ -118,11 +118,16 @@ describe('PlatformCourtReportsService', () => {
       dismissReason: 'موجودة باسم آخر',
     });
     expect(notifications.notify.mock.calls[0]?.[1]).toMatchObject({
-      titleKey: 'common.notifications.courtReportDismissed',
+      titleKey: 'common.notifications.courtReportDismissedReason',
       params: { reason: 'موجودة باسم آخر' },
     });
     await service.dismiss('r1', {}, 'admin-1', CLIENT);
     expect(db.courtReport.update.mock.calls[1]?.[0].data).toMatchObject({ dismissReason: null });
+    expect(notifications.notify.mock.calls[1]?.[1]).toMatchObject({
+      titleKey: 'common.notifications.courtReportDismissed',
+      params: { name: 'محكمة صلح يطا' },
+    });
+    expect(notifications.notify.mock.calls[1]?.[1].params).not.toHaveProperty('reason');
   });
 
   it('should resolve once (BIZ-029) and 404 an unknown report', async () => {

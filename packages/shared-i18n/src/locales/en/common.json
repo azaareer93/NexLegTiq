@@ -36,6 +36,9 @@
     "saved": "Saved"
   },
   "notifications": {
-    "taskAssigned": "New task assigned to you: {{title}}"
+    "taskAssigned": "New task assigned to you: {{title}}",
+    "courtReportAdded": "The court you reported was added: {{name}}",
+    "courtReportDismissed": "Your report of a missing court was not accepted: {{name}}",
+    "courtReportDismissedReason": "Your report of a missing court was not accepted: {{name}} ({{reason}})"
   }
 }

@@ -59,8 +59,11 @@
 
 ## Courts & hearings
 - **Court** (officeId? — global or office) — nameAr, nameEn? (required on platform rows), `courtType: CourtType`
-  (D-037), jurisdiction, city, address, phone, email. Unique: platform rows by (jurisdiction, nameEn), office rows by
-  (officeId, jurisdiction, nameAr) (D-115).
+  (D-037), jurisdiction, city, address, phone, email, isActive. Unique: platform rows by (jurisdiction, nameEn), office rows by
+  (officeId, jurisdiction, nameAr) (D-115). Platform rows are managed by the platform admin; office rows are read-only
+  legacy, replaced or promoted by the admin (D-266).
+- **CourtReport** 🔒 — reportedById, name, city?, note?, `status: PENDING|ADDED|DISMISSED`, courtId? (the platform court
+  added), resolvedById? (platform admin), resolvedAt?, dismissReason? (D-266).
 - **Judge** (officeId?) — courtId (a court visible to its office; never changes), fullName, isActive, notes.
 - **PublicProsecutor** 🔒 — fullName, officeName, phone, email.
 - **Session** 🔒 — fileId, courtId?, judgeId?, `sessionType: HEARING|MEDIATION|ARBITRATION|PRE_TRIAL|

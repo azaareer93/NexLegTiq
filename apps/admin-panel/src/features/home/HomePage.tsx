@@ -35,6 +35,9 @@ export function HomePage(): React.JSX.Element {
             <Link to="/audit" data-testid="nav-audit">
               {t('admin.audit.title')}
             </Link>
+            <Link to="/courts" data-testid="nav-courts">
+              {t('admin.courts.title')}
+            </Link>
           </Flex>
           <Flex gap={12} align="center">
             <Typography.Text data-testid="admin-name">{admin?.fullName}</Typography.Text>

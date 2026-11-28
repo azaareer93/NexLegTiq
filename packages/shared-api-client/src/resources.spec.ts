@@ -435,6 +435,7 @@ describe('usersApi.directory and courtsApi', () => {
     phone: null,
     email: null,
     isPlatform: true,
+    isActive: true,
     createdAt: '2026-10-01T10:00:00.000Z',
     updatedAt: '2026-10-01T10:00:00.000Z',
   };
@@ -476,13 +477,21 @@ describe('usersApi.directory and courtsApi', () => {
     await expect(courts.judges(courtId)).resolves.toEqual([judge]);
   });
 
-  it('should add an office court and a judge', async () => {
+  it('should report a missing court and add a judge', async () => {
     let courtBody: unknown;
     let judgeBody: unknown;
+    const report = {
+      id: '01920000-0000-7000-8000-0000000000e3',
+      name: 'محكمة',
+      city: null,
+      note: null,
+      status: 'PENDING',
+      createdAt: '2026-10-01T10:00:00.000Z',
+    };
     server.use(
-      http.post(url('courts'), async ({ request }) => {
+      http.post(url('court-reports'), async ({ request }) => {
         courtBody = await request.json();
-        return ok(court, 201);
+        return ok(report, 201);
       }),
       http.post(url(`courts/${courtId}/judges`), async ({ request }) => {
         judgeBody = await request.json();
@@ -490,10 +499,8 @@ describe('usersApi.directory and courtsApi', () => {
       }),
     );
     const { courts } = setup('access-1');
-    await expect(courts.create({ nameAr: 'محكمة', courtType: 'MAGISTRATE' })).resolves.toEqual(
-      court,
-    );
-    expect(courtBody).toEqual({ nameAr: 'محكمة', courtType: 'MAGISTRATE' });
+    await expect(courts.report({ name: 'محكمة' })).resolves.toEqual(report);
+    expect(courtBody).toEqual({ name: 'محكمة' });
     await expect(courts.createJudge(courtId, { fullName: 'Judge Amal' })).resolves.toEqual(judge);
     expect(judgeBody).toEqual({ fullName: 'Judge Amal' });
   });

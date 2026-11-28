@@ -43,6 +43,12 @@ export { profileApi } from './profile.js';
 export { adminOfficesApi } from './admin-offices.js';
 export type { AdminOfficeListParams } from './admin-offices.js';
 export { adminPaymentsApi } from './admin-payments.js';
+export { adminCourtsApi } from './admin-courts.js';
+export type {
+  AdminCourtListParams,
+  AdminCourtReportListParams,
+  AdminOfficeCourtListParams,
+} from './admin-courts.js';
 export { adminPlansApi } from './admin-plans.js';
 export { adminUsageApi } from './admin-usage.js';
 export { invoicesApi } from './invoices.js';
