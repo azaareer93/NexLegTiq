@@ -160,6 +160,8 @@ describe('PlatformFileTypesService (D-261)', () => {
     expect(tx.$executeRaw).not.toHaveBeenCalled();
     await service.updateSubType(SUB.id, { nameAr: 'خلع' }, ADMIN, CLIENT);
     expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+    await service.updateSubType(SUB.id, { nameEn: 'Separation' }, ADMIN, CLIENT);
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(2);
     tx.legalFileSubType.update.mockClear();
     await service.updateSubType(SUB.id, { nameEn: 'Divorce' }, ADMIN, CLIENT);
     expect(tx.legalFileSubType.update).not.toHaveBeenCalled();

@@ -369,6 +369,9 @@ describe('CasesService', () => {
       fixedFee: null,
       retainerBalance: null,
     });
+    // No permissions in the context at all: hidden too, never a crash.
+    const bare = setup({ officeId: OFFICE as never, userId: USER as never, role: 'TRAINEE' });
+    await expect(bare.service.get('f1')).resolves.toMatchObject({ hourlyRate: null });
   });
 
   it('should fail loudly (500) without a caller or office in the context', async () => {

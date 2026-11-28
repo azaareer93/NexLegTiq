@@ -41,6 +41,16 @@ describe('PlatformFileTypesController', () => {
     );
   });
 
+  it('should send no request id outside a request context', async () => {
+    const { c, types } = controller(false);
+    await c.create({ code: 'FAMILY' } as never, req('a1'));
+    expect(types.create).toHaveBeenCalledWith(
+      { code: 'FAMILY' },
+      'a1',
+      expect.objectContaining({ requestId: null }),
+    );
+  });
+
   it('should fail loudly when the admin guard did not run', () => {
     const { c } = controller();
     expect(() => c.update('t1', { isActive: false }, req())).toThrow('AdminAuthGuard did not run');
