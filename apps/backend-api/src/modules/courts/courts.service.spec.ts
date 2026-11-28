@@ -152,6 +152,11 @@ describe('CourtsService', () => {
       BusinessRuleException,
     );
     await courts.removeJudge('c1', 'j1', CALLER);
+    // Deleted by someone else between the read and the delete.
+    db.judge.deleteMany.mockResolvedValueOnce({ count: 0 });
+    await expect(courts.removeJudge('c1', 'j1', CALLER)).rejects.toBeInstanceOf(
+      ResourceNotFoundException,
+    );
     db.judge.findFirst.mockResolvedValue(null);
     await expect(courts.removeJudge('c1', 'jX', CALLER)).rejects.toBeInstanceOf(
       ResourceNotFoundException,

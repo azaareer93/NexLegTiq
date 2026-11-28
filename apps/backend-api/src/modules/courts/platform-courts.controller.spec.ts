@@ -51,6 +51,17 @@ describe('PlatformCourtsController', () => {
     expect(reports.dismiss).toHaveBeenCalledWith('r1', {}, 'a1', expect.anything());
   });
 
+  it('should send no request id outside a request context', async () => {
+    const { c, courts } = controller(false);
+    await c.promote('c1', {}, req('a1'));
+    expect(courts.promote).toHaveBeenCalledWith(
+      'c1',
+      {},
+      'a1',
+      expect.objectContaining({ requestId: null }),
+    );
+  });
+
   it('should fail loudly when the admin guard did not run', () => {
     const { c } = controller();
     expect(() => c.promote('c1', {}, req())).toThrow('AdminAuthGuard did not run');

@@ -221,6 +221,14 @@ describe('SessionsService', () => {
       expect(where.AND).toContainEqual({ attendingLawyerId: ME });
     });
 
+    it('should refuse a calendar range holding more than 2000 sessions', async () => {
+      const { service, repo } = setup();
+      repo.findMany.mockResolvedValueOnce(Array.from({ length: 2001 }, (_, i) => ({ id: i })));
+      await expect(service.list(SessionQuerySchema.parse({}))).rejects.toMatchObject({
+        details: [{ field: 'to', message: 'validation.dateRange' }],
+      });
+    });
+
     it('should list upcoming sessions soonest first and past ones latest first', async () => {
       const { service, repo, files } = setup();
       await service.listForFile(FILE, { when: 'upcoming', page: 1, limit: 20 });
