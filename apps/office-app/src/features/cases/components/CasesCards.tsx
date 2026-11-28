@@ -1,9 +1,9 @@
 import { Bdi, Ltr, PriorityTag } from '@nexlegtiq/shared-ui';
 import { Card, Flex, Pagination, Spin, Tag, Typography } from 'antd';
-import { useTranslation } from 'react-i18next';
 
 import { FileStatusTag, TitleLink } from './case-cells';
 import type { CasesViewProps } from './CasesTable';
+import { useLocalName } from '../api/use-file-types';
 
 /** The phone list: one card per file, the whole card opens it, and a pager below. */
 export function CasesCards({
@@ -14,7 +14,7 @@ export function CasesCards({
   onChange,
   onOpen,
 }: CasesViewProps): React.JSX.Element {
-  const { t } = useTranslation();
+  const name = useLocalName();
   return (
     <Spin spinning={loading}>
       <Flex vertical gap={12} data-testid="cases-cards">
@@ -34,7 +34,9 @@ export function CasesCards({
               <Flex gap={4} wrap>
                 <FileStatusTag status={row.status} />
                 <PriorityTag priority={row.priority} />
-                <Tag>{t(`enums.fileType.${row.fileType}`)}</Tag>
+                <Tag>
+                  <Bdi>{name(row.fileTypeName)}</Bdi>
+                </Tag>
               </Flex>
               {row.primaryClient ? <Bdi>{row.primaryClient.displayName}</Bdi> : null}
               <Typography.Text type="secondary">

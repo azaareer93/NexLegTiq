@@ -41,6 +41,8 @@ function setup(context: Partial<RequestContext> = caller('OFFICE_MANAGER')) {
         .mockResolvedValue({ currency: 'ILS', jurisdiction: 'PALESTINE', timezone: 'Asia/Hebron' }),
     },
     taskTemplate: { findMany: jest.fn().mockResolvedValue([]) },
+    legalFileType: { findFirst: jest.fn().mockResolvedValue({ numberCode: 'LIT' }) },
+    legalFileSubType: { count: jest.fn().mockResolvedValue(1) },
     officeSettings: {
       findFirstOrThrow: jest.fn().mockResolvedValue({
         defaultBillingMethod: 'HOURLY',
@@ -64,6 +66,10 @@ function setup(context: Partial<RequestContext> = caller('OFFICE_MANAGER')) {
         courtCaseNumber: '1/2026',
         isConfidential: false,
         responsibleLawyerId: LAWYER,
+        jurisdiction: 'PALESTINE',
+        fileType: 'LITIGATION',
+        subTypeId: null,
+        legacySubType: 'Old text',
       }),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
@@ -126,7 +132,11 @@ describe('CasesService', () => {
     );
 
     // 22:30 UTC on 31 December is already 1 January in Hebron (UTC+2).
-    expect(numbers.next).toHaveBeenCalledWith(tx, 'LITIGATION', 2027);
+    expect(numbers.next).toHaveBeenCalledWith(tx, 'LIT', 2027);
+    expect(tx.legalFileType.findFirst).toHaveBeenCalledWith({
+      where: { jurisdiction: 'PALESTINE', code: 'LITIGATION', isActive: true },
+      select: { numberCode: true },
+    });
     expect(tx.legalFile.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         officeId: OFFICE,
@@ -275,6 +285,38 @@ describe('CasesService', () => {
     expect(tx.auditLog.create).not.toHaveBeenCalled();
   });
 
+  it('should refuse an inactive or foreign type and sub-type on a new file (400, D-261)', async () => {
+    const { service, tx } = setup();
+    tx.legalFileType.findFirst.mockResolvedValueOnce(null);
+    await expect(service.create(input(), CLIENT_INFO)).rejects.toMatchObject({
+      code: 'VAL-001',
+      details: [{ field: 'fileType', message: 'validation.unknownFileType' }],
+    });
+    tx.legalFileSubType.count.mockResolvedValueOnce(0);
+    const subTypeId = '01920000-0000-7000-8000-0000000000d1';
+    await expect(service.create(input({ subTypeId }), CLIENT_INFO)).rejects.toMatchObject({
+      details: [{ field: 'subTypeId', message: 'validation.unknownSubType' }],
+    });
+    expect(tx.legalFileSubType.count).toHaveBeenLastCalledWith({
+      where: { id: subTypeId, jurisdiction: 'PALESTINE', typeCode: 'LITIGATION', isActive: true },
+    });
+    expect(tx.legalFile.create).not.toHaveBeenCalled();
+  });
+
+  it('should replace the legacy sub-type text when a sub-type is picked', async () => {
+    const { service, tx } = setup();
+    const subTypeId = '01920000-0000-7000-8000-0000000000d1';
+    await service.update('f1', { subTypeId }, CLIENT_INFO);
+    expect(tx.legalFile.updateMany).toHaveBeenLastCalledWith({
+      where: { id: 'f1', deletedAt: null, status: { not: 'ARCHIVED' } },
+      data: { subTypeId, legacySubType: null },
+    });
+    tx.legalFileSubType.count.mockResolvedValueOnce(0);
+    await expect(service.update('f1', { subTypeId }, CLIENT_INFO)).rejects.toMatchObject({
+      code: 'VAL-001',
+    });
+  });
+
   it('should refuse a write to a file deleted or archived after the access check (404, no audit)', async () => {
     const { service, tx } = setup();
     tx.legalFile.updateMany.mockResolvedValue({ count: 0 });
@@ -327,6 +369,9 @@ describe('CasesService', () => {
       fixedFee: null,
       retainerBalance: null,
     });
+    // No permissions in the context at all: hidden too, never a crash.
+    const bare = setup({ officeId: OFFICE as never, userId: USER as never, role: 'TRAINEE' });
+    await expect(bare.service.get('f1')).resolves.toMatchObject({ hourlyRate: null });
   });
 
   it('should fail loudly (500) without a caller or office in the context', async () => {

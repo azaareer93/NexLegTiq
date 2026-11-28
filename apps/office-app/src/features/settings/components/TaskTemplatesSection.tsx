@@ -1,7 +1,6 @@
 import { taskTemplatesApi } from '@nexlegtiq/shared-api-client';
 import { TEMPLATE_ASSIGNEE_ROLES } from '@nexlegtiq/shared-contracts';
 import type { CreateTaskTemplateRequest, TaskTemplate } from '@nexlegtiq/shared-contracts';
-import { FILE_TYPES } from '@nexlegtiq/shared-types';
 import { isErrorCode } from '@nexlegtiq/shared-types';
 import {
   ApiErrorAlert,
@@ -28,6 +27,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { apiClient } from '../../auth';
+import { useFileTypeLabel, useFileTypes } from '../../cases';
 
 const templates = taskTemplatesApi(apiClient);
 const KEY = ['office', 'task-templates'] as const;
@@ -53,6 +53,12 @@ const toBody = (values: FormValues): CreateTaskTemplateRequest => ({
   defaultAssigneeRole: values.defaultAssigneeRole,
 });
 
+/** A template's type no longer offered (deactivated since): still listed, so saving does not change it. */
+function keptType(editing: TaskTemplate | 'new', types: readonly { code: string }[] | undefined) {
+  const current = editing === 'new' ? null : editing.fileType;
+  return current && !types?.some((type) => type.code === current) ? current : null;
+}
+
 /** Add or edit one template. */
 function TemplateModal({
   editing,
@@ -62,6 +68,9 @@ function TemplateModal({
   readonly onClose: () => void;
 }) {
   const { t } = useTranslation();
+  const types = useFileTypes();
+  const typeLabel = useFileTypeLabel(types.data);
+  const kept = keptType(editing, types.data);
   const queryClient = useQueryClient();
   const [form] = Form.useForm<FormValues>();
   const save = useMutation({
@@ -106,7 +115,11 @@ function TemplateModal({
           <Select
             options={[
               { value: ANY, label: t('settings.templates.anyType') },
-              ...FILE_TYPES.map((type) => ({ value: type, label: t(`enums.fileType.${type}`) })),
+              ...(types.data ?? []).map((type) => ({
+                value: type.code,
+                label: typeLabel(type.code),
+              })),
+              ...(kept ? [{ value: kept, label: typeLabel(kept) }] : []),
             ]}
           />
         </Form.Item>
@@ -138,6 +151,7 @@ function TemplateModal({
  */
 export function TaskTemplatesSection() {
   const { t } = useTranslation();
+  const typeLabel = useFileTypeLabel(useFileTypes().data);
   const { notify, referenceOf } = useApiErrorHandler();
   const queryClient = useQueryClient();
   const list = useQuery({ queryKey: KEY, queryFn: ({ signal }) => templates.list(signal) });
@@ -196,7 +210,7 @@ export function TaskTemplatesSection() {
             key: 'type',
             title: t('settings.templates.fileType'),
             render: (_, row) =>
-              row.fileType ? t(`enums.fileType.${row.fileType}`) : t('settings.templates.anyType'),
+              row.fileType ? typeLabel(row.fileType) : t('settings.templates.anyType'),
           },
           {
             key: 'title',

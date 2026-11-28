@@ -1,8 +1,8 @@
+import { FILE_TYPE_CODES } from './file-number';
 import { FileNumberService } from './file-number.service';
 import { LegalFilesTestDb } from './legal-files.test-helper';
 import type { TestOffice } from './legal-files.test-helper';
 import { TenantContextMissingError } from '../../common/tenancy/tenant.errors';
-import type { FileType } from '../../generated/prisma/enums';
 
 /** File numbering (D-031, D-095) on real PostgreSQL: the counter, its lock and its rollback. */
 describe('FileNumberService (real PostgreSQL)', () => {
@@ -19,14 +19,14 @@ describe('FileNumberService (real PostgreSQL)', () => {
   /** Creates a file the way the API will: number and row in one transaction of the scoped client. */
   function createFile(
     office: TestOffice,
-    fileType: FileType = 'LITIGATION',
+    fileType: keyof typeof FILE_TYPE_CODES = 'LITIGATION',
     year = 2026,
     fail = false,
   ): Promise<string> {
     return db.asOffice(office, () =>
       db.prisma.db.$transaction(
         async (tx) => {
-          const fileNumber = await numbers.next(tx, fileType, year);
+          const fileNumber = await numbers.next(tx, FILE_TYPE_CODES[fileType], year);
           await tx.legalFile.create({ data: { ...db.fileData(office, fileNumber), fileType } });
           if (fail) throw new Error(`rollback ${fileNumber}`);
           return fileNumber;

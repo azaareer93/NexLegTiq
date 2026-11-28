@@ -341,6 +341,33 @@
       "changes": "Changes"
     }
   },
+  "fileTypes": {
+    "title": "Case types",
+    "country": "Country",
+    "newType": "Add type",
+    "newSubType": "Add sub-type",
+    "empty": "No case types for this country yet",
+    "noSubTypes": "No sub-types",
+    "saved": "Saved.",
+    "fields": {
+      "code": "Code",
+      "codeHelp": "Capital letters, digits and underscores; fixed once created.",
+      "numberCode": "Case number code",
+      "numberCodeHelp": "Shown as {TYPE} in case numbers; fixed once created.",
+      "nameAr": "Arabic name",
+      "nameEn": "English name",
+      "sortOrder": "Display order",
+      "isActive": "Active",
+      "isActiveHelp": "Offices can choose it for new cases. Cases that have it keep it."
+    },
+    "modal": {
+      "newType": "New case type",
+      "editType": "Edit case type",
+      "newSubType": "New sub-type",
+      "editSubType": "Edit sub-type"
+    },
+    "subTypes": "Sub-types"
+  },
   "courts": {
     "title": "Courts",
     "tabs": {

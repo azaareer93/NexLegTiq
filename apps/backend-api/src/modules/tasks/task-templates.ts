@@ -11,7 +11,8 @@ const DAY_MS = 86_400_000;
 export interface NewFile {
   readonly officeId: string;
   readonly fileId: string;
-  readonly fileType: FileType;
+  /** The file type code (D-261). */
+  readonly fileType: string;
   /** The opening date `YYYY-MM-DD` in the office's time zone (D-092). */
   readonly openingDate: string;
   readonly responsibleLawyerId: string;

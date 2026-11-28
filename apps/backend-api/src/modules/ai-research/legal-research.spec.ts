@@ -2,7 +2,12 @@ import { Decimal } from 'decimal.js';
 import type { ClsService } from 'nestjs-cls';
 import type { PinoLogger } from 'nestjs-pino';
 
-import { LEGAL_RESEARCH_JOB, researchHash, researchKeys } from './legal-research';
+import {
+  LEGAL_RESEARCH_JOB,
+  officeRedactionContext,
+  researchHash,
+  researchKeys,
+} from './legal-research';
 import { LegalResearchService } from './legal-research.service';
 import { LegalResearcher } from './legal-researcher';
 import { LEGAL_SOURCES } from './legal-sources';
@@ -173,6 +178,15 @@ describe('LegalResearcher (D-256)', () => {
       expect.objectContaining({ citations: [], unsourced: true }),
       86_400,
     );
+  });
+
+  it('reads no names for a question without a word of three letters', async () => {
+    const { prisma } = setup();
+    await expect(officeRedactionContext(prisma as never, 'Is a 2 ok?')).resolves.toEqual({
+      names: [],
+      organisations: [],
+    });
+    expect(prisma.db.client.findMany).not.toHaveBeenCalled();
   });
 
   it("hides a client named by part of the name, looked up by the question's words", async () => {

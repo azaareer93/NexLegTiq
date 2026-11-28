@@ -5,6 +5,7 @@ import { Card, Col, Descriptions, Flex, Row, Statistic, Tag, Typography } from '
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { useLocalName } from '../api/use-file-types';
 import type { FileActions } from '../file-page';
 import { ClientsCard } from './FileClientsCard';
 import { TeamCard } from './FileTeamCard';
@@ -23,14 +24,17 @@ function Value({ children }: { readonly children: ReactNode }): ReactNode {
 function OverviewCard({ file }: { readonly file: Case }): React.JSX.Element {
   const { t } = useTranslation();
   const format = useFormat();
+  const name = useLocalName();
+  // A sub-type, else the free text kept from before sub-types were reference data (D-261).
+  const subType = file.subType ? name(file.subType) : file.legacySubType;
   return (
     <Card title={t('cases.file.cards.overview')} data-testid="case-card-overview">
       <Descriptions column={1} size="small">
         <Descriptions.Item label={t('cases.file.fields.fileType')}>
-          {t(`enums.fileType.${file.fileType}`)}
+          <Bdi>{name(file.fileTypeName)}</Bdi>
         </Descriptions.Item>
         <Descriptions.Item label={t('cases.file.fields.subType')}>
-          <Value>{file.subType ? <Bdi>{file.subType}</Bdi> : null}</Value>
+          <Value>{subType ? <Bdi>{subType}</Bdi> : null}</Value>
         </Descriptions.Item>
         <Descriptions.Item label={t('cases.file.fields.openingDate')}>
           {format.date(file.openingDate)}

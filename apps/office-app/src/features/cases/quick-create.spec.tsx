@@ -9,6 +9,7 @@ import { isNewCaseShortcut } from './quick-create';
 import {
   api,
   fail,
+  FILE_TYPE_OPTIONS,
   http,
   ok,
   renderApp,
@@ -58,6 +59,7 @@ const created: Case = {
   fileNumber: '2026-LIT-00042',
   title: 'Land dispute',
   fileType: 'LITIGATION',
+  fileTypeName: { nameAr: 'تقاضٍ', nameEn: 'Litigation' },
   status: 'OPEN',
   priority: 'MEDIUM',
   openingDate: '2026-10-19',
@@ -67,6 +69,7 @@ const created: Case = {
   updatedAt: '2026-10-19T10:00:00.000Z',
   description: null,
   subType: null,
+  legacySubType: null,
   closingDate: null,
   responsibleParalegal: null,
   courtCaseNumber: null,
@@ -186,7 +189,7 @@ describe('quick-create case (D-123)', () => {
       createBody({
         title: ' T ',
         clientId: CLIENT_ID,
-        subType: '  ',
+        subTypeId: '  ',
         judgeId: null,
         fileType: 'LITIGATION',
       }),
@@ -234,12 +237,15 @@ describe('quick-create case (D-123)', () => {
       );
       await fillEssentials();
       await pick('create-paralegal', 'Sami Paralegal');
+      // The sub-types are those of the picked type (D-261).
+      await pick('create-subtype', 'Labour');
       fireEvent.click(screen.getByTestId('create-submit-open'));
       await screen.findByText(/Case .*2026-LIT-00042.* created\./);
       expect(bodies).toEqual([
         {
           title: 'Land dispute',
           fileType: 'LITIGATION',
+          subTypeId: FILE_TYPE_OPTIONS[0]?.subTypes[0]?.id,
           priority: 'MEDIUM',
           responsibleLawyerId: USER.id,
           responsibleParalegalId: PARALEGAL_ID,

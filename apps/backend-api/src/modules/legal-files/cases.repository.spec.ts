@@ -134,5 +134,10 @@ describe('CasesRepository', () => {
       counts: { parties: 2, notes: 1 },
       createdAt: '2026-10-08T09:00:00.000Z',
     });
+    legalFile.findFirstOrThrow.mockResolvedValue({
+      ...(await legalFile.findFirstOrThrow.mock.results[0]?.value),
+      clients: [],
+    });
+    await expect(repo.get('f1')).resolves.toMatchObject({ primaryClient: null, clients: [] });
   });
 });

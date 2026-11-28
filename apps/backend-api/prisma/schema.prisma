@@ -163,22 +163,6 @@ enum ClientType {
   PARTNERSHIP
 }
 
-/// Number type codes (LIT, CRM, …) live in src/modules/legal-files/file-number.ts (D-031, D-034).
-enum FileType {
-  LITIGATION
-  CRIMINAL
-  CONTRACT_DRAFTING
-  LEGAL_ADVISORY
-  COMPLIANCE
-  CONFLICT_RESOLUTION
-  BUSINESS_SUPPORT
-  NDA_REVIEW
-  WILL_TRUST
-  COMPANY_FORMATION
-  RENTAL_AGREEMENT
-  EMPLOYMENT_CONTRACT
-}
-
 enum FileStatus {
   OPEN
   SUSPENDED
@@ -958,8 +942,12 @@ model LegalFile {
   fileNumber             String                   @map("file_number")
   title                  String
   description            String?
-  fileType               FileType                 @map("file_type")
-  subType                String?                  @map("sub_type")
+  /// The code of a LegalFileType of the file's jurisdiction (composite FK, D-261).
+  fileType               String                   @map("file_type")
+  /// A sub-type of that type (composite FK: it cannot point at another type's sub-type).
+  subTypeId              String?                  @map("sub_type_id") @db.Uuid
+  /// Free text from before D-261 that matched no sub-type: shown read-only, cleared once a sub-type is picked.
+  legacySubType          String?                  @map("sub_type")
   status                 FileStatus               @default(OPEN)
   priority               Priority                 @default(MEDIUM)
   openingDate            DateTime                 @default(dbgenerated("CURRENT_DATE")) @map("opening_date") @db.Date
@@ -987,6 +975,8 @@ model LegalFile {
   searchVectorEnglish    Unsupported("tsvector")? @map("search_vector_english")
 
   office               Office               @relation(fields: [officeId], references: [id])
+  type                 LegalFileType        @relation(fields: [jurisdiction, fileType], references: [jurisdiction, code], onDelete: Restrict, onUpdate: Restrict)
+  subType              LegalFileSubType?    @relation(fields: [subTypeId, jurisdiction, fileType], references: [id, jurisdiction, typeCode], onDelete: Restrict, onUpdate: Restrict)
   court                Court?               @relation(fields: [courtId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   judge                Judge?               @relation(fields: [judgeId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   responsibleLawyer    User                 @relation("FileResponsibleLawyer", fields: [responsibleLawyerId, officeId], references: [id, officeId], onUpdate: Restrict)
@@ -1275,6 +1265,51 @@ model WitnessStatement {
 }
 
 // ─── Courts (D-037, D-115) ──────────────────────────────────────────────────────────────────────────────────────
+
+/// Platform reference data per country (MVP-175, D-261): global (read-only to offices), edited by the platform admin.
+/// The 12 former `FileType` values are seeded for every jurisdiction by the migration. Never deleted: deactivated.
+model LegalFileType {
+  id           String       @id @default(uuid(7)) @db.Uuid
+  jurisdiction Jurisdiction
+  /// UPPER_SNAKE key stored on files and task templates; fixed once created.
+  code         String
+  /// `{TYPE}` part of the file number (D-031); fixed once created, since it keys the number counter.
+  numberCode   String       @map("number_code")
+  nameAr       String       @map("name_ar")
+  nameEn       String       @map("name_en")
+  sortOrder    Int          @default(0) @map("sort_order")
+  isActive     Boolean      @default(true) @map("is_active")
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  subTypes   LegalFileSubType[]
+  legalFiles LegalFile[]
+
+  @@unique([jurisdiction, code])
+  @@unique([jurisdiction, numberCode])
+  @@map("legal_file_types")
+}
+
+/// A sub-type of one LegalFileType, keyed by its (jurisdiction, code) so a file's composite FK pins it to the file's type.
+model LegalFileSubType {
+  id           String       @id @default(uuid(7)) @db.Uuid
+  jurisdiction Jurisdiction
+  typeCode     String       @map("type_code")
+  nameAr       String       @map("name_ar")
+  nameEn       String       @map("name_en")
+  sortOrder    Int          @default(0) @map("sort_order")
+  isActive     Boolean      @default(true) @map("is_active")
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  type       LegalFileType @relation(fields: [jurisdiction, typeCode], references: [jurisdiction, code], onDelete: Restrict, onUpdate: Restrict)
+  legalFiles LegalFile[]
+
+  @@unique([id, jurisdiction, typeCode])
+  @@unique([jurisdiction, typeCode, nameAr])
+  @@unique([jurisdiction, typeCode, nameEn])
+  @@map("legal_file_sub_types")
+}
 
 /// Reference data: `officeId` null = a platform row (seeded, read-only to offices), set = the office's own row.
 /// Platform rows are unique by (jurisdiction, nameEn) and office rows by (office, jurisdiction, nameAr): partial unique
@@ -1614,7 +1649,8 @@ model TaskTemplate {
   id                  String        @id @default(uuid(7)) @db.Uuid
   officeId            String        @map("office_id") @db.Uuid
   name                String
-  fileType            FileType?     @map("file_type")
+  /// A LegalFileType code of the office's jurisdiction; null = every type.
+  fileType            String?       @map("file_type")
   defaultTitle        String        @map("default_title")
   defaultDescription  String?       @map("default_description")
   dueDaysAfterOpen    Int?          @map("due_days_after_open")

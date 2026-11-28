@@ -1,17 +1,18 @@
+import { FILE_TYPES } from '@nexlegtiq/shared-types';
+
 import { FILE_TYPE_CODES, parseFileNumberFormat } from './file-number';
-import { FileType } from '../../generated/prisma/enums';
 
 describe('parseFileNumberFormat', () => {
   it('should render the default format (D-031)', () => {
     const format = parseFileNumberFormat('{YEAR}-{TYPE}-{SEQ:5}');
-    expect(format.render({ year: 2026, fileType: 'LITIGATION', seq: 1 })).toBe('2026-LIT-00001');
-    expect(format.render({ year: 2026, fileType: 'CRIMINAL', seq: 42 })).toBe('2026-CRM-00042');
+    expect(format.render({ year: 2026, typeCode: 'LIT', seq: 1 })).toBe('2026-LIT-00001');
+    expect(format.render({ year: 2026, typeCode: 'CRM', seq: 42 })).toBe('2026-CRM-00042');
     expect(format).toMatchObject({ usesYear: true, usesType: true });
   });
 
   it('should let a number grow past its padding', () => {
     const format = parseFileNumberFormat('{TYPE}/{SEQ:3}');
-    expect(format.render({ year: 2026, fileType: 'NDA_REVIEW', seq: 1234 })).toBe('NDA/1234');
+    expect(format.render({ year: 2026, typeCode: 'NDA', seq: 1234 })).toBe('NDA/1234');
   });
 
   it.each([
@@ -21,15 +22,13 @@ describe('parseFileNumberFormat', () => {
   ])('should say which parts %s uses', (pattern, uses, rendered) => {
     const format = parseFileNumberFormat(pattern);
     expect(format).toMatchObject(uses);
-    expect(format.render({ year: 2026, fileType: 'CONTRACT_DRAFTING', seq: 7 })).toBe(rendered);
+    expect(format.render({ year: 2026, typeCode: 'CON', seq: 7 })).toBe(rendered);
   });
 
   it('should keep every allowed literal character and pad up to the width', () => {
     const format = parseFileNumberFormat('No. 7_{YEAR}/#{SEQ:5}-Z');
-    expect(format.render({ year: 2026, fileType: 'LITIGATION', seq: 99_999 })).toBe(
-      'No. 7_2026/#99999-Z',
-    );
-    expect(format.render({ year: 2026, fileType: 'LITIGATION', seq: 100_000 })).toBe(
+    expect(format.render({ year: 2026, typeCode: 'LIT', seq: 99_999 })).toBe('No. 7_2026/#99999-Z');
+    expect(format.render({ year: 2026, typeCode: 'LIT', seq: 100_000 })).toBe(
       'No. 7_2026/#100000-Z',
     );
   });
@@ -77,8 +76,8 @@ describe('FILE_TYPE_CODES', () => {
     });
   });
 
-  it('should give every file type its own code', () => {
-    expect(Object.keys(FILE_TYPE_CODES).sort()).toEqual(Object.values(FileType).sort());
-    expect(new Set(Object.values(FILE_TYPE_CODES)).size).toBe(Object.values(FileType).length);
+  it('should give every seeded file type its own code', () => {
+    expect(Object.keys(FILE_TYPE_CODES).sort()).toEqual([...FILE_TYPES].sort());
+    expect(new Set(Object.values(FILE_TYPE_CODES)).size).toBe(FILE_TYPES.length);
   });
 });

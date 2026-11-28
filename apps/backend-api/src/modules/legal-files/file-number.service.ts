@@ -1,11 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { ClsService } from 'nestjs-cls';
 
-import { FILE_TYPE_CODES, parseFileNumberFormat } from './file-number';
+import { parseFileNumberFormat } from './file-number';
 import type { RequestContext } from '../../common/context/request-context';
 import { TenantContextMissingError } from '../../common/tenancy/tenant.errors';
 import type { ScopedTransaction } from '../../database/unit-of-work';
-import type { FileType } from '../../generated/prisma/enums';
 
 type CounterKey = { officeId: string; year: number; typeCode: string };
 
@@ -21,7 +20,8 @@ type CounterKey = { officeId: string; year: number; typeCode: string };
 export class FileNumberService {
   constructor(private readonly cls: ClsService<RequestContext>) {}
 
-  async next(tx: ScopedTransaction, fileType: FileType, year: number): Promise<string> {
+  /** `numberCode` = the file type's `{TYPE}` code (LegalFileType.numberCode, D-261). */
+  async next(tx: ScopedTransaction, numberCode: string, year: number): Promise<string> {
     const officeId = this.officeId();
     assertFourDigitYear(year);
     const settings = await tx.officeSettings.findFirst({ select: { fileNumberFormat: true } });
@@ -31,7 +31,7 @@ export class FileNumberService {
     const key: CounterKey = {
       officeId,
       year: format.usesYear ? year : 0,
-      typeCode: format.usesType ? FILE_TYPE_CODES[fileType] : '',
+      typeCode: format.usesType ? numberCode : '',
     };
     // ON CONFLICT DO NOTHING creates the counter once; the update then takes the row lock and increments it.
     await tx.fileNumberSequence.createMany({
@@ -39,7 +39,11 @@ export class FileNumberService {
       skipDuplicates: true,
     });
     for (;;) {
-      const fileNumber = format.render({ year, fileType, seq: await this.increment(tx, key) });
+      const fileNumber = format.render({
+        year,
+        typeCode: numberCode,
+        seq: await this.increment(tx, key),
+      });
       const taken = await tx.legalFile.findFirst({ where: { fileNumber }, select: { id: true } });
       if (!taken) return fileNumber;
     }

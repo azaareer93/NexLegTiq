@@ -30,6 +30,7 @@ const row = (n: number, extra: Partial<CaseListItem> = {}): CaseListItem => ({
   fileNumber: `2026-LIT-${String(n).padStart(5, '0')}`,
   title: `Land dispute ${n}`,
   fileType: 'LITIGATION',
+  fileTypeName: { nameAr: 'تقاضٍ', nameEn: 'Litigation' },
   status: 'OPEN',
   priority: 'HIGH',
   openingDate: '2026-10-01',
@@ -71,7 +72,7 @@ describe('list parameters', () => {
     expect(
       readQuery(
         new URLSearchParams(
-          'status=OPEN&fileType=LITIGATION,PIZZA&priority=URGENT&sort=passwordHash&page=2&limit=500&x=1&search=%20land',
+          'status=OPEN&fileType=LITIGATION,pizza&priority=URGENT&sort=passwordHash&page=2&limit=500&x=1&search=%20land',
         ),
       ),
     ).toEqual({ status: 'OPEN', priority: 'URGENT', page: '2', search: ' land' });

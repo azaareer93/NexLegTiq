@@ -1,6 +1,6 @@
 import { ApiError } from '@nexlegtiq/shared-api-client';
 import { CreateCaseSchema } from '@nexlegtiq/shared-contracts';
-import { FILE_TYPES, PRIORITIES } from '@nexlegtiq/shared-types';
+import { PRIORITIES } from '@nexlegtiq/shared-types';
 import { ApiErrorAlert, useApiErrorHandler, useCan } from '@nexlegtiq/shared-ui';
 import { isolateLtr } from '@nexlegtiq/shared-utils';
 import { App, Button, Flex, Form, Input, Modal, Select, Typography } from 'antd';
@@ -8,6 +8,7 @@ import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 
+import { FileTypeSelect, SubTypeSelect } from './FileTypeSelects';
 import { BillingFields, CourtFields, PeopleFields } from './QuickCreateFields';
 import { useSession } from '../../auth';
 import { parseForm, zodRule } from '../../auth/forms';
@@ -45,7 +46,8 @@ export function QuickCreateCaseModal(): React.JSX.Element {
   // Which button submitted: read in onFinish, so a ref (no re-render needed).
   const openAfter = useRef(false);
   const shape = CreateCaseSchema.shape;
-  const rules = (field: 'title' | 'fileType' | 'subType' | 'description') =>
+  const fileType = Form.useWatch('fileType', form) ?? undefined;
+  const rules = (field: 'title' | 'fileType' | 'subTypeId' | 'description') =>
     zodRule(shape[field], translateKey);
 
   const close = () => {
@@ -139,12 +141,9 @@ export function QuickCreateCaseModal(): React.JSX.Element {
               rules={rules('fileType')}
               style={{ flex: '1 1 200px' }}
             >
-              <Select
-                showSearch={{ optionFilterProp: 'label' }}
-                options={FILE_TYPES.map((value) => ({
-                  value,
-                  label: t(`enums.fileType.${value}`),
-                }))}
+              <FileTypeSelect
+                // A sub-type belongs to one type (D-261).
+                onChange={() => form.setFieldValue('subTypeId', undefined)}
                 data-testid="create-type"
               />
             </Form.Item>
@@ -162,8 +161,12 @@ export function QuickCreateCaseModal(): React.JSX.Element {
               />
             </Form.Item>
           </Flex>
-          <Form.Item name="subType" label={t('cases.file.fields.subType')} rules={rules('subType')}>
-            <Input dir="auto" data-testid="create-subtype" />
+          <Form.Item
+            name="subTypeId"
+            label={t('cases.file.fields.subType')}
+            rules={rules('subTypeId')}
+          >
+            <SubTypeSelect typeCode={fileType} data-testid="create-subtype" />
           </Form.Item>
           <PeopleFields />
           <Typography.Text strong>{t('cases.create.more')}</Typography.Text>

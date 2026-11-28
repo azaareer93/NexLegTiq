@@ -31,6 +31,7 @@ export type { TaskListParams } from './tasks.js';
 export { partiesApi } from './parties.js';
 export type { ConflictListParams } from './parties.js';
 export { casesApi } from './cases.js';
+export { adminFileTypesApi, fileTypesApi } from './file-types.js';
 export type { CaseListParams } from './cases.js';
 export { aiApi } from './ai.js';
 export { exportsApi } from './exports.js';
