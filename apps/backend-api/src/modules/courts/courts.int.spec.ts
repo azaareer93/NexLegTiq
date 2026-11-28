@@ -24,7 +24,10 @@ interface SeededUser {
 }
 type Body<T = Record<string, unknown>> = { data: T; error?: { code: string; details?: unknown } };
 
-/** MVP-66 through HTTP on real PostgreSQL: platform and office courts, judges, prosecutors, files' court and judge. */
+/**
+ * MVP-66 through HTTP on real PostgreSQL: courts, judges, prosecutors, files' court and judge. Since MVP-167 (D-266) an
+ * office reads the active platform courts of its country and keeps its legacy office courts read-only.
+ */
 describe('courts API (HTTP + PostgreSQL)', () => {
   let app: NestExpressApplication;
   let raw: PrismaClient;
@@ -63,13 +66,24 @@ describe('courts API (HTTP + PostgreSQL)', () => {
     return { userId: user.id, officeId, role };
   }
 
-  async function createCourt(user: SeededUser, body: Record<string, unknown>): Promise<string> {
-    const res = await http()
-      .post('/api/v1/courts')
-      .set(as(user))
-      .send({ courtType: 'MAGISTRATE', ...body })
-      .expect(201);
-    return (res.body as Body<{ id: string }>).data.id;
+  /** An office's own court from before D-266 (offices can no longer add one through the API). */
+  async function officeCourt(user: SeededUser, nameAr: string): Promise<string> {
+    const court = await raw.court.create({
+      data: { officeId: user.officeId, jurisdiction: 'PALESTINE', courtType: 'MAGISTRATE', nameAr },
+    });
+    return court.id;
+  }
+
+  async function platformCourtOf(
+    jurisdiction: 'PALESTINE' | 'JORDAN',
+    name: string,
+    isActive = true,
+  ): Promise<string> {
+    const court = await raw.court.create({
+      data: { jurisdiction, courtType: 'MAGISTRATE', nameAr: name, nameEn: name, isActive },
+    });
+    platformCourtIds.push(court.id);
+    return court.id;
   }
 
   async function createJudge(user: SeededUser, courtId: string, fullName: string) {
@@ -119,6 +133,7 @@ describe('courts API (HTTP + PostgreSQL)', () => {
     raw = app.get(PrismaService).unscoped();
     jwt = app.get(JwtService);
     const officeId = await seedOffice('Courts office');
+    await raw.office.update({ where: { id: officeId }, data: { jurisdiction: 'PALESTINE' } });
     manager = await seedUser(officeId, 'OFFICE_MANAGER');
     trainee = await seedUser(officeId, 'TRAINEE');
     other = await seedUser(await seedOffice('Other office'), 'OFFICE_MANAGER');
@@ -155,75 +170,34 @@ describe('courts API (HTTP + PostgreSQL)', () => {
   });
 
   describe('courts', () => {
-    it('should list platform courts and the office own, never another office courts', async () => {
-      const mine = await createCourt(manager, { nameAr: `صلح ${tag}`, city: 'دورا' });
-      const theirs = await createCourt(other, { nameAr: `صلح آخر ${tag}` });
+    it("should list only the active platform courts of the office's country", async () => {
+      const mine = await officeCourt(manager, `صلح ${tag}`);
+      const theirs = await officeCourt(other, `صلح آخر ${tag}`);
+      const jordan = await platformCourtOf('JORDAN', `Amman ${tag}`);
+      const retired = await platformCourtOf('PALESTINE', `Retired ${tag}`, false);
       const ids = await courtIds(manager, `&search=${tag}`);
-      expect(ids).toEqual(expect.arrayContaining([platformCourt, mine]));
-      expect(ids).not.toContain(theirs);
-      expect(await courtIds(manager, `&search=${encodeURIComponent('دورا')}`)).toContain(mine);
-      expect(await courtIds(manager, '&jurisdiction=JORDAN')).not.toContain(mine);
+      expect(ids).toContain(platformCourt);
+      for (const hidden of [mine, theirs, jordan, retired]) expect(ids).not.toContain(hidden);
+      const own = (await http().get(`/api/v1/courts/${mine}`).set(as(manager)).expect(200))
+        .body as Body<{ isPlatform: boolean; isActive: boolean }>;
+      expect(own.data).toMatchObject({ isPlatform: false, isActive: true });
+      await http().get(`/api/v1/courts/${retired}`).set(as(manager)).expect(200);
       await http().get(`/api/v1/courts/${theirs}`).set(as(manager)).expect(404);
     });
 
-    it('should default the jurisdiction to the office one and flag platform rows', async () => {
-      const id = await createCourt(manager, { nameAr: `محكمة ${tag}-j` });
-      const own = (await http().get(`/api/v1/courts/${id}`).set(as(manager)).expect(200))
-        .body as Body<{ jurisdiction: string; isPlatform: boolean }>;
-      expect(own.data).toMatchObject({ jurisdiction: 'PALESTINE', isPlatform: false });
-      const platform = (
-        await http().get(`/api/v1/courts/${platformCourt}`).set(as(manager)).expect(200)
-      ).body as Body<{ isPlatform: boolean }>;
-      expect(platform.data.isPlatform).toBe(true);
-    });
-
-    it('should refuse to edit or delete a platform court (403) and another office court (404)', async () => {
-      await http()
-        .patch(`/api/v1/courts/${platformCourt}`)
-        .set(as(manager))
-        .send({ city: 'X' })
-        .expect(403);
-      await http().delete(`/api/v1/courts/${platformCourt}`).set(as(manager)).expect(403);
-      const theirs = await createCourt(other, { nameAr: `لهم ${tag}` });
-      await http()
-        .patch(`/api/v1/courts/${theirs}`)
-        .set(as(manager))
-        .send({ city: 'X' })
-        .expect(404);
-      await http().delete(`/api/v1/courts/${theirs}`).set(as(manager)).expect(404);
-      expect((await raw.court.findUniqueOrThrow({ where: { id: platformCourt } })).city).toBeNull();
-    });
-
-    it('should edit an office court with an audit row of the changed fields only', async () => {
-      const id = await createCourt(manager, { nameAr: `تعديل ${tag}`, city: 'نابلس' });
-      const res = await http()
-        .patch(`/api/v1/courts/${id}`)
-        .set(as(manager))
-        .send({ city: 'جنين', nameAr: `تعديل ${tag}` })
-        .expect(200);
-      expect((res.body as Body<{ city: string }>).data.city).toBe('جنين');
-      const audit = await raw.auditLog.findFirstOrThrow({
-        where: { entityType: 'Court', entityId: id, action: 'UPDATE' },
-      });
-      expect(audit.oldValues).toEqual({ city: 'نابلس' });
-      expect(audit.newValues).toEqual({ city: 'جنين' });
-    });
-
-    it('should refuse a duplicate Arabic name in the office and jurisdiction (409)', async () => {
-      await createCourt(manager, { nameAr: `مكرر ${tag}` });
+    it('should no longer let an office add, edit or delete a court', async () => {
+      const mine = await officeCourt(manager, `قديمة ${tag}`);
       await http()
         .post('/api/v1/courts')
         .set(as(manager))
-        .send({ courtType: 'MAGISTRATE', nameAr: `مكرر ${tag}` })
-        .expect(409);
-    });
-
-    it('should not let a trainee add courts, judges or prosecutors (403) but let them read', async () => {
-      await http()
-        .post('/api/v1/courts')
-        .set(as(trainee))
         .send({ courtType: 'MAGISTRATE', nameAr: 'x' })
-        .expect(403);
+        .expect(404);
+      await http().patch(`/api/v1/courts/${mine}`).set(as(manager)).send({ city: 'X' }).expect(404);
+      await http().delete(`/api/v1/courts/${mine}`).set(as(manager)).expect(404);
+      expect(await raw.court.count({ where: { id: mine } })).toBe(1);
+    });
+
+    it('should not let a trainee add judges or prosecutors (403) but let them read', async () => {
       await http()
         .post(`/api/v1/courts/${platformCourt}/judges`)
         .set(as(trainee))
@@ -232,14 +206,6 @@ describe('courts API (HTTP + PostgreSQL)', () => {
       await http().post('/api/v1/prosecutors').set(as(trainee)).send({ fullName: 'x' }).expect(403);
       await http().get('/api/v1/courts').set(as(trainee)).expect(200);
       await http().get(`/api/v1/courts/${platformCourt}/judges`).set(as(trainee)).expect(200);
-    });
-
-    it('should validate the body (400 VAL-001)', async () => {
-      await http()
-        .post('/api/v1/courts')
-        .set(as(manager))
-        .send({ courtType: 'NOPE', nameAr: '' })
-        .expect(400);
     });
   });
 
@@ -271,7 +237,7 @@ describe('courts API (HTTP + PostgreSQL)', () => {
     });
 
     it('should not add a judge to another office court (404)', async () => {
-      const theirs = await createCourt(other, { nameAr: `محكمتهم ${tag}` });
+      const theirs = await officeCourt(other, `محكمتهم ${tag}`);
       await http()
         .post(`/api/v1/courts/${theirs}/judges`)
         .set(as(manager))
@@ -280,7 +246,7 @@ describe('courts API (HTTP + PostgreSQL)', () => {
     });
 
     it('trigger: should refuse a judge at a court its office cannot see, and moving a judge or court', async () => {
-      const theirs = await createCourt(other, { nameAr: `قاعدة ${tag}` });
+      const theirs = await officeCourt(other, `قاعدة ${tag}`);
       await expect(
         raw.judge.create({ data: { officeId: manager.officeId, courtId: theirs, fullName: 'x' } }),
       ).rejects.toThrow(/cannot see/);
@@ -322,37 +288,43 @@ describe('courts API (HTTP + PostgreSQL)', () => {
       expect(file.judge.id).toBe(platformJudge);
     });
 
-    it('should refuse another office court, or a judge of another court (400)', async () => {
-      const theirs = await createCourt(other, { nameAr: `ملف ${tag}` });
-      const mine = await createCourt(manager, { nameAr: `ملفي ${tag}` });
-      const bad = await newCase({ courtId: theirs }, 400);
-      expect(JSON.stringify(bad.body)).toContain('validation.unknownCourt');
-      const wrongJudge = await newCase({ courtId: mine, judgeId: platformJudge }, 400);
+    it('should refuse an office court, a deactivated court, or a judge of another court (400)', async () => {
+      const theirs = await officeCourt(other, `ملف ${tag}`);
+      const mine = await officeCourt(manager, `ملفي ${tag}`);
+      const retired = await platformCourtOf('PALESTINE', `Closed ${tag}`, false);
+      for (const courtId of [theirs, mine, retired]) {
+        const bad = await newCase({ courtId }, 400);
+        expect(JSON.stringify(bad.body)).toContain('validation.unknownCourt');
+      }
+      const judgeElsewhere = await createJudge(manager, mine, `قاضي ملفي ${tag}`);
+      const wrongJudge = await newCase({ courtId: platformCourt, judgeId: judgeElsewhere }, 400);
       expect(JSON.stringify(wrongJudge.body)).toContain('validation.unknownJudge');
     });
 
-    it('should drop the judge when the court changes, and block deleting a court in use (422)', async () => {
-      const mine = await createCourt(manager, { nameAr: `استخدام ${tag}` });
+    it('should keep a legacy court on a file, and drop the judge when the court changes', async () => {
+      const mine = await officeCourt(manager, `استخدام ${tag}`);
+      const legacyJudge = await createJudge(manager, mine, `قاضي قديم ${tag}`);
       const created = await newCase({ courtId: platformCourt, judgeId: platformJudge }, 201);
       const id = (created.body as Body<{ id: string }>).data.id;
-      const res = await http()
-        .patch(`/api/v1/cases/${id}`)
-        .set(as(manager))
-        .send({ courtId: mine })
-        .expect(200);
-      expect(res.body).toMatchObject({ data: { court: { id: mine }, judge: null } });
-      const blocked = await http().delete(`/api/v1/courts/${mine}`).set(as(manager)).expect(422);
-      expect((blocked.body as Body).error?.code).toBe('BIZ-011');
-      await http()
-        .patch(`/api/v1/cases/${id}`)
-        .set(as(manager))
-        .send({ courtId: null })
-        .expect(200);
-      await http().delete(`/api/v1/courts/${mine}`).set(as(manager)).expect(204);
+      await raw.legalFile.update({ where: { id }, data: { courtId: mine, judgeId: null } });
+      const edit = (body: Record<string, unknown>, status = 200) =>
+        http().patch(`/api/v1/cases/${id}`).set(as(manager)).send(body).expect(status);
+      expect((await edit({ title: 'Renamed' })).body).toMatchObject({
+        data: { court: { id: mine } },
+      });
+      expect((await edit({ judgeId: legacyJudge })).body).toMatchObject({
+        data: { court: { id: mine }, judge: { id: legacyJudge } },
+      });
+      expect((await edit({ courtId: platformCourt })).body).toMatchObject({
+        data: { court: { id: platformCourt }, judge: null },
+      });
+      expect(JSON.stringify((await edit({ courtId: mine }, 400)).body)).toContain(
+        'validation.unknownCourt',
+      );
     });
 
     it('should refuse, in the database, a file naming a court its office cannot see', async () => {
-      const theirs = await createCourt(other, { nameAr: `قاعدة ملف ${tag}` });
+      const theirs = await officeCourt(other, `قاعدة ملف ${tag}`);
       await expect(
         raw.legalFile.create({
           data: {

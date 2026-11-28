@@ -33,6 +33,13 @@ export const PLATFORM_RESOURCES: readonly TenantResource[] = [
       db.productEvent.create({ data: { officeId, event: 'APP_ACTIVE' } }),
     update: { props: { changed: true } },
   },
+  // Missing-court reports (D-266): written by the office, resolved by the platform realm.
+  {
+    model: 'CourtReport',
+    create: (db, { officeId, userId }) =>
+      db.courtReport.create({ data: { officeId, reportedById: userId, name: 'Isolation court' } }),
+    update: { note: 'Changed' },
+  },
   // A purged office's issued invoices (D-251): written by the purge job by office id.
   {
     model: 'RetainedInvoice',

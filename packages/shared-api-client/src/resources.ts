@@ -6,6 +6,7 @@ import {
   ClientListItemSchema,
   ClientSchema,
   ContactPersonSchema,
+  CourtReportSchema,
   CourtSchema,
   DirectoryUserSchema,
   JudgeSchema,
@@ -33,7 +34,6 @@ import type {
   UserOpenFile,
   OfficeSubscription,
   CancelSessionRequest,
-  CreateCourtSchema,
   CreateJudgeSchema,
   CreateSessionSchema,
   Session,
@@ -48,6 +48,8 @@ import type {
   ContactPerson,
   Court,
   CourtQuerySchema,
+  CourtReport,
+  ReportCourtRequest,
   CreateClientSchema,
   CreateContactPersonSchema,
   UpdateClientRequest,
@@ -219,7 +221,7 @@ export function clientsApi(client: ApiClient) {
 /** `GET /courts` parameters as they travel in the query string (`CourtQuerySchema` input). */
 export type CourtListParams = Partial<Record<keyof z.input<typeof CourtQuerySchema>, string>>;
 
-/** Courts and their judges (D-115): platform rows and the office's own. */
+/** Courts and their judges (D-115, D-266): the active platform courts of the office's country; offices report a missing one. */
 export function courtsApi(client: ApiClient) {
   return {
     list: (query: CourtListParams, signal?: AbortSignal): Promise<Page<Court>> =>
@@ -229,9 +231,9 @@ export function courtsApi(client: ApiClient) {
         { method: 'GET', path: `courts/${encodeURIComponent(courtId)}/judges`, signal },
         JudgeSchema.array(),
       ),
-    /** An office court (D-115); the jurisdiction defaults to the office's. */
-    create: (body: Input<typeof CreateCourtSchema>): Promise<Court> =>
-      client.request({ method: 'POST', path: 'courts', body }, CourtSchema),
+    /** A court missing from the list, for the platform admin to add (D-266). */
+    report: (body: ReportCourtRequest): Promise<CourtReport> =>
+      client.request({ method: 'POST', path: 'court-reports', body }, CourtReportSchema),
     /** An office judge at a court (also at a platform court). */
     createJudge: (courtId: string, body: Input<typeof CreateJudgeSchema>): Promise<Judge> =>
       client.request(

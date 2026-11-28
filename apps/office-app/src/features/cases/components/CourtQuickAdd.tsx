@@ -1,103 +1,94 @@
-import { CreateCourtSchema, CreateJudgeSchema } from '@nexlegtiq/shared-contracts';
-import type { Court, Judge } from '@nexlegtiq/shared-contracts';
-import { COURT_TYPES } from '@nexlegtiq/shared-types';
-import type { CourtType } from '@nexlegtiq/shared-types';
+import { CreateJudgeSchema, ReportCourtSchema } from '@nexlegtiq/shared-contracts';
+import type { Judge } from '@nexlegtiq/shared-contracts';
 import { ApiErrorAlert, useApiErrorHandler } from '@nexlegtiq/shared-ui';
-import { Form, Input, Modal, Select } from 'antd';
+import { App, Form, Input, Modal, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
 
 import { parseForm, zodRule } from '../../auth/forms';
-import { useCreateCourt, useCreateJudge } from '../api/use-cases';
+import { useCreateJudge, useReportCourt } from '../api/use-cases';
 
-interface CourtValues {
-  nameAr: string;
-  nameEn?: string;
-  courtType?: CourtType;
+interface ReportValues {
+  name: string;
   city?: string;
+  note?: string;
 }
 
-const COURT_FIELDS = ['nameAr', 'nameEn', 'courtType', 'city'];
+const REPORT_FIELDS = ['name', 'city', 'note'];
 
 const blankToUndefined = (value: string | undefined) => value?.trim() || undefined;
 
 /**
- * Adds an office court without leaving the form (D-115: anyone who opens files or schedules hearings may): its Arabic
- * name (prefilled with what was searched), type, optional English name and city. The new court is picked.
+ * Offices no longer add courts (D-266): a court missing from the list is reported (name prefilled with what was searched,
+ * city, note) for the platform team, who adds it and notifies the reporter.
  */
-export function NewCourtModal({
+export function ReportCourtModal({
   initialName,
   onClose,
-  onCreated,
 }: {
   readonly initialName: string | null;
   readonly onClose: () => void;
-  readonly onCreated: (court: Court) => void;
 }): React.JSX.Element {
   const { t } = useTranslation();
+  const { message } = App.useApp();
   const { translateKey, applyToForm } = useApiErrorHandler();
-  const [form] = Form.useForm<CourtValues>();
-  const create = useCreateCourt();
-  const rule = (field: 'nameAr' | 'nameEn' | 'city') =>
-    zodRule(CreateCourtSchema.shape[field], translateKey);
+  const [form] = Form.useForm<ReportValues>();
+  const report = useReportCourt();
+  const rule = (field: 'name' | 'city' | 'note') =>
+    zodRule(ReportCourtSchema.shape[field], translateKey);
 
-  const submit = (values: CourtValues) => {
+  const submit = (values: ReportValues) => {
     const body = parseForm(
-      CreateCourtSchema,
+      ReportCourtSchema,
       {
-        nameAr: values.nameAr,
-        courtType: values.courtType,
-        nameEn: blankToUndefined(values.nameEn),
+        name: values.name,
         city: blankToUndefined(values.city),
+        note: blankToUndefined(values.note),
       },
       form,
       translateKey,
     );
     if (!body) return;
-    create.mutate(body, {
-      onSuccess: onCreated,
-      onError: (error) => applyToForm(form, error, COURT_FIELDS),
+    report.mutate(body, {
+      onSuccess: () => {
+        void message.success(t('cases.create.reportSent'));
+        onClose();
+      },
+      onError: (error) => applyToForm(form, error, REPORT_FIELDS),
     });
   };
 
   return (
     <Modal
       open={initialName !== null}
-      title={t('cases.create.newCourt')}
-      okText={t('common.actions.save')}
-      okButtonProps={{ loading: create.isPending, 'data-testid': 'new-court-save' }}
+      title={t('cases.create.reportCourt')}
+      okText={t('cases.create.reportSend')}
+      okButtonProps={{ loading: report.isPending, 'data-testid': 'report-court-send' }}
       onOk={() => form.submit()}
       onCancel={onClose}
       destroyOnHidden
-      data-testid="new-court-modal"
+      data-testid="report-court-modal"
     >
-      <ApiErrorAlert error={create.error} fields={COURT_FIELDS} testId="new-court-error" />
-      <Form<CourtValues>
+      <Typography.Paragraph type="secondary">
+        {t('cases.create.reportCourtHint')}
+      </Typography.Paragraph>
+      <ApiErrorAlert error={report.error} fields={REPORT_FIELDS} testId="report-court-error" />
+      <Form<ReportValues>
         form={form}
         layout="vertical"
         noValidate
         requiredMark={false}
-        initialValues={{ nameAr: initialName ?? '' }}
+        initialValues={{ name: initialName ?? '' }}
         onFinish={submit}
-        disabled={create.isPending}
+        disabled={report.isPending}
       >
-        <Form.Item name="nameAr" label={t('cases.create.courtNameAr')} rules={rule('nameAr')}>
-          <Input dir="rtl" data-testid="new-court-name" />
-        </Form.Item>
-        <Form.Item
-          name="courtType"
-          label={t('cases.create.courtType')}
-          rules={[{ required: true, message: translateKey('validation.required') }]}
-        >
-          <Select
-            options={COURT_TYPES.map((value) => ({ value, label: t(`enums.courtType.${value}`) }))}
-            data-testid="new-court-type"
-          />
-        </Form.Item>
-        <Form.Item name="nameEn" label={t('cases.create.courtNameEn')} rules={rule('nameEn')}>
-          <Input dir="ltr" data-testid="new-court-name-en" />
+        <Form.Item name="name" label={t('cases.create.reportName')} rules={rule('name')}>
+          <Input dir="auto" data-testid="report-court-name" />
         </Form.Item>
         <Form.Item name="city" label={t('cases.create.city')} rules={rule('city')}>
-          <Input dir="auto" data-testid="new-court-city" />
+          <Input dir="auto" data-testid="report-court-city" />
+        </Form.Item>
+        <Form.Item name="note" label={t('cases.create.reportNote')} rules={rule('note')}>
+          <Input.TextArea rows={2} dir="auto" data-testid="report-court-note" />
         </Form.Item>
       </Form>
     </Modal>

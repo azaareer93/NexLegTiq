@@ -70,6 +70,7 @@ function setup(row: SessionState = state(), role: Role = 'LAWYER') {
       findMany: jest.fn().mockResolvedValue([]),
     },
     court: { count: jest.fn().mockResolvedValue(1) },
+    office: { findFirstOrThrow: jest.fn().mockResolvedValue({ jurisdiction: 'PALESTINE' }) },
     judge: { count: jest.fn().mockResolvedValue(1) },
     officeSettings: {
       findFirstOrThrow: jest.fn().mockResolvedValue({ courtReminderDays: [7, 3, 1] }),
@@ -218,6 +219,14 @@ describe('SessionsService', () => {
       const range = where.AND[1] as { startsAt: { gte: Date; lt: Date } };
       expect(range.startsAt.lt.getTime() - range.startsAt.gte.getTime()).toBe(31 * DAY_MS);
       expect(where.AND).toContainEqual({ attendingLawyerId: ME });
+    });
+
+    it('should refuse a calendar range holding more than 2000 sessions', async () => {
+      const { service, repo } = setup();
+      repo.findMany.mockResolvedValueOnce(Array.from({ length: 2001 }, (_, i) => ({ id: i })));
+      await expect(service.list(SessionQuerySchema.parse({}))).rejects.toMatchObject({
+        details: [{ field: 'to', message: 'validation.dateRange' }],
+      });
     });
 
     it('should list upcoming sessions soonest first and past ones latest first', async () => {

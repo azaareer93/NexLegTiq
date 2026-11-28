@@ -121,7 +121,8 @@ export const COURTS: readonly CourtSeed[] = [
 ];
 
 /**
- * Idempotent: platform courts are keyed by jurisdiction + English name; an existing row gets the seed's Arabic name, type
+ * Development and demo data (D-266; never run by the migrate image). Idempotent: platform courts are keyed by
+ * jurisdiction + English name; an existing row gets the seed's Arabic name, type
  * and city (the platform owns these rows; offices cannot edit them), a missing one is created. Renaming `nameEn` here
  * creates a new row — retire the old one with a migration. Offices' own courts are never touched.
  */

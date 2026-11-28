@@ -7,7 +7,7 @@ import { Button, Divider, Form, Input, Select } from 'antd';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { NewCourtModal, NewJudgeModal } from './CourtQuickAdd';
+import { NewJudgeModal, ReportCourtModal } from './CourtQuickAdd';
 import { zodRule } from '../../auth/forms';
 import { useDebounced } from '../../clients/list-params';
 import { useCourts, useDirectory, useJudges } from '../api/use-cases';
@@ -64,8 +64,9 @@ interface Option {
 }
 
 /**
- * An optional court (server search, platform and office courts) and a judge of that court, each with an inline "new"
- * (D-115). `initialCourt` names a court the form starts with (an edited hearing's), which a search may not list.
+ * An optional court (server search over the active platform courts of the office's country, with "report a missing
+ * court", D-266) and a judge of that court with an inline "new" (D-115). `initialCourt` names a court the form starts
+ * with (an edited hearing's, maybe a legacy office court), which a search may not list.
  */
 export function CourtFields({
   initialCourt,
@@ -80,8 +81,8 @@ export function CourtFields({
   const [open, setOpen] = useState(false);
   // The picked court keeps its name when a later search no longer lists it (as ClientSelect does).
   const [picked, setPicked] = useState<Option | undefined>(initialCourt);
-  // The court modal's starting name (what was searched), null while closed; taken on click, as closing clears the search.
-  const [newCourt, setNewCourt] = useState<string | null>(null);
+  // The report modal's starting name (what was searched), null while closed; taken on click, as closing clears the search.
+  const [reportCourt, setReportCourt] = useState<string | null>(null);
   const [newJudge, setNewJudge] = useState(false);
   const search = useDebounced(text.trim());
   const courts = useCourts(search, open || courtId !== undefined);
@@ -112,12 +113,12 @@ export function CourtFields({
             <>
               {menu}
               <AddButton
-                label={t('cases.create.newCourt')}
+                label={t('cases.create.reportCourt')}
                 onClick={() => {
-                  setNewCourt(text.trim());
+                  setReportCourt(text.trim());
                   setOpen(false);
                 }}
-                testId="create-court-new"
+                testId="create-court-report"
               />
             </>
           )}
@@ -147,18 +148,7 @@ export function CourtFields({
           data-testid="create-judge"
         />
       </Form.Item>
-      <NewCourtModal
-        initialName={newCourt}
-        onClose={() => setNewCourt(null)}
-        onCreated={(court) => {
-          setNewCourt(null);
-          setPicked({
-            value: court.id,
-            label: isolate(arabic ? court.nameAr : (court.nameEn ?? court.nameAr)),
-          });
-          form.setFieldsValue({ courtId: court.id, judgeId: undefined });
-        }}
-      />
+      <ReportCourtModal initialName={reportCourt} onClose={() => setReportCourt(null)} />
       <NewJudgeModal
         courtId={courtId}
         open={newJudge}

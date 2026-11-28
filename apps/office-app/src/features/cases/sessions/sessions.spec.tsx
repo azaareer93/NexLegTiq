@@ -285,7 +285,7 @@ describe('hearings tab (MVP-69)', () => {
   );
 
   it(
-    'should add a court and a judge inline and pick them',
+    'should report a missing court, and add a judge inline at a listed court',
     async () => {
       setViewport(1280);
       asRole('LAWYER');
@@ -301,8 +301,7 @@ describe('hearings tab (MVP-69)', () => {
         phone: null,
         email: null,
         isActive: true,
-        notes: null,
-        isPlatform: false,
+        isPlatform: true,
         createdAt: '2026-10-01T10:00:00.000Z',
         updatedAt: '2026-10-01T10:00:00.000Z',
       };
@@ -318,10 +317,20 @@ describe('hearings tab (MVP-69)', () => {
       };
       const bodies: unknown[] = [];
       server.use(
-        http.get(api('courts'), () => page([] as never)),
-        http.post(api('courts'), async ({ request }) => {
+        http.get(api('courts'), () => page([court] as never)),
+        http.post(api('court-reports'), async ({ request }) => {
           bodies.push(await request.json());
-          return ok(court, 201);
+          return ok(
+            {
+              id: '01920000-0000-7000-8000-0000000000f9',
+              name: 'محكمة صلح يطا',
+              city: null,
+              note: null,
+              status: 'PENDING',
+              createdAt: '2026-10-01T10:00:00.000Z',
+            },
+            201,
+          );
         }),
         http.get(api(`courts/${court.id}/judges`), () => ok(bodies.length > 1 ? [judge] : [])),
         http.post(api(`courts/${court.id}/judges`), async ({ request }) => {
@@ -333,18 +342,18 @@ describe('hearings tab (MVP-69)', () => {
       fireEvent.click(await screen.findByTestId('session-new'));
       const select = await screen.findByTestId('create-court');
       fireEvent.mouseDown(select.querySelector('.ant-select-selector') ?? select);
-      fireEvent.click(await screen.findByTestId('create-court-new'));
-      const modal = await screen.findByTestId('new-court-modal');
-      fireEvent.change(within(modal).getByTestId('new-court-name'), {
-        target: { value: 'محكمة صلح جنين' },
+      fireEvent.click(await screen.findByTestId('create-court-report'));
+      const modal = await screen.findByTestId('report-court-modal');
+      fireEvent.change(within(modal).getByTestId('report-court-name'), {
+        target: { value: 'محكمة صلح يطا' },
       });
-      const type = within(modal).getByTestId('new-court-type');
-      fireEvent.mouseDown(type.querySelector('.ant-select-selector') ?? type);
-      fireEvent.click(await screen.findByTitle('Magistrate'));
-      fireEvent.click(screen.getByTestId('new-court-save'));
-      await waitFor(() =>
-        expect(bodies[0]).toEqual({ nameAr: 'محكمة صلح جنين', courtType: 'MAGISTRATE' }),
-      );
+      fireEvent.click(screen.getByTestId('report-court-send'));
+      await waitFor(() => expect(bodies[0]).toEqual({ name: 'محكمة صلح يطا' }));
+      expect(
+        await screen.findByText('Thank you. The platform team will review it and notify you.'),
+      ).toBeTruthy();
+      fireEvent.mouseDown(select.querySelector('.ant-select-selector') ?? select);
+      fireEvent.click(await screen.findByTitle(/محكمة صلح جنين/));
       await waitFor(() =>
         expect(screen.getByTestId('create-court').textContent).toContain('محكمة صلح جنين'),
       );

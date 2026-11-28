@@ -63,6 +63,11 @@
     "QUARANTINED": "Blocked",
     "FAILED": "Scan failed"
   },
+  "courtReportStatus": {
+    "PENDING": "Pending",
+    "ADDED": "Added",
+    "DISMISSED": "Dismissed"
+  },
   "courtType": {
     "CIVIL": "Civil",
     "CRIMINAL": "Criminal",

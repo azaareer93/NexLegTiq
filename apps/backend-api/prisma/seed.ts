@@ -120,13 +120,19 @@ export function createSeedClient(): PrismaClient {
   return new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 }
 
-export async function main(): Promise<void> {
+/**
+ * Plans always; the platform courts only for development and demo databases (D-266: in production the platform admin
+ * manages courts, so the migrate image passes `courts: false` and never overwrites their edits).
+ */
+export async function main({ courts = true }: { courts?: boolean } = {}): Promise<void> {
   const prisma = createSeedClient();
   try {
     await seedPlans(prisma);
     console.info(`Seeded ${PLANS.length} plans`);
-    await seedCourts(prisma);
-    console.info(`Seeded ${COURTS.length} platform courts`);
+    if (courts) {
+      await seedCourts(prisma);
+      console.info(`Seeded ${COURTS.length} platform courts`);
+    }
   } finally {
     await prisma.$disconnect();
   }

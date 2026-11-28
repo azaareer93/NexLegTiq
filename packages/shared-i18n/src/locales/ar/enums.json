@@ -63,6 +63,11 @@
     "QUARANTINED": "محجوب",
     "FAILED": "تعذّر الفحص"
   },
+  "courtReportStatus": {
+    "PENDING": "قيد المراجعة",
+    "ADDED": "أُضيفت",
+    "DISMISSED": "مرفوض"
+  },
   "courtType": {
     "CIVIL": "مدنية",
     "CRIMINAL": "جزائية",

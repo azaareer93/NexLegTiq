@@ -194,6 +194,13 @@ enum CourtType {
   ARBITRATION
 }
 
+/// D-266. A missing court an office reported, until the platform admin adds or dismisses it.
+enum CourtReportStatus {
+  PENDING
+  ADDED
+  DISMISSED
+}
+
 enum TaskStatus {
   TODO
   IN_PROGRESS
@@ -431,6 +438,7 @@ model Office {
   documentVersions       DocumentVersion[]
   documentTexts          DocumentText[]
   productEvents          ProductEvent[]
+  courtReports           CourtReport[]
   retainedInvoices       RetainedInvoice[]
 
   @@map("offices")
@@ -532,6 +540,7 @@ model User {
   aiFeedbacks     AiFeedback[]
   retainerEntries RetainerEntry[]
   officeExports   OfficeExport[]
+  courtReports    CourtReport[]
 
   @@unique([id, officeId])
   @@index([officeId, role])
@@ -560,6 +569,7 @@ model PlatformAdmin {
   platformAuditLogs PlatformAuditLog[]
   paymentsRecorded  PlatformPayment[]      @relation("PaymentRecordedBy")
   paymentsVoided    PlatformPayment[]      @relation("PaymentVoidedBy")
+  courtReports      CourtReport[]
 
   @@map("platform_admins")
 }
@@ -1316,14 +1326,17 @@ model Court {
   address      String?
   phone        String?
   email        String?      @db.Citext
+  /// A deactivated court leaves the office picker and new assignments; files and sessions keep it (D-266).
+  isActive     Boolean      @default(true) @map("is_active")
   createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   // Restrict: SetNull would turn an office's rows into platform rows.
-  office     Office?     @relation(fields: [officeId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  judges     Judge[]
-  legalFiles LegalFile[]
-  sessions   Session[]
+  office       Office?       @relation(fields: [officeId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  judges       Judge[]
+  legalFiles   LegalFile[]
+  sessions     Session[]
+  courtReports CourtReport[]
 
   @@index([jurisdiction, officeId])
   @@index([officeId])
@@ -2238,6 +2251,36 @@ model ClientUpload {
   @@index([officeId, clientId])
   @@index([clientUserId])
   @@map("client_uploads")
+}
+
+/// A court an office could not find in its picker (D-266): the platform admin adds it as a platform court (`courtId`)
+/// or dismisses it, and the reporting user is notified.
+model CourtReport {
+  id            String            @id @default(uuid(7)) @db.Uuid
+  officeId      String            @map("office_id") @db.Uuid
+  reportedById  String            @map("reported_by_id") @db.Uuid
+  name          String
+  city          String?
+  note          String?
+  status        CourtReportStatus @default(PENDING)
+  /// The platform court added for the report (ADDED only).
+  courtId       String?           @map("court_id") @db.Uuid
+  resolvedById  String?           @map("resolved_by_id") @db.Uuid
+  resolvedAt    DateTime?         @map("resolved_at") @db.Timestamptz(3)
+  dismissReason String?           @map("dismiss_reason")
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  office     Office         @relation(fields: [officeId], references: [id])
+  reportedBy User           @relation(fields: [reportedById, officeId], references: [id, officeId], onDelete: Restrict, onUpdate: Restrict)
+  court      Court?         @relation(fields: [courtId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  resolvedBy PlatformAdmin? @relation(fields: [resolvedById], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  // The admin queue (pending first, oldest first) and an office's own reports.
+  @@index([status, createdAt])
+  @@index([officeId, createdAt])
+  @@index([courtId])
+  @@map("court_reports")
 }
 
 /// Product analytics (D-215): first-party, in our own database. The office id is the only identifier — no user, name,
