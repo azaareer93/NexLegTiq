@@ -151,6 +151,24 @@ describe('TaskTemplatesService', () => {
     expect(audit.log).toHaveBeenCalledTimes(3);
   });
 
+  it("should take only an active type of the office's country (D-261)", async () => {
+    const { service, db } = setup();
+    const refs = {
+      office: { findFirstOrThrow: jest.fn().mockResolvedValue({ jurisdiction: 'PALESTINE' }) },
+      legalFileType: { count: jest.fn().mockResolvedValue(1) },
+    };
+    Object.assign(db, refs);
+    await service.create({ name: 'x', defaultTitle: 'y', fileType: 'LITIGATION' });
+    expect(refs.legalFileType.count).toHaveBeenCalledWith({
+      where: { jurisdiction: 'PALESTINE', code: 'LITIGATION', isActive: true },
+    });
+    refs.legalFileType.count.mockResolvedValue(0);
+    await expect(service.update(ID(1), { fileType: 'GONE_TYPE' })).rejects.toMatchObject({
+      code: 'VAL-001',
+    });
+    expect(db.taskTemplate.update).not.toHaveBeenCalled();
+  });
+
   it('should hand each route to the service', async () => {
     const templates = {
       list: jest.fn().mockResolvedValue([]),
