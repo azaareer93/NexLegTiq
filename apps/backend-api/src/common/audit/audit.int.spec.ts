@@ -17,6 +17,7 @@ import { bearerFor } from '../../modules/auth/auth.test-helper';
 import { OfficeExportBuilder } from '../../modules/data-export/office-export.builder';
 import { InvoiceOverdueSweep } from '../../modules/invoices/invoice-overdue.sweep';
 import { InvoicePdfRenderer } from '../../modules/invoices/pdf/invoice-pdf.renderer';
+import { OfficePurge } from '../../modules/office-deletion/office-purge';
 import { ReceiptPdfRenderer } from '../../modules/platform-payments/receipt-pdf.renderer';
 import { liveSubscription } from '../../modules/subscriptions/subscription.test-helper';
 
@@ -73,6 +74,7 @@ describe('audit log (HTTP + PostgreSQL)', () => {
         InvoicePdfRenderer,
         ReceiptPdfRenderer,
         OfficeExportBuilder,
+        OfficePurge,
       ],
     })
       .overrideProvider(ThrottlerGuard)

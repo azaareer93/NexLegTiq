@@ -3,6 +3,7 @@ import type { CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { PlanFeature } from '@nexlegtiq/shared-contracts';
 
+import type { Entitlements } from './entitlements';
 import { EntitlementsService } from './entitlements.service';
 import { ALLOW_READ_ONLY_KEY, FEATURE_KEY } from './subscription.decorators';
 import type { AuthPrincipal } from '../../common/context/request-context';
@@ -10,10 +11,20 @@ import { AppException } from '../../common/errors/app.exception';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
+/** 403 AUTH-105 while a deletion is scheduled (D-251), else 403 AUTH-104 while the subscription has ended (D-122). */
+function assertWritable(entitlements: Entitlements): void {
+  if (entitlements.deletionScheduledFor) {
+    throw new AppException('AUTH-105', 'Deletion scheduled: the office is read-only');
+  }
+  if (entitlements.readOnly) {
+    throw new AppException('AUTH-104', 'Subscription ended: the office is read-only');
+  }
+}
+
 /**
  * Global guard after PermissionsGuard (D-122): `@RequireFeature` → 403 AUTH-102 unless the plan has the flag; any other
- * method than GET/HEAD/OPTIONS → 403 AUTH-104 while the office's subscription has ended (read-only mode), unless the
- * route is `@AllowWhenReadOnly()`. Public routes and the platform realm are not concerned; any realm acting for an office
+ * method than GET/HEAD/OPTIONS → 403 AUTH-104 while the office's subscription has ended (read-only mode), or AUTH-105
+ * while its deletion is scheduled (D-251), unless the route is `@AllowWhenReadOnly()`. Public routes and the platform realm are not concerned; any realm acting for an office
  * (office staff now, portal clients later) is. Entitlements are loaded only when a
  * check applies (a write or a gated route).
  */
@@ -40,9 +51,7 @@ export class SubscriptionGuard implements CanActivate {
     if (feature && !entitlements.features[feature]) {
       throw new AppException('AUTH-102', `Plan does not include ${feature}`);
     }
-    if (write && entitlements.readOnly) {
-      throw new AppException('AUTH-104', 'Subscription ended: the office is read-only');
-    }
+    if (write) assertWritable(entitlements);
     return true;
   }
 

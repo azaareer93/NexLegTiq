@@ -370,6 +370,13 @@ model Office {
   currency           String         @default("ILS") @db.Char(3)
   timezone           String         @default("Asia/Hebron")
   isActive           Boolean        @default(true) @map("is_active")
+  /// Office deletion (MVP-152, D-251): set by the request, cleared by a cancel; read-only until the purge runs.
+  deletionRequestedAt  DateTime?    @map("deletion_requested_at") @db.Timestamptz(3)
+  deletionScheduledFor DateTime?    @map("deletion_scheduled_for") @db.Timestamptz(3)
+  /// When the purge ran: only this row, settings, anonymized audit, subscriptions, payments and retained invoices remain.
+  purgedAt           DateTime?      @map("purged_at") @db.Timestamptz(3)
+  /// Set by the purge: retained invoices and the anonymized audit log are kept until then (one clock, D-251).
+  recordsRetainedUntil DateTime?    @map("records_retained_until") @db.Timestamptz(3)
   createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt          DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -424,6 +431,7 @@ model Office {
   documentVersions       DocumentVersion[]
   documentTexts          DocumentText[]
   productEvents          ProductEvent[]
+  retainedInvoices       RetainedInvoice[]
 
   @@map("offices")
 }
@@ -1872,6 +1880,8 @@ model AuditLog {
   platformAdminId String?     @map("platform_admin_id") @db.Uuid
   /// A client-portal user's sign-in or sign-out (D-158); one row per office they have access to.
   clientUserId    String?     @map("client_user_id") @db.Uuid
+  /// After the office's purge: its pseudonymous actor ("User 1", "Client 1"), stable within the office (D-251).
+  actorRef        String?     @map("actor_ref")
   entityType      String      @map("entity_type")
   entityId        String?     @map("entity_id") @db.Uuid
   action          AuditAction
@@ -2257,4 +2267,21 @@ enum ProductEventType {
   INVITE_SENT
   PORTAL_INVITE_SENT
   APP_ACTIVE
+}
+
+/// An issued invoice kept after its office was purged (MVP-152, D-251): the invoice as issued (office name and tax id,
+/// client name, dates, lines, totals; decimals as strings) until `retainUntil`, then the daily purge deletes it.
+model RetainedInvoice {
+  id            String   @id @default(uuid(7)) @db.Uuid
+  officeId      String   @map("office_id") @db.Uuid
+  invoiceNumber String   @map("invoice_number")
+  snapshot      Json
+  retainUntil   DateTime @map("retain_until") @db.Timestamptz(3)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  office Office @relation(fields: [officeId], references: [id])
+
+  @@unique([officeId, invoiceNumber])
+  @@index([retainUntil])
+  @@map("retained_invoices")
 }

@@ -21,6 +21,7 @@ export * from './legal-file-type.contract.js';
 export * from './locale.contract.js';
 export * from './note.contract.js';
 export * from './notification.contract.js';
+export * from './office-deletion.contract.js';
 export * from './office-export.contract.js';
 export * from './office.contract.js';
 export * from './onboarding.contract.js';

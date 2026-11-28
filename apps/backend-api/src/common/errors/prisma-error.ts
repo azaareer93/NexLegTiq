@@ -19,8 +19,19 @@ export function isPrismaError(error: unknown): error is Error & { code?: unknown
   return error instanceof Error && PRISMA_ERROR_NAMES.has(error.name);
 }
 
-/** api-conventions.md: P2002 → RES-002, P2025 → RES-001, P2034 → RES-003, anything else → DB-001. */
-export function mapPrismaError(error: Error & { code?: unknown }): PrismaErrorCode {
+/** PostgreSQL's own code under a driver-adapter error (`meta.driverAdapterError.cause.originalCode`), if any. */
+function postgresCode(error: { meta?: unknown }): unknown {
+  const meta = error.meta as
+    { driverAdapterError?: { cause?: { originalCode?: unknown } } } | undefined;
+  return meta?.driverAdapterError?.cause?.originalCode;
+}
+
+/**
+ * api-conventions.md: P2002 → RES-002, P2025 → RES-001, P2034 → RES-003, a lock wait that hit `lock_timeout` (PostgreSQL
+ * 55P03, only where a transaction sets one) → RES-003, anything else → DB-001.
+ */
+export function mapPrismaError(error: Error & { code?: unknown; meta?: unknown }): PrismaErrorCode {
   const mapped = typeof error.code === 'string' ? KNOWN_CODE_MAP[error.code] : undefined;
-  return mapped ?? 'DB-001';
+  if (mapped) return mapped;
+  return postgresCode(error) === '55P03' ? 'RES-003' : 'DB-001';
 }

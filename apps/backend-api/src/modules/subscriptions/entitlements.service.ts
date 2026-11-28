@@ -39,8 +39,15 @@ export class EntitlementsService {
     const hit = this.cache.get(officeId);
     if (hit && hit.until > now) return hit.value;
     this.cache.delete(officeId);
-    const rows = await this.subscriptions.subscriptionOf(officeId);
-    const value = resolveEntitlements(rows, new Date(now));
+    const [rows, deletionScheduledFor] = await Promise.all([
+      this.subscriptions.subscriptionOf(officeId),
+      this.subscriptions.deletionScheduledFor(officeId),
+    ]);
+    const resolved = resolveEntitlements(rows, new Date(now));
+    // A scheduled deletion makes the office read-only whatever its plan (D-251).
+    const value = deletionScheduledFor
+      ? { ...resolved, readOnly: true, deletionScheduledFor }
+      : resolved;
     this.cache.set(officeId, { value, until: now + CACHE_MS });
     return value;
   }

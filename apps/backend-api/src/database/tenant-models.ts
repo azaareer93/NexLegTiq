@@ -60,6 +60,8 @@ export const TENANT_MODELS = [
   'ClientUpload',
   // Product analytics (D-215): written unscoped by office id, read by the platform realm as counts.
   'ProductEvent',
+  // A purged office's issued invoices (D-251): written and deleted only by the purge job, by office id.
+  'RetainedInvoice',
 ] as const satisfies readonly Prisma.ModelName[];
 
 export type TenantModel = (typeof TENANT_MODELS)[number];

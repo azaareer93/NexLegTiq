@@ -31,6 +31,7 @@ import { LegalFileTypesModule } from '../modules/legal-file-types/legal-file-typ
 import { LegalFilesModule } from '../modules/legal-files/legal-files.module';
 import { NotesModule } from '../modules/notes/notes.module';
 import { NotificationsModule } from '../modules/notifications/notifications.module';
+import { OfficeDeletionModule } from '../modules/office-deletion/office-deletion.module';
 import { OfficesModule } from '../modules/offices/offices.module';
 import { PartiesModule } from '../modules/parties/parties.module';
 import { PlatformAuthModule } from '../modules/platform-auth/platform-auth.module';
@@ -87,6 +88,7 @@ import { WitnessesModule } from '../modules/witnesses/witnesses.module';
     LegalFileTypesModule,
     LegalFilesModule,
     OfficesModule,
+    OfficeDeletionModule,
     SessionsModule,
     DocumentsModule,
     TasksModule,

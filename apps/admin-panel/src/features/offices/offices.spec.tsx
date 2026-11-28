@@ -3,6 +3,7 @@ import { LANGUAGE_STORAGE_KEY, NexProvider } from '@nexlegtiq/shared-ui';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import axe from 'axe-core';
+import dayjs from 'dayjs';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { createMemoryRouter, RouterProvider } from 'react-router';
@@ -46,6 +47,7 @@ const DETAIL = {
     },
   ],
   suspension: null,
+  deletion: null,
   statistics: {
     signedIn30d: 1,
     filesByStatus: { OPEN: 1, SUSPENDED: 0, CLOSED: 0, ARCHIVED: 0 },
@@ -258,6 +260,116 @@ describe('office detail', () => {
     expect(screen.getByTestId(`office-at-risk-${ID}`).textContent).toBe('Needs follow-up');
     expect(screen.getByTestId('office-subscriptions').textContent).toContain('Free plan');
     expect(screen.queryByTestId('office-suspension')).toBeNull();
+    expect(screen.queryByTestId('office-deletion')).toBeNull();
+  });
+
+  it(
+    'should show a scheduled deletion, need a date to bring it forward, and cancel it with a reason (D-251)',
+    { timeout: 30_000 },
+    async () => {
+      const deleting = {
+        ...DETAIL,
+        deletion: {
+          requestedAt: '2026-11-27T10:00:00.000Z',
+          scheduledFor: '2026-12-27T10:00:00.000Z',
+          purgedAt: null,
+        },
+      };
+      const posts = detailServer(deleting);
+      server.use(
+        http.post(api(`admin/offices/${ID}/deletion/cancel`), async ({ request }) => {
+          posts.push({ path: 'cancel', body: await request.json() });
+          return ok(DETAIL);
+        }),
+      );
+      renderAt(`/offices/${ID}`);
+      expect((await screen.findByTestId('office-deletion')).textContent).toContain(
+        'Deletion scheduled from',
+      );
+
+      fireEvent.click(screen.getByTestId('deletion-reschedule'));
+      fireEvent.change(await screen.findByTestId('deletion-reason'), {
+        target: { value: 'Letter ref 12' },
+      });
+      fireEvent.click(screen.getByTestId('deletion-action-confirm'));
+      await waitFor(() =>
+        expect(document.querySelector('.ant-form-item-explain-error')).toBeTruthy(),
+      );
+      expect(posts).toEqual([]);
+    },
+  );
+
+  it(
+    "should bring the deletion forward to the date picked, with the office's written request as reason (D-251)",
+    { timeout: 30_000 },
+    async () => {
+      // Relative to today, so the test never ages out: scheduled in 30 days, brought forward to 5 days from now.
+      const scheduled = dayjs().add(30, 'day').startOf('minute');
+      const sooner = dayjs().add(5, 'day').startOf('minute');
+      const deleting = {
+        ...DETAIL,
+        deletion: { requestedAt: null, scheduledFor: scheduled.toISOString(), purgedAt: null },
+      };
+      const posts = detailServer(deleting);
+      server.use(
+        http.post(api(`admin/offices/${ID}/deletion/reschedule`), async ({ request }) => {
+          posts.push({ path: 'reschedule', body: await request.json() });
+          return ok({
+            ...deleting,
+            deletion: { ...deleting.deletion, scheduledFor: sooner.toISOString() },
+          });
+        }),
+      );
+      renderAt(`/offices/${ID}`);
+      fireEvent.click(await screen.findByTestId('deletion-reschedule'));
+      const date = await screen.findByTestId('deletion-date');
+      fireEvent.mouseDown(date);
+      fireEvent.change(date, { target: { value: sooner.format('DD/MM/YYYY HH:mm') } });
+      fireEvent.keyDown(date, { key: 'Enter', code: 'Enter', keyCode: 13 });
+      fireEvent.change(screen.getByTestId('deletion-reason'), {
+        target: { value: 'Office letter of 27/11, ref 12' },
+      });
+      fireEvent.click(screen.getByTestId('deletion-action-confirm'));
+      await waitFor(() =>
+        expect(posts).toEqual([
+          {
+            path: 'reschedule',
+            body: { reason: 'Office letter of 27/11, ref 12', scheduledFor: sooner.toISOString() },
+          },
+        ]),
+      );
+      await waitFor(() => expect(screen.queryByTestId('deletion-reason')).toBeNull());
+    },
+  );
+
+  it('should cancel a scheduled deletion with a reason (D-251)', { timeout: 30_000 }, async () => {
+    const posts = detailServer({
+      ...DETAIL,
+      deletion: { requestedAt: null, scheduledFor: '2026-12-27T10:00:00.000Z', purgedAt: null },
+    });
+    server.use(
+      http.post(api(`admin/offices/${ID}/deletion/cancel`), async ({ request }) => {
+        posts.push({ path: 'cancel', body: await request.json() });
+        return ok(DETAIL);
+      }),
+    );
+    renderAt(`/offices/${ID}`);
+    fireEvent.click(await screen.findByTestId('deletion-cancel'));
+    fireEvent.change(await screen.findByTestId('deletion-reason'), {
+      target: { value: 'Office changed its mind' },
+    });
+    fireEvent.click(screen.getByTestId('deletion-action-confirm'));
+    await waitFor(() => expect(screen.queryByTestId('office-deletion')).toBeNull());
+    expect(posts).toEqual([{ path: 'cancel', body: { reason: 'Office changed its mind' } }]);
+  });
+
+  it('should show when a purged office was deleted', async () => {
+    detailServer({
+      ...DETAIL,
+      deletion: { requestedAt: null, scheduledFor: null, purgedAt: '2026-12-27T10:00:00.000Z' },
+    });
+    renderAt(`/offices/${ID}`);
+    expect((await screen.findByTestId('office-purged')).textContent).toContain('Deleted');
   });
 
   it(

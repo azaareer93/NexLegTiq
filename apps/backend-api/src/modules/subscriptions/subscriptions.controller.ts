@@ -31,6 +31,7 @@ export class SubscriptionsController {
       plan: e.plan,
       status: e.status,
       readOnly: e.readOnly,
+      deletionScheduledFor: e.deletionScheduledFor?.toISOString() ?? null,
       periodEnd: e.periodEnd?.toISOString() ?? null,
       trialEndsAt: e.trialEndsAt?.toISOString() ?? null,
       features: e.features,

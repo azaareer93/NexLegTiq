@@ -25,6 +25,8 @@ export interface Entitlements {
   readonly status: SubscriptionStatus;
   /** GETs only: writes are refused with 403 AUTH-104. */
   readonly readOnly: boolean;
+  /** Set while the office's deletion is scheduled (D-251): read-only too, writes refused with 403 AUTH-105. */
+  readonly deletionScheduledFor: Date | null;
   readonly periodEnd: Date | null;
   readonly trialEndsAt: Date | null;
   readonly maxUsers: number | null;
@@ -46,6 +48,7 @@ const NO_SUBSCRIPTION: Entitlements = {
   plan: null,
   status: 'EXPIRED',
   readOnly: true,
+  deletionScheduledFor: null,
   periodEnd: null,
   trialEndsAt: null,
   maxUsers: 0,
@@ -71,6 +74,7 @@ export function resolveEntitlements(rows: readonly SubscriptionRow[], now: Date)
     plan: { code: row.plan.code, name: row.plan.name },
     status,
     readOnly: !FULL_ACCESS.has(status),
+    deletionScheduledFor: null,
     periodEnd: row.currentPeriodEnd,
     trialEndsAt: row.trialEndsAt,
     maxUsers: row.plan.maxUsers,

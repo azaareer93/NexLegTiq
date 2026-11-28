@@ -1,13 +1,20 @@
 import {
+  OfficeDeletionStatusSchema,
   OfficeExportDownloadSchema,
   OfficeExportSchema,
   UserExportSchema,
 } from '@nexlegtiq/shared-contracts';
-import type { OfficeExport, OfficeExportDownload, UserExport } from '@nexlegtiq/shared-contracts';
+import type {
+  OfficeDeletionStatus,
+  OfficeExport,
+  OfficeExportDownload,
+  RequestOfficeDeletionRequest,
+  UserExport,
+} from '@nexlegtiq/shared-contracts';
 
 import type { ApiClient } from './api-client.js';
 
-/** Data exports (D-184): the office's ZIP and the user's own data. */
+/** Data rights (D-184, D-251): the office's ZIP export, the user's own data, and the office's deletion. */
 export function exportsApi(client: ApiClient) {
   return {
     requestOffice: (): Promise<OfficeExport> =>
@@ -24,5 +31,20 @@ export function exportsApi(client: ApiClient) {
       ),
     mine: (): Promise<UserExport> =>
       client.request({ method: 'GET', path: 'users/me/export' }, UserExportSchema),
+    deletion: (signal?: AbortSignal): Promise<OfficeDeletionStatus> =>
+      client.request(
+        { method: 'GET', path: 'offices/me/delete-request', signal },
+        OfficeDeletionStatusSchema,
+      ),
+    requestDeletion: (body: RequestOfficeDeletionRequest): Promise<OfficeDeletionStatus> =>
+      client.request(
+        { method: 'POST', path: 'offices/me/delete-request', body },
+        OfficeDeletionStatusSchema,
+      ),
+    cancelDeletion: (): Promise<OfficeDeletionStatus> =>
+      client.request(
+        { method: 'POST', path: 'offices/me/delete-request/cancel' },
+        OfficeDeletionStatusSchema,
+      ),
   };
 }
